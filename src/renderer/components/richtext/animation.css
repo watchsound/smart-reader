@@ -1,0 +1,228 @@
+/* ApplyWave */
+@keyframes wave {
+  0% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+  100% { transform: translateY(0); }
+}
+
+.apply-wave {
+  display: inline-block;
+  animation: wave 1s ease-in-out;
+  animation-iteration-count: 2;
+}
+
+/* Circumscribe */
+@keyframes circumscribe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.circumscribe {
+  position: relative;
+  display: inline-block;
+}
+
+.circumscribe::after {
+  content: '';
+  position: absolute;
+  top: -5px;
+  left: -5px;
+  width: calc(100% + 10px);
+  height: calc(100% + 10px);
+  border: 2px solid red;
+  border-radius: 5px;
+  animation: circumscribe 1.5s ease-in-out;
+  animation-iteration-count: 2;
+}
+
+/* Flash */
+@keyframes flash {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.flash {
+  animation: flash 0.5s ease-in-out;
+  animation-iteration-count: 2;
+}
+
+/* Focus On */
+.focus-on {
+  position: relative;
+  z-index: 10;
+  background: yellow;
+  transition: background 0.3s ease-in-out;
+}
+
+/* Indicate */
+@keyframes indicate {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+.indicate {
+  position: relative;
+  display: inline-block;
+}
+
+.indicate::after {
+  content: '';
+  position: absolute;
+  top: -5px;
+  left: -5px;
+  width: calc(100% + 10px);
+  height: calc(100% + 10px);
+  border: 2px solid blue;
+  border-radius: 5px;
+  animation: indicate 1s ease-in-out;
+  animation-iteration-count: 2;
+}
+
+/* ShowPassingFlash */
+@keyframes passing-flash {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.show-passing-flash {
+  animation: passing-flash 0.5s linear 1;
+}
+
+/* ShowPassingFlashWithThinningStrokeWidth */
+@keyframes passing-flash-thin {
+  0% { opacity: 1; stroke-width: 5px; }
+  100% { opacity: 0; stroke-width: 1px; }
+}
+
+.show-passing-flash-thin {
+  animation: passing-flash-thin 0.5s linear 1;
+}
+
+/* Wiggle */
+@keyframes wiggle {
+  0%, 100% { transform: rotate(0); }
+  25% { transform: rotate(5deg); }
+  75% { transform: rotate(-5deg); }
+}
+
+.wiggle {
+  display: inline-block;
+  animation: wiggle 0.5s ease-in-out;
+  animation-iteration-count: 2;
+}
+
+/* Underline */
+@keyframes underline {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+.underline {
+  position: relative;
+  display: inline-block;
+}
+
+.underline::after {
+  content: '';
+  position: absolute;
+  bottom: -2px; /* Adjust based on your text */
+  left: 0;
+  width: 100%;
+  height: 2px; /* Adjust based on your preference */
+  background: currentColor;
+  animation: underline 0.5s ease-in-out forwards;
+}
+
+/**
+  <span class="fade-in">Hello</span>
+  <span class="fade-in">world!</span>
+**/
+
+.fade-in {
+    opacity: 0;
+    animation: fadeIn 2s forwards;
+}
+
+@keyframes fadeIn {
+    to {
+        opacity: 1;
+    }
+}
+
+
+/**
+   <span class="fly-in fly-in-left">Hello</span>
+   <span class="fly-in fly-in-right">world!</span>
+   <span class="fly-in fly-in-up" style="animation-delay: 0s;">Hello world!</span>
+
+**/
+
+.fly-in {
+    opacity: 0;
+    position: relative;
+}
+
+.fly-in-left {
+    animation: flyInLeft 2s forwards;
+}
+
+.fly-in-right {
+    animation: flyInRight 2s forwards;
+}
+
+.fly-in-up {
+    animation: flyInUp 2s forwards;
+}
+
+.fly-in-down {
+    animation: flyInDown 2s forwards;
+}
+
+@keyframes flyInLeft {
+    from {
+        transform: translateX(-100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes flyInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes flyInUp {
+    from {
+        transform: translateY(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+@keyframes flyInDown {
+    from {
+        transform: translateY(-100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+

@@ -48,7 +48,7 @@ const configuration: webpack.Configuration = {
   entry: [
     `webpack-dev-server/client?http://localhost:${port}/dist`,
     'webpack/hot/only-dev-server',
-    path.join(webpackPaths.srcRendererPath, 'index.tsx'),
+    path.join(webpackPaths.srcRendererPath, 'main.jsx'),
   ],
 
   output: {
@@ -151,7 +151,7 @@ const configuration: webpack.Configuration = {
 
     new HtmlWebpackPlugin({
       filename: path.join('index.html'),
-      template: path.join(webpackPaths.srcRendererPath, 'index.ejs'),
+      template: path.join(webpackPaths.srcRendererPath, 'index.html'),
       minify: {
         collapseWhitespace: true,
         removeAttributeQuotes: true,

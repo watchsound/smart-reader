@@ -1,0 +1,13 @@
+.box-container {
+    min-height: 320px; /* Set a minimum height for the box */
+    /* max-height: 400px;  Set a max height for the box */
+    overflow-y: auto;
+    overflow-x: hidden; /* Allow scrolling if content exceeds max height */
+    padding: 16px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    background-color: #f9f9f9;
+    margin-bottom: 16px;
+    display: flex;
+    flex-direction: column;
+}

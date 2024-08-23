@@ -25,7 +25,7 @@ const configuration: webpack.Configuration = {
 
   target: ['web', 'electron-renderer'],
 
-  entry: [path.join(webpackPaths.srcRendererPath, 'index.tsx')],
+  entry: [path.join(webpackPaths.srcRendererPath, 'main.jsx')],
 
   output: {
     path: webpackPaths.distRendererPath,
@@ -122,7 +122,7 @@ const configuration: webpack.Configuration = {
 
     new HtmlWebpackPlugin({
       filename: 'index.html',
-      template: path.join(webpackPaths.srcRendererPath, 'index.ejs'),
+      template: path.join(webpackPaths.srcRendererPath, 'index.html'),
       minify: {
         collapseWhitespace: true,
         removeAttributeQuotes: true,

@@ -1,0 +1,21 @@
+.book-card-enter {
+  opacity: 0;
+  transform: scale(0.9);
+}
+
+.book-card-enter-active {
+  opacity: 1;
+  transform: scale(1);
+  transition: opacity 1300ms, transform 1300ms;
+}
+
+.book-card-exit {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.book-card-exit-active {
+  opacity: 0;
+  transform: scale(0.9);
+  transition: opacity 1300ms, transform 1300ms;
+}

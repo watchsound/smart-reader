@@ -1,0 +1,130 @@
+.note_header {
+    background: rgba(176,196,222, 0.1);
+    backdrop-filter: blur(5px);
+    width: calc(100% - 20px);
+    padding-left: 10px;
+    padding-right: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.note__main {
+ /* background-image: url("https://i.ibb.co/cbHkZjQ/background.jpg"); */
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+.note {
+    background: rgba(176,196,222, 0.1);
+    backdrop-filter: blur(5px);
+    box-shadow: inset -6px -4px 2px rgba(2176,196,222, 0.03);
+    border-radius: 15px;
+    border: 1.5px solid rgba(176,196,222, 0.326);
+    color: #000;
+    padding: 15px;
+    min-height: 140px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    word-wrap: break-word;
+    position: relative;
+}
+.note_bottom {
+    position: absolute;
+    bottom: 1px;
+    left: 1px;
+    right: 1px ;
+    width: calc(100% - 2px);
+}
+
+.note__bottom_row_wrap {
+    position: relative
+}
+
+.note__bottom_row {
+    width: 100%;
+    clear: both;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.note__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 5px;
+}
+
+.note textarea {
+    white-space: pre-wrap;
+    background: transparent;
+    border: none;
+    color: #000;
+    resize: none;
+    font-size: 18px;
+}
+
+.note textarea:focus {
+    outline: none;
+}
+
+.note textarea::placeholder {
+    color: #000;
+}
+
+.note__save {
+    background: transparent;
+    transition: 0.1s ease-in-out;
+    border: 1.5px solid #fff;
+    border-radius: 10px;
+    color: #000;
+    padding: 4px 10px;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.note__save:hover {
+    background: #000;
+    border: 1.5px solid #000;
+    color: #4b1589;
+}
+
+.note__edit {
+    cursor: pointer;
+}
+
+.note__edit:hover {
+    transform: scale(1.1);
+}
+
+.note__delete {
+    cursor: pointer;
+}
+
+.note__delete:hover {
+    transform: scale(1.1);
+}
+
+.char__progress {
+    background-color: #fff!important;
+}
+
+.note__body {
+  width: 100%;
+  border-radius: 1!important;
+}
+
+
+
+.row_container {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.row {
+  flex: 1 0 100%;
+}

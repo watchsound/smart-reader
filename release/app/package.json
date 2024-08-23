@@ -1,11 +1,11 @@
 {
-  "name": "electron-react-boilerplate",
-  "version": "4.6.0",
-  "description": "A foundation for scalable desktop apps",
+  "name": "smart-reader",
+  "version": "1.0.2",
+  "description": "AI powered smart reader",
   "license": "MIT",
   "author": {
-    "name": "Electron React Boilerplate Maintainers",
-    "email": "electronreactboilerplate@gmail.com",
+    "name": "grandteton",
+    "email": "grandteton@gmail.com",
     "url": "https://github.com/electron-react-boilerplate"
   },
   "main": "./dist/main/main.js",
@@ -14,5 +14,8 @@
     "postinstall": "npm run rebuild && npm run link-modules",
     "link-modules": "node -r ts-node/register ../../.erb/scripts/link-modules.ts"
   },
-  "dependencies": {}
+  "dependencies": {
+    "better-sqlite3": "^11.1.2",
+    "chromadb": "^1.8.1"
+  }
 }

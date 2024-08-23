@@ -1,0 +1,7 @@
+/*
+ * videojs-contrib-r9
+ * @version 6.6.1
+ * @copyright 2018 ...
+ * @license Apache-2.0
+ */
+.vjs-r9-playing.vjs-r9-playing .vjs-progress-control{pointer-events:none}.vjs-r9-playing.vjs-r9-playing .vjs-play-progress{background-color:#ffe400}.vjs-r9-loading .vjs-loading-spinner{display:block;visibility:visible}.vjs-r9-playing .vjs-captions-button{display:none}.vjs-r9-playing .vjs-audio-button{display:none}.vjs-r9-loading .vjs-loading-spinner:before,.vjs-r9-loading .vjs-loading-spinner:after{-webkit-animation:vjs-spinner-spin 1.1s cubic-bezier(0.6, 0.2, 0, 0.8) infinite,vjs-spinner-fade 1.1s linear infinite;animation:vjs-spinner-spin 1.1s cubic-bezier(0.6, 0.2, 0, 0.8) infinite,vjs-spinner-fade 1.1s linear infinite}.vjs-r9-loading .vjs-loading-spinner:before{border-top-color:#fff}.vjs-r9-loading .vjs-loading-spinner:after{border-top-color:#fff;-webkit-animation-delay:0.44s;animation-delay:0.44s}.vjs-r9-loading .vjs-big-play-button,.vjs-r9-loading .vjs-poster,.vjs-r9-content-resuming .vjs-big-play-button,.vjs-r9-content-resuming .vjs-poster{display:none}
