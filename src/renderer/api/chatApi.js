@@ -9,6 +9,16 @@ export async function getPinnedChats( ) {
   const r = await customStorage.getPinnedChats( );
   return r ?? null;
 }
+export async function getPinnedLearnAbout() {
+  const r = await customStorage.getPinnedLearnAbout();
+  return r ?? null;
+}
+
+;
+export async function getLearnAboutByQuery({ query, page, limit }) {
+  const r = await customStorage.getLearnAboutByQuery({ query, page, limit });
+  return r ?? null;
+}
 
 export async function getChatsByQuery({query, page, limit}) {
   const r = await customStorage.getChatsByQuery({query, page, limit});
@@ -172,7 +182,7 @@ export async function getMessageById( id) {
   // return r ?? null;
 }
 
-export async function createMessage(message) {
+export async function createMessage(message) { console.log("create message")
   const r = await customStorage.createMessage( message );
   return r ?? null;
   // if (typeof message.id === 'undefined')

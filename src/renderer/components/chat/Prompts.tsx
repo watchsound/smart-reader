@@ -26,7 +26,7 @@ import { createChat, createMessage, updateChatTokenUsage, getPromptsByQuery } fr
 import { Prompt } from '../../../commons/model/chat';
 
 import { chatAdded, chatHandled, messageAdded, chatUpdated, promptQueried } from '../../store/reducers/chatSlice';
-import aiProviderManager from '../../../commons/service/AIProviderManager';
+import { instanceInRender as aiProviderManager } from '../../../commons/service/AIProviderManager';
 
 const ScrollPane = styled('div')(({ theme }) => ({
   overflowX: 'hidden',

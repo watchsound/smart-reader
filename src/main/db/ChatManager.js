@@ -5,6 +5,7 @@ CREATE TABLE "chat" (
   "id"  INTEGER PRIMARY KEY,
   "description"  TEXT,
   "total_tokens"  INTEGER,
+  "learn_about"  INTEGER,
   "created_at" TEXT,
   "pinned" INTEGER,
   "auto_delete" INTEGER,
@@ -33,6 +34,7 @@ export const getChatById = (id, token) => {
       id : chat.id,
       description:  chat.description || '',
       totalTokens: chat.totalTokens || 0,
+      learnAbout: chat.learn_about > 0,
       pinned: chat.pinned > 0,
       autoDelete: chat.auto_delete > 0,
       createdAt: chat.created_at || '',
@@ -64,12 +66,13 @@ export const createChat= (chat, token) => {
   const pinned = chat.pinned !== undefined && chat.pinned ? 1 : 0;
   const autoDelete = chat.autoDelete !== undefined && chat.autoDelete  ? 1 : 0;
   const createdAt =    chat.createdAt !== undefined ? chat.createdAt : '';
+  const learnAbout = chat.learnAbout !== undefined && chat.learnAbout ? 1 : 0;
  // const userId =    chat.userId !== undefined ? chat.userId : -1;
 
     const stmt = db.prepare(
-       `INSERT INTO chat (description, total_tokens, pinned, auto_delete, created_at, user_id) VALUES (?, ?, ?, ?, ?, ?)`
+       `INSERT INTO chat (description, total_tokens, pinned, auto_delete, learn_about, created_at, user_id) VALUES (?, ?, ?, ?, ?, ?, ?)`
     );
-    const result = stmt.run(description, totalTokens, pinned, autoDelete, createdAt, userId);
+    const result = stmt.run(description, totalTokens, pinned, autoDelete, learnAbout, createdAt, userId);
     // Execute the INSERT statement
     console.log("Inserted chat with ID:", result.lastInsertRowid);
     chat.id = result.lastInsertRowid;  // Assuming 'chat' is an object where you want to store the ID
@@ -85,7 +88,7 @@ export const createChat= (chat, token) => {
  * @param {*} token
  * @returns []
  */
-export const getChatsByQuery = (query, page, limit, token) => {
+const getChatsOrLearnAboutByQuery = (isChart, query, page, limit, token) => {
   const chats = [];
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
@@ -98,21 +101,22 @@ export const getChatsByQuery = (query, page, limit, token) => {
     };
   }
  try {
+     const conditionStr = isChart ? 'learn_about = 0' : 'learn_about > 0';
      const offset = (page - 1) * limit;
-      // Query to get the total number of records
-      const totalRecordsQuery = db.prepare('SELECT COUNT(*) AS total FROM chat WHERE user_id = ?');
+      const statementStr =  `SELECT COUNT(*) AS total FROM chat WHERE ${conditionStr} AND user_id = ?`;
+      const totalRecordsQuery = db.prepare(statementStr);
       const totalRecords = totalRecordsQuery.get(userId).total;
 
     let stmt = null;
     // Use concatenation in the parameters to handle the LIKE pattern
    // Make sure to declare the chats array if it's not already declared elsewhere
     if (query) {
-       stmt = db.prepare(`SELECT * FROM chat WHERE description LIKE ? AND pinned = 0 AND user_id = ?
+       stmt = db.prepare(`SELECT * FROM chat WHERE description LIKE ? AND  ${conditionStr} AND pinned = 0 AND user_id = ?
           ORDER BY created_at DESC
           LIMIT ? OFFSET ?`);
        stmt = stmt.iterate(`%${query}%`, userId, limit, offset);
     } else {
-       stmt = db.prepare(`SELECT * FROM chat WHERE user_id = ?  AND pinned = 0  ORDER BY created_at DESC
+       stmt = db.prepare(`SELECT * FROM chat WHERE user_id = ? AND ${conditionStr} AND pinned = 0  ORDER BY created_at DESC
           LIMIT ? OFFSET ?`);
        stmt = stmt.iterate(userId, limit, offset);
     }
@@ -122,6 +126,7 @@ export const getChatsByQuery = (query, page, limit, token) => {
             description: chat.description || '',
             totalTokens: chat.total_tokens || '', // Corrected property name from 'content' to 'total_tokens'
             pinned: chat.pinned > 0,
+            learnAbout: chat.learn_about > 0,
             autoDelete: chat.auto_delete > 0,
             createdAt: chat.created_at || '',
             userId: chat.user_id || 0,
@@ -143,7 +148,16 @@ export const getChatsByQuery = (query, page, limit, token) => {
     };
   }
 };
-export const getPinnedChats = (token) => {
+
+export const getChatsByQuery = (query, page, limit, token) => {
+  return getChatsOrLearnAboutByQuery(true, query, page, limit, token);
+}
+export const getLearnAboutByQuery = (query, page, limit, token) => {
+  return getChatsOrLearnAboutByQuery(false, query, page, limit, token);
+}
+
+
+const getPinnedChatsOrLearnAbout = (isChart, token) => {
   const chats = [];
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
@@ -156,14 +170,16 @@ export const getPinnedChats = (token) => {
     stmt = stmt.iterate(userId );
 
     for (const chat of stmt) {
+      if ((isChart && chat.learn_about===0) || (!isChart && chat.learn_about>0))
         chats.push({
-            id: chat.id,
-            description: chat.description || '',
-            totalTokens: chat.total_tokens || '', // Corrected property name from 'content' to 'total_tokens'
-            pinned: chat.pinned > 0,
-            autoDelete: chat.auto_delete > 0,
-            createdAt: chat.created_at || '',
-            userId: chat.user_id || 0,
+          id: chat.id,
+          description: chat.description || '',
+          totalTokens: chat.total_tokens || '', // Corrected property name from 'content' to 'total_tokens'
+          pinned: chat.pinned > 0,
+          learnAbout: chat.learn_about > 0,
+          autoDelete: chat.auto_delete > 0,
+          createdAt: chat.created_at || '',
+          userId: chat.user_id || 0,
         });
     }
     return chats;
@@ -172,6 +188,14 @@ export const getPinnedChats = (token) => {
     return [];
   }
 };
+
+export const getPinnedChats = (token) => {
+  return getPinnedChatsOrLearnAbout(true, token);
+};
+export const getPinnedLearnAbout = (token) => {
+  return getPinnedChatsOrLearnAbout(false, token);
+};
+
 /**
  *
  * @param {*} id

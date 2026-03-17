@@ -1,0 +1,781 @@
+/**
+ * Brain API - Renderer-side API for Learning Brain operations
+ *
+ * Usage:
+ *   import brainApi from '../api/brainApi';
+ *
+ *   // Get brain status
+ *   const status = await brainApi.getStatus();
+ *
+ *   // Trigger heartbeat manually
+ *   await brainApi.triggerHeartbeat();
+ *
+ *   // Record learning event
+ *   brainApi.recordEpisode({
+ *     eventType: 'REVIEW_COMPLETED',
+ *     payload: { conceptId: '123', rating: 3 }
+ *   });
+ */
+
+const { ipcRenderer } = window.electron || {};
+
+/**
+ * Brain API methods
+ */
+const brainApi = {
+  // ==================== Status & Info ====================
+
+  /**
+   * Get brain status
+   * @returns {Promise<Object>}
+   */
+  async getStatus() {
+    return ipcRenderer?.invoke('brain-get-status');
+  },
+
+  /**
+   * Get cached insights (quick, no re-analysis)
+   * @returns {Promise<Object|null>}
+   */
+  async getInsights() {
+    return ipcRenderer?.invoke('brain-get-insights');
+  },
+
+  /**
+   * Check if brain is enabled
+   * @returns {boolean}
+   */
+  isEnabled() {
+    return ipcRenderer?.sendSync('brain-is-enabled') ?? false;
+  },
+
+  // ==================== Heartbeat Control ====================
+
+  /**
+   * Trigger an immediate heartbeat
+   * @returns {Promise<Object>}
+   */
+  async triggerHeartbeat() {
+    return ipcRenderer?.invoke('brain-trigger-heartbeat');
+  },
+
+  /**
+   * Get time until next heartbeat
+   * @returns {Promise<Object|null>}
+   */
+  async getTimeUntilNext() {
+    return ipcRenderer?.invoke('brain-time-until-next');
+  },
+
+  // ==================== Episode Collection ====================
+
+  /**
+   * Record a learning episode
+   * @param {Object} episode
+   * @param {string} episode.eventType - Event type
+   * @param {Object} episode.payload - Event data
+   * @param {Object} episode.sourceContext - Context info
+   * @returns {Promise<Object>}
+   */
+  async recordEpisode(episode) {
+    return ipcRenderer?.invoke('brain-record-episode', episode);
+  },
+
+  /**
+   * Get recent episodes
+   * @param {Object} options
+   * @param {number} options.limit - Max episodes to return
+   * @returns {Promise<Array>}
+   */
+  async getEpisodes(options = {}) {
+    return ipcRenderer?.invoke('brain-get-episodes', options);
+  },
+
+  /**
+   * Get episodes by type
+   * @param {string} eventType
+   * @param {number} limit
+   * @returns {Promise<Array>}
+   */
+  async getEpisodesByType(eventType, limit = 50) {
+    return ipcRenderer?.invoke('brain-get-episodes-by-type', eventType, limit);
+  },
+
+  // ==================== Configuration ====================
+
+  /**
+   * Get brain configuration
+   * @returns {Promise<Object>}
+   */
+  async getConfig() {
+    return ipcRenderer?.invoke('brain-get-config');
+  },
+
+  /**
+   * Update brain configuration
+   * @param {Object} config
+   * @returns {Promise<Object>}
+   */
+  async setConfig(config) {
+    return ipcRenderer?.invoke('brain-set-config', config);
+  },
+
+  /**
+   * Enable/disable brain
+   * @param {boolean} enabled
+   * @returns {Promise<Object>}
+   */
+  async setEnabled(enabled) {
+    return ipcRenderer?.invoke('brain-set-enabled', enabled);
+  },
+
+  // ==================== Service Management ====================
+
+  /**
+   * Get background service status
+   * @returns {Promise<Object>}
+   */
+  async getServiceStatus() {
+    return ipcRenderer?.invoke('brain-service-status');
+  },
+
+  /**
+   * Install background service
+   * @returns {Promise<Object>}
+   */
+  async installService() {
+    return ipcRenderer?.invoke('brain-service-install');
+  },
+
+  /**
+   * Uninstall background service
+   * @returns {Promise<Object>}
+   */
+  async uninstallService() {
+    return ipcRenderer?.invoke('brain-service-uninstall');
+  },
+
+  /**
+   * Start background service
+   * @returns {Promise<Object>}
+   */
+  async startService() {
+    return ipcRenderer?.invoke('brain-service-start');
+  },
+
+  /**
+   * Stop background service
+   * @returns {Promise<Object>}
+   */
+  async stopService() {
+    return ipcRenderer?.invoke('brain-service-stop');
+  },
+
+  // ==================== Heartbeat History ====================
+
+  /**
+   * Get heartbeat history
+   * @param {number} limit
+   * @returns {Promise<Array>}
+   */
+  async getHeartbeatHistory(limit = 10) {
+    return ipcRenderer?.invoke('brain-get-heartbeat-history', limit);
+  },
+
+  // ==================== Memory Consolidation ====================
+
+  /**
+   * Trigger manual memory consolidation
+   * Consolidates recent learning episodes into higher-level memories using LLM
+   * @param {Object} options
+   * @param {string} options.token - User token
+   * @param {number} options.periodDays - Look-back period (default: 7)
+   * @param {number} options.minEpisodes - Min episodes to consolidate (default: 3)
+   * @returns {Promise<Object>}
+   */
+  async consolidateNow(options = {}) {
+    return ipcRenderer?.invoke('brain-consolidate-now', options);
+  },
+
+  /**
+   * Get consolidated memories with filters
+   * @param {Object} options
+   * @param {string} options.token - User token
+   * @param {string} options.conceptId - Filter by concept ID
+   * @param {string} options.conceptName - Filter by concept name
+   * @param {string} options.memoryType - Filter by memory type
+   * @param {string} options.startDate - Filter by start date
+   * @param {string} options.endDate - Filter by end date
+   * @param {number} options.limit - Max results (default: 50)
+   * @param {number} options.offset - Offset for pagination
+   * @returns {Promise<Array>}
+   */
+  async getConsolidatedMemories(options = {}) {
+    return ipcRenderer?.invoke('brain-get-memories', options);
+  },
+
+  /**
+   * Get a single consolidated memory by ID
+   * @param {string} id - Memory ID
+   * @param {string} token - User token
+   * @returns {Promise<Object|null>}
+   */
+  async getMemory(id, token) {
+    return ipcRenderer?.invoke('brain-get-memory', id, token);
+  },
+
+  /**
+   * Search consolidated memories
+   * @param {string} query - Search text
+   * @param {string} token - User token
+   * @param {number} limit - Max results (default: 20)
+   * @returns {Promise<Array>}
+   */
+  async searchMemories(query, token, limit = 20) {
+    return ipcRenderer?.invoke('brain-search-memories', query, token, limit);
+  },
+
+  /**
+   * Get consolidation statistics
+   * @param {string} token - User token
+   * @returns {Promise<Object>}
+   */
+  async getConsolidationStats(token) {
+    return ipcRenderer?.invoke('brain-get-consolidation-stats', token);
+  },
+
+  /**
+   * Delete a consolidated memory
+   * @param {string} id - Memory ID
+   * @param {string} token - User token
+   * @returns {Promise<Object>}
+   */
+  async deleteMemory(id, token) {
+    return ipcRenderer?.invoke('brain-delete-memory', id, token);
+  },
+
+  /**
+   * Delete old memories (maintenance)
+   * @param {number} olderThanDays - Delete memories older than this
+   * @param {string} token - User token
+   * @returns {Promise<Object>}
+   */
+  async deleteOldMemories(olderThanDays, token) {
+    return ipcRenderer?.invoke('brain-delete-old-memories', olderThanDays, token);
+  },
+
+  /**
+   * Get episode statistics (for consolidation UI)
+   * @param {number} userId - User ID (default: 1)
+   * @returns {Promise<Object>}
+   */
+  async getEpisodeStats(userId = 1) {
+    return ipcRenderer?.invoke('brain-get-episode-stats', userId);
+  },
+
+  // ==================== Cross-Concept Analysis ====================
+
+  /**
+   * Run cross-concept pattern analysis
+   * Detects relationships between concepts: prerequisites, interference, positive transfer
+   * @param {Object} options
+   * @param {number} options.userId - User ID (default: 1)
+   * @param {string} options.token - User token
+   * @param {number} options.lookbackDays - Look-back period (default: 30)
+   * @param {number} options.minEpisodes - Min episodes required (default: 10)
+   * @param {number} options.correlationThreshold - Min correlation for patterns (default: 0.6)
+   * @param {number} options.confidenceThreshold - Min confidence to report (default: 0.7)
+   * @param {Array<string>} options.enabledPatterns - Pattern categories to detect
+   * @returns {Promise<Object>}
+   */
+  async analyzeCrossConcept(options = {}) {
+    return ipcRenderer?.invoke('brain-analyze-cross-concept', options);
+  },
+
+  /**
+   * Get recent cross-concept patterns
+   * @param {string} token - User token
+   * @param {number} limit - Max patterns to return (default: 10)
+   * @returns {Promise<Array>}
+   */
+  async getCrossConceptPatterns(token, limit = 10) {
+    return ipcRenderer?.invoke('brain-get-cross-concept-patterns', token, limit);
+  },
+
+  /**
+   * Get pattern summary for a specific concept
+   * @param {string} conceptId - Concept ID
+   * @param {string} token - User token
+   * @returns {Promise<Object>}
+   */
+  async getConceptPatterns(conceptId, token) {
+    return ipcRenderer?.invoke('brain-get-concept-patterns', conceptId, token);
+  },
+
+  // ==================== Learner Profile Inference ====================
+
+  /**
+   * Run learner profile inference
+   * Analyzes learning behavior to infer style, preferences, and patterns
+   * @param {Object} options
+   * @param {number} options.userId - User ID (default: 1)
+   * @param {string} options.token - User token
+   * @param {number} options.lookbackDays - Look-back period (default: 30)
+   * @param {number} options.minSessions - Min sessions required (default: 3)
+   * @returns {Promise<Object>}
+   */
+  async inferProfile(options = {}) {
+    return ipcRenderer?.invoke('brain-infer-profile', options);
+  },
+
+  /**
+   * Get current learner profile (global + all domains)
+   * @param {string} token - User token
+   * @returns {Promise<Object>} { global, domains }
+   */
+  async getLearnerProfile(token) {
+    return ipcRenderer?.invoke('brain-get-learner-profile', token);
+  },
+
+  /**
+   * Get learner profile for a specific domain
+   * @param {string} domainType - Domain type (vocabulary, math, language, etc.)
+   * @param {string} token - User token
+   * @returns {Promise<Object|null>}
+   */
+  async getDomainProfile(domainType, token) {
+    return ipcRenderer?.invoke('brain-get-domain-profile', domainType, token);
+  },
+
+  /**
+   * Update learner profile manually
+   * @param {Object} updates - Profile updates
+   * @param {Object} updates.global - Global profile updates
+   * @param {Array} updates.domains - Domain profile updates
+   * @param {string} token - User token
+   * @returns {Promise<Object>}
+   */
+  async updateProfile(updates, token) {
+    return ipcRenderer?.invoke('brain-update-profile', updates, token);
+  },
+
+  // ==================== Learning Recommendations ====================
+
+  /**
+   * Get personalized learning recommendations based on patterns and profile
+   * @param {Object} options
+   * @param {number} options.userId - User ID (default: 1)
+   * @param {string} options.token - User token
+   * @returns {Promise<Object>} { scheduling, content, strategy }
+   */
+  async getRecommendations(options = {}) {
+    return ipcRenderer?.invoke('brain-get-recommendations', options);
+  },
+
+  /**
+   * Get optimal study times based on profile
+   * @param {string} token - User token
+   * @returns {Promise<Object>}
+   */
+  async getOptimalStudyTimes(token) {
+    return ipcRenderer?.invoke('brain-get-optimal-study-times', token);
+  },
+
+  /**
+   * Get concept relationship graph data for visualization
+   * @param {string} token - User token
+   * @param {number} limit - Max nodes/edges (default: 50)
+   * @returns {Promise<Object>} { nodes, edges }
+   */
+  async getConceptRelationships(token, limit = 50) {
+    return ipcRenderer?.invoke('brain-get-concept-relationships', token, limit);
+  },
+
+  // ==================== Predictive Insights ====================
+
+  /**
+   * Get full predictive insights (scheduling, content, strategy)
+   * @param {string} token - User token
+   * @param {Object} options
+   * @param {number} options.forecastDays - Days to forecast (default: 7)
+   * @returns {Promise<Object>} Full insights object
+   */
+  async getPredictiveInsights(token, options = {}) {
+    return ipcRenderer?.invoke('brain-get-predictive-insights', token, options);
+  },
+
+  /**
+   * Get scheduling insights only (when and how long to study)
+   * @param {string} token - User token
+   * @param {Object} options
+   * @returns {Promise<Object>} { optimalReviewTime, sessionDuration, dueItems, weeklyDistribution }
+   */
+  async getSchedulingInsights(token, options = {}) {
+    return ipcRenderer?.invoke('brain-get-scheduling-insights', token, options);
+  },
+
+  /**
+   * Get content insights only (what to study and in what order)
+   * @param {string} token - User token
+   * @param {Object} options
+   * @returns {Promise<Object>} { learningOrder, weakConcepts, transferOpportunities, interferences }
+   */
+  async getContentInsights(token, options = {}) {
+    return ipcRenderer?.invoke('brain-get-content-insights', token, options);
+  },
+
+  /**
+   * Get strategy insights only (spacing, anti-cramming, consistency)
+   * @param {string} token - User token
+   * @param {Object} options
+   * @returns {Promise<Object>} { crammingAnalysis, spacingAdvice, consistency, pacingAdvice }
+   */
+  async getStrategyInsights(token, options = {}) {
+    return ipcRenderer?.invoke('brain-get-strategy-insights', token, options);
+  },
+
+  /**
+   * Predict optimal review time based on learner profile
+   * @param {string} token - User token
+   * @returns {Promise<Object>} { preferredTimeOfDay, suggestedHours, confidence }
+   */
+  async predictOptimalTime(token) {
+    return ipcRenderer?.invoke('brain-predict-optimal-time', token);
+  },
+
+  /**
+   * Get forecast of due items for upcoming days
+   * @param {string} token - User token
+   * @param {Object} options
+   * @param {number} options.forecastDays - Days to forecast (default: 7)
+   * @returns {Promise<Object>} { todayCount, overdueCount, estimatedMinutes, byDay }
+   */
+  async getDueForecast(token, options = {}) {
+    return ipcRenderer?.invoke('brain-get-due-forecast', token, options);
+  },
+
+  /**
+   * Check for cramming behavior
+   * @param {string} token - User token
+   * @returns {Promise<Object>} { isCramming, recentCount, conceptsRepeated }
+   */
+  async detectCramming(token) {
+    return ipcRenderer?.invoke('brain-detect-cramming', token);
+  },
+
+  /**
+   * Analyze learning consistency (streaks, sessions per week)
+   * @param {string} token - User token
+   * @returns {Promise<Object>} { currentStreak, longestStreak, daysSinceLastSession }
+   */
+  async analyzeConsistency(token) {
+    return ipcRenderer?.invoke('brain-analyze-consistency', token);
+  },
+
+  /**
+   * Clear predictive insights cache
+   * @returns {Object} { success: boolean }
+   */
+  clearInsightsCache() {
+    return ipcRenderer?.sendSync('brain-clear-insights-cache');
+  },
+
+  /**
+   * Update predictive insights configuration
+   * @param {Object} config - New configuration
+   * @param {number} config.cacheExpiryMinutes - Cache expiry time
+   * @param {number} config.lookbackDays - Analysis lookback period
+   * @param {number} config.forecastDays - Forecast period
+   * @param {number} config.maxRecommendations - Max recommendations to return
+   * @returns {Object} { success: boolean }
+   */
+  updateInsightsConfig(config) {
+    return ipcRenderer?.sendSync('brain-update-insights-config', config);
+  },
+};
+
+/**
+ * Memory consolidation types
+ */
+export const MEMORY_TYPES = {
+  CONCEPT_SESSION: 'concept_session',
+  DAILY: 'daily',
+  WEEKLY: 'weekly',
+};
+
+/**
+ * Mastery assessment levels
+ */
+export const MASTERY_LEVELS = {
+  BEGINNER: 'beginner',
+  DEVELOPING: 'developing',
+  PROFICIENT: 'proficient',
+  MASTERED: 'mastered',
+};
+
+/**
+ * Learning style classifications
+ */
+export const LEARNING_STYLES = {
+  QUICK: 'quick',
+  STEADY: 'steady',
+  NEEDS_REPETITION: 'needs-repetition',
+  VARIABLE: 'variable',
+};
+
+/**
+ * Pattern types detected by cross-concept analysis
+ */
+export const PATTERN_TYPES = {
+  // Temporal patterns
+  OPTIMAL_TIME: 'OPTIMAL_TIME',
+  SESSION_DURATION: 'SESSION_DURATION',
+  VELOCITY_TREND: 'VELOCITY_TREND',
+  CRAMMING: 'CRAMMING',
+  SPACING: 'SPACING',
+
+  // Performance patterns
+  STRUGGLE: 'STRUGGLE',
+  RESPONSE_TIME: 'RESPONSE_TIME',
+  CONFIDENCE_CALIBRATION: 'CONFIDENCE_CALIBRATION',
+  MISTAKE_CLUSTER: 'MISTAKE_CLUSTER',
+  HINT_USAGE: 'HINT_USAGE',
+
+  // Cross-concept patterns
+  PREREQUISITE: 'PREREQUISITE',
+  INTERFERENCE: 'INTERFERENCE',
+  POSITIVE_TRANSFER: 'POSITIVE_TRANSFER',
+  CONCEPT_CLUSTER: 'CONCEPT_CLUSTER',
+  FORGETTING_CORRELATION: 'FORGETTING_CORRELATION',
+
+  // Behavioral patterns
+  SESSION_TRIGGER: 'SESSION_TRIGGER',
+  QUIT_SIGNAL: 'QUIT_SIGNAL',
+  CONTENT_PREFERENCE: 'CONTENT_PREFERENCE',
+  PACE_PREFERENCE: 'PACE_PREFERENCE',
+  GOAL_ORIENTATION: 'GOAL_ORIENTATION',
+};
+
+/**
+ * Pattern categories
+ */
+export const PATTERN_CATEGORIES = {
+  TEMPORAL: 'temporal',
+  PERFORMANCE: 'performance',
+  CROSS_CONCEPT: 'cross_concept',
+  BEHAVIORAL: 'behavioral',
+};
+
+/**
+ * Pattern priority levels
+ */
+export const PATTERN_PRIORITY = {
+  CRITICAL: 'critical',
+  HIGH: 'high',
+  MEDIUM: 'medium',
+  LOW: 'low',
+  INFO: 'info',
+};
+
+/**
+ * Domain types for learner profiles
+ */
+export const DOMAIN_TYPES = {
+  VOCABULARY: 'vocabulary',
+  MATH: 'math',
+  LANGUAGE: 'language',
+  KNOWLEDGE: 'knowledge',
+  SKILL: 'skill',
+  PROGRAMMING: 'programming',
+  SCIENCE: 'science',
+  HISTORY: 'history',
+};
+
+/**
+ * Recommendation types
+ */
+export const RECOMMENDATION_TYPES = {
+  SCHEDULE: 'schedule',
+  CONTENT: 'content',
+  STRATEGY: 'strategy',
+  WARNING: 'warning',
+  ENCOURAGEMENT: 'encouragement',
+};
+
+/**
+ * Recommendation priority levels
+ */
+export const RECOMMENDATION_PRIORITY = {
+  CRITICAL: 1,
+  HIGH: 2,
+  MEDIUM: 3,
+  LOW: 4,
+};
+
+/**
+ * Recommendation categories
+ */
+export const RECOMMENDATION_CATEGORIES = {
+  // Scheduling categories
+  TIMING: 'timing',
+  DURATION: 'duration',
+  WORKLOAD: 'workload',
+  DISTRIBUTION: 'distribution',
+
+  // Content categories
+  ORDER: 'order',
+  WEAKNESS: 'weakness',
+  SYNERGY: 'synergy',
+  INTERFERENCE: 'interference',
+  COVERAGE: 'coverage',
+
+  // Strategy categories
+  ANTI_CRAMMING: 'anti-cramming',
+  SPACING: 'spacing',
+  CONSISTENCY: 'consistency',
+  PACING: 'pacing',
+  BREAKS: 'breaks',
+};
+
+/**
+ * Prediction constants (matches PredictiveInsightsService)
+ */
+export const PREDICTION_CONSTANTS = {
+  // Forgetting curve parameters
+  DEFAULT_STABILITY: 1.0,
+  STABILITY_INCREASE_FACTOR: 2.0,
+  STABILITY_DECREASE_FACTOR: 0.5,
+  RETENTION_THRESHOLD: 0.85,
+
+  // Scheduling parameters
+  MIN_SESSION_MINUTES: 5,
+  MAX_SESSION_MINUTES: 60,
+  OPTIMAL_BREAK_INTERVAL: 25,
+
+  // Anti-cramming parameters
+  CRAMMING_THRESHOLD_HOURS: 2,
+  MIN_SPACING_HOURS: 4,
+  OPTIMAL_DAILY_NEW_ITEMS: 10,
+
+  // Consistency parameters
+  STREAK_BONUS_THRESHOLD: 7,
+  CONSISTENCY_WEIGHT: 0.3,
+};
+
+/**
+ * Episode event types
+ */
+export const EPISODE_TYPES = {
+  // Study Session Events
+  SESSION_STARTED: 'SESSION_STARTED',
+  SESSION_ENDED: 'SESSION_ENDED',
+
+  // Review Events
+  REVIEW_COMPLETED: 'REVIEW_COMPLETED',
+  REVIEW_SKIPPED: 'REVIEW_SKIPPED',
+
+  // Performance Events
+  QUIZ_TAKEN: 'QUIZ_TAKEN',
+  CONCEPT_STRUGGLED: 'CONCEPT_STRUGGLED',
+  CONCEPT_MASTERED: 'CONCEPT_MASTERED',
+  MASTERY_CHANGED: 'MASTERY_CHANGED',
+
+  // Content Events
+  BOOK_OPENED: 'BOOK_OPENED',
+  BOOK_COMPLETED: 'BOOK_COMPLETED',
+  NOTE_CREATED: 'NOTE_CREATED',
+  HIGHLIGHT_CREATED: 'HIGHLIGHT_CREATED',
+
+  // Goal Events
+  GOAL_SET: 'GOAL_SET',
+  GOAL_PROGRESS: 'GOAL_PROGRESS',
+  GOAL_COMPLETED: 'GOAL_COMPLETED',
+
+  // Streak Events
+  STREAK_EXTENDED: 'STREAK_EXTENDED',
+  STREAK_BROKEN: 'STREAK_BROKEN',
+};
+
+/**
+ * Helper to record common events
+ */
+export const recordEvent = {
+  /**
+   * Record review completed
+   * @param {Object} data
+   */
+  reviewCompleted(data) {
+    return brainApi.recordEpisode({
+      eventType: EPISODE_TYPES.REVIEW_COMPLETED,
+      payload: data,
+    });
+  },
+
+  /**
+   * Record session started
+   * @param {Object} data
+   */
+  sessionStarted(data) {
+    return brainApi.recordEpisode({
+      eventType: EPISODE_TYPES.SESSION_STARTED,
+      payload: data,
+    });
+  },
+
+  /**
+   * Record session ended
+   * @param {Object} data
+   */
+  sessionEnded(data) {
+    return brainApi.recordEpisode({
+      eventType: EPISODE_TYPES.SESSION_ENDED,
+      payload: data,
+    });
+  },
+
+  /**
+   * Record book opened
+   * @param {Object} data
+   */
+  bookOpened(data) {
+    return brainApi.recordEpisode({
+      eventType: EPISODE_TYPES.BOOK_OPENED,
+      payload: data,
+    });
+  },
+
+  /**
+   * Record note created
+   * @param {Object} data
+   */
+  noteCreated(data) {
+    return brainApi.recordEpisode({
+      eventType: EPISODE_TYPES.NOTE_CREATED,
+      payload: data,
+    });
+  },
+
+  /**
+   * Record mastery changed
+   * @param {Object} data
+   */
+  masteryChanged(data) {
+    return brainApi.recordEpisode({
+      eventType: EPISODE_TYPES.MASTERY_CHANGED,
+      payload: data,
+    });
+  },
+
+  /**
+   * Record quiz taken
+   * @param {Object} data
+   */
+  quizTaken(data) {
+    return brainApi.recordEpisode({
+      eventType: EPISODE_TYPES.QUIZ_TAKEN,
+      payload: data,
+    });
+  },
+};
+
+export default brainApi;

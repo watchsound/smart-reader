@@ -4,6 +4,7 @@ export class AIProviderInterface {
   constructor(timeGap, fullSupported) {
     this.timeGap = timeGap;
     this.fullSupported = fullSupported || false;
+    this.model = '';
   }
 
   timeElapseBetweenCalls() {

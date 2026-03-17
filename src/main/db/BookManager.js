@@ -45,7 +45,7 @@ const dbRowToBook = (card) => {
     path: card.path || '',
     charset: card.charset || '',
     favorite: card.favorite || 0,
-    bookshelfId: card.bookshelf_id  ,
+    bookshelfId: card.bookshelf_id ?? -1,
     createdAt: card.created_at || '',
     userId: card.user_id || 0,
   };
@@ -125,7 +125,7 @@ export const createBook = (book, token) => {
     const  format =    escapeString( book.format || '');
     const  publisher =   escapeString(  book.publisher || '');
     const  category =  escapeString(  book.category || '');
-    const  fromLibrary = book.fromLibrary ? 1 : 0,
+    const  fromLibrary = book.fromLibrary ? 1 : 0;
     const  size =   book.size || '';
     const  path =   book.path || '';
     const  charset =   book.charset || '';
@@ -141,7 +141,7 @@ export const createBook = (book, token) => {
     );
     const result = stmt.run();
     book.id = result.lastInsertRowid;
-    return getBookById(book.id);
+    return getBookById(book.id, token);
   } catch (err) {
     console.error(err);
   }

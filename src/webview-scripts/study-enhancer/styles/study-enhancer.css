@@ -1,0 +1,325 @@
+/**
+ * StudyEnhancer - CSS Styles for Effects
+ *
+ * All styles use 'se-' prefix to avoid conflicts with page styles.
+ */
+
+/* ============================================
+   Base Word Styles
+   ============================================ */
+
+.se-word {
+  /* Wrapped words are inline by default */
+  display: inline;
+  position: relative;
+}
+
+/* ============================================
+   Clone Overlay
+   ============================================ */
+
+#se-clone-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 999999;
+  overflow: visible;
+}
+
+.se-clone {
+  position: fixed;
+  margin: 0;
+  padding: 0;
+  pointer-events: none;
+  will-change: transform, opacity, left, top;
+  transform-origin: center center;
+}
+
+/* ============================================
+   Highlight Effect
+   ============================================ */
+
+.se-effect-highlight {
+  transition: background-color 0.3s ease-out, color 0.3s ease-out;
+}
+
+/* Preset highlight colors */
+.se-highlight-yellow {
+  background-color: rgba(255, 255, 0, 0.4) !important;
+}
+
+.se-highlight-green {
+  background-color: rgba(0, 255, 0, 0.3) !important;
+}
+
+.se-highlight-blue {
+  background-color: rgba(0, 150, 255, 0.3) !important;
+}
+
+.se-highlight-pink {
+  background-color: rgba(255, 100, 150, 0.3) !important;
+}
+
+.se-highlight-orange {
+  background-color: rgba(255, 165, 0, 0.4) !important;
+}
+
+/* ============================================
+   Fade In Effect
+   ============================================ */
+
+.se-effect-fadeIn {
+  display: inline-block;
+}
+
+/* ============================================
+   Flying Word Effect
+   ============================================ */
+
+.se-flying-word {
+  z-index: 999999;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.se-abstract-container {
+  z-index: 999998;
+  backdrop-filter: blur(5px);
+}
+
+/* ============================================
+   Pulse Animation
+   ============================================ */
+
+@keyframes se-pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.15);
+  }
+}
+
+.se-effect-pulse {
+  display: inline-block;
+  animation: se-pulse 0.6s ease-in-out;
+}
+
+/* ============================================
+   Shake Animation
+   ============================================ */
+
+@keyframes se-shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-4px);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(4px);
+  }
+}
+
+.se-effect-shake {
+  display: inline-block;
+  animation: se-shake 0.5s ease-in-out;
+}
+
+/* ============================================
+   Typewriter Cursor
+   ============================================ */
+
+@keyframes se-blink {
+  0%, 50% {
+    opacity: 1;
+  }
+  51%, 100% {
+    opacity: 0;
+  }
+}
+
+.se-cursor {
+  animation: se-blink 0.7s infinite;
+}
+
+/* ============================================
+   Underline Effect
+   ============================================ */
+
+.se-effect-underline {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+}
+
+.se-underline-wavy {
+  text-decoration-style: wavy !important;
+}
+
+.se-underline-dotted {
+  text-decoration-style: dotted !important;
+}
+
+.se-underline-dashed {
+  text-decoration-style: dashed !important;
+}
+
+/* ============================================
+   Focus Mode Effect
+   ============================================ */
+
+.se-dimmed {
+  opacity: 0.3;
+  transition: opacity 0.3s ease-out;
+}
+
+.se-focused {
+  opacity: 1;
+  position: relative;
+  z-index: 1;
+}
+
+/* ============================================
+   Vocabulary Highlight
+   ============================================ */
+
+.se-vocabulary {
+  background-color: rgba(100, 200, 255, 0.2);
+  border-bottom: 2px solid rgba(100, 200, 255, 0.6);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.se-vocabulary:hover {
+  background-color: rgba(100, 200, 255, 0.4);
+}
+
+/* Vocabulary difficulty levels */
+.se-vocab-easy {
+  border-bottom-color: #4CAF50;
+}
+
+.se-vocab-medium {
+  border-bottom-color: #FF9800;
+}
+
+.se-vocab-hard {
+  border-bottom-color: #F44336;
+}
+
+/* ============================================
+   Bounce Animation
+   ============================================ */
+
+@keyframes se-bounce {
+  0%, 20%, 53%, 80%, 100% {
+    transform: translateY(0);
+  }
+  40%, 43% {
+    transform: translateY(-15px);
+  }
+  70% {
+    transform: translateY(-7px);
+  }
+  90% {
+    transform: translateY(-3px);
+  }
+}
+
+.se-effect-bounce {
+  display: inline-block;
+  animation: se-bounce 1s ease;
+}
+
+/* ============================================
+   Glow Effect
+   ============================================ */
+
+@keyframes se-glow {
+  0%, 100% {
+    text-shadow: 0 0 5px rgba(255, 255, 0, 0.5);
+  }
+  50% {
+    text-shadow: 0 0 20px rgba(255, 255, 0, 0.8), 0 0 30px rgba(255, 200, 0, 0.6);
+  }
+}
+
+.se-effect-glow {
+  animation: se-glow 1.5s ease-in-out infinite;
+}
+
+/* ============================================
+   Reading Progress Indicator
+   ============================================ */
+
+.se-reading-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: rgba(0, 0, 0, 0.1);
+  z-index: 999990;
+}
+
+.se-reading-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #4CAF50, #8BC34A);
+  transition: width 0.1s linear;
+}
+
+/* ============================================
+   Tooltip for Vocabulary
+   ============================================ */
+
+.se-tooltip {
+  position: absolute;
+  background: #333;
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 14px;
+  max-width: 250px;
+  z-index: 1000000;
+  opacity: 0;
+  transform: translateY(-5px);
+  transition: opacity 0.2s, transform 0.2s;
+  pointer-events: none;
+}
+
+.se-tooltip.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.se-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: #333;
+}
+
+/* ============================================
+   Dark Mode Support
+   ============================================ */
+
+@media (prefers-color-scheme: dark) {
+  .se-abstract-container {
+    background: rgba(30, 30, 30, 0.95) !important;
+    color: #eee;
+  }
+
+  .se-tooltip {
+    background: #555;
+  }
+
+  .se-tooltip::after {
+    border-top-color: #555;
+  }
+}

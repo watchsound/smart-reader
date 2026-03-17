@@ -50,10 +50,16 @@ Object.freeze(db); // Optional: makes the instance immutable
 export default db;
 
 export const getUserIdFromToken = (token) => {
+  if (!global.shared || !global.shared.store) {
+    console.log('global.shared.store not initialized yet');
+    return -1;
+  }
   const userInfo = global.shared.store.get('session_info');
-  // console.log(' get userInfo in store ' + JSON.stringify(userInfo));
-  // console.log( token )
+  // Debug: log token comparison
+  console.log(`getUserIdFromToken - passed token: ${token}`);
+  console.log(`getUserIdFromToken - stored session: ${JSON.stringify(userInfo)}`);
   if (userInfo && userInfo.token === token) return userInfo.id;
+  console.log('session is invalid, userid not found');
   return -1;
 };
 

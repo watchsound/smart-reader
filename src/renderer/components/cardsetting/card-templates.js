@@ -259,7 +259,7 @@ const template6 = ({
   const t = `
     <div  class="card-container" style="width: ${width}px; height: ${height}px;  padding: 5px; border: 0.5px solid ${borderColor || bgColor}; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: ${fontFamily};">
       {{#each restBox}}
-        <div style="flex: 1; display: flex; align-items: center; justify-content: center;   font-size: ${fontSize}px; line-height: ${lineHeight};  color: ${foreColor}; text-align: center;">
+        <div style="flex: 1; display: flex; align-items: center; justify-content: center;  font-size: ${fontSize}px; line-height: ${lineHeight};  color: ${foreColor}; text-align: center;">
          {{this}}
         </div>
      {{/each}}
@@ -585,20 +585,23 @@ const templateBgImageWithTextCenter = ({
   fontSize,
   lineHeight,
 }) => {
-  // const restBox = [];
-  // cardData.textBox.forEach((m, index) => {
-  //   restBox.push(m.content);
-  // });
+  // Prioritize card image over background image pattern
+  const hasCardImage = !!cardData.image;
   const backgroundCode =
-    bgImage || cardData.image
+    cardData.image || bgImage
       ? `background-image: url('${cardData.image || bgImage}'); background-size: cover; `
       : `background-color: ${`${bgColor}7F`};   `;
+  // Use semi-transparent dark background for text strip when there's a card image for better readability
+  const textStripBg = hasCardImage
+    ? 'background-color: rgba(0, 0, 0, 0.6);'
+    : `background-color: ${`${bgColor}7F`};`;
+  const textColor = hasCardImage ? '#FFFFFF' : foreColor;
   const t = `
    <div  class="card-container" style="width: ${width}px; height: ${height}px; padding: 5px; border: 0.5px solid ${borderColor}; border-radius: 10px;   font-family: ${fontFamily};   position: relative; overflow: hidden;">
      <div class="card-container-bg-mask" style="${backgroundCode} "></>
      <div style="position: relative; width: 100%; height: 100%;   display: flex; justify-content: center; align-items: center;" >
-      <div style="width: 100%; background-color:  ${`${bgColor}7F`}; padding: 10px; text-align: center;  ">
-          <div style="margin: 0;  font-size: ${fontSize}px; line-height: ${lineHeight};  color: ${foreColor};">
+      <div style="width: 100%; ${textStripBg} padding: 10px; text-align: center;  ">
+          <div style="margin: 0;  font-size: ${fontSize}px; line-height: ${lineHeight};  color: ${textColor};">
           ${cardData.htmlCode}
           </div>
       </div>
@@ -606,8 +609,6 @@ const templateBgImageWithTextCenter = ({
    </div>
   `;
   return t;
-  // const template = Handlebars.compile(t);
-  // return template({ restBox });
 };
 
 const templateBgImageWithText = ({
@@ -640,19 +641,22 @@ const templateBgImageWithText = ({
   if (position === 'top') positionStr = ' position: absolute; top: 0;';
   else if (position === 'bottom')
     positionStr = ' position: absolute; bottom: 0;';
-  // const restBox = [];
-  // cardData.textBox.forEach((m, index) => {
-  //   restBox.push(m.content);
-  // });
+  // Prioritize card image over background image pattern
+  const hasCardImage = !!cardData.image;
   const backgroundCode =
-    bgImage || cardData.image
+    cardData.image || bgImage
       ? `background-image: url('${cardData.image || bgImage}'); background-size: cover; `
       : `background-color: ${`${bgColor}7F`};   `;
+  // Use semi-transparent dark background for text strip when there's a card image for better readability
+  const textStripBg = hasCardImage
+    ? 'background-color: rgba(0, 0, 0, 0.6);'
+    : `background-color: ${`${bgColor}7F`};`;
+  const textColor = hasCardImage ? '#FFFFFF' : foreColor;
   const t = `
    <div  class="card-container" style="width: ${width}px; height: ${height}px; padding: 5px;  display: flex; flex-direction: column; justify-content: flex-end; font-family: ${fontFamily};   position: relative; overflow: hidden;">
       <div class="card-container-bg-mask" style="${backgroundCode} "></>
-     <div style="width: 100%; background-color: ${`${bgColor}7F`};    padding: 10px; text-align: center; ${positionStr}">
-       <div style="margin: 0;  font-size: ${fontSize}px; line-height: ${lineHeight};  color: ${foreColor};">
+     <div style="width: 100%; ${textStripBg}    padding: 10px; text-align: center; ${positionStr}">
+       <div style="margin: 0;  font-size: ${fontSize}px; line-height: ${lineHeight};  color: ${textColor};">
          ${cardData.htmlCode}
         </div>
      </div>
@@ -660,8 +664,6 @@ const templateBgImageWithText = ({
    </div>
   `;
   return t;
-  // const template = Handlebars.compile(t);
-  // return template({ restBox });
 };
 
 const template14 = ({

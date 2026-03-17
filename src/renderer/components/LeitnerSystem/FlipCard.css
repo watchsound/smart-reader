@@ -1,28 +1,293 @@
- .flip-card {
-    background-color: transparent;
-    perspective: 1000px;
-    margin-bottom: 16px;
+/* ============================================
+   FLIP CARD - 3D Card Flip Animation
+   ============================================ */
+
+.flip-card {
+  background-color: transparent;
+  perspective: 1200px;
+  width: 100%;
+  min-height: 240px;
 }
 
 .flip-card-inner {
-    position: relative;
-    width: 100%;
-    transition: transform 0.6s;
-    transform-style: preserve-3d;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 240px;
+  transition: transform 0.6s cubic-bezier(0.4, 0.0, 0.2, 1);
+  transform-style: preserve-3d;
 }
 
 .flip-card.flipped .flip-card-inner {
-    transform: rotateY(180deg);
+  transform: rotateY(180deg);
 }
 
-.flip-card-front, .flip-card-back {
-    position: absolute;
-    width: 100%;
-    max-height: 480px;
-    overflow-y: auto;
-    backface-visibility: hidden;
+.flip-card-front,
+.flip-card-back {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  min-height: 240px;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 .flip-card-back {
-    transform: rotateY(180deg);
+  transform: rotateY(180deg);
+}
+
+/* ============================================
+   CORRECT/INCORRECT FEEDBACK ANIMATIONS
+   ============================================ */
+
+/* Correct answer - Green pulse */
+@keyframes correctPulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.4);
+  }
+  50% {
+    transform: scale(1.02);
+    box-shadow: 0 0 0 15px rgba(76, 175, 80, 0);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(76, 175, 80, 0);
+  }
+}
+
+.flip-card.correct-pulse,
+.flip-card-note.correct-pulse {
+  animation: correctPulse 0.4s ease-out;
+}
+
+.flip-card.correct-pulse .flip-card-inner {
+  border-color: #4CAF50;
+}
+
+/* Incorrect answer - Red shake */
+@keyframes incorrectShake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-6px);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(6px);
+  }
+}
+
+.flip-card.incorrect-shake,
+.flip-card-note.incorrect-shake {
+  animation: incorrectShake 0.4s ease-out;
+}
+
+/* ============================================
+   CARD WRAPPER - Flying Animations
+   ============================================ */
+
+.card-wrapper {
+  position: relative;
+  z-index: 1;
+  transition: all 0.5s cubic-bezier(0.4, 0.0, 0.2, 1);
+}
+
+/* Flying out to the right (correct - advancing to next box) */
+@keyframes flyOutForward {
+  0% {
+    opacity: 1;
+    transform: translateX(0) scale(1) rotateY(0);
+  }
+  50% {
+    opacity: 0.8;
+    transform: translateX(50px) scale(0.9) rotateY(10deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(150px) scale(0.7) rotateY(20deg);
+  }
+}
+
+.card-wrapper.card-fly-out-forward {
+  animation: flyOutForward 0.5s cubic-bezier(0.4, 0.0, 0.2, 1) forwards;
+}
+
+/* Flying in from the left (correct - arriving at new box) */
+@keyframes flyInForward {
+  0% {
+    opacity: 0;
+    transform: translateX(-150px) scale(0.7) rotateY(-20deg);
+  }
+  50% {
+    opacity: 0.8;
+    transform: translateX(-50px) scale(0.9) rotateY(-10deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1) rotateY(0);
+  }
+}
+
+.card-wrapper.card-fly-in-forward {
+  animation: flyInForward 0.5s cubic-bezier(0.0, 0.0, 0.2, 1) forwards;
+}
+
+/* Flying out to the left (incorrect - going back to box 1) */
+@keyframes flyOutBackward {
+  0% {
+    opacity: 1;
+    transform: translateX(0) scale(1) rotateY(0);
+  }
+  50% {
+    opacity: 0.8;
+    transform: translateX(-50px) scale(0.9) rotateY(-10deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-150px) scale(0.7) rotateY(-20deg);
+  }
+}
+
+.card-wrapper.card-fly-out-backward {
+  animation: flyOutBackward 0.5s cubic-bezier(0.4, 0.0, 0.2, 1) forwards;
+}
+
+/* Flying in from the right (incorrect - arriving at box 1) */
+@keyframes flyInBackward {
+  0% {
+    opacity: 0;
+    transform: translateX(150px) scale(0.7) rotateY(20deg);
+  }
+  50% {
+    opacity: 0.8;
+    transform: translateX(50px) scale(0.9) rotateY(10deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1) rotateY(0);
+  }
+}
+
+.card-wrapper.card-fly-in-backward {
+  animation: flyInBackward 0.5s cubic-bezier(0.0, 0.0, 0.2, 1) forwards;
+}
+
+/* ============================================
+   CARD STACK LAYERS - Visual Depth Effect
+   ============================================ */
+
+.card-stack-layer {
+  transition: all 0.3s ease;
+}
+
+.card-stack-layer.card-stack-2 {
+  z-index: -1;
+}
+
+.card-stack-layer.card-stack-3 {
+  z-index: -2;
+}
+
+/* Hover effect on stack */
+.leitner-box:hover .card-stack-layer.card-stack-2 {
+  transform: rotate(2deg) translateY(-2px);
+}
+
+.leitner-box:hover .card-stack-layer.card-stack-3 {
+  transform: rotate(-3deg) translateY(-4px);
+}
+
+/* ============================================
+   HOVER & INTERACTION STATES
+   ============================================ */
+
+.flip-card:hover .flip-card-inner {
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+}
+
+/* Flip button hover effect */
+.flip-card .flip-card-front:hover,
+.flip-card .flip-card-back:hover {
+  cursor: default;
+}
+
+/* ============================================
+   EMPTY BOX ANIMATION
+   ============================================ */
+
+@keyframes emptyBoxPulse {
+  0%, 100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.empty-box {
+  animation: emptyBoxPulse 3s ease-in-out infinite;
+}
+
+/* ============================================
+   NOTE CARD (Non-vocabulary)
+   ============================================ */
+
+.flip-card-note {
+  min-height: 200px;
+}
+
+/* ============================================
+   RESPONSIVE ADJUSTMENTS
+   ============================================ */
+
+@media (max-width: 768px) {
+  .flip-card {
+    min-height: 200px;
+  }
+
+  .flip-card-inner {
+    min-height: 200px;
+  }
+
+  .flip-card-front,
+  .flip-card-back {
+    min-height: 200px;
+  }
+}
+
+/* ============================================
+   DARK MODE ADJUSTMENTS
+   ============================================ */
+
+@media (prefers-color-scheme: dark) {
+  .flip-card:hover .flip-card-inner {
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+  }
+}
+
+/* ============================================
+   ACCESSIBILITY - Reduced Motion
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .flip-card-inner {
+    transition: none;
+  }
+
+  .flip-card.correct-pulse,
+  .flip-card-note.correct-pulse,
+  .flip-card.incorrect-shake,
+  .flip-card-note.incorrect-shake,
+  .card-wrapper.card-fly-out-forward,
+  .card-wrapper.card-fly-in-forward,
+  .card-wrapper.card-fly-out-backward,
+  .card-wrapper.card-fly-in-backward {
+    animation: none;
+  }
+
+  .empty-box {
+    animation: none;
+    opacity: 0.6;
+  }
 }

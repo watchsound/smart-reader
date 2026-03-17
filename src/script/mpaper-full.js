@@ -2229,22 +2229,25 @@ var UID = {
 
  var RU = new function() {
 	 var Ani_Types = [
-		'in_situ',
-		'box_random',
-		'box_tlbr',
-		'box_ltr',
-		'box_rtl' ,
-		'box_ttb' ,
-		'box_btt' ,
-		'blinder_h' ,
-		'blinder_v' ,
-		'random' ,
-		'particle' ,
-		 'delay',
-		'winding' ,
-		'none' ,
-		'flipboard' ,
-		'page_turn',
+		 "in_situ",
+		 "box_random",
+		 "box_tlbr",
+		 "box_ltr",
+		 "box_rtl",
+		 "box_ttb",
+		 "box_btt",
+		 "blinder_h",
+		 "blinder_v",
+		 "random",
+		 "particle",
+		 "delay",
+		 "winding",
+		 "none",
+		 "winding",
+		 "none",
+		 "gather",
+		 "flipboard",
+		 "page_turn",
 	 ];
 	 var project;
 	 function shuffle0(arr) {
@@ -2270,8 +2273,10 @@ var UID = {
 		 if (!kimage )  return [];
 		 var  kiw = kimage.bounds.width, kih = kimage.bounds.height;
 		 boxCols = boxCols || guessSize(kiw); boxRows = boxRows || guessSize(kih);
+
 		 var boxList = [];
 		 var boxWidth = Math.round(kiw/boxCols),  boxHeight = Math.round(kih/boxRows), nimage;
+
 		 for(var rows = 0; rows < boxRows; rows++){
 			 for(var cols = 0; cols < boxCols; cols++){
 				 nimage = new CroppedImage(  { image: kimage, cropX: cols * boxWidth , cropY: rows * boxHeight,
@@ -2281,6 +2286,7 @@ var UID = {
 		 }
 		 return {list : boxList, width: boxWidth, height: boxHeight, boxRows: boxRows, boxCols: boxCols};
 	 }
+
 	 function getImageStrips (kimage, horizontal){
 		 if (!kimage )    return [];
 		 var boxWidth,boxHeight, boxList = [];
@@ -2290,6 +2296,7 @@ var UID = {
 		 else if ( kiw > 600 ) boxCols = 35;
 		 else if  (kiw > 400 ) boxCols = 25;
 		 else if  (kiw  > 200 ) boxCols = 16;
+
 		 if ( horizontal ){
 			 boxWidth = Math.round(kiw /boxCols),
 			 boxHeight = Math.round(kih) ;
@@ -2304,6 +2311,7 @@ var UID = {
 						 }
 					 }
 					 var nimage = new CroppedImage({ image: kimage, cropX: curx, cropY: 0, cropWidth: curw, cropHeight: boxHeight });
+
 					 boxList.push(nimage);
 					 if( fright ){
 						 if( curx > 0 && curx < curw ){
@@ -2319,9 +2327,11 @@ var UID = {
 				 for(var cols = 0; cols < boxCols; cols++){
 					 var adjusted_w = cols ===  boxCols-1 ? kiw -boxWidth*cols : boxWidth;
 					 var nimage = new CroppedImage({ image: kimage, cropX: boxWidth * cols, cropY: 0, cropWidth: adjusted_w, cropHeight: boxHeight });
+
 					 boxList.push(nimage);
 				 }
 			 }
+
 		 } else {
 			 boxRows = boxCols;
 			 kiw = kimage.bounds.width
@@ -2344,15 +2354,18 @@ var UID = {
 			 boxWidth= item.bounds.width, boxHeight = item.bounds.height;
 		var isRaster = item instanceof Raster;
 		var kimage = isRaster ? item :  item.rasterize();
+
 		if( !isRaster ){
 		  if( isCreation )
 			item.setShowHide(false);
 		  else
 			item.remove();
 		}
+
 		if( callback && callback.onStart ){
 			callback.onStart();
 		}
+
 		var newCallback = {};
 		newCallback.onSuccess = function( ) {
 			if( isCreation   ){
@@ -2371,6 +2384,7 @@ var UID = {
 				callback.onEnd();
 			}
 		};
+
 		if ( isCreation ){
 		 }else {
 		 }
@@ -2387,6 +2401,7 @@ var UID = {
 				easing: easing,
 				duration: duration,
 			};
+
 			if ( isCreation ){
 				tweenwrap.position = kimage.position.clone();
 				kimage.position  = kimage.position.__add(new Point(50, 200));
@@ -2427,10 +2442,12 @@ var UID = {
 		   if( !isCreation ) {
 			   item.remove();
 		   }
+
 		   if(! isRaster ){
 			   kimage.setShowHide(false);
 			   kimage.remove();
 		   }
+
 		 if( callback && callback.onStart ){
 			 callback.onStart();
 		 }
@@ -2439,9 +2456,11 @@ var UID = {
 		 boxHeight = result.height;
 		 boxRows = result.boxRows;
 		 boxCols = result.boxCols;
+
 		 var size = boxList.length;
 		 var tweens = [];
 		 var finished = false;
+
 		 var newCallback = {};
 		 newCallback.onSuccess = function(removenimages) {
 			 size --;
@@ -2466,6 +2485,7 @@ var UID = {
 				 }
 			 }
 		 };
+
 		 for( var b = 0; b < size; b++){
 			 var nimage = boxList[b];
 
@@ -2548,6 +2568,7 @@ var UID = {
 			 }
 			 tweens.push(   tweenwrap );
 		 }
+
 		 if ( transType ==  0 || transType == 7 || transType == 8 || transType == 12 ){
 			 tweens.forEach(e => {  timeline.add(e, 0)  ; } );
 		 } else if ( transType == 1){
@@ -2570,6 +2591,7 @@ var UID = {
 
 		 timeline.play();
 	 }
+
 	 function  TL2BR1(timeline, tweens, colIndex, boxRows, boxCols){
 		 var toffset = 0;
 		 while ( colIndex <   boxCols -1 ){
@@ -2675,608 +2697,855 @@ var UID = {
 	 }
 
 	 return {
-		 setProject: function(p){
-			project = p;
+		 setProject: function (p) {
+			 project = p;
 		 },
-		 shuffle: function(arr){
-			  return shuffle0(arr);
+		 shuffle: function (arr) {
+			 return shuffle0(arr);
 		 },
-		 handleSeveralTargets: function(items, duration, offset, callback){
-			if( Array.isArray( items )){
-				if( typeof offset != 'undefined' && offset != '=='){
-					duration = duration * 1.0 / items.length;
-				}
-				callback( items[0], duration, offset);
-				if( typeof offset == 'undefined' || offset == '=='){
-					offset = '==';
-				}
-				for(var i = 1; i < items.length; i++)
-					callback( items[i], duration, offset);
-			} else {
-				callback( items, duration, offset);
-			}
-		},
-		handleTargets : function(params, offset, callback){
-			var that = this,  items = params.target || params.targets, duration = params.duration || 1,
-				offset = params.delay || offset ;
-			this.handleSeveralTargets(items, duration, offset, function(item, duration, offset){
-				var options = Base.set({}, params);
-				delete options.target; delete options.targets;
-				options.target = item;
-				options.duration = duration;
-				callback(options, offset);
-			});
-		},
+		 handleSeveralTargets: function (items, duration, offset, callback) {
+			 if (Array.isArray(items)) {
+				 if (typeof offset != "undefined" && offset != "==") {
+					 duration = (duration * 1.0) / items.length;
+				 }
+				 callback(items[0], duration, offset);
+				 if (typeof offset == "undefined" || offset == "==") {
+					 offset = "==";
+				 }
+				 for (var i = 1; i < items.length; i++)
+					 callback(items[i], duration, offset);
+			 } else {
+				 callback(items, duration, offset);
+			 }
+		 },
+		 handleTargets: function (params, offset, callback) {
+			 var that = this,
+				 items = params.target || params.targets,
+				 duration = params.duration || 1,
+				 offset = params.delay || offset;
+			 this.handleSeveralTargets(
+				 items,
+				 duration,
+				 offset,
+				 function (item, duration, offset) {
+					 var options = Base.set({}, params);
+					 delete options.target;
+					 delete options.targets;
+					 options.target = item;
+					 options.duration = duration;
+					 callback(options, offset);
+				 }
+			 );
+		 },
 
-		numOccuranceIn: function(input, target){
-		   var lastIndex = 0, count = 0, tlen = target.length;
-			while ((lastIndex = input.indexOf(target, lastIndex)) != -1) {
-				count++;
-				lastIndex += tlen;
-			}
-			return count;
-		},
-
-		handleDelayedDelete: function( layer, item, duration, callback ){
-			if (layer && !getCurPage().anim_ended ){
-				var timeline =   layer.getCurPage().ptimer;
-				timeline.add({
-				   target : item,
-				   eventFunc : function(){
-						item.remove();
-						if( callback && callback.onEnd ){
-							callback.onEnd();
-						}
-				   }
-				}, '+=' +duration);
-			} else {
-				setTimeout(function(){
-					item.remove();
-					if( callback && callback.onEnd ){
-						callback.onEnd();
-					}
-				},duration* 1000);
-			}
+		 numOccuranceIn: function (input, target) {
+			 var lastIndex = 0,
+				 count = 0,
+				 tlen = target.length;
+			 while ((lastIndex = input.indexOf(target, lastIndex)) != -1) {
+				 count++;
+				 lastIndex += tlen;
+			 }
+			 return count;
 		 },
-		 imageEffect2: function(layer, item, duration, transType, easing, positionFunc, isCreation, callback){
-			if( typeof transType != 'number' )
-			   transType = Ani_Types.indexOf(transType)
-			if( transType < 0 ) transType = 0;
-			  if( transType == 11 )
-				this.handleDelayedDelete(layer, item, duration, callback);
-			 else if ( transType == 14 )
-				  handleImageTrans(layer, item, duration, transType, easing || 'linear', positionFunc, isCreation, callback);
+
+		 handleDelayedDelete: function (layer, item, duration, callback) {
+			 if (layer && !getCurPage().anim_ended) {
+				 var timeline = layer.getCurPage().ptimer;
+				 timeline.add(
+					 {
+						 target: item,
+						 eventFunc: function () {
+							 item.remove();
+							 if (callback && callback.onEnd) {
+								 callback.onEnd();
+							 }
+						 },
+					 },
+					 "+=" + duration
+				 );
+			 } else {
+				 setTimeout(function () {
+					 item.remove();
+					 if (callback && callback.onEnd) {
+						 callback.onEnd();
+					 }
+				 }, duration * 1000);
+			 }
+		 },
+
+		 imageEffect2: function (
+			 layer,
+			 item,
+			 duration,
+			 transType,
+			 easing,
+			 positionFunc,
+			 isCreation,
+			 callback
+		 ) {
+			 if (typeof transType != "number")
+				 transType = Ani_Types.indexOf(transType);
+			 if (transType < 0) transType = 0;
+			 if (transType == 11)
+				 this.handleDelayedDelete(layer, item, duration, callback);
+			 else if (transType == 14)
+				 handleImageTrans(
+					 layer,
+					 item,
+					 duration,
+					 transType,
+					 easing || "linear",
+					 positionFunc,
+					 isCreation,
+					 callback
+				 );
 			 else
-				  imgBoxEffect(layer, item, duration, transType, easing || 'linear', positionFunc, isCreation, callback);
-
+				 imgBoxEffect(
+					 layer,
+					 item,
+					 duration,
+					 transType,
+					 easing || "linear",
+					 positionFunc,
+					 isCreation,
+					 callback
+				 );
 		 },
-		 imageFlipEffect: function(layer, removed, added, duration ){
-			var bd = removed.bounds,
-				img_rmv = removed instanceof Raster ? removed : removed.rasterize(),
-				rmv_1 = new CroppedImage({ image: img_rmv, cropX: 0, cropY: 0, cropWidth: bd.width / 2, cropHeight: bd.height });
-				rmv_2 = new CroppedImage({ image: img_rmv, cropX: bd.width / 2, cropY: 0, cropWidth: bd.width / 2, cropHeight: bd.height });
 
-				img_add= added instanceof Raster ? added : added.rasterize(),
-				add_1 = new CroppedImage({ image: img_add, cropX: 0, cropY: 0, cropWidth: bd.width / 2, cropHeight: bd.height });
+		 imageFlipEffect: function (layer, removed, added, duration) {
+			 var bd = removed.bounds,
+				 img_rmv =
+					 removed instanceof Raster ? removed : removed.rasterize(),
+				 rmv_1 = new CroppedImage({
+					 image: img_rmv,
+					 cropX: 0,
+					 cropY: 0,
+					 cropWidth: bd.width / 2,
+					 cropHeight: bd.height,
+				 });
+			 rmv_2 = new CroppedImage({
+				 image: img_rmv,
+				 cropX: bd.width / 2,
+				 cropY: 0,
+				 cropWidth: bd.width / 2,
+				 cropHeight: bd.height,
+			 });
 
-				layer = layer || project._activeLayer;
+			 (img_add = added instanceof Raster ? added : added.rasterize()),
+				 (add_1 = new CroppedImage({
+					 image: img_add,
+					 cropX: 0,
+					 cropY: 0,
+					 cropWidth: bd.width / 2,
+					 cropHeight: bd.height,
+				 }));
+
+			 layer = layer || project._activeLayer;
+
 			 var timeline = new anime.timeline({ autoplay: false });
 			 removed.remove();
 			 if (!(removed instanceof Raster)) img_rmv.remove();
 			 if (!(added instanceof Raster)) img_add.remove();
-			var p1 = add_1.position.clone(), add_1_w = add_1.bounds.width, opacity = added.opacity;
-			added.opacity = 0.01;
-			add_1.bounds.width = 0.01;
-			add_1.position = p1.__add(new Point(add_1_w/2+2,0))
-			timeline.add({
-				targets: rmv_2,
-				'bounds.width' :   1,
-				position: rmv_2.position.clone().__add(new Point(-bd.width/4, 0)),
-				duration: duration/2,
-				begin: function(){
-					layer.addChild(rmv_1);
-				},
-				complete: function(){
-					rmv_2.remove();
-				}
-			}) .add({
-				targets: add_1,
-				'bounds.width' :   add_1_w,
-				position: p1,
-				duration: duration/2,
-				begin: function () {
-					layer.addChild(add_1);
-				},
-				complete: function(){
-					added.opacity = opacity;
-					add_1.remove();
-					rmv_1.remove();
-				}
-			}).add({
-				targets: added,
-				opacity: opacity,
-				duration: duration
-			}, '-=' + duration) ;
-			timeline.play();
+
+			 var p1 = add_1.position.clone(),
+				 add_1_w = add_1.bounds.width,
+				 opacity = added.opacity;
+			 added.opacity = 0.01;
+			 add_1.bounds.width = 0.01;
+			 add_1.position = p1.__add(new Point(add_1_w / 2 + 2, 0));
+			 timeline
+				 .add({
+					 targets: rmv_2,
+					 "bounds.width": 1,
+					 position: rmv_2.position
+						 .clone()
+						 .__add(new Point(-bd.width / 4, 0)),
+					 duration: duration / 2,
+					 begin: function () {
+						 layer.addChild(rmv_1);
+					 },
+					 complete: function () {
+						 rmv_2.remove();
+					 },
+				 })
+				 .add({
+					 targets: add_1,
+					 "bounds.width": add_1_w,
+					 position: p1,
+					 duration: duration / 2,
+					 begin: function () {
+						 layer.addChild(add_1);
+					 },
+					 complete: function () {
+						 added.opacity = opacity;
+						 add_1.remove();
+						 rmv_1.remove();
+					 },
+				 })
+				 .add(
+					 {
+						 targets: added,
+						 opacity: opacity,
+						 duration: duration,
+					 },
+					 "-=" + duration
+				 );
+			 timeline.play();
 		 },
 
-		 handleImageBgTransition : function( alay, kimage, duration, transType, kimage2, duration2, transType2, useForground){
+		 handleImageBgTransition: function (
+			 alay,
+			 kimage,
+			 duration,
+			 transType,
+			 kimage2,
+			 duration2,
+			 transType2,
+			 useForground
+		 ) {
 			 var callback = {};
 			 var count = 2;
-			 if( typeof transType != 'number' )
-				 transType = Ani_Types.indexOf(transType)
-			 if( transType < 0 ) transType = 0;
-			 if( !kimage  || transType == 11)
-				 count --;
-			 if( !kimage2 )
-				 count --;
-			 if( count <= 0 )
-				 return;
-			 callback.onStart = function( ) { };
-			 callback.onEnd = function( ) {
-				 count -- ;
-				 if( count == 0 ) {
-					 if( transType == 11 && kimage){
+			 if (typeof transType != "number")
+				 transType = Ani_Types.indexOf(transType);
+			 if (transType < 0) transType = 0;
+			 if (!kimage || transType == 11) count--;
+			 if (!kimage2) count--;
+			 if (count <= 0) return;
+			 callback.onStart = function () {};
+			 callback.onEnd = function () {
+				 count--;
+				 if (count == 0) {
+					 if (transType == 11 && kimage) {
 						 kimage.remove();
 					 }
-					 if(!useForground && kimage2){
+					 if (!useForground && kimage2) {
 						 kimage2.sendToBack();
 					 }
 				 }
 			 };
-			 if(useForground && kimage2){
+			 if (useForground && kimage2) {
 				 kimage2.bringToFront();
 			 }
-			 if( transType != 11 && kimage) {
-				 imgBoxEffect(alay, kimage, duration, transType, 'linear', null, false, callback);
+			 if (transType != 11 && kimage) {
+				 imgBoxEffect(
+					 alay,
+					 kimage,
+					 duration,
+					 transType,
+					 "linear",
+					 null,
+					 false,
+					 callback
+				 );
 			 }
-			 if( kimage2 ) {
-				 imgBoxEffect(alay, kimage2, duration2, transType2, 'linear', null, true, callback);
+			 if (kimage2) {
+				 imgBoxEffect(
+					 alay,
+					 kimage2,
+					 duration2,
+					 transType2,
+					 "linear",
+					 null,
+					 true,
+					 callback
+				 );
 			 }
-		 },
-		 tweenSize: function( item, fromBounds, toBounds, duration, easing){
-				var tweenwrap = {
-					targets: item,
-					'bounds.size': toBounds.size,
-					'bounds.point': toBounds.point,
-					easing: easing || 'linear',
-					duration: duration,
-				};
-				item.bounds.point = fromBounds.point;
-				item.bounds.size = fromBounds.size;
-				return tweenwrap;
-		 },
-		 tweenPosition: function(  item, fromPos, toPos, duration, easing){
-			var tweenwrap = {
-				targets: item,
-				position: toPos,
-				easing: easing || 'linear',
-				duration: duration,
-			};
-			item.position = fromPos;
-			return tweenwrap;
 		 },
 
-		Homotopy: function(params, offset){
-			var that = this;
-			this.handleTargets(params, offset, function(params, offset){
-				that.homotopy(params, offset);
-			});
-		},
-		homotopy: function(params){
-			var timeline = params.page ? params.page.runnableTimeline() : anime.timeline({autoplay:true}), item = params.targets || params.target,
-				 homotopy = params.homotopy || function(x,y,t){ return [x,y]; },
-				 duration = params.duration, offset = params.delay || params.offset,
-				 doneCallback = params.doneCallback;
-				if( item instanceof Path || item instanceof CompoundPath ||  (typeof item.containsAllPaths == 'function' && item.containsAllPaths(true)) ){
-					item.doHomotopy(timeline, homotopy, duration, offset, doneCallback);
-				} else {
-					doHomotopy(timeline, item, homotopy, duration, offset, doneCallback);
-				}
-		 },
-		 MorphingTo: function(params, offset){
-			var that = this;
-			this.handleTargets(params, offset, function(params, offset){
-				that.morphingTo(params, offset);
-			});
-		 },
-		 morphingTo: function(params, offset){
-			 var timeline = params.page ? params.page.runnableTimeline() : anime.timeline({ autoplay: true }),
-			   item = params.targets || params.target,
-				duration = params.duration, offset = params.delay || params.offset, to = params.to,
-				doneCallback = params.doneCallback;
-			if( typeof item.morphingTo == 'function' ){
-				item.morphingTo(timeline, to, duration, offset, doneCallback);
-			}
-		},
-		 Flash: function(params, offset){
-			var that = this;
-			this.handleTargets(params, offset, function(params, offset){
-				that.flash(params, offset);
-			});
-		 },
-		 flash : function(params, offset){
-			var  page = params.page, item = params.target || params.targets,
-				 times = params.times, color_array = params.color_array, shrink_size = params.shrink_size || 0;
-			 times = typeof times == 'undefined' ? 0 : times;
-			if( !color_array ){
-				if( shrink_size == 0){
-					var tweenwrap = {
-						targets: item,
-						opacity: 0.1,
-						duration: 0.5,
-						direction: 'alternate',
-						loop: times == 0 ? true : times
-					};
-					if ( page && typeof offset !== 'undefined' && times )   page.add(tweenwrap); else anime(tweenwrap);
-				} else {
-					var tweenwrap = {
-						targets: item,
-						'bounds.width' : shrink_size,
-						'bounds.height': shrink_size,
-						position: item.position.clone(),
-						opacity: 0.4,
-						duration: 0.5,
-						direction: 'alternate',
-						loop: times == 0 ? true : times
-					};
-					if (page && typeof offset !== 'undefined' && times) page.add(tweenwrap) ; else  anime(tweenwrap);
-				}
-				return;
-			}
-			if(  color_array.length == 1 ){
-				var tweenwrap = {
-					targets: item,
-					fillColor: color_array[0],
-					duration: 0.5,
-					direction: 'alternate',
-					loop: times == 0 ? true : times
-				};
-				if (page && typeof offset !== 'undefined' && times) page.add(tweenwrap); else anime(tweenwrap) ;
-				return;
-			}
-			var ocolor = item.fillColor, curcolor;
-			color_array.push( ocolor );
-			if( times ){
-				var usepage = !!page && typeof offset !== 'undefined',
-					ntimeline = usepage ? null :  anime.timeline({autoplay:false});
-			   for(var k = 0; k < times; k++){
-					for(var i = 0; i < color_array.length; i++){
-						var tweenwrap = {
-							targets: item,
-							fillColor: color_array[i],
-							duration: 0.5,
-						};
-						if ( usepage )    page.add(tweenwrap);
-						else ntimeline.add( tweenwrap, '+=0' );
-					}
-			   }
-				if (ntimeline) ntimeline.play();
-			} else {
-				var acc = 0, pos = 0, ncolor ;
-				for(var i = 0; i < color_array.length; i++){
-					var c = color_array[i];
-					if( c._class !== 'Color' )
-						color_array[i] = new Color( c )
-				}
-				item.addUpdater(function(event){
-					acc += event.delta *2;
-					if( acc > 0.5 ){
-						acc = 0;
-						ocolor = color_array[pos];
-						pos = (++pos) % color_array.length;
-					}
-					ncolor = color_array[pos];
-					item.fillColor = ocolor.add( ncolor.subtract(ocolor).multiply(acc*2));
-				});
-			}
-		 },
-	   Indicate: function(params, offset){
-			var that = this;
-			this.handleTargets(params, offset, function(params, offset){
-				that.indicate(params, offset);
-			});
-		},
-		indicate : function( params, offset){
-			var  page = params.page, item = params.target, times = params.times, w = item.bounds.width,
-				 h = item.bounds.height, dw, dh ;
-			if( w < 20 ) dw = w; else if (w < 100) dw = 20; else if (w < 200 ) dw = 40; else dw = 60;
-			if( h < 20 ) dh = h; else if (h < 100) dh = 20; else if (h < 200 ) dh = 40; else dh = 60;
-
-			if( times ){
-				var pos = item.position, tweenwrap = {
-					targets: item,
-					position: pos,
-					easing:  'linear',
-					update: function(anim){
-						var p =   anim.progress/100  ;
-						item.bounds.width =  w +  Math.abs(Math.sin( Math.PI * times * p )) * dw  ;
-						item.bounds.height =  h + Math.abs(Math.sin( Math.PI * times * p )) * dh   ;
-					},
-					complete: function(){
-						 item.bounds.width = w;
-						 item.bounds.height = h;
-					},
-					loop: times,
-				};
-				if( page && typeof offset !== 'undefined' && times ) page.add(tweenwrap);
-				else anime( tweenwrap );
-			} else {
-				var acc = 0;
-				item.addUpdater(function(event){
-					acc += event.delta *2;
-					item.bounds.width =  w +  Math.abs(Math.sin(  acc )) * dw  ;
-					item.bounds.height =  h + Math.abs(Math.sin(  acc)) * dh   ;
-				});
-			}
-		 },
-		 revolver_back: function( items, center,  easing, duration, callback){
-			items.forEach( (v, i) =>{
-					anime({
-						targets: v,
-						position: center,
-						duration: duration || 1,
-						easing: easing || 'linear',
-						complete: function() {
-							if( callback ) callback();
-						} ,
-					})
-				}
-			)
-		 },
-		 revolver: function( items, center, radius, angleFrom, angleTo, easing, duration, callback){
-			var counts = items.length, step = (angleTo - angleFrom) / counts;
-			items.forEach( (v, i) =>{
-					anime({
-						targets: v,
-						position:  new Point(center.x + radius * Math.cos((angleFrom + step*i)* (Math.PI / 180)),
-											center.y - radius * Math.sin((angleFrom + step*i)* (Math.PI / 180)) ) ,
-						duration: duration || 1,
-						easing: easing || 'linear',
-						complete: function() {
-							if( callback ) callback();
-						} ,
-					})
-				}
-			)
-		 },
-		 r9divmove : function (div, nx, ny, nw, nh, dur, callback) {
-			 var x = parseInt(div.style.left), y = parseInt(div.style.top),
-				 w = parseInt(div.style.width), h = parseInt(div.style.height),
-				 t = 60.0 * dur / 1000, duration = dur;
-			 var dx = typeof nx === 'number' ? (parseInt(nx) - x) / t : 0;
-			 var dy = typeof ny === 'number' ? (parseInt(ny) - y) / t : 0;
-			 var dw = typeof nw === 'number' ? (parseInt(nw) - w) / t : 0;
-			 var dh = typeof nh === 'number' ? (parseInt(nh) - h) / t : 0;
-			 function r() {
-				 if (typeof dx === 'number' && dx != 0) div.style.left = parseInt(div.style.left) + dx + 'px';
-				 if (typeof dy === 'number' && dy != 0) div.style.top = parseInt(div.style.top) + dy + 'px';
-				 if (typeof dh === 'number' && dh != 0) div.style.width = parseInt(div.style.width) + dw + 'px';
-				 if (typeof dw === 'number' && dw != 0) div.style.height = parseInt(div.style.height) + dh + 'px';
+		 tweenSize: function (item, fromBounds, toBounds, duration, easing) {
+			 var tweenwrap = {
+				 targets: item,
+				 "bounds.size": toBounds.size,
+				 "bounds.point": toBounds.point,
+				 easing: easing || "linear",
+				 duration: duration,
 			 };
+			 item.bounds.point = fromBounds.point;
+			 item.bounds.size = fromBounds.size;
+			 return tweenwrap;
+		 },
+		 tweenPosition: function (item, fromPos, toPos, duration, easing) {
+			 var tweenwrap = {
+				 targets: item,
+				 position: toPos,
+				 easing: easing || "linear",
+				 duration: duration,
+			 };
+			 item.position = fromPos;
+			 return tweenwrap;
+		 },
+
+		 Homotopy: function (params, offset) {
+			 var that = this;
+			 this.handleTargets(params, offset, function (params, offset) {
+				 that.homotopy(params, offset);
+			 });
+		 },
+		 homotopy: function (params) {
+			 var timeline = params.page
+					 ? params.page.runnableTimeline()
+					 : anime.timeline({ autoplay: true }),
+				 item = params.targets || params.target,
+				 homotopy =
+					 params.homotopy ||
+					 function (x, y, t) {
+						 return [x, y];
+					 },
+				 duration = params.duration,
+				 offset = params.delay || params.offset,
+				 doneCallback = params.doneCallback;
+			 if (
+				 item instanceof Path ||
+				 item instanceof CompoundPath ||
+				 (typeof item.containsAllPaths == "function" &&
+					 item.containsAllPaths(true))
+			 ) {
+				 item.doHomotopy(
+					 timeline,
+					 homotopy,
+					 duration,
+					 offset,
+					 doneCallback
+				 );
+			 } else {
+				 doHomotopy(
+					 timeline,
+					 item,
+					 homotopy,
+					 duration,
+					 offset,
+					 doneCallback
+				 );
+			 }
+		 },
+		 MorphingTo: function (params, offset) {
+			 var that = this;
+			 this.handleTargets(params, offset, function (params, offset) {
+				 that.morphingTo(params, offset);
+			 });
+		 },
+		 morphingTo: function (params, offset) {
+			 var timeline = params.page
+					 ? params.page.runnableTimeline()
+					 : anime.timeline({ autoplay: true }),
+				 item = params.targets || params.target,
+				 duration = params.duration,
+				 offset = params.delay || params.offset,
+				 to = params.to,
+				 doneCallback = params.doneCallback;
+			 if (typeof item.morphingTo == "function") {
+				 item.morphingTo(timeline, to, duration, offset, doneCallback);
+			 }
+		 },
+		 Flash: function (params, offset) {
+			 var that = this;
+			 this.handleTargets(params, offset, function (params, offset) {
+				 that.flash(params, offset);
+			 });
+		 },
+		 flash: function (params, offset) {
+			 var page = params.page,
+				 item = params.target || params.targets,
+				 times = params.times,
+				 color_array = params.color_array,
+				 shrink_size = params.shrink_size || 0;
+			 times = typeof times == "undefined" ? 0 : times;
+			 if (!color_array) {
+				 if (shrink_size == 0) {
+					 var tweenwrap = {
+						 targets: item,
+						 opacity: 0.1,
+						 duration: 0.5,
+						 direction: "alternate",
+						 loop: times == 0 ? true : times,
+					 };
+					 if (page && typeof offset !== "undefined" && times)
+						 page.add(tweenwrap);
+					 else anime(tweenwrap);
+				 } else {
+					 var tweenwrap = {
+						 targets: item,
+						 "bounds.width": shrink_size,
+						 "bounds.height": shrink_size,
+						 position: item.position.clone(),
+						 opacity: 0.4,
+						 duration: 0.5,
+						 direction: "alternate",
+						 loop: times == 0 ? true : times,
+					 };
+					 if (page && typeof offset !== "undefined" && times)
+						 page.add(tweenwrap);
+					 else anime(tweenwrap);
+				 }
+				 return;
+			 }
+			 if (color_array.length == 1) {
+				 var tweenwrap = {
+					 targets: item,
+					 fillColor: color_array[0],
+					 duration: 0.5,
+					 direction: "alternate",
+					 loop: times == 0 ? true : times,
+				 };
+				 if (page && typeof offset !== "undefined" && times)
+					 page.add(tweenwrap);
+				 else anime(tweenwrap);
+				 return;
+			 }
+			 var ocolor = item.fillColor,
+				 curcolor;
+			 color_array.push(ocolor);
+			 if (times) {
+				 var usepage = !!page && typeof offset !== "undefined",
+					 ntimeline = usepage
+						 ? null
+						 : anime.timeline({ autoplay: false });
+				 for (var k = 0; k < times; k++) {
+					 for (var i = 0; i < color_array.length; i++) {
+						 var tweenwrap = {
+							 targets: item,
+							 fillColor: color_array[i],
+							 duration: 0.5,
+						 };
+						 if (usepage) page.add(tweenwrap);
+						 else ntimeline.add(tweenwrap, "+=0");
+					 }
+				 }
+				 if (ntimeline) ntimeline.play();
+			 } else {
+				 var acc = 0,
+					 pos = 0,
+					 ncolor;
+				 for (var i = 0; i < color_array.length; i++) {
+					 var c = color_array[i];
+					 if (c._class !== "Color") color_array[i] = new Color(c);
+				 }
+				 item.addUpdater(function (event) {
+					 acc += event.delta * 2;
+					 if (acc > 0.5) {
+						 acc = 0;
+						 ocolor = color_array[pos];
+						 pos = ++pos % color_array.length;
+					 }
+					 ncolor = color_array[pos];
+					 item.fillColor = ocolor.add(
+						 ncolor.subtract(ocolor).multiply(acc * 2)
+					 );
+				 });
+			 }
+		 },
+		 Indicate: function (params, offset) {
+			 var that = this;
+			 this.handleTargets(params, offset, function (params, offset) {
+				 that.indicate(params, offset);
+			 });
+		 },
+		 indicate: function (params, offset) {
+			 var page = params.page,
+				 item = params.target,
+				 times = params.times,
+				 w = item.bounds.width,
+				 h = item.bounds.height,
+				 dw,
+				 dh;
+			 if (w < 20) dw = w;
+			 else if (w < 100) dw = 20;
+			 else if (w < 200) dw = 40;
+			 else dw = 60;
+			 if (h < 20) dh = h;
+			 else if (h < 100) dh = 20;
+			 else if (h < 200) dh = 40;
+			 else dh = 60;
+
+			 if (times) {
+				 var pos = item.position,
+					 tweenwrap = {
+						 targets: item,
+						 position: pos,
+						 easing: "linear",
+						 update: function (anim) {
+							 var p = anim.progress / 100;
+							 item.bounds.width =
+								 w +
+								 Math.abs(Math.sin(Math.PI * times * p)) * dw;
+							 item.bounds.height =
+								 h +
+								 Math.abs(Math.sin(Math.PI * times * p)) * dh;
+						 },
+						 complete: function () {
+							 item.bounds.width = w;
+							 item.bounds.height = h;
+						 },
+						 loop: times,
+					 };
+				 if (page && typeof offset !== "undefined" && times)
+					 page.add(tweenwrap);
+				 else anime(tweenwrap);
+			 } else {
+				 var acc = 0;
+				 item.addUpdater(function (event) {
+					 acc += event.delta * 2;
+					 item.bounds.width = w + Math.abs(Math.sin(acc)) * dw;
+					 item.bounds.height = h + Math.abs(Math.sin(acc)) * dh;
+				 });
+			 }
+		 },
+		 revolver_back: function (items, center, easing, duration, callback) {
+			 items.forEach((v, i) => {
+				 anime({
+					 targets: v,
+					 position: center,
+					 duration: duration || 1,
+					 easing: easing || "linear",
+					 complete: function () {
+						 if (callback) callback();
+					 },
+				 });
+			 });
+		 },
+		 revolver: function (
+			 items,
+			 center,
+			 radius,
+			 angleFrom,
+			 angleTo,
+			 easing,
+			 duration,
+			 callback
+		 ) {
+			 var counts = items.length,
+				 step = (angleTo - angleFrom) / counts;
+			 items.forEach((v, i) => {
+				 anime({
+					 targets: v,
+					 position: new Point(
+						 center.x +
+							 radius *
+								 Math.cos(
+									 (angleFrom + step * i) * (Math.PI / 180)
+								 ),
+						 center.y -
+							 radius *
+								 Math.sin(
+									 (angleFrom + step * i) * (Math.PI / 180)
+								 )
+					 ),
+					 duration: duration || 1,
+					 easing: easing || "linear",
+					 complete: function () {
+						 if (callback) callback();
+					 },
+				 });
+			 });
+		 },
+		 r9divmove: function (div, nx, ny, nw, nh, dur, callback) {
+			 var x = parseInt(div.style.left),
+				 y = parseInt(div.style.top),
+				 w = parseInt(div.style.width),
+				 h = parseInt(div.style.height),
+				 t = (60.0 * dur) / 1000,
+				 duration = dur;
+			 var dx = typeof nx === "number" ? (parseInt(nx) - x) / t : 0;
+			 var dy = typeof ny === "number" ? (parseInt(ny) - y) / t : 0;
+			 var dw = typeof nw === "number" ? (parseInt(nw) - w) / t : 0;
+			 var dh = typeof nh === "number" ? (parseInt(nh) - h) / t : 0;
+
+			 function r() {
+				 if (typeof dx === "number" && dx != 0)
+					 div.style.left = parseInt(div.style.left) + dx + "px";
+				 if (typeof dy === "number" && dy != 0)
+					 div.style.top = parseInt(div.style.top) + dy + "px";
+				 if (typeof dh === "number" && dh != 0)
+					 div.style.width = parseInt(div.style.width) + dw + "px";
+				 if (typeof dw === "number" && dw != 0)
+					 div.style.height = parseInt(div.style.height) + dh + "px";
+			 }
+
 			 return {
 				 target: {},
 				 duration: dur,
-				 update: r
+				 update: r,
 			 };
+
 		 },
 
-		 r9_drawMathForm: function( mathInput, tXoff, tYoff, ctx, style) {
-		   if (mathInput != null && (typeof mathInput.render != 'undefined')) {
-			 ctx.save();
-			 ctx.translate(tXoff, tYoff);
-			 ctx. textBaseline = 'middle' ;
-			 var fillcolor = style? style.fillColor : null;
-			 var strokecolor = style? style.strokeColor : null;
-			 var strokeWidth = style? style.strokeWidth : 1;
-			 var fontSize = style? style.fontSize : 18;
-			 if (fillcolor) ctx. fillStyle = fillcolor ;
-			 if (strokecolor) ctx. storkeStyle = strokecolor ;
-			 for (var i in mathInput.render) {
-				 var r = mathInput.render[i];
-				 if (r.type == 'fra-sign' || r.type == 'root-group') {
-					 ctx.beginPath();
-					 ctx.moveTo(r.x1, r.y1);
-					 ctx.lineTo(r.x2, r.y2);
-					 ctx.stroke();
-				 } else if (r.type == 'rootsign') {
-					 ctx.beginPath();
-					 ctx.moveTo(r.x, r.y + r.h * 2 / 3);
-					 ctx.lineTo(r.x + r.w / 3, r.y + r.h);
-					 ctx.lineTo(r.x + r.w, r.y);
-					 ctx.stroke();
-					 if (style){
-						 style.strokeWidth = 1;
-						 style.fontSize = r.fs;
-						 ctx.font = style.getFontStyle();
-					 }
-					 ctx.fillText(r.s, r.x, r.y + r.asc / 4);
-					 if (style){
-						 style.strokeWidth = strokeWidth;
-						 style.fontSize = fontSize;
-						 ctx.font = style.getFontStyle();
-					 }
-				 } else if (typeof r.value != 'undefined') {
+		 r9_drawMathForm: function (mathInput, tXoff, tYoff, ctx, style) {
+			 if (mathInput != null && typeof mathInput.render != "undefined") {
+				 ctx.save();
+				 ctx.translate(tXoff, tYoff);
+				 ctx.textBaseline = "middle";
+				 var fillcolor = style ? style.fillColor : null;
+				 var strokecolor = style ? style.strokeColor : null;
+				 var strokeWidth = style ? style.strokeWidth : 1;
+				 var fontSize = style ? style.fontSize : 18;
+				 if (fillcolor) ctx.fillStyle = fillcolor;
+				 if (strokecolor) ctx.storkeStyle = strokecolor;
+
+				 for (var i in mathInput.render) {
+					 var r = mathInput.render[i];
+					 if (r.type == "fra-sign" || r.type == "root-group") {
+						 ctx.beginPath();
+						 ctx.moveTo(r.x1, r.y1);
+						 ctx.lineTo(r.x2, r.y2);
+						 ctx.stroke();
+					 } else if (r.type == "rootsign") {
+						 ctx.beginPath();
+						 ctx.moveTo(r.x, r.y + (r.h * 2) / 3);
+						 ctx.lineTo(r.x + r.w / 3, r.y + r.h);
+						 ctx.lineTo(r.x + r.w, r.y);
+						 ctx.stroke();
+						 if (style) {
+							 style.strokeWidth = 1;
+							 style.fontSize = r.fs;
+							 ctx.font = style.getFontStyle();
+						 }
+						 ctx.fillText(r.s, r.x, r.y + r.asc / 4);
+						 if (style) {
+							 style.strokeWidth = strokeWidth;
+							 style.fontSize = fontSize;
+							 ctx.font = style.getFontStyle();
+						 }
+					 } else if (typeof r.value != "undefined") {
 						 ctx.save();
-						 if (style){
-							  style.strokeWidth = 1;
-							  style.fontSize = r.fs;
-							  ctx.font = style.getFontStyle();
-						  }
+						 if (style) {
+							 style.strokeWidth = 1;
+							 style.fontSize = r.fs;
+							 ctx.font = style.getFontStyle();
+						 }
 						 ctx.translate(r.x, r.y);
-						 if (typeof r.sx != 'undefined' && typeof r.sy != 'undefined') {
+						 if (
+							 typeof r.sx != "undefined" &&
+							 typeof r.sy != "undefined"
+						 ) {
 							 ctx.scale(r.sx, r.sy);
 						 }
 						 ctx.fillText(r.value, 0, 0);
-						 if (style){
-							  style.strokeWidth = strokeWidth;
-							  style.fontSize = fontSize;
-						  }
+						 if (style) {
+							 style.strokeWidth = strokeWidth;
+							 style.fontSize = fontSize;
+						 }
 						 ctx.restore();
+					 }
 				 }
+				 ctx.restore();
 			 }
-			 ctx.restore();
-		   }
-		},
-		nextSequenceSymbol: function(symbol) {
-			return this.nextSequenceSymbol(symbol, false);
-		},
-		nextSequenceSymbol: function(symbol, upcase) {
-			if( !symbol  || symbol.length == 0 )
-				return upcase? "A" : "a";
-			var v =  parseInt(symbol);
-			if(!Number.isNaN(v))  return (v + 1) + "";
-			var length = symbol.length, pos = symbol.indexOf("_");
-			if( pos == 0 || pos ==  length -1)
-				return null;
-			if( pos > 0 ) {
-				  v =  parseInt(symbol.substring(pos+1));
-				if(!Number.isNaN(v)) return symbol.substring(0, pos) + "_" + (v+1);
-			}
-			pos = symbol.indexOf("^");
-			if( pos == 0 || pos ==  length-1)
-				return null;
-			if( pos > 0 ) {
-				  v =  parseInt(symbol.substring(pos+1));
-				if(!Number.isNaN(v)) return symbol.substring(0, pos) + "^" + (v+1);
-			}
-			var c = symbol.charAt(0), ccode = symbol.charCodeAt(0);
-			if( !c.match(/[a-z]/i)   )
-				return null;
-			if( length == 1 ) {
-				return ( c.match(/[A-Z]/) ) ?
-					   (( c  == 'Z' ) ? "A0" : String.fromCharCode(ccode+1))
-					  :  (( c  == 'z' ) ? "a0" : String.fromCharCode(ccode+1));
-			}
-			 v =   parseInt(symbol.substring(1));
-			return Number.isNaN(v) ? null :  "" + c + (v+1);
-		} ,
-	   Focus: function(params, offset){
-			var that = this;
-			this.handleTargets(params, offset, function(params, offset){
-				that.focus(params, offset);
-			});
-		},
-		focus: function(params, offset){
-			  var  conf =  project.configuration,
-			  w = conf.frame_width, h = conf.frame_height,
-			  circle = new Path.Circle({
-				  center: params.target ? params.target.getCameraJustedPosition() : params.position,
-				  radius: (w+h)/4,
-				  fillColor : params.color || 'gray',
-				  opacity:   '0.3',
-			  })
-			  circle.remove();
-			  var aniconfig ={
-				  targets: circle,
-				  'bounds.size': new Size(10,10),
-				  position: '+=[0,0]',
-				  duration: params.duration || 1,
-				  complete: function(){
-					  circle.remove();
-				  }
-			  };
-			if (!params.page || typeof offset === 'undefined') {
-				anime(aniconfig, offset);
-			} else {
-				params.page.add(aniconfig, offset);
-			}
-		},
-		Circumscribe: function(params, offset){
-			var that = this;
-			this.handleTargets(params, offset, function(params, offset){
-				that.circumscribe(params, offset);
-			});
-		},
-		circumscribe: function(params, offset){
-			var page = params.page, target = params.target, bd = target.getCameraJustedBounds(), rect;
-			if( target instanceof PathItem ){
-			   rect = target.clone();
-			   rect.bounds.width = bd.width + 20;
-			   rect.bounds.height = bd.height + 20;
-				rect.position = target.getCameraJustedPosition();
-			   rect.strokeColor = params.color ||  target.strokeColor;
-			   rect.strokeWidth = params.strokeWidth || target.strokeWidth || 2;
-			   rect.fillColor = null;
-			} else {
-				rect = new Path.Rectangle({
-					from:  bd.topLeft.__add(-10,-10),
-					to: bd.bottomRight.__add(10,10),
-					strokeColor : params.color ||  target.strokeColor,
-					strokeWidth:  params.strokeWidth || 2,
-				})
-				rect.position = target.getCameraJustedPosition();
-				rect.fillColor = null;
-			}
-			if( page )
-				showTempObj(page.layer(), page.runnableTimeline(), rect, params.duration || 1, offset);
+		 },
+		 nextSequenceSymbol: function (symbol) {
+			 return this.nextSequenceSymbol(symbol, false);
+		 },
+		 nextSequenceSymbol: function (symbol, upcase) {
+			 if (!symbol || symbol.length == 0) return upcase ? "A" : "a";
+			 var v = parseInt(symbol);
+			 if (!Number.isNaN(v)) return v + 1 + "";
+			 var length = symbol.length,
+				 pos = symbol.indexOf("_");
+			 if (pos == 0 || pos == length - 1) return null;
+			 if (pos > 0) {
+				 v = parseInt(symbol.substring(pos + 1));
+				 if (!Number.isNaN(v))
+					 return symbol.substring(0, pos) + "_" + (v + 1);
+			 }
+			 pos = symbol.indexOf("^");
+			 if (pos == 0 || pos == length - 1) return null;
+			 if (pos > 0) {
+				 v = parseInt(symbol.substring(pos + 1));
+				 if (!Number.isNaN(v))
+					 return symbol.substring(0, pos) + "^" + (v + 1);
+			 }
+			 var c = symbol.charAt(0),
+				 ccode = symbol.charCodeAt(0);
+			 if (!c.match(/[a-z]/i)) return null;
+			 if (length == 1) {
+				 return c.match(/[A-Z]/)
+					 ? c == "Z"
+						 ? "A0"
+						 : String.fromCharCode(ccode + 1)
+					 : c == "z"
+					 ? "a0"
+					 : String.fromCharCode(ccode + 1);
+			 }
+			 v = parseInt(symbol.substring(1));
+			 return Number.isNaN(v) ? null : "" + c + (v + 1);
+		 },
+		 Focus: function (params, offset) {
+			 var that = this;
+			 this.handleTargets(params, offset, function (params, offset) {
+				 that.focus(params, offset);
+			 });
+		 },
+		 focus: function (params, offset) {
+			 var conf = project.configuration,
+				 w = conf.frame_width,
+				 h = conf.frame_height,
+				 circle = new Path.Circle({
+					 center: params.target
+						 ? params.target.getCameraJustedPosition()
+						 : params.position,
+					 radius: (w + h) / 4,
+					 fillColor: params.color || "gray",
+					 opacity: "0.3",
+				 });
+			 circle.remove();
+			 var aniconfig = {
+				 targets: circle,
+				 "bounds.size": new Size(10, 10),
+				 position: "+=[0,0]",
+				 duration: params.duration || 1,
+				 complete: function () {
+					 circle.remove();
+				 },
+			 };
+			 if (!params.page || typeof offset === "undefined") {
+				 anime(aniconfig, offset);
+			 } else {
+				 params.page.add(aniconfig, offset);
+			 }
+		 },
+		 Circumscribe: function (params, offset) {
+			 var that = this;
+			 this.handleTargets(params, offset, function (params, offset) {
+				 that.circumscribe(params, offset);
+			 });
+		 },
+		 circumscribe: function (params, offset) {
+			 var page = params.page,
+				 target = params.target,
+				 bd = target.getCameraJustedBounds(),
+				 rect;
+			 if (target instanceof PathItem) {
+				 rect = target.clone();
+				 rect.bounds.width = bd.width + 20;
+				 rect.bounds.height = bd.height + 20;
+				 rect.position = target.getCameraJustedPosition();
+				 rect.strokeColor = params.color || target.strokeColor;
+				 rect.strokeWidth =
+					 params.strokeWidth || target.strokeWidth || 2;
+				 rect.fillColor = null;
+			 } else {
+				 rect = new Path.Rectangle({
+					 from: bd.topLeft.__add(-10, -10),
+					 to: bd.bottomRight.__add(10, 10),
+					 strokeColor: params.color || target.strokeColor,
+					 strokeWidth: params.strokeWidth || 2,
+				 });
+				 rect.position = target.getCameraJustedPosition();
+				 rect.fillColor = null;
+			 }
+			 if (page)
+				 showTempObj(
+					 page.layer(),
+					 page.runnableTimeline(),
+					 rect,
+					 params.duration || 1,
+					 offset
+				 );
 			 else
-				showTempObj(r9.getActiveLayer(), anime.timeline({ autoplay: true }), rect, params.duration || 1, offset);
-	  },
-	   ShowPassingFlash : function(params, offset){
-			var that = this;
-			this.handleTargets(params, offset, function(params, offset){
-				that.showpassingflash(params, offset);
-			});
-	   },
+				 showTempObj(
+					 r9 ? r9.getActiveLayer() : null,
+					 anime.timeline({ autoplay: true }),
+					 rect,
+					 params.duration || 1,
+					 offset
+				 );
+		 },
+		 ShowPassingFlash: function (params, offset) {
+			 var that = this;
+			 this.handleTargets(params, offset, function (params, offset) {
+				 that.showpassingflash(params, offset);
+			 });
+		 },
 
-	   showpassingflash : function(params, offset){
-		   var page = params.page, target = params.target, bd = target.getCameraJustedBounds(), underline;
-			underline = new R9Line(bd.bottomLeft.__add(0, 20), bd.bottomRight.__add(0,20));
-			underline.strokeColor = params.color ||  target.strokeColor;
-			underline.strokeWidth = params.strokeWidth || target.strokeWidth || 2;
-			if( params.tips )  underline.setTips(params.tips);
-			if( page )
-			   showTempObj(page.layer(), page.runnableTimeline(), underline, params.duration || 1, offset);
-			else {
-				showTempObj(r9.getActiveLayer(), anime.timeline({ autoplay: true }), underline, params.duration || 1, offset);
-			}
-	  },
-		ApplyingWaves : function(params, offset){
-			var that = this;
-			this.handleTargets(params, offset, function(params, offset){
+		 showpassingflash: function (params, offset) {
+			 var page = params.page,
+				 target = params.target,
+				 bd = target.getCameraJustedBounds(),
+				 underline;
+			 underline = new R9Line(
+				 bd.bottomLeft.__add(0, 20),
+				 bd.bottomRight.__add(0, 20)
+			 );
+			 underline.strokeColor = params.color || target.strokeColor;
+			 underline.strokeWidth =
+				 params.strokeWidth || target.strokeWidth || 2;
+			 if (params.tips) underline.setTips(params.tips);
+			 if (page)
+				 showTempObj(
+					 page.layer(),
+					 page.runnableTimeline(),
+					 underline,
+					 params.duration || 1,
+					 offset
+				 );
+			 else {
+				 showTempObj(
+					 r9.getActiveLayer(),
+					 anime.timeline({ autoplay: true }),
+					 underline,
+					 params.duration || 1,
+					 offset
+				 );
+			 }
+		 },
+		 ApplyingWaves: function (params, offset) {
+			 var that = this;
+			 this.handleTargets(params, offset, function (params, offset) {
 				 that.applyingwaves(params, offset);
-			});
-		},
+			 });
+		 },
 
-		applyingwaves : function(params, offset){
-			var page = params.page, direction = params.direction || new Point([0,1]),
-				target = params.target, bd = target.getCameraJustedBounds(),
-				amplitude = params.amplitude ||  Math.max(bd.height/10, 30),
-				wave_func = params.wave_func ||  Numerical.smooth,
-				time_width = params.time_width ||  Math.max(bd.width/10, 50),  ripples = params.ripples || 1 ;
-			var  x_min = bd.x,
-				x_max = x_min + bd.width,
-				vect = direction.normalize().__multiply( amplitude );
-			var wave = function(t) {
-				t = 1 - t;
-				if (t >= 1 || t <= 0)
-					return 0
-				let phases = ripples * 2;
-				let phase = parseInt(t * phases);
-				if (phase == 0)
-					return wave_func(t * phases);
-				else if( phase == phases - 1 ){
-					t -= phase / phases   ;
-					return (1 - wave_func(t * phases)) * (2 * (ripples % 2) - 1);
-				}
-				else {
-					phase = parseInt((phase - 1) / 2);
-					t -= (2 * phase + 1) / phases;
-					return (1 - 2 * wave_func(t * ripples)) * (1 - 2 * ((phase) % 2))
-				}
-			}
-			var homo = function(x,y,t){
-				var upper = Numerical.interpolate(0, 1 + time_width, t);
-				var lower = upper - time_width
-				var relative_x = Numerical.inverse_interpolate(x_min, x_max, x)
-				var  wave_phase = Numerical.inverse_interpolate(lower, upper, relative_x)
-				var nudge =  vect.__multiply(wave(wave_phase));
-				return  [x + nudge.x, y + nudge.y];
-			}
-		   params.homotopy = homo;
-		   this.homotopy(params, offset);
-	  },
+		 applyingwaves: function (params, offset) {
+			 var page = params.page,
+				 direction = params.direction || new Point([0, 1]),
+				 target = params.target,
+				 bd = target.getCameraJustedBounds(),
+				 amplitude = params.amplitude || Math.max(bd.height / 10, 30),
+				 wave_func = params.wave_func || Numerical.smooth,
+				 time_width = params.time_width || Math.max(bd.width / 10, 50),
+				 ripples = params.ripples || 1;
+			 var x_min = bd.x,
+				 x_max = x_min + bd.width,
+				 vect = direction.normalize().__multiply(amplitude);
+			 var wave = function (t) {
+				 t = 1 - t;
+				 if (t >= 1 || t <= 0) return 0;
+				 let phases = ripples * 2;
+				 let phase = parseInt(t * phases);
+				 if (phase == 0) return wave_func(t * phases);
+				 else if (phase == phases - 1) {
+					 t -= phase / phases;
+					 return (
+						 (1 - wave_func(t * phases)) * (2 * (ripples % 2) - 1)
+					 );
+				 } else {
+					 phase = parseInt((phase - 1) / 2);
+					 t -= (2 * phase + 1) / phases;
+					 return (
+						 (1 - 2 * wave_func(t * ripples)) *
+						 (1 - 2 * (phase % 2))
+					 );
+				 }
+			 };
+
+			 var homo = function (x, y, t) {
+				 var upper = Numerical.interpolate(0, 1 + time_width, t);
+				 var lower = upper - time_width;
+				 var relative_x = Numerical.inverse_interpolate(
+					 x_min,
+					 x_max,
+					 x
+				 );
+				 var wave_phase = Numerical.inverse_interpolate(
+					 lower,
+					 upper,
+					 relative_x
+				 );
+				 var nudge = vect.__multiply(wave(wave_phase));
+				 return [x + nudge.x, y + nudge.y];
+			 };
+			 params.homotopy = homo;
+			 this.homotopy(params, offset);
+		 },
 		 MoveAlongPath: function (params, offset) {
 			 var that = this;
 			 this.handleTargets(params, offset, function (params, offset) {
@@ -3285,18 +3554,27 @@ var UID = {
 		 },
 
 		 moveAlongPath: function (params, offset) {
-			 var page = params.page, target = params.target, bd = target.getCameraJustedBounds(),
-				 startPos = params.startPos || (params.startObj && params.startObj.center) || bd.center,
-				  endPos = params.endPos || (params.endObj && params.endObj.center) || null,
-				  path = params.path, duration = params.duration ||2;
+			 var page = params.page,
+				 target = params.target,
+				 bd = target.getCameraJustedBounds(),
+				 startPos =
+					 params.startPos ||
+					 (params.startObj && params.startObj.center) ||
+					 bd.center,
+				 endPos =
+					 params.endPos ||
+					 (params.endObj && params.endObj.center) ||
+					 null,
+				 path = params.path,
+				 duration = params.duration || 2;
 			 startPos = path.getNearestPoint(startPos);
-			 if( endPos != null)
-				 endPos = path.getNearestPoint( endPos );
-			 var length = path.length, start =  path.getOffsetOf(startPos);
-			 if( endPos ){
-				length = path.getOffsetOf(endPos) - start;
+			 if (endPos != null) endPos = path.getNearestPoint(endPos);
+			 var length = path.length,
+				 start = path.getOffsetOf(startPos);
+			 if (endPos) {
+				 length = path.getOffsetOf(endPos) - start;
 			 } else {
-				length -= start;
+				 length -= start;
 			 }
 			 var aniconfig = {
 				 targets: target,
@@ -3304,17 +3582,98 @@ var UID = {
 				 position: startPos,
 				 positionFunc: function (from, to, curpos, easing) {
 					 var p = path.getPointAt(start + length * (easing || 0));
-					 p = p ? p : (easing > 0.5 ? path.getLastPoint() : startPos);
+					 p = p ? p : easing > 0.5 ? path.getLastPoint() : startPos;
 					 return p ? p : curpos;
 				 },
 			 };
-			 if( !page || typeof offset === 'undefined'){
-				 anime(aniconfig );
+			 if (!page || typeof offset === "undefined") {
+				 anime(aniconfig);
 			 } else {
 				 page.add(aniconfig, offset);
 			 }
-		 }
-	}
+		 },
+
+		 flipboard: function (
+			 bounds,
+			 image11,
+			 image12,
+			 image21,
+			 duration,
+			 callback
+		 ) {
+
+			anime({
+				 target: image12,
+				 scaleX: 0,
+				 easing: "linear",
+				 complete: function () {
+					 anime({
+						 target: image21,
+						 scaleX: 1,
+						 x: bounds.left,
+						 complete: function () {
+							 image12.remove();
+							 image21.remove();
+							 image11.remove();
+							 if (callback != null) callback.onEnd();
+						 },
+						 duration: duration / 2,
+					 });
+				 },
+				 duration: duration/2,
+			 });
+		 },
+
+		 flipboard_page: function (
+			 contentlay,
+			 tcly,
+			 bounds,
+			 duration,
+			 callback
+		 ) {
+			 var image = contentlay.rasterize();
+			 var image1 = image.getSubRaster(
+				 new Rectangle(
+					 bounds.left,
+					 bounds.top,
+					 bounds.width / 2,
+					 bounds.height
+				 )
+			 );
+			 var that = this;
+			 var image2 = image.getSubRaster(
+				 new Rectangle(
+					 bounds.left + bounds.width / 2,
+					 bounds.top,
+					 bounds.width / 2,
+					 bounds.height
+				 )
+			 );
+			 tcly.add(image1);
+			 tcly.add(image2);
+			 setTimeout(function () {
+				 var image = contentlay.rasterize();
+				 var image3 = image.getSubRaster(
+					 new Rectangle(
+						 bounds.left + bounds.width / 2,
+						 bounds.top,
+						 bounds.width / 2,
+						 bounds.height
+					 )
+				 );
+				 image3.scaleX = 0.00001;
+				 tcly.add(image3);
+				 that.flipboard(
+					 bounds,
+					 image1,
+					 image2,
+					 image3,
+					 duration,
+					 callback
+				 );
+			 }, 2000);
+		 },
+	 };
 };
 
 var Point = Base.extend({
@@ -5356,6 +5715,7 @@ var Project = PaperScopeItem.extend({
 		this._namedChildren = {};
 		this._activeLayer = null;
 		this._mainLayer = null;
+
 		this._currentStyle = new Style(null, null, this);
 		this._selectionItems = {};
 		this._selectionCount = 0;
@@ -5412,6 +5772,7 @@ var Project = PaperScopeItem.extend({
 			this.r9userprofile = { 'name': r9getURLPara('r9username'), 'tname': stageProps.usernameHolder };
 			this.r9gsummary = { 'score': 0, 'total': 0, 'emotion': '', 'pos': 0, 'totalpos': stageProps.totalpos };
 			this.hotspotCanJumpAfterVisitOnly = stageProps.hotspotCanJumpAfterVisitOnly;
+
 			this.timelinescreens = [];
 
 			this.curtarget = null;
@@ -5449,7 +5810,9 @@ var Project = PaperScopeItem.extend({
 			this.capline = new Path.Rectangle( new Point(0, stageProps.docheight-45),
 											   new Point( stageProps.docwidth, stageProps.docheight ));
 			this.capline.fillColor = 'rgba(128,128,128,0.6)';
+
 			this.captext = new StyledText(r9figure({ sft: 0, dur: 0, fillColor: 'white', strokeColor: 'white', sw: 1.0, h: 27,  fsz: 22.0, fs: 'normal', dr: false,   lh: 26,  ran: 0,  opa: 1 }));
+
 			this.captext.justification = 'center';
 			this.captext.position = this.capline.center;
 			this.capline.remove();
@@ -5481,6 +5844,7 @@ var Project = PaperScopeItem.extend({
 	showInfoMessage: function(message){
 		this.on_message('', {content: message})
 	},
+
 	on_message: function(topic, data){
 	   if( this._activeLayer ){
 			if( data && data.content ){
@@ -5525,6 +5889,7 @@ var Project = PaperScopeItem.extend({
 				}
 				RU.imageEffect2(null, message_item, 1,
 					type, 'linear', '', true,  callback );
+
 			}
 	   }
 	},
@@ -5598,6 +5963,7 @@ var Project = PaperScopeItem.extend({
 		var children = this._children;
 		for (var i = children.length - 1; i >= 0; i--)
 			children[i].remove();
+
 	},
 
 	isEmpty: function() {
@@ -5626,6 +5992,7 @@ var Project = PaperScopeItem.extend({
 			e._changed(undefined)
 		});
 	},
+
 	useBuiltinStyle: function(name){
 		var s = Style.getBuiltinStyle(name, this);
 		if(s){
@@ -5751,6 +6118,7 @@ var Project = PaperScopeItem.extend({
 		if ( len > (hasBgJs? 3 : 1) ){
 			var alayer = this.getActiveLayer();
 			var that = this, resume = alayer.resumeOnClose || (props && props.resumeOnClose) || false;
+
 			alayer.getPlayer().stop();
 			var mask = alayer.rasterize();
 			alayer.visible = false;
@@ -5813,12 +6181,22 @@ var Project = PaperScopeItem.extend({
 			layer._setting.name = props.name;
 			layer._setting.ra = props.resumeOnClose || false;
 			layer._setting.autoClose = props.autoClose || false;
+
 		} else {
 			layer = new Layer({ project: this, insert: true });
 			layer.name = props;
 		}
 		this._activeLayer = layer;
 		return layer;
+	},
+
+	keepCorrectZOrder: function() {
+	   if(this.htpsovals) {
+		var that = this;
+		Object.keys(that.htpsovals).forEach(function (key) {
+			if (that.htpsovals[key]) that.htpsovals[key].setAsTopOne();
+		});
+	   }
 	},
 
 	getSymbolDefinitions: function() {
@@ -5881,6 +6259,7 @@ var Project = PaperScopeItem.extend({
 		for (var i in selectionItems)
 			selectionItems[i].setFullySelected(false);
 	},
+
 	addLayer: function(layer) {
 		return this.insertLayer(undefined, layer);
 	},
@@ -5994,6 +6373,7 @@ var Project = PaperScopeItem.extend({
 		that.captext.remove();
 		that.layer().addChild(that.captext);
 		that.captext.setFontSize(22);
+
 		if( edo.usetts && (edo.caption || edo.ttstip) )
 			that.ttssetup(this.getCurPage(), -1, "", "", edo.ttstip || edo.caption,
 				"", false, true, "", "", null, "", true);
@@ -6124,6 +6504,7 @@ var Project = PaperScopeItem.extend({
 		}
 		return null;
 	},
+
 	update_score : function (result) {
 		var found;
 		for (var i = 0; i < this.score_report.length; i++) {
@@ -6237,6 +6618,9 @@ var Project = PaperScopeItem.extend({
 	},
 
 	redrawTopLayer : function () {
+		var alayer = this.getActiveLayer();
+		alayer._changed(521);
+		this.view.requestUpdate();
 		this._view.draw();
 	},
 
@@ -6298,30 +6682,36 @@ var Project = PaperScopeItem.extend({
 				this.getCurPlayer().resume();
 		}
 	},
-	getBackgroundNode : function () {
-		var laysetting = this.getTopLayerSetting(), i2f = laysetting.i2f, bd = laysetting.layer.bounds,
+	getBackgroundNode : function (fullScreen) {
+		var laysetting = this.getTopLayerSetting();
+		var bg = laysetting.layer.getBackground( );
+		if(bg) return bg;
+
+		var i2f = laysetting.i2f;
+		if( fullScreen){
+		   bg = laysetting.layer.setBackground([
+			   0,
+			   0,
+			   this.configuration.frame_width,
+			   this.configuration.frame_height,
+		   ]);
+		} else {
+		  var bd = laysetting.layer.bounds,
 			hasbd = bd.width > 0 && bd.height > 0,
 			docx = hasbd ? bd.x : 0, docy = hasbd ? bd.y : 0,
 			docw = hasbd ? bd.size.width : this.configuration.frame_width,
 			doch = hasbd ? bd.size.height :this.configuration.frame_height;
-		if (!i2f['_bgrect_']) {
-			i2f['_bgrect_'] =   new Path.Rectangle({
-				point: [ docx, docy ],
-				size: [docw, doch],
-				fillColor: 'black'
-			})
-			i2f['_bgrect_']._aspagebg = true;
-			laysetting.layer.add(i2f['_bgrect_']);
-		} else {
-		   if( hasbd)  i2f['_bgrect_'].bounds = bd;
+		  bg = laysetting.layer.setBackground([docx, docy, docw, doch]);
 		}
-		i2f['_bgrect_'].sendToBack();
-		return i2f['_bgrect_'];
+
+		i2f["_bgrect_"] = bg;
+		return bg;
+
 	},
 
 	shiftView: function (x, y, duration) {
 		var that = this, layer = that.getTopLayerSetting().layer;
-		var tlo = layer._cameraOffset;
+		var tlo = layer.cameraOffset;
 		anime({ target: layer, cameraOffset: new Point( tlo.x - x, tlo.y - y), duration: duration });
 	},
 
@@ -6387,6 +6777,7 @@ var Project = PaperScopeItem.extend({
 		bgr, bgg, bgb, fontSize, width, height, posX, xoff, posY, yoff, duration, resumeAnimation, langCode,
 		pos, pageid, prefix, topicId, subtopicId, borderType, noTTS, jumpTimeline) {
 		if (typeof borderType === 'undefined') borderType = 'Cloud';
+
 		var anode = new StyledText(r9figure({
 			position: new Point(posX, posY),
 			fillColor: 'rgb(' + scr + ',' + scg + ',' + scb + ')',
@@ -6416,24 +6807,29 @@ var Project = PaperScopeItem.extend({
 		stageWidth, stageHeight, posX, posY, borderType, duration, resumeAnimation, langCode, rate, fontSize,
 		pos, pageid, prefix, topicId, subtopicId) {
 		if (typeof borderType === 'undefined') borderType = 'Cloud';
-		var anode = new StyledText(r9figure({
-			position: new Point(posX, posY),
-			fillColor: 'rgb(255,255,255)',
-			strokeColor: 'rgb(0,0,0)',
-			justification: 'center',
-			bgColor: 'bgColor2',
-			borderColor: 'rgb(0,0,0)',
-			shadowOffset: new Point(0.5, 0.5),
-			borderType: borderType,
-			corner: 5,
-			textXOffset: 30,
-			textYOffset: 15,
-			fontSize: fontSize || 18,
-			content: otext,
-			r9textstyle: textstyle,
-			mathInput: math
-		}));
-		if (!posX) anode.position.x = ((stageWidth - anode.width ) / 2);
+		var anode = new StyledText(
+			r9figure({
+				position: new Point(posX, posY),
+				fillColor: "rgb(255,255,255)",
+				strokeColor: "rgb(0,0,0)",
+				justification: "center",
+				bgColor: "bgColor2",
+				borderColor: "rgb(0,0,0)",
+				shadowOffset: new Point(0.5, 0.5),
+				borderType: borderType,
+				corner: 5,
+				textXOffset: 30,
+				textYOffset: 15,
+				fontSize: fontSize || 18,
+				content: otext,
+				r9textstyle: textstyle,
+				mathInput: math,
+				useBackground: true,
+			})
+		);
+		if (!stageWidth) stageWidth = r9.stageWidth;
+		if (!stageHeight) stageHeight = r9.stageHeight;
+		if (!posX) anode.position.x = (stageWidth - anode.width) / 2;
 		if (!posY) anode.position.y = ((stageHeight - anode.height ) / 2);
 		this.showMessageNode(dnclayer, messageid, ttstip || otext, anode, duration, resumeAnimation, "", false, langCode,
 			pos, pageid, prefix, topicId, subtopicId);
@@ -6454,20 +6850,23 @@ var Project = PaperScopeItem.extend({
 		menu.position = [300, 300];
 		page.createItems({ target: menu, duration: 3 })
 		nodeList.forEach(function (n) {
-			var anode = new StyledText(r9figure({
-				position: new Point(n.x, n.y),
-				fillColor: 'rgb(' + bgr + ',' + bgg + ',' + bgb + ')',
-				bgColor: 'rgb(' + bgr + ',' + bgg + ',' + bgb + ')',
-				strokeColor: 'rgb(0,0,0)',
-				justification: 'center',
-				shadowOffset: new Point(0.5, 0.5),
-				corner: 5,
-				textXOffset: n.xoff,
-				textYOffset: n.yoff,
-				fontSize: n.fs || 18,
-				content: n.otext,
-				r9textstyle: n.style
-			}));
+			var anode = new StyledText(
+				r9figure({
+					position: new Point(n.x, n.y),
+					fillColor: "rgb(" + bgr + "," + bgg + "," + bgb + ")",
+					strokeColor: "rgb(" + scr + "," + scg + "," + scb + ")",
+					bgColor: "rgb(" + bgr + "," + bgg + "," + bgb + ")",
+					justification: "center",
+					shadowOffset: new Point(0.5, 0.5),
+					corner: 5,
+					textXOffset: n.xoff,
+					textYOffset: n.yoff,
+					fontSize: n.fs || 18,
+					content: n.otext,
+					r9textstyle: n.style,
+					useBackground: true,
+				})
+			);
 
 			anode.on('click', function () {
 				for (var j in nodes) {
@@ -6510,7 +6909,9 @@ var Project = PaperScopeItem.extend({
 			page.add( tw2 );
 		}
 	}
+
 });
+
 Project.idCounter = (function () {
 	var counter = 0;
 	return function () {
@@ -6740,6 +7141,7 @@ new function() {
 			that.off('mouseenter', that._tooltipHandler1);
 			that.off('mouseleave', that._tooltipHandler2 );
 		}
+
 	},
 	getTooltip: function(){
 		return this._tooltip;
@@ -7063,14 +7465,14 @@ new function() {
 		if( this.parent instanceof Layer ){
 			var position = this._position ||
 				(this._position = this._getPositionFromBounds());
-			return new Point(position.x + this.parent._cameraOffset.x, position.y + this.parent._cameraOffset.y )
+			return new Point(position.x + this.parent.cameraOffset.x, position.y + this.parent.cameraOffset.y )
 		}
 		return this.getPosition( );
 	},
 	getCameraJustedBounds: function () {
 		if (this.parent instanceof Layer) {
 			var b = this.getBounds();
-			return new Rectangle(b.x + this.parent._cameraOffset.x, b.y + this.parent._cameraOffset.y, b.width, b.height)
+			return new Rectangle(b.x + this.parent.cameraOffset.x, b.y + this.parent.cameraOffset.y, b.width, b.height)
 		}
 		return this.getBounds();
 	},
@@ -7155,9 +7557,6 @@ new function() {
 		center = bounds.getCenter();
 		matrix.translate(-center.x, -center.y);
 		this.transform(matrix);
-		if (this.setBoundsMask ){
-			this.setBoundsMask( rect )
-		}
 	},
 
 	_getBounds: function(matrix, options) {
@@ -7423,6 +7822,7 @@ new function() {
 	getView: function() {
 		return this._project._view;
 	},
+
 	 getLayer: function() {
 		var parent = this;
 		while (parent = parent._parent) {
@@ -7467,6 +7867,7 @@ new function() {
 		this.removeChildren();
 		this.addChildren(items);
 	},
+
 	getFirstChild: function() {
 		return this._children && this._children[0] || null;
 	},
@@ -7909,7 +8310,7 @@ new function() {
 		var pos = this._children.length;
 		if( asTopLayer ){
 			if( this._topIndex < 0 )
-				this._topIndex = 0;
+				this._topIndex = pos;
 			return this.insertChild(pos, item);
 		}
 		if( this._topIndex >= 0 )
@@ -7934,9 +8335,11 @@ new function() {
 	},
 
 	insertChildren: function(index, items) {
-		var children = this._children, topIndex = this._topIndex;
-		if( typeof index == 'undefined' && topIndex >= 0 )
-			index = topIndex;
+		var children = this._children,
+			topIndex = this._topIndex;
+		if (typeof index === "undefined") {
+			index = topIndex >= 0 ? topIndex : children.length;
+		}
 		if (children && items && items.length > 0) {
 			items = Base.slice(items);
 			var inserted = {};
@@ -7951,8 +8354,9 @@ new function() {
 				}
 			}
 			Base.splice(children, items, index, 0);
-			if( topIndex >= index ) topIndex += items.length;
-			this._topIndex = topIndex;
+			if (topIndex >= 0 && index <= topIndex) {
+				this._topIndex += items.length;
+			}
 
 			var project = this._project,
 				notifySelf = project._changes;
@@ -7961,10 +8365,8 @@ new function() {
 					name = item._name;
 				item._parent = this;
 				item._setProject(project, true);
-				if (name)
-					item.setName(name);
-				if (notifySelf)
-					item._changed(5);
+				if (name) item.setName(name);
+				if (notifySelf) item._changed(5);
 			}
 			this._changed(11);
 		} else {
@@ -8018,6 +8420,7 @@ new function() {
 		}
 		return null;
 	},
+
 	bringToFront: function() {
 		var owner = this._getOwner();
 		return owner ? owner._insertItem(undefined, this) : null;
@@ -8537,7 +8940,8 @@ new function() {
 	},
 	drawCorrectMarker: function (context) {
 		if ( !!this.getCorrect() ) {
-			var cimage = r9 && r9.getCacheImageByName(this.getCorrect()  > 0 ? "r9correct" : "r9wrong");
+			var cimage = "";
+			if(r9) cimage = r9.getCacheImageByName(this.getCorrect()  > 0 ? "r9correct" : "r9wrong");
 			if (cimage) {
 				var bd = this.bounds;
 				context.drawImage(cimage, 0,0, cimage.width, cimage.height, bd.x, bd.y, cimage.width, cimage.height);
@@ -8654,11 +9058,14 @@ new function() {
 			easing: 'linear'  ,
 			duration: 1
 		},  options);
+
 		this.project.activeLayer._timeline.add( tween_op ).play();
+
 	},
 
 	make_progress: function(duration, options) {
 		var time = 0, that = this;
+
 		function onFrame(event) {
 			if(time == 0)
 				time = event.time;
@@ -8716,338 +9123,492 @@ new function() {
 	},
 });
 
-var Group = Item.extend({
-	_class: 'Group',
-	_selectBounds: false,
-	_selectChildren: true,
-	_serializeFields: {
-		children: []
-	},
+var Group = Item.extend(
+	 {
+		_class: "Group",
+		_selectBounds: false,
+		_selectChildren: true,
+		_serializeFields: {
+			children: [],
+		},
 
-	initialize: function Group(arg) {
-		this._children = [];
-		this._topIndex = -1;
-		this._namedChildren = {};
-		this._cameraOffset = new Point(0,0);
-		this._topLeftOffset = new Point(0,0);
-		if (!this._initialize(arg))
-			this.addChildren(Array.isArray(arg) ? arg : arguments);
-	},
-	setOpacity: function (opa) {
-		this._opacity = opa;
-		var children = this._children;
-		for (var i = 0, l = children.length; i < l; i++) {
-			children[i].setOpacity(opa);
-		}
-	},
-	setCameraOffset: function(v){
-		this._cameraOffset = v;
-		this._changed(521);
-		this.view.requestUpdate();
-	},
-	getCameraOffset: function(){
-		return this._cameraOffset;
-	},
-	setTopLeftOffset: function (v) {
-		this._topLeftOffset = v;
-		this.view.requestUpdate();
-	},
-	getTopLeftOffset: function () {
-		return this._topLeftOffset;
-	},
-	_changed: function _changed(flags) {
-		_changed.base.call(this, flags);
-		if (flags & 2178) {
-			if (this._clipItem && this._clipItem._aslayerbg ) return;
-			this._clipItem = undefined;
-		}
-	},
-
-	setShowHide: function(show){
-		this.visible = show;
-		var children = this._children;
-		for (var i = 0, l = children.length; i < l; i++) {
-			children[i].setShowHide(show);
-		}
-	},
-	showSelf: function(timeline, options, offset){
-		var children = this._children, layer = this.getLayer() || this.getRegistedLayer( ) || this._project._activeLayer;
-		options.duration = options.duration || 1;
-		delete options.target; delete options.targets;
-		RU.handleSeveralTargets(children, options.duration||1, offset, function(item, duration, offset){
-			var newops = Base.set({}, options);
-			newops.targets = item;
-			newops.duration = duration;
-			layer.createItems(timeline, newops, offset);
-		});
-	},
-	containsAllPaths: function(forSVG){
-		var   children = this._children, count = children.length;
-		for (var i = 0, l = count; i < l; i++){
-			var c = children[i] ;
-			if( c instanceof Path || c instanceof CompoundPath )
-				continue;
-			if( c.containsAllPaths && c.containsAllPaths(forSVG) )
-				continue;
-			if( forSVG &&  c._class == 'Shape' && c._type == 'rectangle' )
-				continue;
-			return false;
-		 }
-		 return true;
-	},
-	write: function(timeline, duration, offset, doneCallback) {
-		this._write0(timeline, duration, offset,  true, doneCallback);
-	},
-	unwrite: function(timeline, duration, offset,  doneCallback) {
-		this._write0(timeline, duration, offset, false, doneCallback);
-	},
-	_write0: function(timeline, duration, offset,  create, doneCallback) {
-		var   cs = this._children, count = cs.length;
-		if( count == 0 ) return;
-		var  cdur = duration/count;
-		if( cs[0]._write0 ) cs[0]._write0( timeline, cdur, offset,  create, doneCallback);
-		for(var i = 1; i < count; i++)
-			if( cs[i]._write0 ) cs[i]._write0( timeline, cdur, undefined,  create, doneCallback);
-   },
-   start: function(duration, offset, repeat, doneCallback ) {
-		var   cs = this._children, count = cs.length;
-		if( count == 0 ) return;
-		var   cdur = duration/count, acc= offset;
-		cs.forEach(e =>{  e._progress = 0; });
-		if( cs[0].start ) cs[0].start(   cdur, offset,  repeat, doneCallback);
-		for(var i = 1; i < count; i++){
-			acc += cdur;
-			if( cs[i].start ) cs[i].start(  cdur, acc,  repeat, doneCallback);
-		}
-   },
-
-	showChildOneByOne: function(timeline,  duration, offset, doneCallback){
-		var that = this, children = this._children, len = children.length, started = false;
-		timeline.add({
-			targets : that,
-			progressFunc : function(progress){
-				if( !started ) {
-					started = true;
-					children.forEach(e => {  e.visible = false; });
-				}
-				var t  =  Math.floor( len * progress );
-				for(var i = 0; i < t; i++){
-					children[i].visible = true;
-				}
-			} ,
-			duration : duration,
-			complete: function(){
-				if( doneCallback ) doneCallback();
-				children.forEach(e => {  e.visible = true; });
-			} ,
-			callbackCxt: this,
-		}, offset);
-	},
-
-	_getClipItem: function() {
-		var clipItem = this._clipItem;
-		if (clipItem === undefined) {
-			clipItem = null;
+		initialize: function Group(arg) {
+			this._children = [];
+			this._topIndex = -1;
+			this._namedChildren = {};
+			this._topLeftOffset = new Point(0, 0);
+			if (!this._initialize(arg))
+				this.addChildren(Array.isArray(arg) ? arg : arguments);
+		},
+		setOpacity: function (opa) {
+			this._opacity = opa;
 			var children = this._children;
 			for (var i = 0, l = children.length; i < l; i++) {
-				if (children[i]._clipMask) {
-					clipItem = children[i];
+				children[i].setOpacity(opa);
+			}
+		},
+
+		setCamera: function () {
+			var x, y, width, height;
+
+			if (arguments.length === 1 && Array.isArray(arguments[0])) {
+				var arr = arguments[0];
+				x = arr[0];
+				y = arr[1];
+				width = arr[2];
+				height = arr[3];
+			}
+			else if (
+				arguments.length === 1 &&
+				arguments[0] instanceof paper.Rectangle
+			) {
+				var rect = arguments[0];
+				x = rect.x;
+				y = rect.y;
+				width = rect.width;
+				height = rect.height;
+			}
+			else if (arguments.length === 4) {
+				x = arguments[0];
+				y = arguments[1];
+				width = arguments[2];
+				height = arguments[3];
+			} else {
+			}
+			if (!this._clipRect) {
+				this._clipRect = new paper.Path.Rectangle({
+					point: [x, y],
+					size: [width, height],
+					clipMask: true,
+				});
+				this._clipRect.clipped = true;
+				this._clipRect.clippingMask = true;
+				this.addChild(this._clipRect);
+			} else {
+				this._clipRect.bounds = new paper.Rectangle(
+					x,
+					y,
+					width,
+					height
+				);
+				this._clipRect.clipped = true;
+				this._clipRect.clippingMask = true;
+			}
+			this._clipRect.bringToFront();
+		},
+
+		getCamera: function () {
+			if(!this._clipRect) {
+				this.setCamera([0,0, this._project.docw, this._project.doch]);
+			}
+			return this._clipRect;
+		},
+
+		addChild: function addChild(item, asTopLayer) {
+			addChild.base.call(this, item, asTopLayer);
+			if (this._clipRect) this._clipRect.bringToFront();
+		},
+
+		setCameraOffset: function (v) {
+			if (!this._clipRect) {
+				this.setCamera([0, 0, this._project.docw, this._project.doch]);
+			}
+			this._clipRect.position = v;
+			this._changed(521);
+			this.view.requestUpdate();
+		},
+		getCameraOffset: function () {
+			if (!this._clipRect) return new Point(0, 0);
+			return this._clipRect.position;
+		},
+		setTopLeftOffset: function (v) {
+			this._topLeftOffset = v;
+			this._changed(521);
+			this.view.requestUpdate();
+		},
+		getTopLeftOffset: function () {
+			return this._topLeftOffset;
+		},
+
+		_changed: function _changed(flags) {
+			_changed.base.call(this, flags);
+		},
+
+		setShowHide: function (show) {
+			this.visible = show;
+			var children = this._children;
+			for (var i = 0, l = children.length; i < l; i++) {
+				children[i].setShowHide(show);
+			}
+		},
+		showSelf: function (timeline, options, offset) {
+			var children = this._children,
+				layer =
+					this.getLayer() ||
+					this.getRegistedLayer() ||
+					this._project._activeLayer;
+			options.duration = options.duration || 1;
+			delete options.target;
+			delete options.targets;
+			RU.handleSeveralTargets(
+				children,
+				options.duration || 1,
+				offset,
+				function (item, duration, offset) {
+					var newops = Base.set({}, options);
+					newops.targets = item;
+					newops.duration = duration;
+					layer.createItems(timeline, newops, offset);
+				}
+			);
+		},
+		containsAllPaths: function (forSVG) {
+			var children = this._children,
+				count = children.length;
+			for (var i = 0, l = count; i < l; i++) {
+				var c = children[i];
+				if (c instanceof Path || c instanceof CompoundPath) continue;
+				if (c.containsAllPaths && c.containsAllPaths(forSVG)) continue;
+				if (forSVG && c._class == "Shape" && c._type == "rectangle")
+					continue;
+				return false;
+			}
+			return true;
+		},
+		write: function (timeline, duration, offset, doneCallback) {
+			this._write0(timeline, duration, offset, true, doneCallback);
+		},
+		unwrite: function (timeline, duration, offset, doneCallback) {
+			this._write0(timeline, duration, offset, false, doneCallback);
+		},
+		_write0: function (timeline, duration, offset, create, doneCallback) {
+			var cs = this._children,
+				count = cs.length;
+			if (count == 0) return;
+			var cdur = duration / count;
+			if (cs[0]._write0)
+				cs[0]._write0(timeline, cdur, offset, create, doneCallback);
+			for (var i = 1; i < count; i++)
+				if (cs[i]._write0)
+					cs[i]._write0(
+						timeline,
+						cdur,
+						undefined,
+						create,
+						doneCallback
+					);
+		},
+		start: function (duration, offset, repeat, doneCallback) {
+			var cs = this._children,
+				count = cs.length;
+			if (count == 0) return;
+			var cdur = duration / count,
+				acc = offset;
+			cs.forEach((e) => {
+				e._progress = 0;
+			});
+			if (cs[0].start) cs[0].start(cdur, offset, repeat, doneCallback);
+			for (var i = 1; i < count; i++) {
+				acc += cdur;
+				if (cs[i].start) cs[i].start(cdur, acc, repeat, doneCallback);
+			}
+		},
+
+		showChildOneByOne: function (timeline, duration, offset, doneCallback) {
+			var that = this,
+				children = this._children,
+				len = children.length,
+				started = false;
+			timeline.add(
+				{
+					targets: that,
+					progressFunc: function (progress) {
+						if (!started) {
+							started = true;
+							children.forEach((e) => {
+								e.visible = false;
+							});
+						}
+						var t = Math.floor(len * progress);
+						for (var i = 0; i < t; i++) {
+							children[i].visible = true;
+						}
+					},
+					duration: duration,
+					complete: function () {
+						if (doneCallback) doneCallback();
+						children.forEach((e) => {
+							e.visible = true;
+						});
+					},
+					callbackCxt: this,
+				},
+				offset
+			);
+		},
+
+		isClipped: function () {
+			return this._clipRect != null;
+		},
+
+		_hitTestChildren: function _hitTestChildren(
+			point,
+			options,
+			viewMatrix
+		) {
+			var clipItem = this._clipRect;
+			var p2 = this._topLeftOffset
+				? point.__subtract(this._topLeftOffset)
+				: point;
+			return (
+				(!clipItem || clipItem.contains(point)) &&
+				_hitTestChildren.base.call(
+					this,
+					p2,
+					options,
+					viewMatrix,
+					clipItem
+				)
+			);
+		},
+		_draw_extra_bg: function (ctx, param, viewMatrix) {},
+		_draw_extra_fb: function (ctx, param, viewMatrix) {},
+		_draw: function (ctx, param, viewMatrix) {
+			var clip = param.clip,
+				clipItem = !clip && this._clipRect,
+				clipBds = clipItem && clipItem.bounds,
+				prevoffset = param.offset;
+			param = param.extend({ clipItem: clipItem, clip: false });
+
+			if (clip) {
+				ctx.beginPath();
+				param.dontStart = param.dontFinish = true;
+			} else if (clipItem) {
+				clipItem.draw(ctx, param.extend({ clip: true }));
+			}
+			var children = this._children,
+				i;
+			for (var i = 0, l = children.length; i < l; i++) {
+				var item = children[i];
+				if (item === clipItem) continue;
+				if (item._aslayerbg) {
+					ctx.save();
+					item.draw(ctx, param);
+					ctx.restore();
 					break;
 				}
 			}
-			this._clipItem = clipItem;
-		}
-		return clipItem;
-	},
+			this._draw_extra_bg(ctx, param, viewMatrix);
 
-	isClipped: function() {
-		return !!this._getClipItem();
-	},
+			if (this._topLeftOffset.x != 0 || this._topLeftOffset.y != 0) {
+				ctx.translate(this._topLeftOffset.x, this._topLeftOffset.y);
+			}
 
-	_getBounds: function _getBounds(matrix, options) {
-		var clipItem = this._getClipItem();
-		return clipItem
-			? clipItem._getCachedBounds(clipItem._matrix.prepended(matrix),
-				Base.set({}, options, { stroke: false }))
-			: _getBounds.base.call(this, matrix, options);
-	},
-
-	_hitTestChildren: function _hitTestChildren(point, options, viewMatrix) {
-		var clipItem = this._getClipItem();
-		var p2 =  this._topLeftOffset ? point.__subtract(this._topLeftOffset) : point;
-		return (!clipItem || clipItem.contains(point))
-			&& _hitTestChildren.base.call(this, p2, options, viewMatrix,
-					clipItem);
-	},
-	_draw_extra_bg: function(ctx, param, viewMatrix) { },
-	_draw_extra_fb: function(ctx, param, viewMatrix) { },
-	_draw: function(ctx, param, viewMatrix) {
-		var clip = param.clip,
-			clipItem = !clip && this._getClipItem(), clipBds = clipItem && clipItem.bounds,
-			prevoffset = param.offset;
-		param = param.extend({ clipItem: clipItem, clip: false });
-
-		if (clip) {
-			ctx.beginPath();
-			param.dontStart = param.dontFinish = true;
-		} else if (clipItem) {
-			ctx.save();
-			clipItem.draw(ctx, param.extend({ clip: true }));
-			ctx.restore();
-	   }
-		var children = this._children, i;
-		for (var i = 0, l = children.length; i < l; i++) {
-			var item = children[i];
-			if (item === clipItem) continue;
-			if ( item._aslayerbg  ) {
+			for (var i = 0, l = children.length; i < l; i++) {
+				var item = children[i];
+				if (item === clipItem) continue;
+				if (!item._aslayerbg) break;
 				ctx.save();
 				item.draw(ctx, param);
 				ctx.restore();
-				break;
 			}
-		}
-		this._draw_extra_bg(ctx, param, viewMatrix);
 
-		if (this._topLeftOffset.x != 0 || this._topLeftOffset.y != 0) {
-			ctx.translate(this._topLeftOffset.x, this._topLeftOffset.y);
-		}
-
-		for (var i = 0, l = children.length; i < l; i++) {
-			var item = children[i];
-			if (item === clipItem) continue;
-			if( !item._aslayerbg  ) break;
-			ctx.save();
-			item.draw(ctx, param);
-			ctx.restore();
-		}
-
-		for (var i = 0, l = children.length; i < l; i++) {
-			var item = children[i];
-			if ( item === clipItem || item._aslayerbg )
-				continue;
-			if( !item._aspagebg){
-				if (this._cameraOffset.x != 0 || this._cameraOffset.y != 0)
-					ctx.translate(this._cameraOffset.x, this._cameraOffset.y);
+			for (var i = 0, l = children.length; i < l; i++) {
+				var item = children[i];
+				if (item === clipItem || item._aslayerbg) continue;
+				ctx.save();
+				item.draw(ctx, param);
+				ctx.restore();
 			}
-			ctx.save();
-			item.draw(ctx, param);
-			ctx.restore();
-			if (!item._aspagebg) {
-				if (this._cameraOffset.x != 0 || this._cameraOffset.y != 0)
-					ctx.translate(-this._cameraOffset.x, -this._cameraOffset.y);
-			}
-		}
-		this._draw_extra_fb(ctx, param, viewMatrix);
-		if (this._topLeftOffset.x != 0 || this._topLeftOffset.y != 0) {
-			ctx.translate(-this._topLeftOffset.x, -this._topLeftOffset.y);
-		}
-	},
-	align_grid: function(numrows, numcols, gap, exclude){
-		var children = this._children, max_w, max_h, tlx, tly, pos;
-		numrows = Math.abs(numrows) || 1; numcols == Math.abs(numcols) || 1;
-		let linfo = this._get_child_layout(exclude);
-		tlx = linfo[0], tly = linfo[1], max_w = linfo[2], max_h = linfo[3];
-		if( exclude )
-			children = children.filter(e => {
-				return e != exclude;
-			});
-		var counts = children.length;
-		if( numrows * numcols < counts ){
-			numrows = 1; numcols = counts;
-		}
-		gap = gap || 0;
-		for (var i = 0; i < numrows; i++){
-			for (var j = 0; j < numcols; j++){
-				pos = i * numcols + j;
-				if( pos >= counts  ) break;
-				var item = children[pos];
-				item.position = new Point(j* (max_w +gap)+ max_w/2, i* (max_h+gap) + max_h/2 );
-			}
-		}
-		return this;
-	},
-	_get_child_layout: function(excluded){
-		var children = this._children,
-		max_w = 0, max_h = 0, tlx = 100000, tly = 100000, pos;
-		for (var i = 0, l = children.length; i < l; i++) {
-			var item = children[i];
-			if( item == excluded ) continue;
-			if( item.bounds.width > max_w ) max_w = item.bounds.width;
-			if( item.bounds.height > max_h ) max_h = item.bounds.height;
-			if( item.bounds.x < tlx ) tlx = item.bounds.x;
-			if( item.bounds.y < tly ) tly = item.bounds.y;
-		}
-		return [tlx, tly, max_w, max_h];
-	},
-	align: function(vertical, gap, exclude){
-		var children = this._children,  max_w, max_h, tlx, tly, offset = 0;
-		let linfo = this._get_child_layout(exclude);
-		tlx = linfo[0], tly = linfo[1], max_w = linfo[2], max_h = linfo[3];
-		if( exclude )
-			children = children.filter(e => {
-				return e != exclude;
-			});
-		gap = gap || 0;
-		if( vertical ){
-			children.forEach(item => {
-				item.position = new Point( max_w/2, offset + item.bounds.height/2 );
-				offset += item.bounds.height + gap;
-			});
-		} else {
-			children.forEach(item => {
-				item.position = new Point(  offset + item.bounds.width/2, max_h/2);
-				offset += item.bounds.width + gap;
-			});
-		}
-		return this;
-	},
-	doHomotopy: function(timeline, homotopy, duration, offset, doneCallback){
-		var that = this, fromList = this.getAllLeaves(true),
-			children = fromList.filter(e =>{ return e instanceof Path || e instanceof CompoundPath; }) ;
-		children[0]. doHomotopy(timeline, homotopy, duration, offset, doneCallback);
-		for (var i = 1, l = children.length; i < l; i++)
-			children[i]. doHomotopy(timeline, homotopy, duration, '==', doneCallback);
-	},
-	morphingTo: function(timeline, target, duration, offset, finishCallback){
-		var that = this, fromList = this.getAllLeaves(true), cc = fromList.filter(e =>{ return e instanceof PathItem; }),
-			toList = target.getAllLeaves(true), tc = toList.filter(e =>{ return e instanceof PathItem; }),
-			ccount = cc.length, tcount = tc.length;
-			that.removeChildren();
-			fromList.forEach(e => {
-				e.remove();
-				that._project._activeLayer.addChild(e);
-			} );
 
-			var diff =  Math.abs(ccount - tcount);
-			var added = [];
-			if( diff > 0 ){
-				var to_more = ccount < tcount, temp = to_more ? cc : tc, last = temp[temp.length-1], c;
-				for(var i = diff; i > 0; i--) {
-					c =  last.clone();
-					added.push( c );
-					temp.push( c );
+			this._draw_extra_fb(ctx, param, viewMatrix);
+
+			if (this._topLeftOffset.x != 0 || this._topLeftOffset.y != 0) {
+				ctx.translate(-this._topLeftOffset.x, -this._topLeftOffset.y);
+			}
+		},
+		align_grid: function (numrows, numcols, gap, exclude) {
+			var children = this._children,
+				max_w,
+				max_h,
+				tlx,
+				tly,
+				pos;
+			numrows = Math.abs(numrows) || 1;
+			numcols == Math.abs(numcols) || 1;
+			let linfo = this._get_child_layout(exclude);
+			(tlx = linfo[0]),
+				(tly = linfo[1]),
+				(max_w = linfo[2]),
+				(max_h = linfo[3]);
+			if (exclude)
+				children = children.filter((e) => {
+					return e != exclude;
+				});
+			var counts = children.length;
+			if (numrows * numcols < counts) {
+				numrows = 1;
+				numcols = counts;
+			}
+			gap = gap || 0;
+
+			for (var i = 0; i < numrows; i++) {
+				for (var j = 0; j < numcols; j++) {
+					pos = i * numcols + j;
+					if (pos >= counts) break;
+					var item = children[pos];
+					item.position = new Point(
+						j * (max_w + gap) + max_w / 2,
+						i * (max_h + gap) + max_h / 2
+					);
 				}
 			}
-			var count = Math.max(ccount, tcount), fs=0;
-			var callback = function(){
+			return this;
+		},
+		_get_child_layout: function (excluded) {
+			var children = this._children,
+				max_w = 0,
+				max_h = 0,
+				tlx = 100000,
+				tly = 100000,
+				pos;
+			for (var i = 0, l = children.length; i < l; i++) {
+				var item = children[i];
+				if (item == excluded) continue;
+				if (item.bounds.width > max_w) max_w = item.bounds.width;
+				if (item.bounds.height > max_h) max_h = item.bounds.height;
+				if (item.bounds.x < tlx) tlx = item.bounds.x;
+				if (item.bounds.y < tly) tly = item.bounds.y;
+			}
+			return [tlx, tly, max_w, max_h];
+		},
+		align: function (vertical, gap, exclude) {
+			var children = this._children,
+				max_w,
+				max_h,
+				tlx,
+				tly,
+				offset = 0;
+			let linfo = this._get_child_layout(exclude);
+			(tlx = linfo[0]),
+				(tly = linfo[1]),
+				(max_w = linfo[2]),
+				(max_h = linfo[3]);
+			if (exclude)
+				children = children.filter((e) => {
+					return e != exclude;
+				});
+			gap = gap || 0;
+			if (vertical) {
+				children.forEach((item) => {
+					item.position = new Point(
+						max_w / 2,
+						offset + item.bounds.height / 2
+					);
+					offset += item.bounds.height + gap;
+				});
+			} else {
+				children.forEach((item) => {
+					item.position = new Point(
+						offset + item.bounds.width / 2,
+						max_h / 2
+					);
+					offset += item.bounds.width + gap;
+				});
+			}
+			return this;
+		},
+		doHomotopy: function (
+			timeline,
+			homotopy,
+			duration,
+			offset,
+			doneCallback
+		) {
+			var that = this,
+				fromList = this.getAllLeaves(true),
+				children = fromList.filter((e) => {
+					return e instanceof Path || e instanceof CompoundPath;
+				});
+			children[0].doHomotopy(
+				timeline,
+				homotopy,
+				duration,
+				offset,
+				doneCallback
+			);
+			for (var i = 1, l = children.length; i < l; i++)
+				children[i].doHomotopy(
+					timeline,
+					homotopy,
+					duration,
+					"==",
+					doneCallback
+				);
+		},
+		morphingTo: function (
+			timeline,
+			target,
+			duration,
+			offset,
+			finishCallback
+		) {
+			var that = this,
+				fromList = this.getAllLeaves(true),
+				cc = fromList.filter((e) => {
+					return e instanceof PathItem;
+				}),
+				toList = target.getAllLeaves(true),
+				tc = toList.filter((e) => {
+					return e instanceof PathItem;
+				}),
+				ccount = cc.length,
+				tcount = tc.length;
+			that.removeChildren();
+			fromList.forEach((e) => {
+				e.remove();
+				that._project._activeLayer.addChild(e);
+			});
+
+			var diff = Math.abs(ccount - tcount);
+			var added = [];
+			if (diff > 0) {
+				var to_more = ccount < tcount,
+					temp = to_more ? cc : tc,
+					last = temp[temp.length - 1],
+					c;
+				for (var i = diff; i > 0; i--) {
+					c = last.clone();
+					added.push(c);
+					temp.push(c);
+				}
+			}
+
+			var count = Math.max(ccount, tcount),
+				fs = 0;
+			var callback = function () {
 				fs++;
-				if( fs == count ){
-					if( finishCallback )
-						finishCallback();
-				   {
-						cc.forEach(e => {  if( e ) e.hiding( true );   });
-						added.forEach(e => {    if( e ) e.hiding(true);   });
-						that.hiding(true)
+				if (fs == count) {
+					if (finishCallback) finishCallback();
+					{
+						cc.forEach((e) => {
+							if (e) e.hiding(true);
+						});
+						added.forEach((e) => {
+							if (e) e.hiding(true);
+						});
+						that.hiding(true);
 						target.showing(0.1);
 					}
 				}
+			};
+			cc[0].morphingTo(timeline, tc[0], duration, offset, callback);
+			for (var k = 1; k < count; k++) {
+				cc[k].morphingTo(timeline, tc[k], duration, "==", callback);
 			}
-			cc[0].morphingTo(timeline, tc[0], duration, offset, callback) ;
-			for(var k = 1; k < count; k++){
-				cc[k].morphingTo(timeline, tc[k], duration, '==', callback) ;
-			}
-	},
-});
+		},
+	}
+);
 
 var LayerSetting = Base.extend({
 	_class: 'LayerSetting',
@@ -9067,6 +9628,7 @@ var LayerSetting = Base.extend({
 		this._updaters = [];
 	},
 	getCurPage: function(){
+
 	   return this.layer.getCurPage();
 	},
 	destroy: function () {
@@ -9076,6 +9638,7 @@ var LayerSetting = Base.extend({
 			if ( p.getCurPage() &&  typeof p.getCurPage().pagecleanup == 'function' ) p.getCurPage().pagecleanup();
 			p.destroy();
 		}
+
 		this.emotions = {};
 		this.transpages = [];
 		this.tmpnodes = [];
@@ -9092,537 +9655,749 @@ var LayerSetting = Base.extend({
 	}
 });
 
-var Layer = Group.extend({
-	_class: 'Layer',
+var Layer = Group.extend(
+	 {
+		_class: "Layer",
 
-	initialize: function Layer() {
-		Group.apply(this, arguments);
-		this._timeline = anime.timeline({
-			autoplay: false
-		  });
-		this._layerClips = null;
-		this._player = new R9TimlinePlayer(this._project, this, {  });
-		this._setting = new LayerSetting(this);
-	},
-	getPlayer: function(){
-		return this._player;
-	},
-	addPage: function(page){
-		this._player.addPage(page);
-	},
-	removePage: function(page){
-		this._player.remove(page);
-	},
-	getCurPage: function(){
-	   return this._player.getCurPage();
-	},
-	getTimeline: function(){
-		return this._timeline;
-	},
-	setTimeline: function(timeline){
-		this._timeline = timeline;
-	},
-	heartbeat: function(){
-		this._player.heartbeat();
-	},
-	_anime: function(params){
-		anime(params);
-	},
-	getRegisteredId: function(obj){
-		var i2f = this._setting.i2f;
-		for(var i in  i2f){
-			if( i2f[i] == obj ) return i;
-		}
-		return undefined;
-	},
-	 createItems: function( timeline, options, offset, doneCallback){
-		var that = this,  conf = that._project.configuration,
-			w = conf.frame_width, h = conf.frame_height ;
-		if( options.target ){ options.targets = options.target; delete options.target; }
-		if( !Array.isArray( options.targets ) ) options.targets = [options.targets];
-		var targets = options.targets; options.type = options.type || 'FadeIn';
-		if( typeof options.opacity === 'undefined' ) options.opacity = 1;
-	  if( options.type == 'GrowFromCenter' ){
-			var bdss = [], poss = [];
-			targets.forEach(e =>{
-				var pos = e.position.clone();
-				bdss.push( e.bounds.clone() );
-				poss.push(pos);
-				e.bounds.width = 1;
-				e.bounds.height = 1;
-				e.position = pos;
-			 });
-			options['bounds.size'] = function(ta, i){  return bdss[i].size ;   } ;
-			options.position = '+=[0,0]';
-			if( doneCallback )   options.complete = function(){   doneCallback();  };
-			timeline.add( options, offset );
-		}
-		else if( options.type == 'GrowFromPoint' ){
-			var bdss = [], poss = [];
-			targets.forEach(e =>{
-				var pos = e.position.clone();
-				bdss.push( e.bounds.clone() );
-				poss.push(pos);
-				e.bounds.width = 1;
-				e.bounds.height = 1;
-				e.position = options.point;
-			 });
-			 options['bounds.size'] = function(ta, i){  return bdss[i].size ;   } ;
-			 if( doneCallback )   options.complete = function(){   doneCallback();  };
+		initialize: function Layer() {
+			Group.apply(this, arguments);
+			this._timeline = anime.timeline({
+				autoplay: false,
+			});
+			this._layerClips = null;
+			this._player = new R9TimlinePlayer(this._project, this, {});
+			this._setting = new LayerSetting(this);
+		},
+		getBackground: function(createIfNeeded) {
+		   if (!this._backgroundRect && createIfNeeded) {
+			this.setBackground();
+		   }
+		   return this._backgroundRect;
+		},
+		setBackground: function (sizeArray, color, opacity) {
+			if (!this._backgroundRect) {
+				this._backgroundRect = new paper.Path.Rectangle({
+					point: sizeArray ? [sizeArray[0], sizeArray[1]] : [0, 0],
+					size: sizeArray
+						? new Size(sizeArray[2], sizeArray[3])
+						: paper.view.size,
+					insert: false,
+				});
+				this.addChild(this._backgroundRect);
+				this._backgroundRect.sendToBack();
+			}
 
-			delete options.point;
-			timeline.add( options, offset);
-		}
-		else if( options.type == 'GrowFromEdge' ){
-			var bdss = [], poss = [];
-			targets.forEach(e =>{
-				var pos = e.position.clone();
-				bdss.push( e.bounds.clone() );
-				poss.push(pos);
-				var dir = options.direction, pos;
-				if( dir ==  'UP') pos = e.bounds.topCenter;
-				else if( dir == 'DOWN') pos = e.bounds.bottomCenter;
-				else if( dir == 'LEFT') pos = e.bounds.leftCenter;
-				else   pos = e.bounds.rightCenter;
-				e.bounds.width = 1;
-				e.bounds.height = 1;
-				e.position = pos;
-			 });
-			 options['bounds.size'] = function(ta, i){  return bdss[i].size ;   } ;
-			 if( doneCallback )   options.complete = function(){   doneCallback();  };
-			delete options.direction;
-			timeline.add( options , offset);
-		}
-		else if( options.type == 'SpinInFromNothing' ){
-			var bdss = [], poss = [], ams = [], rts = [];
-			targets.forEach(e =>{
-				var pos = e.position.clone();
-				bdss.push( e.bounds.clone() );
-				poss.push(pos);
-				rts.push( e.rotation );
-				ams.push(e.applyMatrix);
-				e.applyMatrix = false;
-				e.bounds.width = 1;
-				e.bounds.height = 1;
-			 });
-			options.position = '+=[0,0]';
-			options.rotation = 360*  parseInt(options.duration);
-			options['bounds.size'] = function(ta, i){  return bdss[i].size  ;   } ;
-			options.complete = function(){
-				targets.forEach( (e,i) =>{ e.applyMatrix = ams[i]; e.setRotation( rts[i] ); });
-				if( doneCallback )   doneCallback();
-			};
-			timeline.add( options , offset);
-		}
-		else if( options.type.startsWith('FadeIn') ){
-			if( options.type == 'FadeIn'  ){
-			}
-			else if( options.type == 'FadeInFromLarge' ){
-				var bdss = [], poss = [] ;
-				targets.forEach(e =>{
-					var pos = e.position.clone();
-					bdss.push( e.bounds.clone() );
-					poss.push(pos);
-					 e.bounds.width =  e.bounds.width * 3;
-					 e.bounds.height =  e.bounds.height * 3;
-				 });
-				options['bounds.size'] = function(ta, i){  return bdss[i].size ;   } ;
-				options.position = '+=[0,0]';
-			}
+			if(color) this._backgroundRect.fillColor = new paper.Color(color);
 			else {
-				var bdss = [], poss = [] ;
-				targets.forEach(e =>{
+				 this._backgroundRect.fillColor =
+					 this._style._values.sceneBgColor ||
+					 this._project._currentStyle.sceneBgColor ||
+					 this._style._defaults.sceneBgColor ||
+					 "white";
+			}
+			this._backgroundRect.opacity = opacity || 1;
+			return this._backgroundRect;
+		},
+		addChild: function addChild(item, asTopLayer) {
+			addChild.base.call(this, item, asTopLayer);
+			if (this._backgroundRect) this._backgroundRect.sendToBack();
+		},
+
+		getPlayer: function () {
+			return this._player;
+		},
+		addPage: function (page) {
+			this._player.addPage(page);
+		},
+		removePage: function (page) {
+			this._player.remove(page);
+		},
+		getCurPage: function () {
+			return this._player.getCurPage();
+		},
+
+		getTimeline: function () {
+			return this._timeline;
+		},
+		setTimeline: function (timeline) {
+			this._timeline = timeline;
+		},
+		heartbeat: function () {
+			this._player.heartbeat();
+		},
+		_anime: function (params) {
+			anime(params);
+		},
+		getRegisteredId: function (obj) {
+			var i2f = this._setting.i2f;
+			for (var i in i2f) {
+				if (i2f[i] == obj) return i;
+			}
+			return undefined;
+		},
+
+		createItems: function (timeline, options, offset, doneCallback) {
+			var that = this,
+				conf = that._project.configuration,
+				w = conf.frame_width,
+				h = conf.frame_height;
+
+			if (options.target) {
+				options.targets = options.target;
+				delete options.target;
+			}
+			if (!Array.isArray(options.targets))
+				options.targets = [options.targets];
+			var targets = options.targets;
+			options.type = options.type || "FadeIn";
+			if (typeof options.opacity === "undefined") options.opacity = 1;
+
+			if (options.type == "GrowFromCenter") {
+				var bdss = [],
+					poss = [];
+				targets.forEach((e) => {
 					var pos = e.position.clone();
-					bdss.push( e.bounds.clone() );
+					bdss.push(e.bounds.clone());
 					poss.push(pos);
-					var point;
-					if( options.type == 'FadeInFromPoint' ) {
-						point = options.point;
-						delete options.point;
+					e.bounds.width = 1;
+					e.bounds.height = 1;
+					e.position = pos;
+				});
+				options["bounds.size"] = function (ta, i) {
+					return bdss[i].size;
+				};
+				options.position = "+=[0,0]";
+				if (doneCallback)
+					options.complete = function () {
+						doneCallback();
+					};
+				timeline.add(options, offset);
+			} else if (options.type == "GrowFromPoint") {
+				var bdss = [],
+					poss = [];
+				targets.forEach((e) => {
+					var pos = e.position.clone();
+					bdss.push(e.bounds.clone());
+					poss.push(pos);
+					e.bounds.width = 1;
+					e.bounds.height = 1;
+					e.position = options.point;
+				});
+				options["bounds.size"] = function (ta, i) {
+					return bdss[i].size;
+				};
+				if (doneCallback)
+					options.complete = function () {
+						doneCallback();
+					};
+
+				delete options.point;
+				timeline.add(options, offset);
+			}
+			else if (options.type == "GrowFromEdge") {
+				var bdss = [],
+					poss = [];
+				targets.forEach((e) => {
+					var pos = e.position.clone();
+					bdss.push(e.bounds.clone());
+					poss.push(pos);
+					var dir = options.direction,
+						pos;
+					if (dir == "UP") pos = e.bounds.topCenter;
+					else if (dir == "DOWN") pos = e.bounds.bottomCenter;
+					else if (dir == "LEFT") pos = e.bounds.leftCenter;
+					else pos = e.bounds.rightCenter;
+					e.bounds.width = 1;
+					e.bounds.height = 1;
+					e.position = pos;
+				});
+				options["bounds.size"] = function (ta, i) {
+					return bdss[i].size;
+				};
+				if (doneCallback)
+					options.complete = function () {
+						doneCallback();
+					};
+				delete options.direction;
+				timeline.add(options, offset);
+			}
+			else if (options.type == "SpinInFromNothing") {
+				var bdss = [],
+					poss = [],
+					ams = [],
+					rts = [];
+				targets.forEach((e) => {
+					var pos = e.position.clone();
+					bdss.push(e.bounds.clone());
+					poss.push(pos);
+					rts.push(e.rotation);
+					ams.push(e.applyMatrix);
+					e.applyMatrix = false;
+					e.bounds.width = 1;
+					e.bounds.height = 1;
+				});
+				options.position = "+=[0,0]";
+				options.rotation = 360 * parseInt(options.duration);
+				options["bounds.size"] = function (ta, i) {
+					return bdss[i].size;
+				};
+				options.complete = function () {
+					targets.forEach((e, i) => {
+						e.applyMatrix = ams[i];
+						e.setRotation(rts[i]);
+					});
+					if (doneCallback) doneCallback();
+				};
+
+				timeline.add(options, offset);
+			} else if (options.type.startsWith("FadeIn")) {
+				if (options.type == "FadeIn") {
+				} else if (options.type == "FadeInFromLarge") {
+					var bdss = [],
+						poss = [];
+					targets.forEach((e) => {
+						var pos = e.position.clone();
+						bdss.push(e.bounds.clone());
+						poss.push(pos);
+						e.bounds.width = e.bounds.width * 3;
+						e.bounds.height = e.bounds.height * 3;
+					});
+					options["bounds.size"] = function (ta, i) {
+						return bdss[i].size;
+					};
+					options.position = "+=[0,0]";
+				} else {
+					var bdss = [],
+						poss = [];
+					targets.forEach((e) => {
+						var pos = e.position.clone();
+						bdss.push(e.bounds.clone());
+						poss.push(pos);
+						var point;
+						if (options.type == "FadeInFromPoint") {
+							point = options.point;
+							delete options.point;
+						} else if (options.type == "FadeInFromUp")
+							point = new Point(pos.x, -100);
+						else if (options.type == "FadeInFromDown")
+							point = new Point(pos.x, h + 100);
+						else if (options.type == "FadeInFromLeft")
+							point = new Point(-100, pos.y);
+						else if (options.type == "FadeInFromRight")
+							point = new Point(w + 100, pos.y);
+						e.position = point;
+					});
+					options.position = function (ta, i) {
+						return poss[i];
+					};
+				}
+				options.opacity = 1;
+				if (doneCallback)
+					options.complete = function () {
+						doneCallback();
+					};
+				timeline.add(options, offset);
+			}
+			else if (options.type == "CurlDown") {
+				var bdss = [],
+					poss = [];
+				targets.forEach((e) => {
+					var pos = e.position.clone();
+					bdss.push(e.bounds.clone());
+					poss.push(pos);
+					e.bounds.height = 0.1;
+				});
+				options["bounds.size"] = function (ta, i) {
+					return bdss[i].size;
+				};
+				if (doneCallback)
+					options.complete = function () {
+						doneCallback();
+					};
+				options.position = "+=[0,0]";
+				timeline.add(options, offset);
+			}
+			else if (options.type == "CurlRight" || options.type == "Flip") {
+				var bdss = [],
+					poss = [];
+				targets.forEach((e) => {
+					var pos = e.position.clone();
+					bdss.push(e.bounds.clone());
+					poss.push(pos);
+					e.position.x -= e.bounds.width / 2;
+					e.bounds.width = e.bounds.width * 0.01;
+				});
+				options.scaleX = 100;
+				options.scaleY = 1;
+				options.position = function (ta, i) {
+					return poss[i];
+				};
+				if (doneCallback)
+					options.complete = function () {
+						doneCallback();
+					};
+				timeline.add(options, offset);
+			}
+			else if (options.type == "ReplacementTransform") {
+				var to_targets = Array.isArray(options.to_target)
+					? options.to_target
+					: [options.to_target];
+				if (to_targets.length == targets.length) {
+					for (var i = 0; i < targets.length; i++)
+						targets[i].morphingTo(
+							timeline,
+							to_targets[i],
+							options.duration,
+							offset,
+							doneCallback
+						);
+				}
+			} else if (options.type == "TransformFromCopy") {
+				var to_targets = Array.isArray(options.to_target)
+					? options.to_target
+					: [options.to_target];
+				if (to_targets.length == targets.length) {
+					for (var i = 0; i < targets.length; i++) {
+						if (
+							targets[i] instanceof Path ||
+							targets[i] instanceof CompoundPath
+						)
+							targets[i]
+								.clone()
+								.morphingTo(
+									timeline,
+									to_targets[i],
+									options.duration,
+									offset,
+									doneCallback
+								);
+						else {
+							if (typeof targets[i].morphingTo ==='undefined') {
+								options.opacity = 1;
+								if (doneCallback)
+									options.complete = function () {
+										doneCallback();
+									};
+								timeline.add(options, offset);
+							} else {
+								targets[i].morphingTo(
+									timeline,
+									to_targets[i],
+									options.duration,
+									offset,
+									doneCallback
+								);
+							}
+
+						}
+
 					}
-					else if( options.type == 'FadeInFromUp' ) point = new Point(pos.x, -100);
-					else if( options.type == 'FadeInFromDown' ) point = new Point(pos.x, h+100);
-					else if( options.type == 'FadeInFromLeft' ) point = new Point(-100, pos.y);
-					else if( options.type == 'FadeInFromRight' ) point = new Point(w+100, pos.y);
-					e.position =  point;
-				 });
-				 options.position = function(ta, i){  return poss[i] ;   } ;
-			}
-			options.opacity = 1;
-			if( doneCallback )   options.complete = function(){   doneCallback();  };
-			timeline.add( options , offset);
-		}
-		else if(   options.type == 'CurlDown'  ){
-			var bdss = [], poss = [] ;
-			targets.forEach(e =>{
-				var pos = e.position.clone();
-				bdss.push( e.bounds.clone() );
-				poss.push(pos);
-				 e.bounds.height = 0.1;
-			 });
-			options['bounds.size'] = function(ta, i){  return bdss[i].size ;   } ;
-			if( doneCallback )   options.complete = function(){   doneCallback();  };
-			options.position = '+=[0,0]';
-			 timeline.add( options , offset);
-		}
-		else if( options.type == 'CurlRight'  || options.type == 'Flip' ){
-			var bdss = [], poss = [] ;
-			targets.forEach(e =>{
-				var pos = e.position.clone();
-				bdss.push( e.bounds.clone() );
-				poss.push(pos);
-				e.position.x -= e.bounds.width / 2;
-				e.bounds.width = e.bounds.width * 0.01;
-			 });
-			options.scaleX = 100;
-			options.scaleY= 1 ;
-			options.position = function(ta, i){  return poss[i] ;   } ;
-			if( doneCallback )   options.complete = function(){   doneCallback();  };
-			timeline.add( options , offset);
-		}
-		else if( options.type == 'ReplacementTransform' ){
-			var to_targets = Array.isArray(options.to_target) ? options.to_target : [options.to_target];
-			if( to_targets.length == targets.length ){
-				for(var i = 0; i < targets.length; i++)
-				   targets[i].morphingTo(timeline, to_targets[i], options.duration, offset, doneCallback);
-			}
-		}
-		else if( options.type == 'TransformFromCopy'  ){
-			var to_targets = Array.isArray(options.to_target) ? options.to_target : [options.to_target];
-			if( to_targets.length == targets.length ){
-				for(var i = 0; i < targets.length; i++){
-					if( targets[i] instanceof Path || targets[i] instanceof CompoundPath )
-						targets[i].clone().morphingTo(timeline, to_targets[i], options.duration, offset, doneCallback);
-					else
-						targets[i].morphingTo(timeline, to_targets[i], options.duration, offset, doneCallback);
+				}
+			} else if (options.type == "ImageEffect") {
+				var layer = this,
+					transType = options.effect,
+					easing = options.easing,
+					positionFunc = options.positionFunc;
+				targets.forEach((e) => {
+					e.opacity = 0;
+					anime.timeline({ autoplay: true }).addOneTimeEvt(
+						e,
+						function () {
+							e.opacity = 1;
+							RU.imageEffect2(
+								layer,
+								e,
+								options.duration || 1,
+								transType,
+								easing,
+								positionFunc,
+								true,
+								doneCallback
+							);
+						},
+						offset,
+						options.duration
+					);
+				});
+			} else if (options.type == "Text") {
+				targets.forEach((e) => {
+					if (e instanceof Group && e.fromLatex) {
+						e.showChildOneByOne(
+							timeline,
+							options.duration || 1,
+							offset,
+							doneCallback
+						);
+					} else if (e instanceof StyledText) {
+						e.animType =
+							e.animType != "none"
+								? e.animType
+								: options.animType || "writing";
+						e.write(
+							timeline,
+							options.duration || 1,
+							offset,
+							doneCallback
+						);
+					}
+				});
+			} else if (
+				options.type == "GrowArrow" &&
+				targets[0] instanceof R9Line
+			) {
+				var poss = [];
+				targets.forEach((e) => {
+					var pos = e.getEnd();
+					poss.push(pos);
+					e.setEnd(e.getStart());
+				});
+				options["end"] = function (ta, i) {
+					return poss[i];
+				};
+				if (doneCallback)
+					options.complete = function () {
+						doneCallback();
+					};
+				timeline.add(options, offset);
+			} else {
+				options.progress = 1;
+				var allpath = true;
+				targets.forEach((e) => {
+					e.progress = 0;
+					if (
+						!(
+							e instanceof Path ||
+							e instanceof CompoundPath ||
+							(typeof e.containsAllPaths == "function" &&
+								e.containsAllPaths(true))
+						)
+					)
+						allpath = false;
+				});
+				if (allpath) {
+					targets.forEach((e) => {
+						e.opacity = 1;
+						e.write(
+							timeline,
+							options.duration || 1,
+							offset,
+							doneCallback
+						);
+					});
+				} else {
+					options.complete = function () {
+						targets.forEach((e) => {
+							e.progress = -1;
+						});
+						if (doneCallback) doneCallback();
+					};
+					timeline.add(options, offset);
 				}
 			}
-		}
-		else if ( options.type == 'ImageEffect' ){
-			var layer = this,  transType = options.effect, easing = options.easing, positionFunc = options.positionFunc;
-			targets.forEach( e => {
-				e.opacity = 0;
-				anime.timeline({ autoplay: true }).addOneTimeEvt(e, function(){
-					e.opacity = 1;
-					RU.imageEffect2(layer, e, options.duration || 1, transType, easing, positionFunc, true, doneCallback);
-				}, offset, options.duration);
-			});
-		}
-		else if ( options.type == 'Text' ){
-			targets.forEach( e => {
-				 if( e instanceof Group &&  e.fromLatex ){
-					e.showChildOneByOne(timeline,  options.duration || 1, offset, doneCallback);
-				 }
-				 else if ( e instanceof StyledText ){
-					 e.animType =  e.animType != 'none' ? e.animType : (options.animType || 'writing');
-					 e.write( timeline, options.duration || 1, offset, doneCallback)
-				 }
-			});
-		 } else if (options.type == 'GrowArrow' && targets[0] instanceof R9Line) {
-			 var  poss = [];
-			 targets.forEach(e => {
-				 var pos = e.getEnd();
-				 poss.push(pos);
-				 e.setEnd( e.getStart() );
-			 });
-			 options['end'] = function (ta, i) { return poss[i] ; };
-			 if (doneCallback) options.complete = function () { doneCallback(); };
-			 timeline.add(options, offset);
-		 }  else {
-			 options.progress = 1;
-			 var allpath = true;
-			 targets.forEach(e => {
-				 e.progress = 0;
-				 if (!(e instanceof Path || e instanceof CompoundPath ||
-					 (typeof e.containsAllPaths == 'function' && e.containsAllPaths(true))))
-					 allpath = false;
-			 });
-			 if (allpath) {
-				 targets.forEach(e => {
-					 e.opacity = 1;
-					 e.write(timeline, options.duration || 1, offset, doneCallback);
-				 });
-			 } else {
-				 options.complete = function () {
-					 targets.forEach(e => { e.progress = -1; });
-					 if (doneCallback) doneCallback();
-				 };
-				 timeline.add(options, offset)
-			 }
-		}
-	},
+		},
 
-	uncreateItems: function( timeline, options, offset, doneCallback){
-		var that = this,  conf = that._project.configuration,
-			w = conf.frame_width, h = conf.frame_height, hasAnim = false;
-		if( options.target ){ options.targets = options.target; delete options.target; }
-		if( !Array.isArray( options.targets ) ) options.targets = [options.targets];
-		var targets = options.targets;  options.type = options.type || 'FadeOut';
+		uncreateItems: function (timeline, options, offset, doneCallback) {
+			var that = this,
+				conf = that._project.configuration,
+				w = conf.frame_width,
+				h = conf.frame_height,
+				hasAnim = false;
+			if (options.target) {
+				options.targets = options.target;
+				delete options.target;
+			}
+			if (!Array.isArray(options.targets))
+				options.targets = [options.targets];
+			var targets = options.targets;
+			options.type = options.type || "FadeOut";
 
-		if (options.type == 'ImageEffect') {
-			var layer = this, transType = options.effect, easing = options.easing, positionFunc = options.positionFunc;
+			if (options.type == "ImageEffect") {
+				var layer = this,
+					transType = options.effect,
+					easing = options.easing,
+					positionFunc = options.positionFunc;
 
-			targets.forEach(e => {
-				anime.timeline({ autoplay: true }).addOneTimeEvt(e, function () {
-					RU.imageEffect2(layer, e, options.duration || 1, transType, easing, positionFunc, false, doneCallback);
-				}, offset, options.duration);
-			});
-			return;
-		}
-	   if (options.type == 'ShrinkToCenter' ){
-			options['bounds.size'] = new Size(2,2) ;
-			options.position = '+=[0,0]';
-			hasAnim = true;
-		}
-		else if( options.type == 'DisappearToPoint' ){
-			options['bounds.size'] = new Size(2,2) ;
-			options.position = options.point;
-			delete options.point;
-			hasAnim = true;
-		}
-		else if( options.type == 'SpinInToNothing' ){
-			targets.forEach(e =>{
-				e.applyMatrix = false;
-			 });
-			options.position = '+=[0,0]';
-			options.rotation = 360*  options.duration;
-			options['bounds.size'] = new Size(2,2) ;
-			hasAnim = true;
-		}
-		else if( options.type.startsWith('FadeOut') ){
-			if( options.type == 'FadeOut'  ){
-			}
-			else if( options.type == 'FadeOutToLarge' ){
-				var bdss = [] ;
-				targets.forEach(e =>{
-					bdss.push( e.bounds.clone() );
-				 });
-				options['bounds.size'] = function(ta, i){  return bdss[i].size.__multiply(3) ;   } ;
-				options.position = '+=[0,0]';
-			}
-			else {
-				var   poss = [] ;
-				targets.forEach(e =>{
-					var point = e.position;
-					if( options.type == 'FadeOutToPoint' ) {
-						point = options.point;
-						delete options.point;
-					}
-					else if (options.type == 'FadeOutToUp') point = new Point(point.x, -100);
-					else if (options.type == 'FadeOutToDown') point = new Point(point.x, h+100);
-					else if (options.type == 'FadeOutToLeft') point = new Point(-100, point.y);
-					else if (options.type == 'FadeOutToRight') point = new Point(w + 100, point.y);
-					poss.push(point);
-				 });
-				 options.position = function(ta, i){  return poss[i] ;   } ;
-			}
-			hasAnim = true;
-		}
-		else if (options.type == 'CurlDown') {
-			var bdss = [] ;
-			targets.forEach(e => {
-				var bd = e.bounds.clone();
-				bd.height = 0.1;
-				bdss.push(bd);
-			});
-			options['bounds.size'] = function (ta, i) { return bdss[i].size; };
-			options.position = '+=[0,0]';
-			hasAnim = true;
-		}
-		else if (options.type == 'CurlRight' || options.type == 'Flip') {
-			var bdss = [] ;
-			targets.forEach(e => {
-				var bd = e.bounds.clone();
-				bd.width = 0.1;
-				bdss.push(bd);
-			});
-			options['bounds.size'] = function (ta, i) { return bdss[i].size; };
-			options.position = '+=[0,0]';
-			hasAnim = true;
-		}
-	   else if (options.type == 'GrowArrow' && targets[0] instanceof R9Line) {
-		   var bdss = [];
-		   targets.forEach(e => {
-			   var bd = e.getStart();
-			   bdss.push(bd);
-		   });
-		   options['end'] = function (ta, i) { return bdss[i] ; };
-		   hasAnim = true;
-	   } else {
-			options.progress = 1;
-			var allpath = true;
-			targets.forEach(e => {
-				e.progress = 0;
-				if (!(e instanceof Path || e instanceof CompoundPath ||
-					(typeof e.containsAllPaths == 'function' && e.containsAllPaths(true))))
-					allpath = false;
-			});
-			if (allpath) {
-				targets.forEach(e => {
-					e.unwrite(timeline, options.duration || 1, offset, function () {
-						e.remove();
-						if (doneCallback) doneCallback();
-					});
+				targets.forEach((e) => {
+					anime.timeline({ autoplay: true }).addOneTimeEvt(
+						e,
+						function () {
+							RU.imageEffect2(
+								layer,
+								e,
+								options.duration || 1,
+								transType,
+								easing,
+								positionFunc,
+								false,
+								doneCallback
+							);
+						},
+						offset,
+						options.duration
+					);
 				});
 				return;
 			}
-			hasAnim = true;
-		}
-		if(   hasAnim ){
-			options.complete = function(){
-				targets.forEach(e =>{ e && e.remove(); });
-				if( doneCallback ) doneCallback();
+			if (options.type == "ShrinkToCenter") {
+				options["bounds.size"] = new Size(2, 2);
+				options.position = "+=[0,0]";
+				hasAnim = true;
+			} else if (options.type == "DisappearToPoint") {
+				options["bounds.size"] = new Size(2, 2);
+				options.position = options.point;
+				delete options.point;
+				hasAnim = true;
+			}
+			else if (options.type == "SpinInToNothing") {
+				targets.forEach((e) => {
+					e.applyMatrix = false;
+				});
+				options.position = "+=[0,0]";
+				options.rotation = 360 * options.duration;
+				options["bounds.size"] = new Size(2, 2);
+				hasAnim = true;
+			} else if (options.type.startsWith("FadeOut")) {
+				if (options.type == "FadeOut") {
+				} else if (options.type == "FadeOutToLarge") {
+					var bdss = [];
+					targets.forEach((e) => {
+						bdss.push(e.bounds.clone());
+					});
+					options["bounds.size"] = function (ta, i) {
+						return bdss[i].size.__multiply(3);
+					};
+					options.position = "+=[0,0]";
+				} else {
+					var poss = [];
+					targets.forEach((e) => {
+						var point = e.position;
+						if (options.type == "FadeOutToPoint") {
+							point = options.point;
+							delete options.point;
+						} else if (options.type == "FadeOutToUp")
+							point = new Point(point.x, -100);
+						else if (options.type == "FadeOutToDown")
+							point = new Point(point.x, h + 100);
+						else if (options.type == "FadeOutToLeft")
+							point = new Point(-100, point.y);
+						else if (options.type == "FadeOutToRight")
+							point = new Point(w + 100, point.y);
+						poss.push(point);
+					});
+					options.position = function (ta, i) {
+						return poss[i];
+					};
+				}
+				hasAnim = true;
+			}
+			else if (options.type == "CurlDown") {
+				var bdss = [];
+				targets.forEach((e) => {
+					var bd = e.bounds.clone();
+					bd.height = 0.1;
+					bdss.push(bd);
+				});
+				options["bounds.size"] = function (ta, i) {
+					return bdss[i].size;
+				};
+				options.position = "+=[0,0]";
+				hasAnim = true;
+			}
+			else if (options.type == "CurlRight" || options.type == "Flip") {
+				var bdss = [];
+				targets.forEach((e) => {
+					var bd = e.bounds.clone();
+					bd.width = 0.1;
+					bdss.push(bd);
+				});
+				options["bounds.size"] = function (ta, i) {
+					return bdss[i].size;
+				};
+				options.position = "+=[0,0]";
+				hasAnim = true;
+			}
+			else if (
+				options.type == "GrowArrow" &&
+				targets[0] instanceof R9Line
+			) {
+				var bdss = [];
+				targets.forEach((e) => {
+					var bd = e.getStart();
+					bdss.push(bd);
+				});
+				options["end"] = function (ta, i) {
+					return bdss[i];
+				};
+				hasAnim = true;
+			} else {
+				options.progress = 1;
+				var allpath = true;
+				targets.forEach((e) => {
+					e.progress = 0;
+					if (
+						!(
+							e instanceof Path ||
+							e instanceof CompoundPath ||
+							(typeof e.containsAllPaths == "function" &&
+								e.containsAllPaths(true))
+						)
+					)
+						allpath = false;
+				});
+				if (allpath) {
+					targets.forEach((e) => {
+						e.unwrite(
+							timeline,
+							options.duration || 1,
+							offset,
+							function () {
+								e.remove();
+								if (doneCallback) doneCallback();
+							}
+						);
+					});
+					return;
+				}
+				hasAnim = true;
+			}
+			if (hasAnim) {
+				options.complete = function () {
+					targets.forEach((e) => {
+						e && e.remove();
+					});
+					if (doneCallback) doneCallback();
+				};
+				if (typeof offset === "undefined") anime(options);
+				else timeline.add(options, offset);
+			}
+		},
+		sceneSetup: function (options) {
+			this._sceneSetupOptions = options || {};
+		},
+
+		redraw: function () {
+			this._changed(521);
+			this._project._view.draw();
+		},
+		destroy: function () {
+			var setting = this._setting;
+			if (!setting) return;
+			this._setting = null;
+			setting.destroy();
+			this.remove();
+		},
+
+		setPositionMask: function (point) {
+			this._topLeftOffset = this.bounds.point;
+		},
+
+		getCurrentColors: function () {
+			return {
+				fc:
+					this._style._values.fillColor ||
+					this._project._currentStyle.fillColor,
+				sc:
+					this._style._values.strokeColor ||
+					this._project._currentStyle.strokeColor,
 			};
-			if(typeof offset === 'undefined')
-				anime(options);
-			else
-				timeline.add( options, offset )
-		}
-	},
-	sceneSetup: function(options){
-		this._sceneSetupOptions = options || {};
-	},
-	redraw: function () {
-		this._changed(521);
-		this._project._view.draw();
-	},
-	destroy: function() {
-		var setting = this._setting;
-		if( !setting ) return;
-		this._setting = null;
-		setting.destroy();
-		 this.remove();
-	},
-	_getClipItem: function() {
-		if( !this._clipItem ){
-			if( this._children.length > 0 && this._children[0]._clipMask )
-				this._clipItem = this._children[0];
-			else {
-				var cliparea = this._layerClips && this._layerClips._class == 'Rectangle' ? this._layerClips :
-				   this._project.view.bounds.clone() ;
-				var item = new Path.Rectangle( cliparea);
-				this.insertChild(0, item);
-				this._clipItem = item;
-				this._clipItem._clipMask = true;
-				this._clipItem._matrix = new Matrix()
+		},
 
-			}
-			for(var i  = this._children.length -1; i >=0; i--){
-				this._children[i]._aslayerbg = false
-			}
-			this._clipItem._aslayerbg = true;
-			this._clipItem.fillColor = this._style._values.sceneBgColor || this._project._currentStyle.sceneBgColor ||
-									   this._style._defaults.sceneBgColor || 'white';
-		}
-		return this._clipItem;
-	},
-	setPositionMask: function(point) {
-		this._topLeftOffset = this.bounds.point;
-	},
-	setBoundsMask: function(rect) {
-		this._topLeftOffset = this.bounds.point;
-	},
+		_draw_extra_bg: function (ctx, param, viewMatrix) {
+			if (!this._clipRect) return;
+				var item = this._clipRect,
+					bounds = item.bounds,
+					color = this.fillColor || item.fillColor;
+			if (!color) return;
+			ctx.fillStyle = color.toCanvasStyle(ctx, viewMatrix);
+			ctx.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
+		},
+		add: function (item) {
+			this.addChild(item);
+		},
+		_getOwner: function () {
+			return this._parent || (this._index != null && this._project);
+		},
 
-	setLayerClipped: function (clipped) {
-		this._layerClips = clipped;
-		this.bounds = clipped.clone();
-		this._getClipItem()._aslayerbg = true;
-		this._getClipItem().bounds = clipped.clone();
-	},
-	getLayerClipped: function ( ) {
-		return this._layerClips;
-	},
-	setClippedPoint: function(point){
-		if( !this._layerClips ) return;
-		this._layerClips.point = point;
-		this.bounds.point = point;
-		this._getClipItem().bounds.point = point;
-		this._topLeftOffset = point;
-	},
-	getClippedPoint: function(){
-		return this._layerClips ? this._layerClips.point : null ;
-	},
-	setClippedSize: function (size) {
-		if (!this._layerClips) return;
-		this._layerClips.size = size;
-		this.bounds.size = size;
-		this._getClipItem().bounds.size = size;
-	},
-	getClippedSize: function () {
-		return this._layerClips ? this._layerClips.size : null;
-	},
+		isInserted: function isInserted() {
+			return this._parent
+				? isInserted.base.call(this)
+				: this._index != null;
+		},
 
-	getCurrentColors: function(){
-	   return { fc: this._style._values.fillColor || this._project._currentStyle.fillColor, sc: this._style._values.strokeColor || this._project._currentStyle.strokeColor };
-	},
+		activate: function () {
+			this._project._activeLayer = this;
+		},
 
-	_draw_extra_bg: function(ctx, param, viewMatrix) {
-		var item  = this._getClipItem(), bounds = item.bounds, color = this.fillColor || item.fillColor;
-		if( !color ) return;
-		ctx.fillStyle =  color.toCanvasStyle(ctx, viewMatrix);
-		ctx.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
-	},
-	add: function(item){
-		this.addChild(item);
-	},
-	_getOwner: function() {
-		return this._parent || this._index != null && this._project;
-	},
-
-	isInserted: function isInserted() {
-		return this._parent ? isInserted.base.call(this) : this._index != null;
-	},
-
-	activate: function() {
-		this._project._activeLayer = this;
-	},
-
-	_hitTestSelf: function() {
+		_hitTestSelf: function () {},
 	}
-});
+);
 
   var ViewPort = Group.extend({
 	_class: 'ViewPort',
 
 	initialize: function ViewPort(params) {
 		Group.apply(this, arguments);
-		this._getClipItem();
+		this.setCamera(params.clips);
 		this._contentView = new Group();
+		this._contentView.bounds = params.clips;
+		this._contentView.clipped = true;
+		this._contentView.clippingMask = true;
+		 this.clipped = true;
+		 this.clippingMask = true;
 		this.insertChild(1, this._contentView);
 		this._setup_cover();
 	},
-	_getClipItem: function() {
-		if(! this._clipItem ){
-			if( this._children.length > 0 && this._children[0]._clipMask )
-				this._clipItem = this._children[0];
-			else {
-				var item = new Path.Rectangle( this._layerClips );
-				item.strokeColor = 'black';
-				item.strokeWidth = 1;
-				this.insertChild(0, item);
-				this._clipItem = item;
-				this._clipItem._clipMask = true;
-				this._clipItem._matrix = new Matrix()
-				this._clipItem.fillColor = 'rgba(0,0,0,0)';
-			}
-		}
-		return this._clipItem;
-	},
 	_setup_cover: function(){
-		var clipItem = this._getClipItem(), sw = this.strokeWidth,  sb = this.getScrollPolicy();
+		var clipItem = this.getCamera(),
+			sw = this.strokeWidth,
+			sp = this.getScrollPolicy(),
+			trackColor = this.trackColor || "white";
+			thumbColor = this.thumbColor || "gray";
 		if( ! this._cover ){
 			this._paddingObj = new Path.Rectangle( clipItem.bounds );
 			this._paddingObj.fillColor = 'rgba(0,0,0,0)';
 			this._paddingObj.remove();
 			this._cover =  new Path.Rectangle( clipItem.bounds );
 			this._cover.remove();
+		} else {
+			 this._paddingObj.bounds = clipItem.bounds;
+			 this._cover.bounds = clipItem.bounds;
 		}
-		if( sw || !sb.startsWith('n') ) {
+
+		if (sw || !sp.startsWith("n")) {
 			this._cover._style = this._style.clone();
-			this._cover.fillColor = !sb || sb.startsWith('n') ? 'rgba(0,0,0,0)' : 'rgba(123,123,123,0.01)';
+			this._cover.fillColor =
+				!sp || sp.startsWith("n")
+					? "rgba(0,0,0,0)"
+					: "rgba(123,123,123,0.01)";
 			this._paddingObj.strokeWidth = this.padding;
-			this._paddingObj.strokeColor = 'white';
-			if( this._cover._parent == null ){
+			this._paddingObj.strokeColor = trackColor;
+
+			switch (sp) {
+				case "none":
+				case "n":
+					this._paddingObj.strokeColor = "transparent";
+					break;
+				case "vertical":
+				case "v":
+					this._paddingObj.strokeColor = trackColor;
+					this._paddingObj.dashArray = [4, 2];
+					break;
+				case "horizontal":
+				case "h":
+					this._paddingObj.strokeColor = trackColor;
+					this._paddingObj.dashArray = [8, 2];
+					break;
+				case "both":
+				case "b":
+					this._paddingObj.strokeColor = trackColor;
+					this._paddingObj.dashArray = [4, 4];
+					break;
+				default:
+					break;
+			}
+
+			if (this._cover._parent == null) {
 				this.addChild(this._paddingObj, true);
 				this.addChild(this._cover, true);
 			}
@@ -9633,12 +10408,105 @@ var Layer = Group.extend({
 			this._paddingObj.remove();
 		}
 
+		  if (this._verticalTrack) {
+			  this._verticalTrack.remove();
+		  }
+		  if (this._horizontalTrack) {
+			  this._horizontalTrack.remove();
+		  }
+		if (this._verticalThumb) {
+			this._verticalThumb.remove();
+		}
+		if (this._horizontalThumb) {
+			this._horizontalThumb.remove();
+		}
+		  if (sp === "vertical" || sp === "v" || sp === "both" || sp === 'b') {
+			  this._verticalTrack = new Path();
+			  this._verticalTrack.add(
+				  new Point(
+					  this._paddingObj.bounds.x +
+						  this._paddingObj.bounds.width ,
+					  this._paddingObj.bounds.y
+				  )
+			  );
+			  this._verticalTrack.add(
+				  new Point(
+					  this._paddingObj.bounds.x + this._paddingObj.bounds.width,
+					  this._paddingObj.bounds.y + this._paddingObj.bounds.height
+				  )
+			  );
+			  this._verticalTrack.strokeWidth = 4;
+			  this._verticalTrack.strokeColor = trackColor;
+				 this.addChild(this._verticalTrack, true);
+
+			  this._verticalThumb = new Path();
+			  this._verticalThumb.add(
+				  new Point(
+					  this._paddingObj.bounds.x + this._paddingObj.bounds.width,
+					  this._paddingObj.bounds.y + this._paddingObj.bounds.height / 4
+				  )
+			  );
+			  this._verticalThumb.add(
+				  new Point(
+					  this._paddingObj.bounds.x + this._paddingObj.bounds.width,
+					  this._paddingObj.bounds.y +
+						  this._paddingObj.bounds.height / 2
+				  )
+			  );
+			  this._verticalThumb.strokeWidth = 4;
+			  this._verticalThumb.strokeColor = thumbColor;
+				   this.addChild(this._verticalThumb, true);
+		  }
+
+		  if (sp === "horizontal" || sp === "h" || sp === "both" || sp === "b") {
+			  this._horizontalTrack = new Path();
+			  this._horizontalTrack.add(
+				  new Point(
+					  this._paddingObj.bounds.x ,
+					  this._paddingObj.bounds.y +
+						  this._paddingObj.bounds.height
+				  )
+			  );
+			  this._horizontalTrack.add(
+				  new Point(
+					  this._paddingObj.bounds.x + this._paddingObj.bounds.width,
+					  this._paddingObj.bounds.y +
+						  this._paddingObj.bounds.height
+				  )
+			  );
+			  this._horizontalTrack.strokeWidth = 4;
+			  this._horizontalTrack.strokeColor = trackColor;
+			   this.addChild(this._horizontalTrack, true);
+
+			   this._horizontalThumb = new Path();
+			   this._horizontalThumb.add(
+				   new Point(
+					   this._paddingObj.bounds.x + this._paddingObj.bounds.width / 4,
+					   this._paddingObj.bounds.y +
+						   this._paddingObj.bounds.height
+				   )
+			   );
+			   this._horizontalThumb.add(
+				   new Point(
+					   this._paddingObj.bounds.x +
+						   this._paddingObj.bounds.width / 2,
+					   this._paddingObj.bounds.y +
+						   this._paddingObj.bounds.height
+				   )
+			   );
+			   this._horizontalThumb.strokeWidth = 4;
+			   this._horizontalThumb.strokeColor = thumbColor;
+				this.addChild(this._horizontalThumb, true);
+
+		  }
+
 	},
 
 	setScrollPolicy: function(s){
 		this._scrollPolicy = s || 'n';
 		this._setup_cover();
 		var that = this, cover = that._cover;
+
 		if( s ){
 			cover.on('mousedown', that._scrollHandler.bind(that));
 			cover.on('mousedrag', that._scrollHandler.bind(that));
@@ -9646,6 +10514,7 @@ var Layer = Group.extend({
 			cover.off('mousedown', that._scrollHandler.bind(that));
 			cover.off('mousedrag', that._scrollHandler.bind(that));
 		}
+
 	},
 	getScrollPolicy: function(){
 		return this._scrollPolicy || "both";
@@ -9668,6 +10537,7 @@ var Layer = Group.extend({
 			content = that.getContentView(), padding = Math.max(that.padding, that.strokeWidth||0),
 			cbs = content.bounds, adj_xoffset, adj_yoffset;
 		if( !cbs || sp.startsWith('n') ) return;
+
 		var npos = content.position.__add(new Point(xoffset, yoffset));
 		if( duration ){
 			anime({
@@ -9689,8 +10559,8 @@ var Layer = Group.extend({
 		this._contentView.addChild(v);
 	},
 	centerIt: function(){
-		var   clipview = this._getClipItem();
-		this.setCameraPosition(clipview.position);
+		 var   clipview = this.getCamera();
+		 if (clipview) this.setCameraPosition(clipview.position);
 	},
 	setCameraScale: function(scale, duration){
 		var c = this.getContentView();
@@ -10508,6 +11378,7 @@ var Raster = Item.extend({
 			g = components[1] * 255,
 			b = components[2] * 255,
 			a =  alpha != null ? alpha * 255 : 255,
+
 			ctx = this.getContext(true),
 			imageData = ctx.createImageData( width,  height),
 			data = imageData.data;
@@ -10604,7 +11475,8 @@ var Raster = Item.extend({
 	},
 	drawCorrectMarker: function (context) {
 		if (!!this.getCorrect()) {
-			var cimage = r9 && r9.getCacheImageByName(this.getCorrect() > 0 ? "r9correct" : "r9wrong");
+			var cimage = "";
+			if(r9) cimage = r9.getCacheImageByName(this.getCorrect() > 0 ? "r9correct" : "r9wrong");
 			if (cimage) {
 				var sz = this._size;
 				context.drawImage(cimage, 0, 0, cimage.width, cimage.height, -sz.width / 2, -sz.height / 2, cimage.width, cimage.height);
@@ -10635,8 +11507,10 @@ var Raster = Item.extend({
 		var that = this,  curc, tc  ;
 		var width = Math.min(that.getWidth(), target.getWidth()),
 		   height = Math.min(that.getHeight(), target.getHeight()), w, h;
+
 		that._raster = null;
 		target.visible = false;
+
 		that._raster = new Raster(new Size(width, height), this.position);
 		precise = precise || 'l';
 		if( precise === 'm' ) {
@@ -10650,6 +11524,7 @@ var Raster = Item.extend({
 		var fb = this.bounds.clone(), tb = target.bounds.clone() , started = false;
 		 that.size = size;
 		 target.size = size;
+
 	   var options = {
 			target : this,
 			progressFunc : function( progress){
@@ -10694,6 +11569,53 @@ var Raster = Item.extend({
 
 	_canComposite: function() {
 		return true;
+	},
+
+	changeCrop: function(x1,y1, w1, h1, duration) {
+		let subRectangle = new Rectangle(x1, y1, w1, h1);
+		let raster = this;
+		let subImage = raster.getSubRaster(subRectangle);
+
+		subImage.position = raster.position;
+
+		let scaleX = raster.bounds.width / w1;
+		let scaleY = raster.bounds.height / h1;
+		subImage.scale(1 / Math.min(scaleX, scaleY));
+
+		duration = duration || 2.0;
+		let startTime = null;
+
+		subImage.onFrame = function (event) {
+			if (!startTime) {
+				startTime = event.time;
+			}
+
+			let elapsedTime = event.time - startTime;
+
+			let progress = Math.min(elapsedTime / duration, 1);
+
+			subImage.bounds.width = raster.bounds.width * progress;
+			subImage.bounds.height = raster.bounds.height * progress;
+			subImage.position = raster.position;
+
+			if (progress >= 1) {
+				subImage.bounds = raster.bounds;
+
+				let context = raster.getContext(true);
+				context.clearRect(0, 0, raster.bounds.width, raster.bounds.height);
+				context.drawImage(
+					subImage.getImage(),
+					0,
+					0,
+					raster.bounds.width,
+					raster.bounds.height
+				);
+
+				subImage.remove();
+
+				subImage.onFrame = null;
+			}
+		};
 	}
 });
 
@@ -10719,6 +11641,7 @@ var CroppedImage = Item.extend({
 		this._size = new Size(params.cropWidth, params.cropHeight);
 		var bd = this.raster.bounds;
 		this.position = new Point(bd.x + this.cropX + this.cropWidth/2, bd.y + this.cropY + this.cropHeight/2);
+
 	},
 
 	 getWidth: function() {
@@ -10747,6 +11670,7 @@ var CroppedImage = Item.extend({
 				 esx = ebd.width/ew,  esy = ebd.height/eh,
 				cropX = this.cropX, cropY = this.cropY,
 				cropWidth = this.cropWidth, cropHeight = this.cropHeight, size = this._size;
+
 			ctx.globalAlpha = Numerical.clamp(this._opacity, 0, 1);
 			ctx.drawImage(element, cropX/esx, cropY/esy, cropWidth/esx, cropHeight/esy,
 					-size.width / 2, -size.height / 2, size.width, size.height);
@@ -13994,6 +14918,7 @@ var PathItem = Item.extend({
 
 var Path = PathItem.extend({
 	_class: 'Path',
+
 	_serializeFields: {
 		segments: [],
 		closed: false,
@@ -14067,6 +14992,7 @@ var Path = PathItem.extend({
 				complete: doneCallback,
 				callbackCxt: this,
 		   }, offset);
+
 		return true;
 	 },
 
@@ -14103,6 +15029,7 @@ var Path = PathItem.extend({
 		 if( this.path_animator )
 			 this.path_animator.pause();
 	 },
+
 	_equals: function(item) {
 		return this._closed === item._closed
 				&& Base.equals(this._segments, item._segments);
@@ -14149,6 +15076,7 @@ var Path = PathItem.extend({
 		else if( ws == 2 ) ws = 6;
 		else if( ws == 3 ) ws = 8;
 		else ws = ws* 2;
+
 		if( tips == 'none' ){
 			if( this._tipsShape != null )
 				this._tipsShape.remove();
@@ -14182,6 +15110,7 @@ var Path = PathItem.extend({
 				strokeColor: tipcolor,
 				fillColor: tipcolor
 			});
+
 		} else if( tips == 'star' ){
 			var ps = 8;
 			var radius1 = ws/2;
@@ -14241,6 +15170,7 @@ var Path = PathItem.extend({
 		this._vertexDraggable = draggable;
 		this._hitSegment = null;
 		var project = this._project, that = this;
+
 		function onMouseDown(event) {
 			that._hitSegment  = null;
 			var hitResult = project.hitTest(event.point,  {
@@ -14251,6 +15181,7 @@ var Path = PathItem.extend({
 				});
 			if (!hitResult || hitResult.item != that )
 				return;
+
 			if (hitResult.type == 'segment') {
 				that._hitSegment = hitResult.segment;
 			} else if (hitResult.type == 'stroke') {
@@ -14711,6 +15642,7 @@ var Path = PathItem.extend({
 			path.insertAbove(this);
 			path.copyAttributes(this);
 		}
+
 		var segments = this._segments, selength = segments.length,  curves = this._curves;
 		for(var i = index0; i <= index1 ; i++){
 			var seg = segments[i].clone();
@@ -15406,6 +16338,7 @@ new function() {
 			}
 		}
 	}
+
 	function drawSegments(ctx, path, matrix) {
 		var segments = path._segments,
 			length = segments.length,
@@ -15494,6 +16427,7 @@ new function() {
 			if (path._closed)
 				ctx.closePath();
 		}
+
 	}
 
 	return {
@@ -15601,6 +16535,7 @@ new function() {
 			r.closed = this.closed;
 			return r;
 		},
+
 		doHomotopy: function(timeline, homotopy, duration, offset, doneCallback){
 			var that = this;
 			var start = function(){
@@ -15632,10 +16567,12 @@ new function() {
 				duration : duration,
 				complete: function(){
 					if( doneCallback ) doneCallback();
+					if (that._svg) that._svg.remove();
 					that._svg = null;
 				} ,
 				callbackCxt: that,
 		   }, offset);
+
 		},
 		morphingTo: function (timeline, target, duration, offset, finishCallback, removeTargetAtEnd){
 			if( target._class == 'Path' )
@@ -15682,6 +16619,7 @@ new function() {
 			}
 			that. _svgFrom.visible = false;
 			that. _svgTo.visible = false;
+
 			that._svg = new Path(Item.NO_INSERT);
 			var thatpos = that.position.clone() , started = false;
 			var options = {
@@ -15694,6 +16632,7 @@ new function() {
 				progressFunc : function( progress){
 					that._svg.resetPathData("");
 					that._svg.interpolate( that._svgFrom, that. _svgTo, progress);
+
 					that._svg.position = target.position.__subtract(thatpos).__multiply(progress).__add(thatpos);
 					that.position = that._svg.position;
 					var  from_style = that._style, to_style= target._style,  ffcolor = from_style.getFillColor(),
@@ -15712,15 +16651,19 @@ new function() {
 				complete: function(){
 					if(  that._svgFrom ){ that. _svgFrom.remove(); that. _svgFrom = null; }
 					if(  that._svgTo ){ that._svgTo.remove(); that._svgTo = null; }
+
 					if( finishCallback ){   finishCallback();   }
+
 					if ( !removeTargetAtEnd )
 						target.showing(0.1);
+
 				} ,
 				callbackCxt: that,
 		   };
 		   if( timeline ) timeline.add(options, offset);
 		   else
 			 anime(options);
+
 		},
 
 		_draw_decro: function(ctx, param, viewMatrix, strokeMatrix) {
@@ -18106,10 +19049,12 @@ var PathFitter = Base.extend({
 
  var R9Line = Path.extend({
 	_class: 'R9Line',
+
 	initialize: function R9Line(arg) {
 		var args = arguments;
 		Path.apply(this, args);
 		var from = Point.readNamed(args, 'from' ),  to = Point.readNamed(args, 'to' );
+
 		if (!(from.x == 0 && from.y == 0 && to.x == 0 && to.y == 0)) {
 			this._segments = [];
 			this._add([new Segment(from),new Segment(to)]);
@@ -18117,6 +19062,7 @@ var PathFitter = Base.extend({
 		}
 		if (!this.lineOffsetStart) this.lineOffsetStart = 0;
 		if (!this.lineOffsetEnd) this.lineOffsetEnd = 0;
+
 		if( !this.fillColor ) this.fillColor = this._project.getBuiltInColor('fillColor');
 		if( !this.strokeColor ) this.strokeColor = this._project.getBuiltInColor('strokeColor');
 	},
@@ -18129,6 +19075,7 @@ var PathFitter = Base.extend({
 		var ta = this.getTangentAt(0),  ep = this.getPointAt(0);;
 		return ep.__add(ta.__multiply(-this.lineOffsetStart));
 	},
+
 	 getEnd: function(){
 		 var ta = this.getTangentAt(this.length), ep = this.getPointAt(this.length);
 		 return ep.__add( ta.__multiply(   this.lineOffsetEnd ) );
@@ -18187,6 +19134,7 @@ var PathFitter = Base.extend({
 
  var R9DashLine = R9Line.extend({
 	_class: 'R9DashLine',
+
 	initialize: function R9DashLine(arg) {
 		R9Line.apply(this, arguments);
 		this.dashArray = [1, 2];
@@ -18196,6 +19144,7 @@ var PathFitter = Base.extend({
 
  var R9TangentLine = R9Line.extend({
 	_class: 'R9TangentLine',
+
 	initialize: function R9TangentLine(arg) {
 		var args = arguments;
 		R9Line.apply(this, args);
@@ -18216,6 +19165,7 @@ var PathFitter = Base.extend({
 			this.setVertexDraggable( !!arg.vertexDraggable );
 		}
 	},
+
 	_adjust: function(left){
 		var offset = this.host.getOffsetOf( this.point ), gap = 1;
 		offset = left ? offset + gap : offset - gap;
@@ -18233,6 +19183,7 @@ var PathFitter = Base.extend({
 		this._vertexDraggable = draggable;
 		this._hitSegment = null;
 		var project = this._project, that = this, left = false;
+
 		function onMouseDown(event) {
 			that._hitSegment  = null;
 			var hitResult = project.hitTest(event.point,  {
@@ -18243,6 +19194,7 @@ var PathFitter = Base.extend({
 				});
 			if (!hitResult || hitResult.item != that )
 				return;
+
 			if (hitResult.type == 'segment') {
 				that._hitSegment = hitResult.segment;
 				that. left = that._hitSegment == that.firstSegment;
@@ -18271,10 +19223,12 @@ var PathFitter = Base.extend({
 			that.off('mousedown', onMouseDown);
 		}
 	},
+
 });
 
  var R9Angle = Path.extend({
 	_class: 'R9Angle',
+
 	initialize: function R9Angle(arg) {
 		var args = arguments;
 		Path.apply(this, args);
@@ -18302,7 +19256,9 @@ var PathFitter = Base.extend({
 		} else {
 			this.to =  new Point(arg.to);
 		}
+
 		this.show_arrow = typeof arg.show_arrow == 'undefined' ?  false : !!arg.show_arrow;
+
 		var radius = 25, threshold = 10, vector_f = this.from.__subtract( this.vertex ) ,
 		vector_t = this.to.__subtract( this.vertex ), center = this.vertex,
 		angle = vector_t.angle - vector_f.angle;
@@ -18325,6 +19281,7 @@ var PathFitter = Base.extend({
 				end .__add( arrowVector.rotate(-135) )
 			  ]);
 			this.angle_path.strokeColor = this.strokeColor;
+
 		}
 		var show_label = typeof arg.show_label == 'undefined' ?  false : !!arg.show_label;
 		if (show_label) {
@@ -18396,16 +19353,17 @@ var PathFitter = Base.extend({
 			this.label.content = Math.floor(angle * 100) / 100 + '\xb0';
 		}
 	}
+
 });
 
  var TracedPath = Path.extend({
 	_class: 'TracedPath',
+
 	initialize: function TracedPath(arg) {
 		Path.apply(this, arguments);
 		if( typeof this.tail_time == 'undefined')
 			this.tail_time = 0;
-		else
-			this.time = 1;
+		this.time = 1;
 		this.addUpdater(this._update_path.bind(this));
 	},
 
@@ -18414,21 +19372,25 @@ var PathFitter = Base.extend({
 		if( typeof f == 'function') np = f();
 		else if( f instanceof Item) np = f.position;
 		else return;
-		var ls = this.lastSegment, same = ls && ls.point.equals(np);
+		var ls = this.lastSegment, same = ls && ( Math.abs(ls.point.x - np.x) +
+			Math.abs(ls.point.y - np.y) < 4);
 		if (that.segments.length == 0)
 			that.time = 1;
-		if(!same)
-			that.addSegment(new Segment(np));
+		if(!same && that.segments.length < 3000)
+			that.addSegments([[np.x, np.y]]);
+
 		if( that.tail_time ){
 			that.time += evnt.delta;
 			if( that.segments.length > 0 && that.time - 1 > that.tail_time ){
 				that.removeSegment(0);
+
 			}
 		}
 	}
 });
 var PointPath2 = Path.extend({
 	_class: 'PointPath2',
+
 	initialize: function PointPath2(arg) {
 		Path.apply(this, arguments);
 		this._time = 0;
@@ -18456,6 +19418,7 @@ var PointPath2 = Path.extend({
 });
 var PointPath = Item.extend({
 	_class: 'PointPath',
+
 	initialize: function PointPath(arg) {
 		this._initialize(arg);
 		this.data = [];
@@ -18494,6 +19457,7 @@ var PointPath = Item.extend({
 });
 var TracedPathLite = PointPath.extend({
 	_class: 'TracedPathLite',
+
 	initialize: function TracedPathLite(arg) {
 		PointPath.apply(this, arguments);
 		if( typeof this.tail_time == 'undefined')
@@ -18540,6 +19504,7 @@ var Medicion = R9Line.extend({
 	_draw: function (context, param, viewMatrix) {
 		this._setStyles(context, param, viewMatrix);
 		var start = this.getStart(), end = this.getEnd(),
+
 			arrawdash = this.arrawdash ,
 			strokeWidth = this.strokeWidth  || 3,
 			tipOffset = this.tipOffset || 5,
@@ -18793,6 +19758,7 @@ var Stack = Item.extend({
 			ctx.stroke();
 		}
 		ctx.restore();
+
 	},
 })
 
@@ -19906,132 +20872,166 @@ var XYLineChart = CoordinateSystem.extend({
 	},
 });
 
-var PieRingChart = Item.extend({
-	_class: 'PieRingChart',
-	initialize: function PieRingChart(params) {
-		if ( Array.isArray(params.point)  )
-			params.point = new Point(params.point);
-		if (Array.isArray(params.size))
-			params.size = new Size(params.size);
-		this.size = params.size;
-		this._initialize(params)
-		this.colors = params.colors || [];
-		this.strokeWidth = params.strokeWidth || 1;
-		this.ispie = params.ispie  || false;
+var PieRingChart = Item.extend(
+	 {
+		_class: "PieRingChart",
 
-		this.numLines = Array.isArray(params.data[0]) ? params.data.length : 1;
+		initialize: function PieRingChart(params) {
+			if (Array.isArray(params.point))
+				params.point = new Point(params.point);
+			if (Array.isArray(params.size)) params.size = new Size(params.size);
+			this.size = params.size;
+			this._initialize(params);
+			this.colors = params.colors || [];
+			this.strokeWidth = params.strokeWidth || 1;
+			this.ispie = params.ispie || false;
 
-		if (this.colors.length < this.numLines) {
-			var hue = Math.random() * 360, bc_size = this.colors.length;
-			var b_color = bc_size > 0 ? this.colors[bc_size - 1] : 'pink';
-			hue = (new Color(b_color).hue + 40) % 360;
-			for (var i = bc_size; i < this.numLines; i++) {
-				var lightness = (Math.random() - 0.5) * 0.4 + 0.4;
-				this.colors.push(new Color({ hue: hue, saturation: 1, lightness: lightness, alpha: 0.8 }).toCSS());
+			this.numLines = Array.isArray(params.data[0])
+				? params.data.length
+				: 1;
+
+			if (this.colors.length < this.numLines) {
+				var hue = Math.random() * 360,
+					bc_size = this.colors.length;
+				var b_color = bc_size > 0 ? this.colors[bc_size - 1] : "pink";
+				hue = (new Color(b_color).hue + 40) % 360;
+				for (var i = bc_size; i < this.numLines; i++) {
+					var lightness = (Math.random() - 0.5) * 0.4 + 0.4;
+					this.colors.push(
+						new Color({
+							hue: hue,
+							saturation: 1,
+							lightness: lightness,
+							alpha: 0.8,
+						}).toCSS()
+					);
+				}
 			}
-		}
-		this._opacity = 1;
-	},
-	_copyExtraAttr: function (source, excludeMatrix) {
-		this.bounds = source.bounds;
-		this.data = source.data;
-		this.colors = source.colors;
-		this.radius = source.radius;
-		this.innerRadius = source.innerRadius;
-		this.title = source.title;
-	},
+			this._opacity = 1;
+		},
+		_copyExtraAttr: function (source, excludeMatrix) {
+			this.bounds = source.bounds;
+			this.data = source.data;
+			this.colors = source.colors;
+			this.radius = source.radius;
+			this.innerRadius = source.innerRadius;
+			this.title = source.title;
+		},
 
-	_getBounds: function (matrix, options) {
-		var size = this.size,
-			rect = new Rectangle(0,0, size.width, size.height);
-		return matrix ? matrix._transformBounds(rect, rect) : rect;
-	},
-	getPoint: function () {
-		var point = this._matrix.getTranslation();
-		return new LinkedPoint(point.x, point.y, this, 'setPoint');
-	},
-	setPoint: function () {
-		var point = Point.read(arguments);
-		this.translate(point.subtract(this._matrix.getTranslation()));
-	},
-	getTotalValue: function () {
-		var total = 0;
-		for (var i = 0; i < this.data .length; i++) {
-			total += this.data [i].value;
-		}
-		return total;
-	},
-	_draw: function (ctx, param, viewMatrix) {
-		var bs = this.bounds, x = bs.x + bs.width / 2,
-			y = bs.y + bs.height / 2,
-			x1 = bs.x,
-			y1 = bs.y,
-			data = this.data, colors = this.colors, radius = this.radius, cvalue;
-		for (var i = 0; i < data.length; i++) {
-			cvalue = data[i];
-			ctx.beginPath();
-			ctx.fillStyle = colors[i];
-			ctx.strokeStyle = colors[i];
+		_getBounds: function (matrix, options) {
 
-			ctx.moveTo(x, y);
-			cvalue.start = i === 0 ? -Math.PI / 2 : data[i - 1].end;
-			cvalue.end = cvalue.start + cvalue.value / this.getTotalValue() * 2 * Math.PI;
-
-			ctx.arc(x, y, radius, cvalue.start, cvalue.end);
-			ctx.closePath();
-			ctx.fill();
-
-			cvalue.middle = (cvalue.start + cvalue.end) / 2;
-			x1 = Math.ceil(Math.abs(radius * Math.cos(cvalue.middle)));
-			y1 = Math.floor(Math.abs(radius * Math.sin(cvalue.middle)));
-
-			ctx. fillStyle = colors[i] ;
-			ctx. strokeStyle = colors[i] ;
-			var fsize = this.fontSize || 18;
-			ctx.font = "italic small-caps " + fsize + "px arial";
-			if (cvalue.middle <= 0) {
-				ctx.textAlign = 'left';
-				ctx.moveTo(x + x1, y - y1);
-				ctx.lineTo(x + x1 + 10, y - y1 - 10);
-				ctx.moveTo(x + x1 + 10, y - y1 - 10);
-				ctx.lineTo(x + x1 + radius / 2, y - y1 - 10);
-				ctx.stroke();
-				ctx.fillText(cvalue.value + "(" + cvalue.aspect + ")", x + x1 + 5 + radius / 2, y - y1 - 5);
-			} else if (cvalue.middle > 0 && cvalue.middle <= Math.PI / 2) {
-				ctx.textAlign = 'left';
-				ctx.moveTo(x + x1, y + y1);
-				ctx.lineTo(x + x1 + 10, y + y1 + 10);
-				ctx.moveTo(x + x1 + 10, y + y1 + 10);
-				ctx.lineTo(x + x1 + radius / 2, y + y1 + 10);
-				ctx.stroke();
-				ctx.fillText(cvalue.value + "(" + cvalue.aspect + ")", x + x1 + 5 + radius / 2, y + y1 + 15);
-			} else if (cvalue.middle > Math.PI / 2 && cvalue.middle < Math.PI) {
-				ctx.textAlign = 'right';
-				ctx.moveTo(x - x1, y + y1);
-				ctx.lineTo(x - x1 - 10, y + y1 + 10);
-				ctx.moveTo(x - x1 - 10, y + y1 + 10);
-				ctx.lineTo(x - x1 - radius / 2, y + y1 + 10);
-				ctx.stroke();
-				ctx.fillText(cvalue.value + "(" + cvalue.aspect + ")", x - x1 - 5 - radius / 2, y + y1 + 15);
-			} else {
-				ctx.textAlign = 'right';
-				ctx.moveTo(x - x1, y - y1);
-				ctx.lineTo(x - x1 - 10, y - y1 - 10);
-				ctx.moveTo(x - x1 - 10, y - y1 - 10);
-				ctx.lineTo(x - x1 - radius / 2, y - y1 - 10);
-				ctx.stroke();
-				ctx.fillText(cvalue.value + "(" + cvalue.aspect + ")", x - x1 - 5 - radius / 2, y - y1 - 5);
+			var size = this.size,
+				rect = new Rectangle(0, 0, size.width, size.height).setCenter(
+					0,
+					0
+				);
+			return matrix ? matrix._transformBounds(rect, rect) : rect;
+		},
+		getTotalValue: function () {
+			var total = 0;
+			for (var i = 0; i < this.data.length; i++) {
+				total += this.data[i].value;
 			}
-		}
+			return total;
+		},
+		_draw: function (ctx, param, viewMatrix) {
+			var bs = this.bounds,
+				x = 0,
+				y = 0,
+				x1 = - bs.width / 2,
+				y1 = - bs.height / 2,
 
-		if (!this.ispie) {
-			ctx.beginPath();
-			ctx.fillStyle = this._project.getBuiltInColor('color3'),
-			ctx.arc(x, y, this.innerRadius , 0, Math.PI * 2);
-			ctx.fill();
-		}
-	},
-});
+				data = this.data,
+				colors = this.colors,
+				radius = this.radius,
+				cvalue;
+			for (var i = 0; i < data.length; i++) {
+				cvalue = data[i];
+				ctx.beginPath();
+				ctx.fillStyle = colors[i];
+				ctx.strokeStyle = colors[i];
+
+				ctx.moveTo(x, y);
+				cvalue.start = i === 0 ? -Math.PI / 2 : data[i - 1].end;
+				cvalue.end =
+					cvalue.start +
+					(cvalue.value / this.getTotalValue()) * 2 * Math.PI;
+
+				ctx.arc(x, y, radius, cvalue.start, cvalue.end);
+				ctx.closePath();
+				ctx.fill();
+
+				cvalue.middle = (cvalue.start + cvalue.end) / 2;
+				x1 = Math.ceil(Math.abs(radius * Math.cos(cvalue.middle)));
+				y1 = Math.floor(Math.abs(radius * Math.sin(cvalue.middle)));
+
+				ctx.fillStyle = colors[i];
+				ctx.strokeStyle = colors[i];
+				var fsize = this.fontSize || 18;
+				ctx.font = "italic small-caps " + fsize + "px arial";
+				if (cvalue.middle <= 0) {
+					ctx.textAlign = "left";
+					ctx.moveTo(x + x1, y - y1);
+					ctx.lineTo(x + x1 + 10, y - y1 - 10);
+					ctx.moveTo(x + x1 + 10, y - y1 - 10);
+					ctx.lineTo(x + x1 + radius / 2, y - y1 - 10);
+					ctx.stroke();
+					ctx.fillText(
+						cvalue.value + "(" + cvalue.aspect + ")",
+						x + x1 + 5 + radius / 2,
+						y - y1 - 5
+					);
+				} else if (cvalue.middle > 0 && cvalue.middle <= Math.PI / 2) {
+					ctx.textAlign = "left";
+					ctx.moveTo(x + x1, y + y1);
+					ctx.lineTo(x + x1 + 10, y + y1 + 10);
+					ctx.moveTo(x + x1 + 10, y + y1 + 10);
+					ctx.lineTo(x + x1 + radius / 2, y + y1 + 10);
+					ctx.stroke();
+					ctx.fillText(
+						cvalue.value + "(" + cvalue.aspect + ")",
+						x + x1 + 5 + radius / 2,
+						y + y1 + 15
+					);
+				} else if (
+					cvalue.middle > Math.PI / 2 &&
+					cvalue.middle < Math.PI
+				) {
+					ctx.textAlign = "right";
+					ctx.moveTo(x - x1, y + y1);
+					ctx.lineTo(x - x1 - 10, y + y1 + 10);
+					ctx.moveTo(x - x1 - 10, y + y1 + 10);
+					ctx.lineTo(x - x1 - radius / 2, y + y1 + 10);
+					ctx.stroke();
+					ctx.fillText(
+						cvalue.value + "(" + cvalue.aspect + ")",
+						x - x1 - 5 - radius / 2,
+						y + y1 + 15
+					);
+				} else {
+					ctx.textAlign = "right";
+					ctx.moveTo(x - x1, y - y1);
+					ctx.lineTo(x - x1 - 10, y - y1 - 10);
+					ctx.moveTo(x - x1 - 10, y - y1 - 10);
+					ctx.lineTo(x - x1 - radius / 2, y - y1 - 10);
+					ctx.stroke();
+					ctx.fillText(
+						cvalue.value + "(" + cvalue.aspect + ")",
+						x - x1 - 5 - radius / 2,
+						y - y1 - 5
+					);
+				}
+			}
+
+			if (!this.ispie) {
+				ctx.beginPath();
+				(ctx.fillStyle = this._project.getBuiltInColor("color3")),
+					ctx.arc(x, y, this.innerRadius, 0, Math.PI * 2);
+				ctx.fill();
+			}
+		},
+	}
+);
 
  var Table = Group.extend({
 	_class: 'Table',
@@ -20337,14 +21337,15 @@ Table.inject({ statics: new function() {
 
 CoordinateSystem.inject({ statics: new function() {
 
-	function _createCoordinateSystem(axis_x, axis_y, origin_render, grid_type,  grid_color, asGroup) {
-		var cs = new CoordinateSystem(axis_x, axis_y, origin_render, grid_type,  grid_color);
+	function _createCoordinateSystem(axis_x, axis_y,   grid_type,  grid_color, asGroup) {
+		var cs = new CoordinateSystem(axis_x, axis_y, grid_type,  grid_color);
 		return asGroup ? new CoordinateSystemUnit(cs) : cs;
 	}
 
 	function _createTwoAxis(params){
 		var render = params.render,  x = render[0], y = render[1], width = render[2], height = render[3],
 			x_range = params.x_range, y_range = params.y_range;
+
 		x_range[0] = Math.min(0, x_range[0]);
 		x_range[1] = Math.max(0, x_range[1]);
 		y_range[0] = Math.min(0, y_range[0]);
@@ -20356,6 +21357,7 @@ CoordinateSystem.inject({ statics: new function() {
 		include_label = typeof params.include_label == 'undefined' ? true : params.include_label ,
 			grid_type = params.grid_type || false, grid_color = params.grid_color || strokeColor,
 		exclude_origin_tick = params.exclude_origin_tick || false;
+
 		var adjust = include_tip ?  20 : 0;
 		var x_axis_y_pos =     (y_range[1] - 0) /  (y_range[1] - y_range[0])  * (height-adjust) + adjust;
 		var y_axis_x_pos =   (0 - x_range[0]   ) /  (x_range[1] - x_range[0]) * (width-adjust) ;
@@ -20390,6 +21392,7 @@ CoordinateSystem.inject({ statics: new function() {
 		var axies = _createTwoAxis(params);
 		return _createCoordinateSystem(axies[0], axies[1], grid_type, grid_color, asGroup);
 	}
+
 	function _ByAxiesFullScreen(param) {
 		var space = _ByRenderAreaAndAxies(false, param);
 		if (param.draggable_origin) {
@@ -20429,6 +21432,7 @@ CoordinateSystem.inject({ statics: new function() {
 	}
 
 	return {
+
 		ByRenderAreaAndAxies: function(params) {
 			 return _ByRenderAreaAndAxies(true, params);
 		},
@@ -20489,6 +21493,7 @@ CoordinateSystem.inject({ statics: new function() {
 			 });
 			return new CoordinateSystemUnit(chart);
 		},
+
 	};
 }});
 
@@ -20740,6 +21745,7 @@ R9Function.inject({ statics: new function() {
 
  var AreaUnderCurve = Path.extend({
 	_class: 'AreaUnderCurve',
+
 	initialize: function AreaUnderCurve(arg) {
 		Path.apply(this, arguments);
 		this.num_rects =  this.num_rects   ?  this.num_rects : 0;
@@ -20750,8 +21756,10 @@ R9Function.inject({ statics: new function() {
 		this.num_rects =  source.num_rects  ;
 		this.colors = source.colors;
 	},
+
 	createShapes: function(){
 		this.resetPathData('');
+
 		var that = this, space = that.space, curve = that.curve, start_x = that.start_x, end_x = that.end_x,
 			num_rects = that.num_rects;
 		var    start_x_r = space.getGlobalRenderPosByValue_X(start_x),
@@ -20760,11 +21768,13 @@ R9Function.inject({ statics: new function() {
 
 			end_y_r = curve.get_render_y_from_render_x(end_x_r, true)[0],
 			y_zero_r = space.getGlobalRenderPosByValue_Y(0);
+
 		var offset_s = curve.getOffsetOf(new Point(start_x_r,start_y_r),1),
 			offset_e = curve.getOffsetOf(new Point(end_x_r,end_y_r),1);
 
 		var   partial_curve = curve. cloneSubPath(offset_s, offset_e, false),
 			 path = partial_curve.children[0];
+
 		that.add(new Segment(start_x_r, y_zero_r));
 		path.segments.forEach(e => {
 			that.add( e.clone() );
@@ -20775,6 +21785,7 @@ R9Function.inject({ statics: new function() {
 		curves[0].clearHandles();
 		curves[curves.length-2].clearHandles();
 		curves[curves.length-1].clearHandles();
+
 		if( that.colors.length < num_rects ){
 			var hue = Math.random() * 360;
 			if( that._style && that._style.fillColor )
@@ -20803,6 +21814,7 @@ R9Function.inject({ statics: new function() {
 			cur_y = curve.get_value_y_from_value_x(cur_x)[0];
 			cur_y_r = space.getGlobalRenderPosByValue_Y(cur_y);
 			cy = Math.abs(prev_y_r - y_zero_r) < Math.abs(cur_y_r - y_zero_r) ? prev_y_r : cur_y_r;
+
 			if( cur_y * prev_y > 0){
 				ctx.fillStyle= that.colors[i-1];
 				if( cur_y > 0 )
@@ -20844,6 +21856,7 @@ R9Function.inject({ statics: new function() {
 			};
 		});
 	 },
+
 });
 
 var Bubble = Path.extend({
@@ -20854,6 +21867,7 @@ var Bubble = Path.extend({
 		this.createShapes();
 	},
 	_copyExtraAttr: function (source, excludeMatrix) {
+
 	},
 	createShapes: function () {
 		this.resetPathData('');
@@ -20972,83 +21986,94 @@ var Bubble = Path.extend({
 	}
 });
 
-var Highlighter = Path.extend({
-	_class: 'Highlighter',
+var Highlighter = Path.extend(
+	 {
+		_class: "Highlighter",
 
-	initialize: function Highlighter(arg) {
-		Path.apply(this, arguments);
-		var args = arguments,
-			pos = Point.readNamed(args, 'position'),
-			size = Size.readNamed(args, 'size', 0,
-				{ readNull: true }),
-			x0 = pos.x - size.width/2,
-			y0 = pos.y - size.height/2,
-			w = size.width,
-			h = size.height;
-		this.add(new Point(x0,y0), new Point(x0+w,y0), new Point(x0+w, y0+h), new Point(x0, y0+h) );
-		this.setType( arg.type ||   'highlighter' );
-	},
-	setType:function(type){
-		this.type = type;
-		this._changed(521);
-	},
-	_draw: function (ctx, param, viewMatrix) {
-		var line = this.type;
-		this.setOpacity(line == 'highlighter' || line === 0 ? 0.2 : 1);
-		this._setStyles(ctx, param, viewMatrix);
-		var size = this.size, width = size.width,
-			height = size.height,
-			ps = this.position, x =  ps.x - width/2, y = ps.y - height/2,
-			duration = this.duration,
-			progressvalue = this.getProgress() ;
+		initialize: function Highlighter(arg) {
+			Path.apply(this, arguments);
+			var args = arguments,
+				pos = Point.readNamed(args, "position"),
+				size = Size.readNamed(args, "size", 0, { readNull: true }),
+				x0 = pos.x - size.width / 2,
+				y0 = pos.y - size.height / 2,
+				w = size.width,
+				h = size.height;
 
-		if (duration > 0) {
-			width = width * progressvalue * 1.0;
-		}
-		ctx.save();
-		if (line == 'highlighter' || line === 0) {
-			 ctx.beginPath();
-			 ctx.moveTo(x, y);
-			 ctx.lineTo(x + width, y);
-			 ctx.lineTo(x + width, y + height);
-			 ctx.lineTo(x, y + height);
-			 ctx.lineTo(x, y);
-			 ctx.closePath();
-			 ctx.fill ( );
-		} else if (line == 'checkboLine' || line === 1) {
-			 ctx.beginPath();
-			 ctx.moveTo(x, y + height);
-			 ctx.lineTo(x + width, y + height);
-			 ctx.closePath();
-			 ctx.stroke ( );
-		} else if (line == 'elipseLine' || line === 2 ) {
-			var corner = width < height ? width / 2 : height / 2;
-			r9_drawRounded( ctx, x, y, width, height, corner, 1);
-		} else if (line == 'strikeLine' || line === 3) {
-			 ctx.beginPath();
-			 ctx.moveTo(x, y + height / 2);
-			 ctx.lineTo(x + width, y + height / 2);
-			 ctx.closePath();
-			 ctx.stroke( );
-		} else if (line == 'leanLine' || line === 4) {
-			 ctx.beginPath();
-			 ctx.moveTo(x, y + height);
-			 ctx.lineTo(x + width, y);
-			 ctx.closePath();
-			 ctx.stroke ( );
-		} else if (line == 'crossLine' || line === 5) {
-			 ctx.beginPath();
-			 ctx.moveTo(x, y);
-			 ctx.lineTo(x + width, y + height);
-			 ctx.moveTo(x, y + height);
-			 ctx.lineTo(x + width, y);
-			 ctx.closePath();
-			 ctx.stroke ( );
-		}
+			this.add(
+				new Point(x0, y0),
+				new Point(x0 + w, y0),
+				new Point(x0 + w, y0 + h),
+				new Point(x0, y0 + h)
+			);
+			this.setHighlightType(arg.highlightType || "highlighter");
+		},
 
-		ctx.restore();
+		setHighlightType: function (type) {
+			this.highlightType = type;
+			this._changed(521);
+		},
+		_draw: function (ctx, param, viewMatrix) {
+			var line = this.highlightType;
+			this.setOpacity(line == "highlighter" || line === 0 ? 0.3 : 1);
+			this._setStyles(ctx, param, viewMatrix);
+			var size = this.size,
+				width = size.width,
+				height = size.height,
+				ps = this.position,
+				x = ps.x - width / 2,
+				y = ps.y - height / 2,
+				duration = this.duration,
+				progressvalue = this.getProgress();
+
+			if (duration > 0) {
+				width = width * progressvalue * 1.0;
+			}
+			ctx.save();
+			if (line == "highlighter" || line === 0) {
+				ctx.beginPath();
+				ctx.moveTo(x, y);
+				ctx.lineTo(x + width, y);
+				ctx.lineTo(x + width, y + height);
+				ctx.lineTo(x, y + height);
+				ctx.lineTo(x, y);
+				ctx.closePath();
+				ctx.fill();
+			} else if (line == "checkboLine" || line === 1) {
+				ctx.beginPath();
+				ctx.moveTo(x, y + height);
+				ctx.lineTo(x + width, y + height);
+				ctx.closePath();
+				ctx.stroke();
+			} else if (line == "elipseLine" || line === 2) {
+				var corner = width < height ? width / 2 : height / 2;
+				r9_drawRounded(ctx, x, y, width, height, corner, 1);
+			} else if (line == "strikeLine" || line === 3) {
+				ctx.beginPath();
+				ctx.moveTo(x, y + height / 2);
+				ctx.lineTo(x + width, y + height / 2);
+				ctx.closePath();
+				ctx.stroke();
+			} else if (line == "leanLine" || line === 4) {
+				ctx.beginPath();
+				ctx.moveTo(x, y + height);
+				ctx.lineTo(x + width, y);
+				ctx.closePath();
+				ctx.stroke();
+			} else if (line == "crossLine" || line === 5) {
+				ctx.beginPath();
+				ctx.moveTo(x, y);
+				ctx.lineTo(x + width, y + height);
+				ctx.moveTo(x, y + height);
+				ctx.lineTo(x + width, y);
+				ctx.closePath();
+				ctx.stroke();
+			}
+
+			ctx.restore();
+		},
 	}
-});
+);
 
 var GeomPolyFill = Path.extend({
 	_class: 'GeomPolyFill',
@@ -21093,6 +22118,7 @@ var GeomPolyFill = Path.extend({
 		}
 	}
 });
+
   var PopupMenu = Group.extend({
 	_class: 'PopupMenu',
 
@@ -21756,6 +22782,7 @@ var PointText = TextItem.extend({
 		this._curFS=null;
 		this._curFW=null;
 		this._curStyle=null;
+
 		this.fontStyle= TextItem.NORMAL;
 		this.fontVariant= TextItem.NORMAL;
 		this.padding= 0;
@@ -21793,10 +22820,12 @@ var PointText = TextItem.extend({
 		this.correct= 0;
 		this.textArr=[];
 		this.line2height=[];
+
 		if( !arg.fillColor && arg.strokeColor )
 			arg.fillColor = arg.strokeColor;
 		if( !arg.strokeColor && arg.fillColor )
 			arg.strokeColor = arg.fillColor;
+
 		TextItem.apply(this, arguments)
 		if( !this.strokeColor ) this.strokeColor = mpaper.project.getBuiltInColor('textColor');
 		if( !this.fillColor ) this.fillColor = mpaper.project.getBuiltInColor('textColor');
@@ -21810,6 +22839,7 @@ var PointText = TextItem.extend({
 				this._style.setFontSize(this.fontSize );
 			}
 		}
+
 		this.setTextData(this._content);
 	},
 	 guessFontSize: function ( content, expectWidth, defaultSize){
@@ -21832,6 +22862,7 @@ var PointText = TextItem.extend({
 			 }
 			 fsize++;
 		 } while (fsize < 48 && cw < expectWidth );
+
 		return fsize-1;
 	},
 
@@ -21873,9 +22904,11 @@ var PointText = TextItem.extend({
 		this. textArr= source.textArr;
 		this.line2height= source.line2height;
 	},
+
 	setTextData: function(data){
 			this._content = data;
 			this.partialText = data;
+
 		this._setTextData();
 		this._getBounds();
 		this._changed(521);
@@ -21889,11 +22922,13 @@ var PointText = TextItem.extend({
 		 this.r9textstyle = style;
 		 this.setTextData(data);
 	 },
+
 	_draw: function(ctx, param, viewMatrix) {
 		if (! this._content && !this.math)
 			return;
 		this._setStyles(ctx, param, viewMatrix);
 		this._draw2(ctx, param, viewMatrix);
+
 	},
 
 	_getBounds: function(matrix, options) {
@@ -21960,6 +22995,7 @@ var PointText = TextItem.extend({
 	_write0: function(timeline, duration, offset, create, doneCallback) {
 		var that = this;
 		that.duration = duration;
+
 		timeline.add({
 				targets: that,
 				begin: function(){
@@ -21978,6 +23014,7 @@ var PointText = TextItem.extend({
 				},
 				callbackCxt: that,
 		   }, offset);
+
 		return true;
 	 },
 
@@ -22031,6 +23068,7 @@ var PointText = TextItem.extend({
 		}
 	   return  this.calculateTextWidth() + this.getPaddingX() * 2 + (this.imageIcon? 26 :0) ;
 	},
+
 	getNumLines: function(){
 		return  this._content  .split(/\r\n|\n|\r/mg).length;
 	},
@@ -22047,9 +23085,11 @@ var PointText = TextItem.extend({
 			return this.textHeight + this.getPaddingY() * 2 ;
 		}
 	},
+
 	calculateTextWidth : function() {
 		return this.textWidth;
 	},
+
 	_getFontWeight : function(){
 		if ( this._curFW)
 			return this._curFW;
@@ -22085,6 +23125,7 @@ var PointText = TextItem.extend({
 		else
 			return this._style.getFontFamily();
 	},
+
 	_getOneLineTextWidth : function(text) {
 		return this.getView().getOneLineTextWidth(this._getContextFont(), text);
 	},
@@ -22093,6 +23134,7 @@ var PointText = TextItem.extend({
 		return this._getFontStyle() + TextItem.SPACE + this._getFontVariant() + TextItem.SPACE + this._getFontWeight() + TextItem.SPACE
 		+ ( typeof fontsize == 'undefined' ? this._style.getFontSize() : fontsize )+   TextItem.PX_SPACE + this._getFontFamily();
 	},
+
 	_getTextSize : function(text, r9textstyle) {
 		var fontSize = this._style.getFontSize();
 		if (typeof r9textstyle != "undefined") {
@@ -22107,9 +23149,12 @@ var PointText = TextItem.extend({
 					height: parseInt( fontSize||16)
 				};
 		}
+
 		var _context = this.getView()._context, metrics;
+
 		_context.save();
 		_context.font = this._getContextFont();
+
 		metrics = _context.measureText(text);
 		_context.restore();
 		return {
@@ -22126,6 +23171,7 @@ var PointText = TextItem.extend({
 		 if (!useBackground && !(borderType == 'Cloud' || borderWidth > 0))
 			return;
 		 ctx.save();
+
 		if( borderWidth ) ctx.lineWidth = borderWidth;
 		 if (bgColor) ctx.fillStyle = is.str(bgColor) ? bgColor : bgColor.toCanvasStyle(ctx, this._matrix);
 		 else if (this.fillColor) ctx.fillStyle = this.fillColor.toCanvasStyle(ctx, this._matrix);
@@ -22162,6 +23208,7 @@ var PointText = TextItem.extend({
 				 if (borderColor && borderWidth) ctx.stroke();
 			 }
 		}
+
 		 ctx.restore();
 	},
 	_setTextData : function() {
@@ -22206,6 +23253,7 @@ var PointText = TextItem.extend({
 		var lines = this.partialText.split(/\r\n|\n|\r/mg), fontSize = this._style.getFontSize(), textWidth = 0, lineHeightPx = this
 		._getLineHeightPx(),    paddingX = this .getPaddingX() , paddingY = this .getPaddingY() ,
 		 numLines = lines.length;
+
 		this.textArr = [];
 		this.line2height = [];
 		for (var i = 0, max = lines.length; i < max; ++i) {
@@ -22214,6 +23262,7 @@ var PointText = TextItem.extend({
 			textWidth = Math.max(textWidth, lineWidth);
 			this.line2height.push( lineHeightPx );
 		}
+
 		this.textHeight = numLines * lineHeightPx;
 		this.textWidth = textWidth;
 		var abOrder = this.abOrder;
@@ -22229,8 +23278,10 @@ var PointText = TextItem.extend({
 		 r9textstyle = this.r9textstyle ,
 		 textWidth = 0,
 		 totalHeightPx = 0 ;
+
 		this.textArr = [];
 		this.line2height = [];
+
 		var maxLineHeight =  0,  line, lineWidth = 0;
 		for (var i = 0; i < r9textstyle.length; i++) {
 			var line =  r9textstyle[i].end < text.length -1 ? text.substring( r9textstyle[i].start, r9textstyle[i].end + 1) : text.substring( r9textstyle[i].start );
@@ -22239,6 +23290,7 @@ var PointText = TextItem.extend({
 			lineWidth += textSize.width;
 			if( textSize.height > maxLineHeight )
 				maxLineHeight = textSize.height;
+
 			this._addTextUnit(line, textSize.width, r9textstyle[i]);
 			textWidth = Math.max(textWidth, lineWidth);
 			if (line.indexOf("\n") >= 0 && animType != 'karaoka' ){
@@ -22252,6 +23304,7 @@ var PointText = TextItem.extend({
 			this.line2height.push(maxLineHeight);
 			totalHeightPx += maxLineHeight;
 		}
+
 		this.textHeight = totalHeightPx;
 		this.textWidth = textWidth;
 		var abOrder = this.abOrder;
@@ -22259,6 +23312,7 @@ var PointText = TextItem.extend({
 			var orderw = this._getTextSize(abOrder).width;
 			this.textWidth += orderw;
 		 }
+
 		 this._restore();
 	},
 
@@ -22269,6 +23323,7 @@ var PointText = TextItem.extend({
 		pX = this.getPaddingX(), pY = this.getPaddingY(), n;
 
 		 this._drawBackground(ctx, param, viewMatrix);
+
 		var paintAll = this.partialText == this._content;
 
 		ctx.font = this._getContextFont();
@@ -22276,11 +23331,13 @@ var PointText = TextItem.extend({
 		ctx.textAlign = TextItem.LEFT;
 
 		 ctx.save();
+
 		 if (this.imageIcon) {
 			 ctx.translate(0, pY);
 			 var imge = this.getProject().getCacheImageByName(this.imageIcon);
 			 if (imge) {
 				 var iconwh = 22;
+
 				 ctx.translate(2, 0);
 				 var params = [imge, 0, 0, iconwh, iconwh, 0, 0, iconwh, iconwh];
 				 ctx.drawImage.apply(ctx, params);
@@ -22306,6 +23363,7 @@ var PointText = TextItem.extend({
 				 0,
 				 0,
 				 fsize);
+
 			 ctx.restore();
 			 return;
 		 }
@@ -22315,6 +23373,7 @@ var PointText = TextItem.extend({
 			ctx.fillText(abOrder, 0,0);
 			ctx.translate(orderw, 0);
 		}
+
 		if( animType == 'karaoka'){
 			var kalaokoffset = this.kalaokoffset();
 				ctx.translate(kalaokoffset , 0);
@@ -22330,6 +23389,7 @@ var PointText = TextItem.extend({
 			hasMedia = false;
 			if (style && style.itag && style.itagwidth && text == '#')
 				text = " ";
+
 			var isNewLine = text.indexOf("\n") >= 0 && animType != 'karaoka';
 
 			if (newLineStart && animType != 'karaoka'){
@@ -22360,11 +23420,13 @@ var PointText = TextItem.extend({
 						hasMedia = true;
 					}
 				}
+
 				var fillcolorStr = this._style.getFillColor().toCanvasStyle(ctx, this._matrix);
 				var strokecolorStr = this._style.getStrokeColor().toCanvasStyle(ctx, this._matrix);
 				if( paintBorderOnly ){
 					fillcolorStr= 'rgba(125,125,125,0.5)';
 				}
+
 				if ( style.stroke && style.fct < 0 ){
 					ctx.strokeStyle = style.stroke  ;
 					ctx.fillStyle =   style.stroke  ;
@@ -22372,10 +23434,12 @@ var PointText = TextItem.extend({
 					ctx.strokeStyle =  strokecolorStr ;
 					ctx.fillStyle = fillcolorStr  ;
 				}
+
 				if ( style.fontFamily )
 					this._curFF = style.fontFamily;
 				else
 					this._curFF = this._getFontFamily();
+
 				if ( style.sup )
 					ctx.translate(0, - style.height /3);
 				if ( style.sub )
@@ -22390,9 +23454,11 @@ var PointText = TextItem.extend({
 					ctx.fillStyle = fillcolorStr;
 				}
 				ctx.font = this._getContextFont();
+
 				if( style.math ){
 					var fsize = this._style.getFontSize() - 2 || 16;
 					var rw = style.math.w * fsize, rh = style.math.h * fsize;
+
 					var tXoff = Math.max(0, (style.math.topw - rw) / 2);
 					var tYoff = style.rh == 0 ? 0 :  (style.rh - rh) / 2;
 					ctx.translate(tXoff, tYoff);
@@ -22406,6 +23472,7 @@ var PointText = TextItem.extend({
 					ctx.translate(-tXoff, -tYoff);
 					if (rw > width) width = rw;
 				}
+
 				this.partialText = hasMedia ? "" : text;
 				if( paintBorderOnly ){
 					this._style.strokeWidth = 1,
@@ -22426,6 +23493,7 @@ var PointText = TextItem.extend({
 					ctx.translate(width, 0);
 					_xoffset += width;
 				}
+
 			} else {
 				 ctx.save();
 				if (this.align ===  TextItem.RIGHT) {
@@ -22436,6 +23504,7 @@ var PointText = TextItem.extend({
 				this._curFF = this._getFontFamily();
 				var strokeAlpha = this._style.getStrokeColor().alpha;
 				var fillAlpha = this._style.getFillColor().alpha;
+
 				if( paintBgText) {
 					this._style.getStrokeColor().alpha = 0.3;
 					ctx.strokeStyle = this._style.getStrokeColor(). toCanvasStyle(ctx, this._matrix);
@@ -22505,12 +23574,14 @@ var PointText = TextItem.extend({
 		var duration = this.duration , content = this._content , animType = this.animType , total = content.length;
 		if( animType != 'karaoka' ) return 0;
 		var fullTextWidth =  this.getKaraokaTextWidth(), window_w = this.getKaraokaWidth();
+
 		return duration > 0 ?   (fullTextWidth +  window_w ) * (1-this.progress) - window_w : - fullTextWidth;
 	},
 
 	 _draw2: function (ctx, param, viewMatrix) {
 		var animType = this.animType, needToPaint = this.needToPaint(), duration = this.duration, content = this._content
 		,    expression = this.expression ;
+
 		 if (this.math) {
 			 this._setText("");
 			 this._sceneFuncImpl(ctx, param, viewMatrix, false, false);
@@ -22518,7 +23589,12 @@ var PointText = TextItem.extend({
 		 }
 
 		if( expression ){
-		   this. _setText( eval( expression ) );
+			try{
+			  this._setText(eval(expression));
+			}catch(e){
+				console.log(e);
+			}
+
 		   var  r9vs = this.partialText;
 			var r9v = Number(r9vs);
 			if( !Number.isNaN( r9v) ){
@@ -22570,21 +23646,27 @@ var PointText = TextItem.extend({
 		if ( animType == 'manim'  &&  needToPaint < content.length ){
 			if( needToPaint > 0){
 				this. _setText(content.substr(0, needToPaint == 1? 1 : ( needToPaint == 2 ? 3 : needToPaint+3)));
+
 				this._sceneFuncImpl(ctx, param, viewMatrix, false, true);
 				this. _setText(content.substr(0, needToPaint == 1 ? 0 : needToPaint));
+
 				this._sceneFuncImpl(ctx, param, viewMatrix, false, false);
 			}
 			return;
 		}
+
 		if ( animType == 'rewriting'  &&  needToPaint < content.length ){
 			this. _setText(content);
+
 			this._sceneFuncImpl(ctx, param, viewMatrix, true, true);
 		}
 		if( needToPaint > 0 ){
 			this. _setText(content.substr(0, needToPaint+1));
+
 			this._sceneFuncImpl(ctx, param, viewMatrix, false, false);
 		}
 	},
+
 	_setText : function(text) {
 		var str = CoreUtils._isString(text) ? text : text.toString();
 		if( str == this.partialText ) return;
@@ -22597,6 +23679,7 @@ var PointText = TextItem.extend({
 		var mstyles = this.mstyles();
 		if( typeof mstyles == 'undefined' )
 			return;
+
 		for(var i in mstyles){
 			if( CoreUtils._r9norm(mstyles[i].name) == CoreUtils._r9norm(styleName) ){
 				this.r9textstyle =  mstyles[i].style  ;
@@ -22620,6 +23703,7 @@ var PointText = TextItem.extend({
 		var duration = this.duration  ;
 		this.setProgress( progress / duration );
 	},
+
 	_strokeFunc : function(ctx) {
 		ctx = ctx || this.getView()._context;
 		var lh = this._getLineHeightPx( );
@@ -22634,7 +23718,9 @@ var PointText = TextItem.extend({
 		ctx.lineWidth = 1;
 		if( this.animType == 'manim' && this.partialText != this._content )
 			ctx.fillText(this.partialText, 0, 0);
+
 		ctx.fillText(this.partialText, 0, 0);
+
 		if ( ! this._curStyle )
 			return;
 		if ( this._curStyle.u ){
@@ -22666,6 +23752,7 @@ var PointText = TextItem.extend({
 
 var LabeledDot = StyledText.extend({
 	_class: 'LabeledDot',
+
 	initialize: function LabeledDot(props) {
 		StyledText.apply(this, arguments)
 		this.bgColor = this.bgColor || this.fillColor || 'white';
@@ -22675,6 +23762,7 @@ var LabeledDot = StyledText.extend({
 		this.content = RU.nextSequenceSymbol(this.content || 'A');
 	},
 	_getBounds: function(matrix, options) {
+
 			var w = this.textWidth , h = this.textHeight,     padding  = this.padding || 0,
 			   radius = Math.sqrt(w* w + h*h);
 			this.textXOffset = (radius -w)/2;
@@ -22706,6 +23794,7 @@ var TextInput = StyledText.extend({
 	initialize: function TextInput(arg) {
 
 		StyledText.apply(this, arguments)
+
 		if (!this.placeholder) this.placeholder= ' ';
 		if (!this.answers) this.answers= '';
 		if (!this.correctStr) this.correctStr= '';
@@ -22725,9 +23814,11 @@ var TextInput = StyledText.extend({
 		if (this.textColor && is.str(this.textColor))
 			this.textColor = new Color(this.textColor);
 
-		if( typeof this.borderType == 'undefined')
-			this.borderType = "Underline";
 		if( !this._content ) this._content = this.placeholder;
+
+		if( arg && typeof arg.borderType == "undefined" ){
+			this.borderType = "Underline";
+		}
 		this.setTextData(this._content);
 	},
 
@@ -22739,11 +23830,13 @@ var TextInput = StyledText.extend({
 		var    pX = this.getPaddingX(), pY = this.getPaddingY() ;
 
 		this._drawBackground(ctx, param, viewMatrix);
+
 		ctx.font = this._getContextFont();
 		ctx.textBaseline = TextItem.MIDDLE;
 		ctx.textAlign = TextItem.LEFT;
 
 		ctx.save();
+
 		var text = this._get_real_content()  , placeholder = this.placeholder,
 			width = this.getWidth(),
 			height = this.getHeight(),
@@ -22760,6 +23853,7 @@ var TextInput = StyledText.extend({
 		} else if (placeholder) {
 			m = ctx.measureText(placeholder);
 		}
+
 		if( m.width + pX > width )
 			pX = (width - m.width)/2;
 		ctx.translate(pX, pY);
@@ -22787,9 +23881,11 @@ var TextInput = StyledText.extend({
 		} else if (placeholder) {
 			this.drawTextString(ctx, placeholder, 0, yoffset, lineHeight);
 		}
+
 		ctx.restore();
 		this._drawDeco(ctx);
 	},
+
 	drawTextString : function (ctx, text, x, y, lineHeight) {
 		var textColor = this.textColor ;
 		var strike = false;
@@ -22873,11 +23969,13 @@ var TextInput = StyledText.extend({
 			this._content = this.placeholder || '';
 		}
 		if (linkedvarid && text) {
+
 			if (useR9) r9.setVarValue(linkedvarid, this._content);
 			if (useR9) r9.getPageBus().publish('r9.core.event.variableEvent', null);
 		}
 		this._getBounds();
 		this._changed(521);
+
 	},
 
 	 append : function (achar) {
@@ -22909,6 +24007,7 @@ var TextInput = StyledText.extend({
 		}
 		 this._getBounds();
 		 this._changed(521);
+
 	},
 	confirm : function () {
 		var that = this, text = that._get_real_content() , feedback = _r9norm( that.correctStr ),
@@ -27327,7 +28426,13 @@ var Socket = Base.extend({
 		},
 		canFreeMove: function () {
 			var type = this.type;
-			return type == "TwoEnd" || type == "ShapeCenter" || type == "OnCircleThreePoint" || type == "OnCircleOnePoint";
+			return (
+				type == "TwoEnd" ||
+				type == "ShapeCenter" ||
+				type == "OnCircleThreePoint" ||
+				type == "OnCircleOnePoint" ||
+				type == "OnCircleCenterOnePoint"
+			);
 		},
 		canNotMoveByMouse: function () {
 			var type = this.type;
@@ -27335,52 +28440,92 @@ var Socket = Base.extend({
 		},
 		canAffectOthersOnNode: function () {
 			var type = this.type;
-			return type == "TwoEnd" || type == "OnPolyJoint" || type == "OnCircleThreePoint" || type == "OnCircleOnePoint";
+			return (
+				type == "TwoEnd" ||
+				type == "OnPolyJoint" ||
+				type == "OnCircleThreePoint" ||
+				type == "OnCircleOnePoint" ||
+				type == "OnCircleCenterOnePoint"
+			);
 
 		},
 		setGlobalLoc: function (loc, visited) {
 			if( !loc  ) return;
 			switch (this.type) {
 				case "TwoEnd":
-						if( typeof this.node.setStart == 'function'){
-							this.value == 0 ? this.node.setStart( loc) : this.node.setEnd( loc );
-						} else {
-							this.value == 0 ? this.node.setDataPointAt(0, loc) : this.node.setDataPointAt(1, loc);
-						}
+					if (typeof this.node.setStart == "function") {
+						this.value == 0
+							? this.node.setStart(loc)
+							: this.node.setEnd(loc);
+					} else {
+						this.value == 0
+							? this.node.setDataPointAt(0, loc)
+							: this.node.setDataPointAt(1, loc);
+					}
 					break;
-				case "OnPolyJoint": this.node.setDataPointAt(this.order, loc); break;
-				case "ShapeCenter": this.node.setCenter(loc); break;
-				case "OnCircleThreePoint": this.value = loc;
-					var d = [], sockets = this.node.sockets();
+				case "OnPolyJoint":
+					this.node.setDataPointAt(this.order, loc);
+					break;
+				case "ShapeCenter":
+					this.node.setCenter(loc);
+					break;
+				case "OnCircleThreePoint":
+					this.value = loc;
+					var d = [],
+						sockets = this.node.sockets();
 					for (var i in sockets) {
 						var s = sockets[i];
-						if (s.type == 'OnCircleThreePoint') {
-							d.push(s.value.x); d.push(s.value.y);
+						if (s.type == "OnCircleThreePoint") {
+							d.push(s.value.x);
+							d.push(s.value.y);
 						}
 					}
 					var center = this.getCircleCenterFrom3Points(d);
 					var radius = this.distance(center, loc);
 					this.node.position = new Point(center.x, center.y);
-					this.node.bounds.size = new Size(radius*2, radius*2);
+					this.node.bounds.size = new Size(radius * 2, radius * 2);
 					break;
-				case "OnCircleOnePoint": this.value = loc;
+				case "OnCircleOnePoint":
+					this.value = loc;
 					var cx = this.node.getCenter();
 					var radius = this.distance(cx, loc);
 					this.node.bounds.size = new Size(radius * 2, radius * 2);
 					this.node.position = cx;
 					break;
-				case "OnFourSideBorder": break;
+				case "OnCircleCenterOnePoint":
+					this.value = loc;
+					var d = [],
+						sockets = this.node.sockets();
+					for (var i in sockets) {
+						var s = sockets[i];
+						if (s.type == "OnCircleOnePoint") {
+							d.push(s.value.x);
+							d.push(s.value.y);
+							break;
+						}
+					}
+					var radius = this.distance({x: d[0], y: d[1]}, loc);
+					this.node.bounds.size = new Size(radius * 2, radius * 2);
+					this.node.position = loc;
+					break;
+				case "OnFourSideBorder":
+					break;
 				case "OnLine":
-					if (this.locChangeType == 'DirectMovable') {
-						var len2 = this.distance(this.node.getDataPointAt(0), loc);
-						this.value = len2 ; break;
+					if (this.locChangeType == "DirectMovable") {
+						var len2 = this.distance(
+							this.node.getDataPointAt(0),
+							loc
+						);
+						this.value = len2;
+						break;
 					}
 				case "OnPolyFree":
-						var d1 = this.node.getDataPointAt(this.order);
-						var d2 = this.node.getDataPointAt(this.order + 1);
-						var len = this.distance(d1, d2);
-						var len2 = this.distance(d1, loc);
-						this.value = len2 / len; break;
+					var d1 = this.node.getDataPointAt(this.order);
+					var d2 = this.node.getDataPointAt(this.order + 1);
+					var len = this.distance(d1, d2);
+					var len2 = this.distance(d1, loc);
+					this.value = len2 / len;
+					break;
 				case "OnPath":
 				case "OnOval":
 					this.value = this.node.getNearestPoint(loc);
@@ -27425,6 +28570,7 @@ var Socket = Base.extend({
 				case "ShapeCenter": return this.node.getCenter();
 				case "OnCircleThreePoint": return this.value;
 				case "OnCircleOnePoint": return this.value;
+				case "OnCircleCenterOnePoint": return this.value;
 				case "OnFourSideBorder":
 					var bd = this.node.getBounds();
 					if (this.direction == "Top") return new Point({ x: bd.x + bd.width / 2, y: bd.y });
@@ -27548,6 +28694,7 @@ var SocketPin = Base.extend({
 
 var R9TimlinePlayer = Base.extend({
 	_class: 'R9TimlinePlayer',
+
 	initialize: function R9TimlinePlayer(project, layer, props){
 		this.r9 = project;
 		this.cly = layer;
@@ -27631,11 +28778,13 @@ var R9TimlinePlayer = Base.extend({
 
 	destroy: function(cleanuponly){
 		this.reset();
+
 		if(cleanuponly) { return; }
 		this.r9.getPageBus().cleanupTimeline(this.prefix());
 		this.cly.destroy();
 		this. cly = null;
 	},
+
 	nextStep : function(){
 		this.state = 'next';
 		var that = this, prefix = this.prefix() || '', useR9 = typeof r9 != 'undefined';
@@ -27649,7 +28798,11 @@ var R9TimlinePlayer = Base.extend({
 			this.stop();
 		} else {
 			this.startCurrentPage();
-			if (useR9) r9.PageBus.publish(prefix + "r9.core.event.studyEvent", { 'targetId': 'curFrameIndex_' + this.currentStep, 'eventType': 'OnNewFrame' });
+			if (useR9) r9.PageBus.publish(prefix + "r9.core.event.studyEvent", {
+				targetId: "curFrameIndex_" + this.currentStep,
+				eventType: "OnNewFrame",
+				fromFrameIndex: this.currentStep - 1,
+			});
 		}
 		if (this.currentStep + 1 >= this.chain.length) {
 			if (useR9) r9.PageBus.publish(prefix + "r9.core.event.studyEvent", { 'targetId': 'curFrameIndex_' + this.currentStep, 'eventType': 'FinishedLastFrame', 'prefix':  prefix });
@@ -27659,6 +28812,7 @@ var R9TimlinePlayer = Base.extend({
 	startCurrentPage : function(){
 		this.state = 'start';
 		var that = this, curPage = that.getCurPage();
+
 		curPage.validatePins();
 		if (typeof curPage.pageenter == 'function') try { curPage.pageenter(this); } catch (e) { r9_log_console(e); this.setupPage(); }
 		else this.setupPage();
@@ -27667,6 +28821,7 @@ var R9TimlinePlayer = Base.extend({
 		if (!this.isRunning) return;
 		var page = this.getCurPage();
 		try { page.pagesetup(this); page.ptimer.play(); } catch (e) { r9_log_console(e); }
+		if(r9) r9.keepCorrectZOrder();
 	},
 	leavingPage : function () {
 		this.state = "leaving";
@@ -27713,6 +28868,7 @@ var R9TimlinePlayer = Base.extend({
 		this.state = '';
 		if (typeof callback === 'function') callback();
 	},
+
 	stop : function(){
 		var that = this;
 		that.isRunning = false;
@@ -27726,6 +28882,7 @@ var R9TimlinePlayer = Base.extend({
 			this.chain.splice(index, 1);
 		}
 	},
+
 	distroy : function(){
 		this.stop();
 		this.ptimer.pause();
@@ -27749,6 +28906,7 @@ var R9TimlinePlayer = Base.extend({
 		this.currentStep = phasePosition;
 		this.startCurrentPage();
 	},
+
 });
 
 var TimeTracker = Base.extend({
@@ -27790,6 +28948,7 @@ var Page = Base.extend({
 			autoplay: false,
 			complete: this._on_anim_end.bind( this )
 		  });
+
 		this.tws = []; this.extratws = []; this.mdstarted = false; this.ttsStr = ''; this.ttsNoBlkAni = false;
 		this.fromServerMedia = false; this.created = false; this.anpff = false; this.anp0ff = false; this.ivkPstResume = false;
 		if( !mpaper.settings.r9mode)
@@ -27845,6 +29004,7 @@ var Page = Base.extend({
 	runnableTimeline: function(){
 		return (this.anim_ended || !this.ptimer.paused) ? anime.timeline({ autoplay: true }) : this.ptimer;
 	},
+
 	addOneTimeEvt : function (node, func, stimeInSec, durationInSec ) {
 		var tline = this.runnableTimeline();
 		tline.addOneTimeEvt(node, func, stimeInSec, durationInSec);
@@ -27883,6 +29043,7 @@ var Page = Base.extend({
 		var layer = this.layer(), tline = this.runnableTimeline();
 		layer.createItems(tline, options, offset, doneCallback);
 	},
+
 	uncreateItems: function(   options, offset, doneCallback){
 		var layer = this.layer(), tline = this.runnableTimeline();
 		layer.uncreateItems(tline, options, offset, doneCallback);
@@ -28451,7 +29612,7 @@ R9RequestRegister.prototype.markTimer = function (maxWaitTime) {
 	this.timer = setInterval(function () {
 		maxWaitTime -= 100;
 		if (maxWaitTime > 0) {
-			r9.markr9times();
+			if(r9) r9.markr9times();
 		} else {
 			that.rqcounts--;
 			clearInterval(that.timer);
@@ -28495,13 +29656,13 @@ window. speakText_notts = function (pos, pageid, prefix, text, langCode, resumeA
 
 	function _nottswait(cdown) {
 		if (cdown < 0) {
-			if (resumeAfterTTs) { r9.PageBus.publish("r9.core.animation.resume", { 'prefix': prefix, 'messageid': -1, 'pos': pos }); }
-			if (topicId) { r9.PageBus.publish("r9.core.event.broadcast", { 'prefix': prefix, 'pageid': pageid, 'pos': pos, 'topic': topicId, 'subtopic': subtopic }); }
+			if (resumeAfterTTs && r9) { r9.PageBus.publish("r9.core.animation.resume", { 'prefix': prefix, 'messageid': -1, 'pos': pos }); }
+			if (topicId && r9)  { r9.PageBus.publish("r9.core.event.broadcast", { 'prefix': prefix, 'pageid': pageid, 'pos': pos, 'topic': topicId, 'subtopic': subtopic }); }
 			if (callback) callback();
 			endSpeakInPage();
 			return;
 		}
-		if (!ttsNoBlkAni) { r9.markr9times(); } window.setTimeout(function () { _nottswait(cdown - 500); }, 500);
+		if (!ttsNoBlkAni && r9) { r9.markr9times(); } window.setTimeout(function () { _nottswait(cdown - 500); }, 500);
 	}
 	_nottswait(extime);
 }
@@ -28533,8 +29694,8 @@ window. speakText = function (pos, page, prefix, text, langCode, resumeAfterTTs,
 		};
 		page.ssu.onend = function (event) {
 			usetts = false;
-			if (resumeAfterTTs) { r9.PageBus.publish("r9.core.animation.resume", { 'prefix': prefix, 'messageid': -1, 'pos': pos }); }
-			if (topicId) { r9.PageBus.publish("r9.core.event.broadcast", { 'prefix': prefix, 'pageid': page.pageid, 'pos': pos, 'topic': topicId, 'subtopic': subtopic }); }
+			if (resumeAfterTTs && r9) { r9.PageBus.publish("r9.core.animation.resume", { 'prefix': prefix, 'messageid': -1, 'pos': pos }); }
+			if (topicId && r9) { r9.PageBus.publish("r9.core.event.broadcast", { 'prefix': prefix, 'pageid': page.pageid, 'pos': pos, 'topic': topicId, 'subtopic': subtopic }); }
 			if (callback) callback();
 			endSpeakInPage();
 		};
@@ -28545,7 +29706,7 @@ window. speakText = function (pos, page, prefix, text, langCode, resumeAfterTTs,
 			if (!syn.speaking || syn.paused || syn.pending) {
 				return;
 			}
-			if (!ttsNoBlkAni) { r9.markr9times(); }
+			if (!ttsNoBlkAni) { if(r9) r9.markr9times(); }
 			window.setTimeout(_wait, 500);
 		}
 		_wait();
@@ -28560,10 +29721,10 @@ window. startSpeakInPage = function (page, silent) {
 		page.mdstarted = true;
 	}
 	if (!silent)
-		r9.PageBus.publish('r9.core.action.speak', { 'speak': true });
+	  if(r9) r9.PageBus.publish('r9.core.action.speak', { 'speak': true });
 }
 window. endSpeakInPage = function (page) {
-	r9.PageBus.publish('r9.core.action.speak', { 'speak': false });
+	if(r9) r9.PageBus.publish('r9.core.action.speak', { 'speak': false });
 }
 
 window. getCacheR9AudioFile = function (audiofilename) {
@@ -28571,11 +29732,11 @@ window. getCacheR9AudioFile = function (audiofilename) {
 		try {
 			var oAudio = document.getElementById('r9audioplayer');
 
-			if (oAudio && oAudio.src == audiofilename) {
+			if (oAudio && r9._cached_audiofilename_one == audiofilename) {
 				return oAudio;
 			}
 			var oAudio1 = document.getElementById('r9audioplayer1');
-			if (oAudio1 && oAudio1.src == audiofilename) {
+			if (oAudio1 && r9._cached_audiofilename_two == audiofilename) {
 				return oAudio1;
 			}
 		}
@@ -28585,25 +29746,25 @@ window. getCacheR9AudioFile = function (audiofilename) {
 		return null;
 	}
 }
-window. cachedR9AudioFile = null;
+
 window. cacheR9AudioFile = function (audiofilename) {
-	if (!navigator.onLine || r9.baiduerror) {
+	if (!navigator.onLine || (r9 && r9.baiduerror)) {
 		return;
 	}
 	if (window.HTMLAudioElement) {
 		try {
 			var oAudio = document.getElementById('r9audioplayer');
 			var oAudio1 = document.getElementById('r9audioplayer1');
-			if (oAudio && oAudio.paused && (oAudio1 == cachedR9AudioFile || cachedR9AudioFile == null)) {
+			if (oAudio && oAudio.paused  ) {
 				oAudio.src = audiofilename;
 				oAudio.load();
-				cachedR9AudioFile = oAudio;
+				r9._cached_audiofilename_one = audiofilename;
 				return;
 			}
-			if (oAudio1 && oAudio1.paused && (cachedR9AudioFile == null || cachedR9AudioFile == oAudio)) {
+			if (oAudio1 && oAudio1.paused ) {
 				oAudio1.src = audiofilename;
 				oAudio1.load();
-				cachedR9AudioFile = oAudio1;
+				r9._cached_audiofilename_two = audiofilename;
 				return;
 			}
 		}
@@ -28616,33 +29777,55 @@ window. cacheR9AudioFile = function (audiofilename) {
 window. playR9AudioFile = function (audiofilename, blockAnimation, page) {
 	if (window.HTMLAudioElement) {
 		try {
-			r9.r9rqstRter.addRqst();
+			if(r9) r9.r9rqstRter.addRqst();
 			var oAudio = document.getElementById('r9audioplayer');
 			var oAudio1 = document.getElementById('r9audioplayer1');
+			if(r9){
+				if(typeof r9._cached_audiofilename_one == 'undefined')
+					r9._cached_audiofilename_one = '';
+				if (typeof r9._cached_audiofilename_two == "undefined")
+					r9._cached_audiofilename_two = "";
+				if (oAudio && r9._cached_audiofilename_one == audiofilename) {
+					oAudio.pause();
+					playR9AudioFile2(oAudio, blockAnimation, page);
+					return;
+				}
+				if (oAudio1 && r9._cached_audiofilename_two == audiofilename) {
+					oAudio1.pause();
+					playR9AudioFile2(oAudio1, blockAnimation, page);
+					return;
+				}
+			}
+
 			if (oAudio && (oAudio.paused || oAudio.ended || oAudio.error) && oAudio.src == audiofilename) {
+				oAudio.pause();
 				playR9AudioFile2(oAudio, blockAnimation, page);
 			}
 			else if (oAudio1 && (oAudio1.paused || oAudio1.ended || oAudio1.error) && oAudio1.src == audiofilename) {
+				oAudio1.pause();
 				playR9AudioFile2(oAudio1, blockAnimation, page);
 			}
 			else if (oAudio.paused || oAudio.ended || oAudio.error) {
 				oAudio.src = audiofilename;
+				if(r9) r9._cached_audiofilename_one = audiofilename;
 				playR9AudioFile2(oAudio, blockAnimation, page);
 			}
 			else if (oAudio1 && (oAudio1.paused || oAudio1.ended || oAudio1.error)) {
 				oAudio1.src = audiofilename;
+				if (r9) r9._cached_audiofilename_two = audiofilename;
 				playR9AudioFile2(oAudio1, blockAnimation, page);
 			}
 			else {
 				oAudio.pause();
 				oAudio.src = audiofilename;
+				r9._cached_audiofilename_one = audiofilename;
 				playR9AudioFile2(oAudio, blockAnimation, page);
 			}
 
 		}
 		catch (e) {
 			r9_log_console(e);
-			r9.r9rqstRter.removeRqst();
+			if(r9) r9.r9rqstRter.removeRqst();
 			startSpeakInPage(page);
 		}
 	} else {
@@ -28655,13 +29838,17 @@ window. playR9AudioFile2 = function (oAudio, blockAnimation, page) {
 		var firstTime = true;
 		function _wait(count) {
 			if (oAudio.played) {
-				if (firstTime) { firstTime = false; r9.r9rqstRter.removeRqst(); startSpeakInPage(page); }
+				if (firstTime) {
+					firstTime = false;
+					if(r9) r9.r9rqstRter.removeRqst();
+					startSpeakInPage(page);
+				}
 			}
 			if (oAudio.paused || oAudio.error || oAudio.ended) {
 				endSpeakInPage();
 				return;
 			}
-			if (blockAnimation) { r9.markr9times(); }
+			if (blockAnimation) { if(r9) r9.markr9times(); }
 			window.setTimeout(_wait, 500);
 		}
 
@@ -28674,7 +29861,7 @@ window. playR9AudioFile2 = function (oAudio, blockAnimation, page) {
 	}
 	catch (e) {
 		r9_log_console(e);
-		r9.r9rqstRter.removeRqst();
+		if(r9) r9.r9rqstRter.removeRqst();
 		startSpeakInPage(page);
 	}
 }
@@ -29094,98 +30281,152 @@ window. createVideoPane = function(sourceUrl) {
 })(window);
 
 window. r9shrinktwm = function (obj, ttype, callback, layer) {
-	if (typeof obj == 'undefined' || obj == null) return;
-	if( typeof r9 == 'undefined' ) return;
-	var page = r9.getCurPage();
-	if (ttype == 0)
+	if (typeof obj == 'undefined' || obj == null) {
+		if (callback) callback();
+		return;
+	}
+	if( typeof r9 == 'undefined' || ttype == 0) {
+		if (callback) callback();
+		return;
+	}
+
+	var page = r9.getCurPage(),
+		bd = obj.bounds,
+		width = bd.width,
+		height = bd.height;
+
+	var jscode = '';
+	if (ttype == 1) {
+		page.addOneTimeEvt0(
+			 obj,
+			 function() {
+				RU.Focus(
+					{
+						target: obj,
+						duration: 1,
+						color: "gray",
+						opacity: 0.4,
+						times: 3,
+					},
+					0
+				);  },  0, 1 ) ;
+		return;
+	} else if( ttype == 2 ){
+		 page.addOneTimeEvt0(
+			 obj,
+			 function () {
+				 RU.Indicate({ target: obj, duration: 1, times: 3 }, 0);
+			 },
+			 0,
+			 1
+		 );
+		 return;
+	} else if( ttype == 3 ){
+		page.addOneTimeEvt0(
+			obj,
+			function () {
+				RU.Flash(
+					{
+						target: obj,
+						duration: 1,
+						color_array: ["yellow", "red"],
+						times: 3,
+					},
+					0
+				);
+			},
+			0,
+			1
+		);
+		return;
+	} else if( ttype == 4 ){
+		 page.addOneTimeEvt0(
+			 obj,
+			 function () {
+				 RU.Circumscribe(
+					 { target: obj, duration: 1, color: "red", times: 3 },
+					 0
+				 );
+			 },
+			 0,
+			 1
+		 );
+		 return;
+	} else if( ttype == 5 ){
+	   page.addOneTimeEvt0(
+		   obj,
+		   function () {
+			   RU.ShowPassingFlash(
+				   {
+					   target: obj,
+					   duration: 1,
+					   color: "red",
+					   tips: "none",
+					   time_width: 0.3,
+					   times: 3
+				   },
+				   0
+			   );
+		   },
+		   0,
+		   1
+	   );
+	   return;
+	} else if( ttype == 6  ){
+	   page.addOneTimeEvt0( obj, function(){ RU.ApplyingWaves(
+		   {
+			   target: obj,
+			   duration: 1,
+			   direction: Constants.RIGHT,
+			   amplitude: 0.3,
+			   time_width: 0.3,
+			   times: 3,
+		   },
+		   0
+	   );   },  0, 1 ) ;
+		return;
+	}
+
+	if( ttype == 7 ) {
 		page.add({
-			target: obj, scaleX: obj.scale() * 1.2, scaleY: obj.scale() * 0.8333, complete: function () {
+			target: obj, 'bounds.width': width * 1.2, 'bounds.height': height * 0.8333, complete: function () {
 				page.add({
-					target: obj, scaleX: obj.scale() * 0.8333, scaleY: obj.scale() * 1.2, complete: function () {
+					target: obj, 'bounds.width': width * 0.8333, 'bounds.height': height* 1.2, complete: function () {
 						page.add({
-							target: obj, scaleX: obj.scale() * 1.2, scaleY: obj.scale() * 0.8333, complete: function () {
+							target: obj,
+							"bounds.width": width * 1.2,
+							"bounds.height": height * 0.8333,
+							complete: function () {
 								page.add({
-									target: obj, scaleX: obj.scale() * 0.8333, scaleY: obj.scale() * 1.2, complete: function () {
-										if (callback) { callback(); }
-									}, duration: 0.1
-								}) ;
-							}, duration: 0.1
-						}) ;
+									target: obj,
+									"bounds.width": width * 0.8333,
+									"bounds.height": height* 1.2,
+									complete: function () {
+										if (callback) {
+											callback();
+										}
+									},
+									duration: 0.1,
+								});
+							},
+							duration: 0.1,
+						});
 					}, duration: 0.1
 				}) ;
 			}, duration: 0.1
 		});
-	else if (ttype == 1) {
-		if (typeof obj.x === "function" && typeof obj.bounds != "undefined") {
-			var bd = obj.bounds, offX = bd.width * obj.scale() * 0.1, offY = bd.height * obj.scale() * 0.1,
-				offX2 = obj.x(), offY2 = obj.y(),
-				scaleX = obj.scale(), scaleY = obj.scale();
-			page.add({
-				target: obj, x: obj.x() - offX, y: obj.y() - offY, scaleX: scaleX * 1.2, scaleY: scaleY * 1.2, complete: function () {
-					page.add({
-						target: obj, x: offX2, y: offY2, scaleX: scaleX, scaleY: scaleY, complete: function () {
-							page.add({
-								target: obj, x: obj.x() - offX, y: obj.y() - offY, scaleX: scaleX * 1.2, scaleY: scaleY * 1.2, complete: function () {
-									page.add({
-										target: obj, x: offX2, y: offY2, scaleX: scaleX, scaleY: scaleY, complete: function () {
-											if (callback) { callback(); }
-										}, duration: 0.1
-									}) ;
-								}, duration: 0.1
-							}) ;
-						}, duration: 0.1
-					}) ;
-				}, duration: 0.1
-			});
-		} else {
-			var bd = obj.bounds, offX = bd.width * obj.scale() * 0.1, offY = bd.height * obj.scale() * 0.1,
-				offX2 = bd.x, offY2 = bd.y,
-				scaleX = obj.scale(), scaleY = obj.scale();
-			page.add({
-				target: obj, x: bd.x - offX, y: bd.y - offY, scaleX: scaleX * 1.2, scaleY: scaleY * 1.2, complete: function () {
-					page.add({
-						target: obj, x: offX2, y: offY2, scaleX: scaleX, scaleY: scaleY, complete: function () {
-							page.add({
-								target: obj, x: bd.x - offX, y: bd.y - offY, scaleX: scaleX * 1.2, scaleY: scaleY * 1.2, complete: function () {
-									page.add({
-										target: obj, x: offX2, y: offY2, scaleX: scaleX, scaleY: scaleY, complete: function () {
-											if (callback) { callback(); }
-										}, duration: 0.1
-									}) ;
-								}, duration: 0.1
-							}) ;
-						}, duration: 0.1
-					}) ;
-				}, duration: 0.1
-			});
-		}
+		return;
+	}
 
-	} else if (ttype == 2 && (typeof layer != 'undefined')) {
-		page.add({
-			target: obj, duration: 0.1,
-			complete: function () {
-				anime({ target: obj, duration: 1, progressFunc: function(progress){
-					obj.rotate(90 * progress);
-				}})
+	return page.add({
+		target: obj,
+		complete: function () {
+			if (callback) {
+				callback();
 			}
-		});
-	} else if (ttype == 3 && (typeof layer != 'undefined')) {
-		var bd = obj.bounds, xoff0 = bd.width  * obj.scale() * 0.25, xoff1 = bd.x ;
-		page.add({
-			target: obj, x: xoff1 - xoff0, scaleX: obj.scale() * 1.5, scaleY: obj.scale() * 1.5, complete: function () {
-				page.add({
-					target: obj, duration: 1, complete: function () {
-						page.add({
-							target: obj, x: xoff1, scaleX: obj.scale() * 0.666, scaleY: obj.scale() * 0.666, complete: function () {
-								if (callback) { callback(); }
-							}, duration: 0.3
-						}) ;
-					}
-				}) ;
-			}, duration: 0.3
-		});
-	} else
-		return page.add({ target: obj, complete: function () { if (callback) { callback(); } } });
+		},
+	});
+
 }
 
 window. r9twnrm = function (obj, dur, etype, easingname) {
@@ -32254,6 +33495,7 @@ Base.exports.PaperScript = function() {
 				break;
 			}
 		}
+
 		function handleInjection(node, parent, parseCxt){
 			switch (node.type) {
 				case 'Identifier':
@@ -32336,6 +33578,7 @@ Base.exports.PaperScript = function() {
 									range: [node.callee.start, node.callee.end]
 								}, ' \n curPage.uncreateItems');
 								break;
+
 							case 'Focus':
 							case 'Indicate':
 							case 'Flash':
@@ -32415,6 +33658,7 @@ Base.exports.PaperScript = function() {
 								}, ';  curLayer  =  project.getActiveLayer(); \n'
 									+ ';  curPage = new Page(curLayer); \n curPage.setup2=function(curPage, curLayer, curTimeline){  \n ');
 								break;
+
 							case 'End_Scene_Setup':
 								replaceCode({
 									range: [node.start, node.start]
@@ -32423,6 +33667,7 @@ Base.exports.PaperScript = function() {
 									range: [node.end, node.end]
 								}, '; \n curPage = new Page(curLayer); \n curPage.setup2=function(curPage, curLayer, curTimeline){ \n ');
 								break;
+
 						}
 					}
 					break;
@@ -32563,7 +33808,8 @@ Base.exports.PaperScript = function() {
 		}
 		if( !hasMainTag )
 			code2  += 'curPage = new Page(curLayer);  curPage.setup2=function(curPage, curLayer, curTimeline){   ';
-		code =  Constants.Env +  ' var doneInitialization = false, curLayer = project.getActiveLayer(), center = view.center,  curPage; curLayer.name =\'main\'; RU.setProject(project); '
+
+		code =  Constants.Env +  ' window.r9 = undefined; var doneInitialization = false, curLayer = project.getActiveLayer(), center = view.center,  curPage; curLayer.name =\'main\'; RU.setProject(project); '
 				+ code2  + code + '   };  project.resetLayerStack(); project.showLayer(\'main\', {}, function(){ doneInitialization=true; }); ';
 		if (map) {
 			if (offsetCode) {

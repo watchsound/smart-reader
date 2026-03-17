@@ -150,7 +150,7 @@ function NotesUI() {
   };
 
   return (
-    <>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       <div className="note_header">
         <div className="note__bottom_row">
           <CustomizedFilterBase
@@ -159,45 +159,47 @@ function NotesUI() {
           />
         </div>
       </div>
-      {bookmarkItems.length > 0 && (
+      <div style={{ flex: 1, overflow: 'auto', padding: '10px' }}>
+        {bookmarkItems.length > 0 && (
+          <div
+            className="notes"
+            style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '10px' }}
+          >
+            {bookmarkItems.map((note) => (
+              <BookmarkUI
+                key={note.bookKey + note.cfi}
+                content={note.content}
+                bookKey={note.bookKey}
+                cfi={note.cfi}
+                selectHandler={bookmarkItemSelectHandler}
+              />
+            ))}
+          </div>
+        )}
         <div
           className="notes"
           style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}
         >
-          {bookmarkItems.map((note) => (
-            <BookmarkUI
-              key={note.bookKey + note.cfi}
-              content={note.content}
-              bookKey={note.bookKey}
-              cfi={note.cfi}
-              selectHandler={bookmarkItemSelectHandler}
+          <CreateNoteCell noteCreationHandler={(note) => noteAdded(note)} />
+          {notes.map((note) => (
+            <NoteUI
+              key={note.id}
+              selectedNoteKey={note.id}
+              selectHandler={() => {}}
+              showQuizHandler={(quizList) => {
+                setQuizProblems(quizList);
+                setOpenQuizModal(true);
+              }}
+              customAction={() => {}}
+              customActionName=""
+              deleteAction={(n) => deleteNote(n)}
+              deleteActionName="Delete"
+              cardWidth="360"
+              cardHeight="450"
+              isInNotesUIView
             />
           ))}
         </div>
-      )}
-      <div
-        className="notes"
-        style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}
-      >
-        <CreateNoteCell noteCreationHandler={(note) => noteAdded(note)} />
-        {notes.map((note) => (
-          <NoteUI
-            key={note.id}
-            selectedNoteKey={note.id}
-            selectHandler={() => {}}
-            showQuizHandler={(quizList) => {
-              setQuizProblems(quizList);
-              setOpenQuizModal(true);
-            }}
-            customAction={() => {}}
-            customActionName=""
-            deleteAction={(n) => deleteNote(n)}
-            deleteActionName="Delete"
-            cardWidth="360"
-            cardHeight="450"
-            isInNotesUIView
-          />
-        ))}
       </div>
       <Divider />
       <Pagination
@@ -215,7 +217,7 @@ function NotesUI() {
         callback={() => setOpenQuizModal(false)}
         sx={{ minWidth: '360px' }}
       />
-    </>
+    </div>
   );
 }
 

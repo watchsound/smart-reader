@@ -1,5 +1,5 @@
 import { createRewriteHtmlCodeForElementarySchoolPrompt } from '../../../commons/utils/AIPrompts';
-import aiProviderManager from '../../../commons/service/AIProviderManager';
+import { instanceInRender as aiProviderManager } from '../../../commons/service/AIProviderManager';
 
 export function getTextContentWithTags(element) {
   let textWithTags = '';

@@ -17,17 +17,21 @@ export const removeExtraQuestionMark = (html: any) => {
     .replaceAll('‘?', '‘')
     .replaceAll('“?', '“');
 };
-export const copyArrayBuffer = (src) => {
+export const copyArrayBuffer = (src: ArrayBuffer): ArrayBuffer => {
   const dst = new ArrayBuffer(src.byteLength);
   new Uint8Array(dst).set(new Uint8Array(src));
   return dst;
 };
 
-export const truncString = (str: string, maxLength: number) => {
-  if (str.length <= maxLength) {
-    return str;
+export const truncString = (str: string | null | undefined, maxLength: number) => {
+  if (str == null) {
+    return '';
   }
-  return `${str.slice(0, maxLength)}...`;
+  const s = typeof str === 'string' ? str : String(str);
+  if (s.length <= maxLength) {
+    return s;
+  }
+  return `${s.slice(0, maxLength)}...`;
 };
 
 export const isEmpty = (obj: any) => {
@@ -80,10 +84,10 @@ export function truncateString(str: string, maxLength: number) {
 }
 
 
-export const removeJsonFromContent = (response) => {
+export const removeJsonFromContent = (response: string): string => {
   let content = response.trim(); // .replace(/\n/g, '');
 
-  function doJob(input) {
+  function doJob(input: string): string {
     const p0 = input.indexOf('```json');
     if (p0 < 0) return input;
     const p1 = input.indexOf('```', p0 + 7);
@@ -102,7 +106,7 @@ export const removeJsonFromContent = (response) => {
 };
 
 
-export const stripJsonWrap = (response) => {
+export const stripJsonWrap = (response: string): string => {
   const content = response.trim(); // .replace(/\n/g, '');
   const p0 = content.indexOf('```json');
   if (p0 < 0) {
@@ -121,7 +125,7 @@ export const stripJsonWrap = (response) => {
 };
 
 
-export const stripJsonByTag = (response, startTag) => {
+export const stripJsonByTag = (response: string, startTag: string): string => {
   const content = response.trim(); // .replace(/\n/g, '');
   // Escape any special characters in the keyword to safely include it in the regex
   const escapedKeyword = startTag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -143,7 +147,7 @@ export const stripJsonByTag = (response, startTag) => {
   return '';
 };
 
-export const stripSubstring = (response, startSymbol, endSymbol) => {
+export const stripSubstring = (response: string, startSymbol: string, endSymbol: string): string => {
   const content = response.trim(); // .replace(/\n/g, '');
   const p0 = content.indexOf(startSymbol);
   if (p0 < 0) {
@@ -156,7 +160,7 @@ export const stripSubstring = (response, startSymbol, endSymbol) => {
   return content.substring(p0, p1 + endSymbol.length).trim();
 };
 
-export const removeStringFromContent = (input, needRemoved) => {
+export const removeStringFromContent = (input: string, needRemoved: string): string => {
   const p0 = input.indexOf(needRemoved);
   if (p0 < 0) return input;
   if (p0 + needRemoved.length >= input.length) return input.substring(0, p0);
@@ -164,7 +168,7 @@ export const removeStringFromContent = (input, needRemoved) => {
 };
 
 
-export const executeCommandWithRetry = async (command) => {
+export const executeCommandWithRetry = async (command: () => Promise<any>): Promise<any> => {
   let retryCount = 0;
   let response;
   while (retryCount < 5) {
@@ -175,9 +179,10 @@ export const executeCommandWithRetry = async (command) => {
       } else {
         console.log('Received an unsuccessful response, will retry:', response);
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.log('Error encountered:', error);
-      if (error.response && error.response.status === 429) {
+      const err = error as { response?: { status?: number } };
+      if (err.response && err.response.status === 429) {
         const delay = 2 ** retryCount * 1000;
         await new Promise((resolve) => setTimeout(resolve, delay));
         console.log('Retrying after delay:', delay);

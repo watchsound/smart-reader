@@ -1,44 +1,44 @@
+// Slack-style color presets
 export const backgroundList = [
-  "rgba(255,255,255,1)",
-  "rgba(44,47,49,1)",
-  "rgba(233, 216, 188,1)",
-  "rgba(197, 231, 207,1)",
+  "rgba(255,255,255,1)",    // White
+  "rgba(26,29,33,1)",       // Dark (Slack dark mode)
+  "rgba(248,248,248,1)",    // Light gray
+  "rgba(63,14,64,1)",       // Aubergine (Slack sidebar)
 ];
 export const textList = [
-  "rgba(0,0,0,1)",
-  "rgba(255,255,255,1)",
-  "rgba(89, 68, 41,1)",
-  "rgba(54, 80, 62,1)",
+  "rgba(29,28,29,1)",       // Slack dark text
+  "rgba(209,210,211,1)",    // Slack light text for dark mode
+  "rgba(97,96,97,1)",       // Slack secondary text
+  "rgba(255,255,255,1)",    // White
 ];
 export const themeList = [
   {
     id: 0,
-    color: "rgba(75, 75, 75, 1)",
+    color: "rgba(29, 28, 29, 1)",      // Slack dark gray
     name: "default",
     title: "Default",
   },
   {
     id: 1,
-    color: "rgba(1, 121, 202, 1)",
+    color: "rgba(29, 155, 209, 1)",    // Slack blue
     name: "blue",
     title: "Blue",
   },
   {
     id: 2,
-    color: "rgba(0, 143, 145, 1)",
+    color: "rgba(46, 182, 125, 1)",    // Slack green
     name: "green",
     title: "Green",
   },
-
   {
     id: 3,
-    color: "rgba(241, 100, 100, 1)",
+    color: "rgba(224, 30, 90, 1)",     // Slack red/pink
     name: "red",
     title: "Red",
   },
   {
     id: 4,
-    color: "rgba(104, 103, 209, 1)",
+    color: "rgba(97, 31, 105, 1)",     // Slack aubergine
     name: "purple",
     title: "Purple",
   },

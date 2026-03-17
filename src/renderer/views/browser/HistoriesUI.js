@@ -1,155 +1,264 @@
 /* eslint-disable no-use-before-define */
-import { useState, useEffect } from 'react';
-import { useSelector, useDispatch } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+/* eslint-disable prettier/prettier */
+import { useState, useEffect, useMemo } from 'react';
+import { useTheme } from '@mui/material/styles';
 import {
-  Card,
-  Grid,
+  Box,
   Typography,
   Pagination,
-  Divider,
-  Paper,
-  CardContent,
-  CardMedia,
-  Box,
-  Avatar,
+  IconButton,
+  Tooltip,
 } from '@mui/material';
-import { styled } from '@mui/material/styles';
+import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import customStorage from '../../store/customStorage';
+import './browser.styles.css';
 
-const CustomCardContent = styled(CardContent)(({ theme }) => ({
-  padding: 16,
-  '&:last-child': {
-    paddingBottom: '0px', // Override the default paddingBottom
-  },
-}));
+// Generate a color based on domain name
+function getDomainColor(domain) {
+  const colors = [
+    '#1d9bd1', '#2eb67d', '#611f69', '#e01e5a', '#ecb22e',
+    '#4a154b', '#36C5F0', '#E9A820', '#DE4E2B', '#6B4FBB',
+  ];
+  let hash = 0;
+  for (let i = 0; i < domain.length; i++) {
+    hash = domain.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return colors[Math.abs(hash) % colors.length];
+}
 
-function HistoryCard({ group, historyCallback }) {
+// Extract domain from URL
+function extractDomain(url) {
+  try {
+    const urlObj = new URL(url);
+    return urlObj.hostname.replace('www.', '');
+  } catch {
+    return url;
+  }
+}
+
+// Format date for display
+function formatDate(dateStr) {
+  const date = new Date(dateStr);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  if (date.toDateString() === today.toDateString()) {
+    return 'Today';
+  }
+  if (date.toDateString() === yesterday.toDateString()) {
+    return 'Yesterday';
+  }
+
+  const options = { weekday: 'short', month: 'short', day: 'numeric' };
+  return date.toLocaleDateString(undefined, options);
+}
+
+// Format time
+function formatTime(dateStr) {
+  const date = new Date(dateStr);
+  return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+}
+
+function HistoryItem({ history, historyCallback, isLast }) {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+  const domain = extractDomain(history.sourceKey);
+  const domainColor = getDomainColor(domain);
+
+  const [isHovered, setIsHovered] = useState(false);
+
   return (
-    <Card
+    <div
+      className="history-item"
+      onClick={() => historyCallback(history.sourceKey)}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       style={{
-        margin: '4px 1px',
-        padding: '1px',
-        width: '290px',
-        paddingBottom: '1px',
+        borderLeftColor: isLast ? 'transparent' : undefined,
       }}
     >
-      <CustomCardContent>
-        <Typography variant="h9" gutterBottom>
-          {group[0].createdAt}
+      {/* Favicon / Letter Avatar */}
+      <div
+        className="history-favicon"
+        style={{ background: history.favicon ? 'transparent' : domainColor }}
+      >
+        {history.favicon ? (
+          <img src={history.favicon} alt="" />
+        ) : (
+          <span className="history-favicon-letter">
+            {domain.charAt(0).toUpperCase()}
+          </span>
+        )}
+      </div>
+
+      {/* Content */}
+      <div className="history-content">
+        <Typography className="history-title" component="div">
+          {history.description || domain}
         </Typography>
-        {group.map((history) => (
-          <Box
+        <Typography className="history-url">
+          {domain}
+        </Typography>
+      </div>
+
+      {/* Time / Actions */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+        {isHovered ? (
+          <>
+            <Tooltip title="Open in new tab" arrow>
+              <IconButton
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  window.open(history.sourceKey, '_blank');
+                }}
+                sx={{ padding: '4px' }}
+              >
+                <OpenInNewIcon sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Tooltip>
+          </>
+        ) : (
+          <Typography className="history-time">
+            {formatTime(history.createdAt)}
+          </Typography>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function HistoryDateGroup({ date, items, historyCallback }) {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+
+  return (
+    <div className="history-date-group browser-slide-up">
+      {/* Date Header */}
+      <div className="history-date-header">
+        <CalendarTodayIcon sx={{ fontSize: 14 }} />
+        <span>{formatDate(date)}</span>
+      </div>
+
+      {/* History Items */}
+      <div className="history-items">
+        {items.map((history, index) => (
+          <HistoryItem
             key={history.id}
-            display="flex"
-            alignItems="center"
-            mb={1}
-            onClick={() => historyCallback(history.sourceKey)}
-            sx={{ margin: '1px', padding: '1px' }}
-          >
-            <Avatar
-              src={history.favicon}
-              alt="favicon"
-              variant="rounded"
-              sx={{ width: 24, height: 24, marginRight: '10px' }}
-            />
-            <Box>
-              <Typography
-                variant="h12"
-                component="div"
-                sx={{
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  margin: '1px',
-                  padding: '1px',
-                  fontSize: '12px',
-                }}
-              >
-                {history.description}
-              </Typography>
-              <Typography
-                variant="h12"
-                color="text.secondary"
-                sx={{
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  margin: '1px',
-                  padding: '1px',
-                  fontSize: '12px',
-                }}
-              >
-                {history.sourceKey}
-              </Typography>
-            </Box>
-          </Box>
+            history={history}
+            historyCallback={historyCallback}
+            isLast={index === items.length - 1}
+          />
         ))}
-      </CustomCardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
 function HistoriesUI({ filterKey, historyCallback }) {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(10);
+  const [limit] = useState(15);
   const [histories, setHistories] = useState([]);
 
   useEffect(() => {
-    async function t() {
+    async function fetchHistories() {
       const result = await customStorage.getHistoryByQuery(
         'url',
         filterKey || '',
         page,
         limit,
       );
+
       if (result.data && result.data.length > 0) {
-        const r = [];
-        let curGroup = [result.data[0]];
-        r.push(curGroup);
-        for (let i = 1; i < result.data.length; i++) {
-          const cd = result.data[i];
-          if (cd.groupId === curGroup[0].groupId) {
-            curGroup.push(cd);
-          } else {
-            curGroup = [cd];
-            r.push(curGroup);
+        // Group by date
+        const groupedByDate = {};
+
+        result.data.forEach((item) => {
+          const dateKey = new Date(item.createdAt).toDateString();
+          if (!groupedByDate[dateKey]) {
+            groupedByDate[dateKey] = [];
           }
-        }
-        setHistories(r);
+          groupedByDate[dateKey].push(item);
+        });
+
+        // Convert to array of groups
+        const groups = Object.entries(groupedByDate).map(([date, items]) => ({
+          date,
+          items,
+        }));
+
+        setHistories(groups);
       } else {
         setHistories([]);
       }
 
       setTotal(result.total);
     }
-    t();
+
+    fetchHistories();
   }, [filterKey, page, limit]);
 
   const handlePageChange = (event, value) => {
     setPage(value);
   };
 
+  if (histories.length === 0) {
+    return (
+      <div className="notes-empty-state">
+        <div className="notes-empty-icon">🕐</div>
+        <div className="notes-empty-title">No history yet</div>
+        <div className="notes-empty-subtitle">
+          Pages you visit will appear here
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <Box p={1} sx={{ height: 'calc(100vh - 80px)' }}>
-      {histories.map((group, index) => (
-        <HistoryCard
-          key={index}
-          group={group}
-          historyCallback={historyCallback}
-        />
-      ))}
-      <Divider />
-      <Pagination
-        count={Math.ceil(total / limit)}
-        page={page}
-        size="small"
-        onChange={handlePageChange}
-        variant="outlined"
-        color="secondary"
-         sx={{ margin: '10px' }}
-      />
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      {/* Timeline */}
+      <div className="history-timeline" style={{ flex: 1 }}>
+        {histories.map((group) => (
+          <HistoryDateGroup
+            key={group.date}
+            date={group.date}
+            items={group.items}
+            historyCallback={historyCallback}
+          />
+        ))}
+      </div>
+
+      {/* Pagination */}
+      {total > limit && (
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'center',
+            padding: '12px',
+            borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`,
+          }}
+        >
+          <Pagination
+            count={Math.ceil(total / limit)}
+            page={page}
+            size="small"
+            onChange={handlePageChange}
+            color="primary"
+            sx={{
+              '& .MuiPaginationItem-root': {
+                fontSize: '12px',
+              },
+            }}
+          />
+        </Box>
+      )}
     </Box>
   );
 }

@@ -1,11 +1,13 @@
 /* eslint-disable react/button-has-type */
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useSelector } from 'react-redux';
 import { v4 as uuid } from 'uuid';
 import LinearProgress from '@mui/material/LinearProgress';
 import SaveIcon from '@mui/icons-material/Save';
 import IconButton from '@mui/material/IconButton';
 import TextField from '@mui/material/TextField';
+import Switch from '@mui/material/Switch';
+import FormControlLabel from '@mui/material/FormControlLabel';
 // import Filter1Icon from '@mui/icons-material/Filter1';
 // import Filter2Icon from '@mui/icons-material/Filter2';
 // import Filter3Icon from '@mui/icons-material/Filter3';
@@ -27,6 +29,7 @@ import ImageFileInput from '../../components/imageFileInput';
 import LayoutOptions from './LayoutOptions';
 import { NoteType } from '../../../commons/model/Note';
 import { cardImageOverlapTemplateId } from '../../components/cardsetting/card-templates';
+import { RichMarkdownEditor } from '../../components/editor';
 
 function CreateNoteCell({noteCreationHandler}) {
   // character limit
@@ -34,6 +37,9 @@ function CreateNoteCell({noteCreationHandler}) {
   const [title, setTitle] = useState('');
   const [selectedSide, setSelectedSide] = useState(0);
   const [values, setValues] = useState(['', '', '']);
+  const [valuesHtml, setValuesHtml] = useState(['', '', '']);
+  const [useRichEditor, setUseRichEditor] = useState(true);
+  const editorRef = useRef(null);
 
   const [imagesSrc, setImagesSrc] = useState([null, null, null]);
   const [overlaps, setOverlaps] = useState([0, 0, 0]);
@@ -45,20 +51,61 @@ function CreateNoteCell({noteCreationHandler}) {
   const charLeft = charLimit - (inputText || '').length;
   const cardWidth = 360;
 
+  // Save current editor content before switching sides
+  const saveCurrentSideContent = useCallback(() => {
+    if (useRichEditor && editorRef.current) {
+      const html = editorRef.current.getHTML();
+      const text = editorRef.current.getText();
+      setValuesHtml((prev) => {
+        const newHtml = [...prev];
+        newHtml[selectedSide] = html;
+        return newHtml;
+      });
+      setValues((prev) => {
+        const newText = [...prev];
+        newText[selectedSide] = text;
+        return newText;
+      });
+    }
+  }, [useRichEditor, selectedSide]);
+
+  // Handle editor content change
+  const handleEditorChange = useCallback((html, text) => {
+    setValuesHtml((prev) => {
+      const newHtml = [...prev];
+      newHtml[selectedSide] = html;
+      return newHtml;
+    });
+    setValues((prev) => {
+      const newText = [...prev];
+      newText[selectedSide] = text;
+      return newText;
+    });
+    setInputText(text);
+  }, [selectedSide]);
+
   const handleSideChange = (event) => {
-    const side = event.target.value;
+    // Save current side content first
+    saveCurrentSideContent();
+    const side = parseInt(event.target.value, 10);
     setSelectedSide(side);
     setInputText(values[side]);
   };
 
   const handleImageFileChange = (file) => {
     if (!file) return;
+    // Capture current side at the time of function call (before async operation)
+    const currentSide = selectedSide;
     const reader = new FileReader();
     reader.onload = () => {
-      // // imageDataUrl will be in the format "data:image/png;base64,...."
+      // imageDataUrl will be in the format "data:image/png;base64,...."
       const imageDataUrl = reader.result;
-      imagesSrc[selectedSide] = imageDataUrl;
-      setImagesSrc(imagesSrc);
+      // Create new array to trigger React re-render
+      setImagesSrc((prev) => {
+        const newImagesSrc = [...prev];
+        newImagesSrc[currentSide] = imageDataUrl;
+        return newImagesSrc;
+      });
     };
     reader.readAsDataURL(file);
   };
@@ -76,27 +123,48 @@ function CreateNoteCell({noteCreationHandler}) {
   };
   // get text and store in state
   const textHandler = (e) => {
-    setInputText(e.target.value);
-    values[selectedSide] = e.target.value;
-    setValues(values);
+    const newValue = e.target.value;
+    setInputText(newValue);
+    // Create new array to trigger React re-render
+    setValues((prev) => {
+      const newValues = [...prev];
+      newValues[selectedSide] = newValue;
+      return newValues;
+    });
   };
   const onLayoutOptionChanges = (value) => {
-    overlaps[selectedSide] = value;
-    setOverlaps(overlaps);
+    // Create new array to trigger React re-render
+    setOverlaps((prev) => {
+      const newOverlaps = [...prev];
+      newOverlaps[selectedSide] = value;
+      return newOverlaps;
+    });
   };
   const titleHandler = (e) => {
     setTitle(e.target.value);
   };
   // add new note to the state array
   const saveHandler = async () => {
-    // console.log("here")
+    // Save current editor content first
+    saveCurrentSideContent();
+
+    // Get final values
+    const finalValues = [...values];
+    const finalValuesHtml = [...valuesHtml];
+
+    // If using rich editor, get latest content
+    if (useRichEditor && editorRef.current) {
+      finalValues[selectedSide] = editorRef.current.getText();
+      finalValuesHtml[selectedSide] = editorRef.current.getHTML();
+    }
+
     if (
-      values[0].length === 0 &&
-      values[1].length === 0 &&
-      values[2].length === 0
+      finalValues[0].length === 0 &&
+      finalValues[1].length === 0 &&
+      finalValues[2].length === 0
     )
       return;
-    removeEmptySide(values);
+    removeEmptySide(finalValues);
     const imageIds = [];
     for (let i = 0; i < 3; i++) {
       if (imagesSrc[i]) {
@@ -105,7 +173,7 @@ function CreateNoteCell({noteCreationHandler}) {
       }
     }
     let newNote;
-    if (values[1].length === 0) {
+    if (finalValues[1].length === 0) {
       // only A has content
      // const id = uuid();
       newNote = await CreateNote({
@@ -113,8 +181,8 @@ function CreateNoteCell({noteCreationHandler}) {
         title,
         cards: [
           {
-            text: values[0] || '',
-            html: '',
+            text: finalValues[0] || '',
+            html: finalValuesHtml[0] || '',
             image: imageIds[0],
             templateId: overlaps[0],
           },
@@ -134,7 +202,7 @@ function CreateNoteCell({noteCreationHandler}) {
          highlightType: '',
         hasQuiz: false,
       });
-    } else if (values[2].length == 0) {
+    } else if (finalValues[2].length == 0) {
       // only A B  has content
 
      // const id = uuid();
@@ -143,14 +211,14 @@ function CreateNoteCell({noteCreationHandler}) {
         title,
         cards: [
           {
-            text: values[0] || '',
-            html: '',
+            text: finalValues[0] || '',
+            html: finalValuesHtml[0] || '',
             image: imageIds[0],
             templateId: overlaps[0],
           },
           {
-            text: values[1] || '',
-            html: '',
+            text: finalValues[1] || '',
+            html: finalValuesHtml[1] || '',
             image: imageIds[1],
             templateId: overlaps[1],
           },
@@ -179,20 +247,20 @@ function CreateNoteCell({noteCreationHandler}) {
         title,
         cards: [
           {
-            text: values[0] || '',
-            html: '',
+            text: finalValues[0] || '',
+            html: finalValuesHtml[0] || '',
             image: imageIds[0],
             templateId: overlaps[0],
           },
           {
-            text: values[1] || '',
-            html: '',
+            text: finalValues[1] || '',
+            html: finalValuesHtml[1] || '',
             image: imageIds[1],
             templateId: overlaps[1],
           },
           {
-            text: values[2] || '',
-            html: '',
+            text: finalValues[2] || '',
+            html: finalValuesHtml[2] || '',
             image: imageIds[2],
             templateId: overlaps[2],
           },
@@ -221,9 +289,17 @@ function CreateNoteCell({noteCreationHandler}) {
     setInputText('');
     setSelectedSide(0);
     setValues(['', '', '']);
+    setValuesHtml(['', '', '']);
     setImagesSrc([null, null, null]);
     setTitle('');
+    // Clear editor
+    if (editorRef.current) {
+      editorRef.current.clear();
+    }
   };
+
+  // Check if a side has an image
+  const sideHasImage = (side) => imagesSrc[side] !== null;
 
   return (
     <Card sx={{ maxWidth: { cardWidth } }}>
@@ -240,17 +316,40 @@ function CreateNoteCell({noteCreationHandler}) {
           sx={{  height: '35px', marginBottom: '5px' }}
           size="small"
         />
-        <TextField
-          fullWidth
-          multiline
-          minRows={8}
-          maxRows={20}
-          value={inputText}
-          placeholder="Content...."
-          onChange={textHandler}
-          variant="outlined"
-          size="small"
+        <FormControlLabel
+          control={
+            <Switch
+              checked={useRichEditor}
+              onChange={(e) => setUseRichEditor(e.target.checked)}
+              size="small"
+            />
+          }
+          label="Rich Editor"
+          sx={{ mb: 1 }}
         />
+        {useRichEditor ? (
+          <RichMarkdownEditor
+            key={`side-${selectedSide}`}
+            ref={editorRef}
+            content={valuesHtml[selectedSide] || values[selectedSide]}
+            onChange={handleEditorChange}
+            placeholder="Content... Use $...$ for math"
+            minHeight={150}
+            maxHeight={250}
+          />
+        ) : (
+          <TextField
+            fullWidth
+            multiline
+            minRows={8}
+            maxRows={20}
+            value={inputText}
+            placeholder="Content...."
+            onChange={textHandler}
+            variant="outlined"
+            size="small"
+          />
+        )}
       </CardContent>
       <CardActions disableSpacing>
         <div className="two_end_container">
@@ -262,6 +361,12 @@ function CreateNoteCell({noteCreationHandler}) {
               name="radio-buttons"
               size="small"
               inputProps={{ 'aria-label': '0' }}
+              sx={{
+                color: sideHasImage(0) ? '#4caf50' : undefined,
+                '&.Mui-checked': {
+                  color: sideHasImage(0) ? '#4caf50' : undefined,
+                },
+              }}
             />
             <Radio
               checked={selectedSide == 1}
@@ -270,6 +375,12 @@ function CreateNoteCell({noteCreationHandler}) {
               name="radio-buttons"
               size="small"
               inputProps={{ 'aria-label': '1' }}
+              sx={{
+                color: sideHasImage(1) ? '#4caf50' : undefined,
+                '&.Mui-checked': {
+                  color: sideHasImage(1) ? '#4caf50' : undefined,
+                },
+              }}
             />
             <Radio
               checked={selectedSide == 2}
@@ -278,6 +389,12 @@ function CreateNoteCell({noteCreationHandler}) {
               name="radio-buttons"
               size="small"
               inputProps={{ 'aria-label': '2' }}
+              sx={{
+                color: sideHasImage(2) ? '#4caf50' : undefined,
+                '&.Mui-checked': {
+                  color: sideHasImage(2) ? '#4caf50' : undefined,
+                },
+              }}
             />
             <ImageFileInput onChange={handleImageFileChange} />
             {getImageCode() && (

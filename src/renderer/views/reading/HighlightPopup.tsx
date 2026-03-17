@@ -9,10 +9,14 @@ interface HighlightPopupProps {
 }
 
 function HighlightPopup({ highlight }: HighlightPopupProps) {
-  return highlight.summary ? (
-    <div className="Highlight__popup">{highlight.summary}</div>
-  ) : (
-    <div className="Highlight__popup">Comment has no Text</div>
+  const emoji = (highlight as any).emoji || (highlight as any).comment?.emoji;
+  const summary = highlight.summary || (highlight as any).comment?.text;
+
+  return (
+    <div className="Highlight__popup">
+      {emoji && <span className="Highlight__popup-emoji">{emoji}</span>}
+      {summary ? summary : 'No comment'}
+    </div>
   );
 }
 

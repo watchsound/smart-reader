@@ -23,27 +23,39 @@ export interface NoteNodeWidgetProps {
 
 const S = {
   Port: styled.div`
-    width: 8px;
-    height: 8px;
+    width: 10px;
+    height: 10px;
     z-index: 10;
-    background: rgba(0, 0, 0, 0.5);
-    border-radius: 4px;
+    background: rgba(100, 100, 100, 0.6);
+    border-radius: 50%;
     cursor: pointer;
+    border: 2px solid rgba(255, 255, 255, 0.8);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    transition: all 0.2s ease;
 
     &:hover {
-      background: rgba(0, 0, 0, 1);
+      background: rgba(33, 150, 243, 0.9);
+      transform: scale(1.2);
+      box-shadow: 0 2px 8px rgba(33, 150, 243, 0.4);
     }
   `,
 };
 
 const ResizeHandle = styledComp.div`
-  width: 10px;
-  height: 10px;
-  background-color: red;
+  width: 14px;
+  height: 14px;
+  background: linear-gradient(135deg, transparent 50%, rgba(33, 150, 243, 0.8) 50%);
   position: absolute;
-  bottom: 0;
-  right: 0;
+  bottom: 2px;
+  right: 2px;
   cursor: nwse-resize;
+  border-radius: 0 0 8px 0;
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+
+  &:hover {
+    opacity: 1;
+  }
 `;
 
 function NoteNodeWidget({ node, engine }) {
@@ -124,7 +136,7 @@ function NoteNodeWidget({ node, engine }) {
     };
   }, [curEditState, isDragging]);
 
-  console.log( ` width = ${node.width} height = ${node.height}`)
+  // console.log( ` width = ${node.width} height = ${node.height}`)
 
   return (
     <div
@@ -133,7 +145,14 @@ function NoteNodeWidget({ node, engine }) {
         position: 'relative',
         width: node.width || 250,
         height: node.height || 180,
-        border: curEditState ? '1px dotted white' : 'none',
+        // Selection border - now using outline to avoid layout shift
+        outline: curEditState ? '2px dashed rgba(33, 150, 243, 0.7)' : 'none',
+        outlineOffset: '2px',
+        borderRadius: '12px',
+        transition: 'outline 0.2s ease, box-shadow 0.2s ease',
+        boxShadow: curEditState
+          ? '0 4px 20px rgba(33, 150, 243, 0.2)'
+          : '0 2px 12px rgba(0, 0, 0, 0.1)',
       }}
     >
       {node.note && (
@@ -155,12 +174,13 @@ function NoteNodeWidget({ node, engine }) {
           cardWidth={node.width}
           cardHeight={node.height}
           showQuizHandler={undefined}
+          noPadding
         />
       )}
       <PortWidget
         style={{
-          top: (node.height || 180) / 2 - 8,
-          left: -8,
+          top: (node.height || 180) / 2 - 5,
+          left: -10,
           position: 'absolute',
         }}
         port={node.getPort(PortModelAlignment.LEFT)}
@@ -170,8 +190,8 @@ function NoteNodeWidget({ node, engine }) {
       </PortWidget>
       <PortWidget
         style={{
-          left: (node.width || 250) / 2 - 8,
-          top: -8,
+          left: (node.width || 250) / 2 - 5,
+          top: -10,
           position: 'absolute',
         }}
         port={node.getPort(PortModelAlignment.TOP)}
@@ -181,8 +201,8 @@ function NoteNodeWidget({ node, engine }) {
       </PortWidget>
       <PortWidget
         style={{
-          left: (node.width || 250) - 8,
-          top: (node.height || 180) / 2 - 8,
+          left: (node.width || 250) - 4,
+          top: (node.height || 180) / 2 - 5,
           position: 'absolute',
         }}
         port={node.getPort(PortModelAlignment.RIGHT)}
@@ -192,8 +212,8 @@ function NoteNodeWidget({ node, engine }) {
       </PortWidget>
       <PortWidget
         style={{
-          left: (node.width || 250) / 2 - 8,
-          top: (node.height || 180) - 8,
+          left: (node.width || 250) / 2 - 5,
+          top: (node.height || 180) - 4,
           position: 'absolute',
         }}
         port={node.getPort(PortModelAlignment.BOTTOM)}

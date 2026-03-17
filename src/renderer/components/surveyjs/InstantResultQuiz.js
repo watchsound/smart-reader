@@ -4,6 +4,7 @@ import { Survey } from 'survey-react-ui';
 import 'survey-core/defaultV2.min.css';
 import './index.css';
 import customStorage from '../../store/customStorage';
+import brainApi, { EPISODE_TYPES } from '../../api/brainApi';
 // const json = {
 //   title: 'American History',
 //   showProgressBar: 'off',
@@ -133,6 +134,25 @@ function InstantResultQuiz({ quizJson, quizProblems }) {
         const pos = parseInt(name.substring(4)); // starts with 1,
         const qz = quizProblems[pos - 1];
         customStorage.updateQuizProblem(qz.id, 'correct', isCorrect ? 1 : -1);
+
+        // Record quiz answer episode for brain
+        brainApi.recordEpisode({
+          eventType: EPISODE_TYPES.QUIZ_TAKEN,
+          payload: {
+            quizId: qz.id,
+            question: qz.question?.substring(0, 200),
+            wasCorrect: isCorrect,
+            sourceKey: qz.sourceKey,
+            sourceType: qz.sourceType,
+            quizMode: 'instant',
+          },
+          sourceContext: {
+            view: 'quiz',
+            quizType: 'instant_result',
+            questionIndex: pos,
+            totalQuestions: quizProblems.length,
+          },
+        });
       }
     } catch (e) {
       console.log(e);

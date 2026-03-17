@@ -20,7 +20,7 @@ import {
   createBookmarkGroup,
 } from '../db/BookmarkGroupManager';
 import { getFaviconBase64 } from './fileUtil';
-import aiProviderManager from '../../commons/service/AIProviderManager';
+import { instanceInMain as aiProviderManager } from '../../commons/service/AIProviderManager';
 
 
 async function savePDF4URL(id, url) {

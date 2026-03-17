@@ -1,22 +1,51 @@
-/* eslint-disable prettier/prettier */
 import React, { useState, useEffect } from 'react';
-import { TextField, Paper, Box } from '@mui/material';
-import { styled } from '@mui/system';
+import { TextField, Box, InputBase } from '@mui/material';
+import { styled, useTheme, alpha } from '@mui/material/styles';
 
-const StyledPaper = styled(Paper)({
-  padding: 16,
-  marginTop: 16,
-  width: '100%',
-});
+const StyledContainer = styled(Box)(({ theme, colors, minimal }) => ({
+  backgroundColor: minimal ? 'transparent' : theme.palette.background.paper,
+  borderRadius: minimal ? 8 : 16,
+  border: minimal ? 'none' : `1px solid ${alpha(theme.palette.divider, 0.08)}`,
+  overflow: 'hidden',
+  transition: 'all 0.2s ease',
+  '&:focus-within': minimal
+    ? {}
+    : {
+        borderColor: alpha(colors?.accent || theme.palette.primary.main, 0.5),
+        boxShadow: `0 0 0 3px ${alpha(colors?.accent || theme.palette.primary.main, 0.1)}`,
+      },
+}));
 
-const StyledTextField = styled(TextField)({
+const StyledInputBase = styled(InputBase)(({ theme, colors }) => ({
   width: '100%',
-  minHeight: 100, // Example minHeight
-  maxHeight: 300, // Example maxHeight
-  overflow: 'auto',
-});
-function MultilineTextField({ initialText, placeholder, onTextChange }) {
-  const [text, setText] = useState(initialText);
+  padding: theme.spacing(2),
+  fontSize: '1rem',
+  lineHeight: 1.8,
+  '& .MuiInputBase-input': {
+    padding: 0,
+    '&::placeholder': {
+      color: theme.palette.text.disabled,
+      opacity: 1,
+    },
+  },
+}));
+
+const CharacterCount = styled(Box)(({ theme, colors }) => ({
+  padding: theme.spacing(1, 2),
+  display: 'flex',
+  justifyContent: 'flex-end',
+  borderTop: `1px solid ${alpha(theme.palette.divider, 0.05)}`,
+}));
+
+function MultilineTextField({
+  initialText,
+  placeholder,
+  onTextChange,
+  colors,
+  minimal = false,
+}) {
+  const theme = useTheme();
+  const [text, setText] = useState(initialText || '');
 
   const handleChange = (event) => {
     const newText = event.target.value;
@@ -27,23 +56,42 @@ function MultilineTextField({ initialText, placeholder, onTextChange }) {
   };
 
   useEffect(() => {
-    setText(initialText);
+    setText(initialText || '');
   }, [initialText]);
 
+  const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
+
   return (
-    <StyledPaper elevation={3}>
-      <Box>
-        <StyledTextField
-          multiline
-          minRows={4}
-          maxRows={10}
-          variant="outlined"
-          value={text}
-          onChange={handleChange}
-          placeholder={placeholder}
-        />
-      </Box>
-    </StyledPaper>
+    <StyledContainer colors={colors} minimal={minimal}>
+      <StyledInputBase
+        multiline
+        minRows={minimal ? 3 : 5}
+        maxRows={12}
+        value={text}
+        onChange={handleChange}
+        placeholder={placeholder}
+        colors={colors}
+        sx={{
+          bgcolor: minimal
+            ? alpha(theme.palette.background.default, 0.5)
+            : 'transparent',
+          borderRadius: minimal ? 2 : 0,
+        }}
+      />
+      {!minimal && text && (
+        <CharacterCount colors={colors}>
+          <Box
+            component="span"
+            sx={{
+              fontSize: '0.75rem',
+              color: theme.palette.text.disabled,
+            }}
+          >
+            {wordCount} word{wordCount !== 1 ? 's' : ''} · {text.length} characters
+          </Box>
+        </CharacterCount>
+      )}
+    </StyledContainer>
   );
 }
 

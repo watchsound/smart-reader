@@ -6,13 +6,21 @@ const chatSlice = createSlice({
   initialState: {
     prompts: [],
     chats: [],
+    learnAbouts: [],
     pinned: [],
+    pinnedLearnAbouts: [],
     messages: [],
     curMessage: null,
     curChat: null,
     curPrompt: null,
+    curLearnAbout: null,
   },
   reducers: {
+    learnAboutHandled: (state, action) => {
+      const chat = action.payload || null;
+      state.curLearnAbout = chat;
+    },
+
     chatHandled: (state, action) => {
       const chat = action.payload || null;
       state.curChat = chat;
@@ -21,9 +29,17 @@ const chatSlice = createSlice({
       const chats = action.payload || [];
       state.chats = chats;
     },
+    learnAboutQueried: (state, action) => {
+      const chats = action.payload || [];
+      state.learnAbouts = chats;
+    },
     pinnedQueried: (state, action) => {
       const chats = action.payload || [];
       state.pinned = chats;
+    },
+    pinnedLearnAboutsQueried: (state, action) => {
+      const chats = action.payload || [];
+      state.pinnedLearnAbouts = chats;
     },
     messageHandled: (state, action) => {
       const message = action.payload || null;
@@ -67,7 +83,7 @@ const chatSlice = createSlice({
     },
     chatUpdated: (state, action) => {
       const updated = action.payload;
-      if( !updated ) return;
+      if (!updated) return;
       const newNotes = state.chats.map((chat) =>
         chat.id !== updated.id ? chat : updated,
       );
@@ -105,6 +121,9 @@ const chatSlice = createSlice({
 });
 
 export const {
+  learnAboutHandled,
+  learnAboutQueried,
+  pinnedLearnAboutsQueried,
   chatHandled,
   chatQueried,
   pinnedQueried,

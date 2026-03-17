@@ -19,11 +19,16 @@ import {
   Alert,
   Snackbar,
   IconButton,
+  Chip,
+  Switch,
+  FormControlLabel,
+  Collapse,
+  LinearProgress,
 } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
+import { useTheme, styled } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import Paper from '@mui/material/Paper';
-import { useMemo, useEffect, useState, useRef, } from 'react';
+import { useMemo, useEffect, useState, useRef, useCallback } from 'react';
 import { v4 as uuid } from 'uuid';
 import SendIcon from '@mui/icons-material/Send';
 import SendAndArchiveIcon from '@mui/icons-material/SendAndArchive';
@@ -36,6 +41,16 @@ import Avatar from '@mui/material/Avatar';
 import CardContent from '@mui/material/CardContent';
 import Checkbox from '@mui/material/Checkbox';
 import JSON5 from 'json5';
+import SummarizeIcon from '@mui/icons-material/Summarize';
+import LightbulbIcon from '@mui/icons-material/Lightbulb';
+import TranslateIcon from '@mui/icons-material/Translate';
+import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted';
+import QuizIcon from '@mui/icons-material/Quiz';
+import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
+import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
+import BuildIcon from '@mui/icons-material/Build';
+import SearchIcon from '@mui/icons-material/Search';
+import NoteAddIcon from '@mui/icons-material/NoteAdd';
 
 import customStorage from '../../store/customStorage';
 import MessageItem from "./MessageItem";
@@ -57,9 +72,104 @@ import mindMapSchema, {mindMapSchema0} from '../../utils/json/mindmapSchema';
 import { convertToReactFlow, convertToReactFlow0 } from '../../../commons/utils/content/mindmapUtil';
 import MyMindMap from "../mindmap";
 import { StudyMode } from '../../../commons/model/DataTypes';
-import aiProviderManager from '../../../commons/service/AIProviderManager';
+import { instanceInRender as aiProviderManager } from '../../../commons/service/AIProviderManager';
+import skillApi from '../../api/skillApi';
+import FiveWAnalysisPanel from '../knowledge/FiveWAnalysisPanel';
+import QuizPanel from '../knowledge/QuizPanel';
+import SimplifiedTextPanel from '../knowledge/SimplifiedTextPanel';
 
-function InContextChatPanel({ articleStr, curBook }) {
+// Quick Action Chip Styles
+const QuickActionChip = styled(Chip)(({ theme, chipcolor }) => ({
+  cursor: 'pointer',
+  transition: 'all 0.15s ease',
+  fontWeight: 500,
+  fontSize: '11px',
+  height: '28px',
+  backgroundColor: chipcolor ? `${chipcolor}15` : 'rgba(29, 155, 209, 0.08)',
+  color: chipcolor || '#1d9bd1',
+  border: '1px solid transparent',
+  '&:hover': {
+    backgroundColor: chipcolor ? `${chipcolor}25` : 'rgba(29, 155, 209, 0.15)',
+    borderColor: chipcolor ? `${chipcolor}40` : 'rgba(29, 155, 209, 0.3)',
+    transform: 'translateY(-1px)',
+  },
+  '& .MuiChip-icon': {
+    color: 'inherit',
+    fontSize: '14px',
+  },
+}));
+
+// Context Indicator Styles
+const ContextIndicator = styled(Box)(({ theme }) => ({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '6px',
+  padding: '6px 12px',
+  background: theme.palette.mode === 'dark' ? 'rgba(46, 182, 125, 0.15)' : 'rgba(46, 182, 125, 0.08)',
+  color: '#2eb67d',
+  fontSize: '11px',
+  fontWeight: 500,
+  borderBottom: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`,
+}));
+
+// Quick Actions Container
+const QuickActionsContainer = styled(Box)(({ theme }) => ({
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: '6px',
+  padding: '10px 12px',
+  borderBottom: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`,
+  background: theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.02)',
+}));
+
+// Pulsing dot for context indicator
+const PulsingDot = styled(FiberManualRecordIcon)(({ theme }) => ({
+  fontSize: '8px',
+  animation: 'pulse 2s infinite',
+  '@keyframes pulse': {
+    '0%, 100%': { opacity: 1 },
+    '50%': { opacity: 0.5 },
+  },
+}));
+
+// Skill mode indicator chip
+const SkillModeChip = styled(Chip)(({ theme, active }) => ({
+  cursor: 'pointer',
+  fontWeight: 500,
+  fontSize: '10px',
+  height: '24px',
+  backgroundColor: active ? 'rgba(99, 102, 241, 0.15)' : 'transparent',
+  color: active ? '#6366f1' : theme.palette.text.secondary,
+  border: `1px solid ${active ? '#6366f1' : theme.palette.divider}`,
+  '&:hover': {
+    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+  },
+  '& .MuiChip-icon': {
+    color: 'inherit',
+    fontSize: '12px',
+  },
+}));
+
+// Tool usage indicator
+const ToolUsageChip = styled(Chip)(({ theme }) => ({
+  height: '20px',
+  fontSize: '10px',
+  fontWeight: 500,
+  backgroundColor: 'rgba(16, 185, 129, 0.1)',
+  color: '#10b981',
+  border: '1px solid rgba(16, 185, 129, 0.3)',
+  '& .MuiChip-icon': {
+    color: 'inherit',
+    fontSize: '12px',
+  },
+}));
+
+function InContextChatPanel({ articleStr, curBook, selectedText = '', onRef }) {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+
+  // Track selection changes for quick actions
+  const [showSelectionHint, setShowSelectionHint] = useState(false);
 
   const [open, setOpen] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
@@ -81,6 +191,12 @@ function InContextChatPanel({ articleStr, curBook }) {
 
   const [submitting, setSubmitting] = useState(false);
   const [, forceUpdate] = useState();
+
+  // Skill system state
+  const [skillMode, setSkillMode] = useState(false);
+  const [skillStatus, setSkillStatus] = useState({ initialized: false, skillCount: 0, supportsToolUse: false });
+  const [toolsUsed, setToolsUsed] = useState([]);
+  const [lastToolsUsed, setLastToolsUsed] = useState([]);
 
 
   const [mindMapData, setMindMapData] = useState(null);
@@ -110,7 +226,62 @@ function InContextChatPanel({ articleStr, curBook }) {
     };
   }, []);
 
+  // Show selection hint when selectedText changes
+  useEffect(() => {
+    if (selectedText && selectedText.length > 10) {
+      setShowSelectionHint(true);
+    } else {
+      setShowSelectionHint(false);
+    }
+  }, [selectedText]);
 
+  /**
+   * Add a skill result as a chat message.
+   * This allows external components (like Browser.js) to inject skill results
+   * into the chat history.
+   * @param {Object} skillResult - The skill result to add
+   * @param {string} skillResult.skillName - Name of the skill (e.g., 'analyze_structure')
+   * @param {string} skillResult.title - Display title (e.g., '5W Analysis')
+   * @param {any} skillResult.data - The result data
+   * @param {string} skillResult.sourceText - The original text that was analyzed
+   */
+  const addSkillResult = useCallback((skillResult) => {
+    const { skillName, title, data, sourceText } = skillResult;
+
+    // Create a user message showing what was requested
+    const userMessage = {
+      id: uuid(),
+      chatId: -1,
+      content: `[${title}] Analyze:\n"${sourceText?.substring(0, 100)}${sourceText?.length > 100 ? '...' : ''}"`,
+      role: 'user',
+      createdAt: new Date(),
+    };
+
+    // Create an assistant message with the skill result
+    const botMessage = {
+      id: uuid(),
+      chatId: -1,
+      content: '', // Content is empty because we render the skill result directly
+      role: 'assistant',
+      createdAt: new Date(),
+      skillResult: {
+        skillName,
+        title,
+        data,
+      },
+    };
+
+    setMessages((prevMessages) => [...prevMessages, userMessage, botMessage]);
+  }, []); // No dependencies needed since we use functional update
+
+  // Expose methods to parent via onRef callback
+  useEffect(() => {
+    if (onRef) {
+      onRef({
+        addSkillResult,
+      });
+    }
+  }, [onRef, addSkillResult]);
 
   const refresh = () => {
     forceUpdate(s => !s);
@@ -207,6 +378,18 @@ function InContextChatPanel({ articleStr, curBook }) {
           setKeywordExercisePrompt(k);
         }
       }
+
+      // Initialize skill system status
+      try {
+        const status = skillApi.getStatus();
+        setSkillStatus(status);
+        // Auto-enable skill mode if provider supports tool use
+        if (status.supportsToolUse) {
+          setSkillMode(true);
+        }
+      } catch (err) {
+        console.warn('Failed to get skill status:', err);
+      }
     }
     t();
   }, []);
@@ -284,21 +467,153 @@ function InContextChatPanel({ articleStr, curBook }) {
       });
   }
 
-  const submit = async (useLocalData) => {
+  // Submit with skill-aware AI (agentic mode)
+  const submitWithSkills = async (useLocalData) => {
     if (submitting) return;
+    if (!articleStr && !curBook) return;
 
+    try {
+      setSubmitting(true);
+      setToolsUsed([]);
+      setLastToolsUsed([]);
+
+      // Update skill context with current view
+      skillApi.updateView({
+        view: curBook ? 'reading' : 'browser',
+        documentId: curBook?.id,
+        documentType: curBook?.format,
+      });
+
+      // Update selection context if we have article content
+      if (articleStr) {
+        skillApi.updateSelection(articleStr.substring(0, 2000)); // First 2000 chars
+      }
+
+      let msgs = [...messages];
+      if (msgs.length > 10) {
+        msgs = msgs.slice(-10);
+      }
+
+      // Add pending assistant message if exists
+      if (messageContent) {
+        const m = {
+          id: uuid(),
+          chatId: -1,
+          content: messageContent,
+          role: 'assistant',
+          createdAt: new Date(),
+        };
+        msgs.push(m);
+        setMessageContent('');
+      }
+
+      // Get local context data
+      let localData = '';
+      if (useLocalData) {
+        if (articleStr && !curBook) {
+          if (!vectorized) {
+            setVectorized(true);
+            await customStorage.addContentToInMemoryVectorDB(articleStr);
+          }
+          localData = await queryLocalData(content);
+        }
+        if (!articleStr && curBook) {
+          const r = await customStorage.getBookContentByQuery({
+            bookKey: curBook.id,
+            bookType: curBook.format,
+            query: content,
+          });
+          r.forEach((match) => {
+            localData += `${match.content}\n`;
+          });
+        }
+      }
+
+      // Build user message with context
+      const contextPrefix = localData
+        ? `[Context from current reading material:\n${localData.substring(0, 3000)}]\n\n`
+        : '';
+      const userContent = contextPrefix + content;
+
+      const userMessage = {
+        id: uuid(),
+        chatId: -1,
+        content,
+        role: 'user',
+      };
+      setUserMessages([...userMessages, content]);
+      setContent('');
+
+      // Add user message to display
+      msgs = [...msgs, userMessage];
+      setMessages(msgs);
+
+      // Build messages for skill chat
+      const chatMessages = [
+        {
+          role: 'system',
+          content: `${readerLevelPrompt}
+                    ${keywordExercisePrompt}
+                    ${getSystemMessage()}
+                    You are a helpful reading assistant with access to various skills/tools.
+                    When the user asks you to perform tasks like summarizing, explaining concepts,
+                    checking grammar, looking up vocabulary, searching notes, or creating notes,
+                    use the appropriate skill to provide better results.`,
+        },
+        ...msgs.slice(0, -1).map((message) => ({
+          role: message.role,
+          content: message.content,
+        })),
+        {
+          role: 'user',
+          content: userContent,
+        },
+      ];
+
+      // Call skill-aware chat API
+      const result = await skillApi.chatWithSkills(chatMessages, {
+        maxIterations: 3,
+      });
+
+      if (result.success) {
+        const botMessage = {
+          id: uuid(),
+          chatId: -1,
+          content: result.text,
+          role: 'assistant',
+          createdAt: new Date(),
+          toolsUsed: result.toolsUsed,
+        };
+        setMessages([...msgs, botMessage]);
+        setLastToolsUsed(result.toolsUsed || []);
+
+        if (result.toolsUsed && result.toolsUsed.length > 0) {
+          console.log('[Skills] Tools used:', result.toolsUsed);
+        }
+      } else {
+        showMessage(result.error || 'Failed to get response', 'error');
+        // Fallback to regular chat
+        await submitRegular(useLocalData);
+      }
+
+    } catch (error) {
+      console.error('[Skills] Error:', error);
+      showMessage(error.message || 'Skill chat failed', 'error');
+      // Fallback to regular submit
+      await submitRegular(useLocalData);
+    } finally {
+      setSubmitting(false);
+      setImageData('');
+    }
+  };
+
+  // Regular submit (non-skill mode)
+  const submitRegular = async (useLocalData) => {
     if (!articleStr && !curBook) {
       return;
     }
 
-    // if (!apiKey) {
-    //   showMessage('OpenAI API Key is not defined. Please set your API Key');
-    //   return;
-    // }
-
     try {
-      setSubmitting(true);
-
       let msgs = [...messages];
       if (msgs.length >10) {
         msgs = msgs.slice(-10);
@@ -348,7 +663,6 @@ function InContextChatPanel({ articleStr, curBook }) {
         role: 'user',
       } ;
       setUserMessages([...userMessages, content]);
-     // setMessages([...messages, userMessage]);
       setContent('');
 
       const userRealInput =  content;
@@ -365,7 +679,6 @@ function InContextChatPanel({ articleStr, curBook }) {
           };
          msgs = [...msgs, userMessage, botMessage]
          setMessages(msgs);
-        // await tryToCustomizeUI(res);
       } else {
          msgs = [...msgs, userMessage]
         setMessages(msgs);
@@ -388,16 +701,41 @@ function InContextChatPanel({ articleStr, curBook }) {
           ] );
 
         for await (const chunk of result.stream) {
-          const c = chunk.data(); // .choices[0]?.delta?.content || '';
+          const c = chunk.data();
           setMessageContent(prev => prev + c);
         }
         if (result.finalChatCompletion)
           await result.finalChatCompletion();
-
-        // await tryToCustomizeUI(messageContent);
       }
 
-      setSubmitting(false);
+    } catch (error) {
+      console.log(error);
+      if (error.toJSON && error.toJSON().message === 'Network Error') {
+        showMessage('No internet connection.');
+      }
+      const message = error.response?.data?.error?.message;
+      if (message) {
+        showMessage(message);
+      }
+    }
+  };
+
+  const submit = async (useLocalData) => {
+    if (submitting) return;
+
+    if (!articleStr && !curBook) {
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+
+      // Use skill-aware chat if skill mode is enabled and supported
+      if (skillMode && skillStatus.supportsToolUse) {
+        await submitWithSkills(useLocalData);
+      } else {
+        await submitRegular(useLocalData);
+      }
 
     } catch (error) {
       console.log(error);
@@ -435,6 +773,155 @@ function InContextChatPanel({ articleStr, curBook }) {
     setUserMsgIndex(0);
   };
 
+  // Quick action handlers - can use skills when skill mode is on
+  const quickActions = [
+    {
+      id: 'summarize',
+      label: 'Summarize',
+      icon: <SummarizeIcon />,
+      color: '#611f69',
+      prompt: 'Please provide a concise summary of this content in 3-5 key points.',
+      skill: 'summarize',
+      skillParams: { length: 'brief', format: 'bullets' },
+    },
+    {
+      id: 'explain',
+      label: 'Explain',
+      icon: <LightbulbIcon />,
+      color: '#1d9bd1',
+      prompt: 'Please explain this content in simple terms that anyone can understand.',
+      skill: 'explain',
+      skillParams: { useAnalogy: true },
+    },
+    {
+      id: 'translate',
+      label: 'Translate',
+      icon: <TranslateIcon />,
+      color: '#2eb67d',
+      prompt: 'Please translate this content to Chinese (Simplified).',
+    },
+    {
+      id: 'keypoints',
+      label: 'Key Points',
+      icon: <FormatListBulletedIcon />,
+      color: '#ecb22e',
+      prompt: 'Extract the main key points from this content as a bullet list.',
+      skill: 'extract_concepts',
+    },
+    {
+      id: 'quiz',
+      label: 'Quiz Me',
+      icon: <QuizIcon />,
+      color: '#e01e5a',
+      prompt: 'Create 3-5 multiple choice questions based on this content to test understanding.',
+    },
+    {
+      id: 'grammar',
+      label: 'Grammar',
+      icon: <AutoFixHighIcon />,
+      color: '#8b5cf6',
+      prompt: 'Check the grammar of this text and explain any corrections.',
+      skill: 'grammar_check',
+    },
+    {
+      id: 'search_notes',
+      label: 'My Notes',
+      icon: <SearchIcon />,
+      color: '#06b6d4',
+      prompt: 'Search my notes for related content.',
+      skill: 'search_notes',
+      skillParams: { searchType: 'semantic' },
+    },
+  ];
+
+  // Execute a skill directly (for quick actions that map to skills)
+  const executeSkillDirect = async (skillName, params) => {
+    if (submitting) return;
+
+    try {
+      setSubmitting(true);
+      setLastToolsUsed([skillName]);
+
+      // Get content from article or selected text
+      const textContent = articleStr || '';
+      const skillParamsWithText = { ...params, text: textContent.substring(0, 5000) };
+
+      const result = await skillApi.executeSkill(skillName, skillParamsWithText);
+
+      if (result.success && result.result) {
+        // Format the result for display
+        let responseText = '';
+        const res = result.result.result || result.result;
+
+        if (skillName === 'summarize') {
+          responseText = `**Summary:**\n\n${res.summary || res}`;
+        } else if (skillName === 'grammar_check') {
+          responseText = `**Grammar Check:**\n\n${res.correctedText || ''}\n\n`;
+          if (res.errors && res.errors.length > 0) {
+            responseText += '**Corrections:**\n';
+            res.errors.forEach((err) => {
+              responseText += `- "${err.original}" → "${err.corrected}": ${err.explanation}\n`;
+            });
+          }
+        } else if (skillName === 'explain') {
+          responseText = `**Explanation:**\n\n${res.explanation || res}`;
+        } else if (skillName === 'extract_concepts') {
+          responseText = '**Key Concepts:**\n\n';
+          if (res.nodes) {
+            res.nodes.forEach((node) => {
+              responseText += `- **${node.text}** (${node.type})\n`;
+            });
+          }
+        } else if (skillName === 'search_notes') {
+          responseText = `**Found ${res.resultCount || 0} related notes:**\n\n`;
+          if (res.notes) {
+            res.notes.slice(0, 5).forEach((note) => {
+              responseText += `- **${note.title}**: ${note.content?.substring(0, 100)}...\n`;
+            });
+          }
+        } else {
+          responseText = JSON.stringify(res, null, 2);
+        }
+
+        const botMessage = {
+          id: uuid(),
+          chatId: -1,
+          content: responseText,
+          role: 'assistant',
+          createdAt: new Date(),
+          toolsUsed: [skillName],
+        };
+        setMessages([...messages, botMessage]);
+      } else {
+        showMessage(result.error || 'Skill execution failed', 'error');
+      }
+    } catch (error) {
+      console.error('[Skills] Direct execution error:', error);
+      showMessage(error.message || 'Skill failed', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleQuickAction = async (action) => {
+    // Determine the text to use - selectedText if useSelection flag is set, otherwise articleStr
+    const textToProcess = action.useSelection && selectedText ? selectedText : articleStr;
+
+    // If skill mode is on and action has a skill mapping, execute directly
+    if (skillMode && skillStatus.supportsToolUse && action.skill && textToProcess) {
+      await executeSkillDirect(action.skill, { ...action.skillParams, text: textToProcess });
+    } else {
+      // Regular prompt-based action
+      const promptWithContext = action.useSelection && selectedText
+        ? `${action.prompt}\n\nSelected text:\n"${selectedText}"`
+        : action.prompt;
+      setContent(promptWithContext);
+      setTimeout(() => {
+        submit(true);
+      }, 100);
+    }
+  };
+
   if (!articleStr && !curBook) return (
     <Card>
       <CardContent
@@ -450,11 +937,208 @@ function InContextChatPanel({ articleStr, curBook }) {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)' }}>
-      <Box  ref={componentRef} sx={{ flexGrow: 1, overflow: 'auto', p: 2 }}>
+      {/* Context Indicator with Skill Mode Toggle */}
+      <ContextIndicator>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
+          <PulsingDot />
+          <span>
+            {curBook ? `Reading: ${curBook.title || 'Book'}` : 'Page content loaded'}
+          </span>
+        </Box>
+
+        {/* Skill Mode Toggle */}
+        {skillStatus.supportsToolUse && (
+          <Tooltip title={skillMode ? 'AI Skills Active - Click to disable' : 'Enable AI Skills (summarize, grammar, search notes, etc.)'}>
+            <SkillModeChip
+              icon={<BuildIcon />}
+              label={skillMode ? `Skills (${skillStatus.skillCount})` : 'Skills Off'}
+              active={skillMode ? 1 : 0}
+              onClick={() => setSkillMode(!skillMode)}
+              size="small"
+            />
+          </Tooltip>
+        )}
+      </ContextIndicator>
+
+      {/* Tool Usage Indicator */}
+      <Collapse in={lastToolsUsed.length > 0}>
+        <Box sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+          px: 1.5,
+          py: 0.5,
+          background: theme.palette.mode === 'dark' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(16, 185, 129, 0.05)',
+          borderBottom: `1px solid ${theme.palette.divider}`,
+        }}>
+          <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '10px' }}>
+            Tools used:
+          </Typography>
+          {lastToolsUsed.map((tool, idx) => (
+            <ToolUsageChip
+              key={idx}
+              icon={<AutoFixHighIcon />}
+              label={tool.replace('_', ' ')}
+              size="small"
+            />
+          ))}
+        </Box>
+      </Collapse>
+
+      {/* Loading indicator for skill execution */}
+      {submitting && skillMode && (
+        <LinearProgress sx={{ height: 2 }} />
+      )}
+
+      {/* Selection-aware Quick Actions - shown when text is selected */}
+      {showSelectionHint && selectedText && selectedText.length > 10 && (
+        <Box sx={{
+          p: 1.5,
+          bgcolor: isDark ? 'rgba(99, 102, 241, 0.08)' : 'rgba(99, 102, 241, 0.05)',
+          borderRadius: 1,
+          mx: 1.5,
+          mt: 1,
+          border: '1px dashed',
+          borderColor: isDark ? 'rgba(99, 102, 241, 0.3)' : 'rgba(99, 102, 241, 0.2)',
+        }}>
+          <Typography variant="caption" sx={{ mb: 1, display: 'block', color: 'text.secondary', fontWeight: 500 }}>
+            Selected: "{selectedText.substring(0, 50)}{selectedText.length > 50 ? '...' : ''}"
+          </Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+            {quickActions.slice(0, 5).map((action) => (
+              <QuickActionChip
+                key={`sel-${action.id}`}
+                icon={action.icon}
+                label={action.label}
+                chipcolor={action.color}
+                onClick={() => handleQuickAction({ ...action, useSelection: true })}
+                disabled={submitting}
+                size="small"
+              />
+            ))}
+          </Box>
+        </Box>
+      )}
+
+      {/* Quick Action Chips */}
+      <QuickActionsContainer>
+        {quickActions.map((action) => (
+          <QuickActionChip
+            key={action.id}
+            icon={action.icon}
+            label={action.label}
+            chipcolor={action.color}
+            onClick={() => handleQuickAction(action)}
+            disabled={submitting}
+            size="small"
+          />
+        ))}
+      </QuickActionsContainer>
+
+      <Box ref={componentRef} sx={{ flexGrow: 1, overflow: 'auto', p: 2 }}>
         {/* Main Panel */}
         <Stack spacing={2}>
           {messages?.map((message) => (
-            <MessageItem key={message.id} message={message} />
+            <Box key={message.id}>
+              {/* Render skill results with custom UI */}
+              {message.skillResult ? (
+                <Box
+                  sx={{
+                    p: 2,
+                    borderRadius: 2,
+                    bgcolor: isDark
+                      ? 'rgba(99, 102, 241, 0.08)'
+                      : 'rgba(99, 102, 241, 0.04)',
+                    border: `1px solid ${isDark ? 'rgba(99, 102, 241, 0.2)' : 'rgba(99, 102, 241, 0.15)'}`,
+                  }}
+                >
+                  {/* Skill result header */}
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                    <Box
+                      sx={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: '8px',
+                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'white',
+                        fontSize: 11,
+                        fontWeight: 600,
+                      }}
+                    >
+                      {message.skillResult.skillName === 'analyze_structure' ? '5W' : message.skillResult.skillName === 'quiz_generate' ? 'Q' : message.skillResult.skillName === 'text_simplify' ? 'S' : message.skillResult.skillName === 'mindmap' ? 'M' : 'AI'}
+                    </Box>
+                    <Typography variant="subtitle2" fontWeight={600}>
+                      {message.skillResult.title}
+                    </Typography>
+                  </Box>
+                  {/* Render appropriate component based on skill type */}
+                  {message.skillResult.skillName === 'analyze_structure' && (
+                    <FiveWAnalysisPanel
+                      data={message.skillResult.data}
+                      sentenceCount={message.skillResult.data?.length}
+                      compact
+                    />
+                  )}
+                  {message.skillResult.skillName === 'quiz_generate' && (
+                    <QuizPanel
+                      quiz={message.skillResult.data?.quiz || []}
+                      difficulty={message.skillResult.data?.difficulty}
+                      questionCount={message.skillResult.data?.questionCount}
+                      compact
+                    />
+                  )}
+                  {message.skillResult.skillName === 'text_simplify' && (
+                    <SimplifiedTextPanel
+                      originalText={message.skillResult.data?.originalText}
+                      simplifiedText={message.skillResult.data?.simplifiedText}
+                      targetLevel={message.skillResult.data?.targetLevel}
+                      simplificationRatio={message.skillResult.data?.simplificationRatio}
+                      compact
+                    />
+                  )}
+                  {/* Mind Map rendering */}
+                  {message.skillResult.skillName === 'mindmap' && message.skillResult.data && (
+                    <Box sx={{ width: '100%', height: 220 }}>
+                      <MyMindMap
+                        keywordMap={message.skillResult.data.keywordMap}
+                        descriptionMap={message.skillResult.data.descriptionMap}
+                      />
+                    </Box>
+                  )}
+                  {/* Generic JSON display for other skill results */}
+                  {!['analyze_structure', 'quiz_generate', 'text_simplify', 'mindmap'].includes(message.skillResult.skillName) && (
+                    <Typography variant="body2" component="pre" sx={{ whiteSpace: 'pre-wrap', fontSize: 12 }}>
+                      {JSON.stringify(message.skillResult.data, null, 2)}
+                    </Typography>
+                  )}
+                </Box>
+              ) : (
+                <MessageItem message={message} />
+              )}
+              {/* Show tools used for this message */}
+              {message.toolsUsed && message.toolsUsed.length > 0 && (
+                <Box sx={{ display: 'flex', gap: 0.5, mt: 0.5, ml: 5, flexWrap: 'wrap' }}>
+                  {message.toolsUsed.map((tool, idx) => (
+                    <Chip
+                      key={idx}
+                      icon={<BuildIcon sx={{ fontSize: '10px !important' }} />}
+                      label={tool.replace('_', ' ')}
+                      size="small"
+                      sx={{
+                        height: '18px',
+                        fontSize: '9px',
+                        backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                        color: '#6366f1',
+                        '& .MuiChip-icon': { fontSize: '10px' },
+                      }}
+                    />
+                  ))}
+                </Box>
+              )}
+            </Box>
           ))}
           {messageContent && (
             <MessageItem key={-1} message={{
@@ -465,25 +1149,32 @@ function InContextChatPanel({ articleStr, curBook }) {
               createdAt: null,
             }} />
           )}
-          <CardContent
-            sx={{
-              margin: '2px',
-              width: '100%',
-              height: '260px',
-            }}
-
-          >
-          {mindMapData &&  (<MyMindMap
-              keywordMap={mindMapData}
-              descriptionMap={mindMapDataLarge}
-            />
+          {mindMapData && (
+            <CardContent
+              sx={{
+                margin: '2px',
+                width: '100%',
+                height: '260px',
+              }}
+            >
+              <MyMindMap
+                keywordMap={mindMapData}
+                descriptionMap={mindMapDataLarge}
+              />
+            </CardContent>
           )}
-          </CardContent>
-
         </Stack>
       </Box>
       {/* Bottom Panel */}
-      <Paper sx={{  width: '100%'  }} elevation={3}>
+      <Paper
+        sx={{
+          width: '100%',
+          borderRadius: isDark ? '12px 12px 0 0' : '12px 12px 0 0',
+          background: isDark ? 'rgba(40, 44, 52, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+          backdropFilter: 'blur(10px)',
+        }}
+        elevation={3}
+      >
          <TextField
            sx={{ width: '100%' }}
             fullWidth
@@ -529,21 +1220,21 @@ function InContextChatPanel({ articleStr, curBook }) {
           </Grid>
           <Grid item>
              <ButtonGroup  aria-label="control group">
-              <Tooltip title="Ask ChatGPT Using Current Article">
+              <Tooltip title={skillMode ? "Send with AI Skills (context-aware)" : "Ask AI Using Current Article"}>
                 <IconButton
                   size="small"
-                  color="primary"
+                  color={skillMode ? "secondary" : "primary"}
                   onClick={()=>submit(true)}
                   disabled={submitting}
                 >
-                  <SendAndArchiveIcon  fontSize="small" />
+                  {skillMode ? <AutoFixHighIcon fontSize="small" /> : <SendAndArchiveIcon fontSize="small" />}
                 </IconButton>
               </Tooltip>
-              <Tooltip title="Ask ChatGPT">
+              <Tooltip title="Ask AI (without article context)">
                 <IconButton
                   size="small"
                   color="primary"
-                  onClick={()=>submit(true)}
+                  onClick={()=>submit(false)}
                   disabled={submitting}
                 >
                   <SendIcon  fontSize="small" />

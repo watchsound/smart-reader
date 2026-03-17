@@ -23,7 +23,7 @@ function RightCollapsibleLayout({ mainPanel, rightPanel, heightAdjust, rightPane
 
   const panelStyle = {
     height: heightAdjust ? `calc(100vh - ${heightAdjust})` : '100vh',
-    overflow: 'auto',
+    overflow: 'hidden',
     width: `${rightPanelWidth}px`,
     minWidth: `${rightPanelWidth}px`,
     transition: 'transform  0.3s ease',
@@ -34,6 +34,9 @@ function RightCollapsibleLayout({ mainPanel, rightPanel, heightAdjust, rightPane
     flexGrow: 1,
     transition: 'margin-right 0.3s ease',
     marginRight: open ? '0' : '0',// Space for the toggle button
+    overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
    // width:  open ? `calc(100% -${rightPanelWidth}px)` : '100%',
   };
 

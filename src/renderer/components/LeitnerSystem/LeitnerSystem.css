@@ -1,13 +1,457 @@
-.box-container {
-    min-height: 320px; /* Set a minimum height for the box */
-    /* max-height: 400px;  Set a max height for the box */
-    overflow-y: auto;
-    overflow-x: hidden; /* Allow scrolling if content exceeds max height */
-    padding: 16px;
-    border: 1px solid #ccc;
-    border-radius: 8px;
-    background-color: #f9f9f9;
+/* ============================================
+   LEITNER SYSTEM V2 - New Layout
+   ============================================ */
+
+.leitner-container-v2 {
+  width: 100%;
+  min-height: 500px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+/* ============================================
+   WORKING STAGE - Main Card Area
+   ============================================ */
+
+.working-stage-card {
+  position: relative;
+  z-index: 1;
+  transition: all 0.3s ease;
+}
+
+/* Card entrance animation */
+@keyframes cardSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateY(30px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.working-stage-card {
+  animation: cardSlideIn 0.4s ease-out;
+}
+
+/* Flying out forward (correct - advancing) */
+@keyframes workingStageOutForward {
+  0% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: translateX(100px) scale(0.9) rotate(5deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(250px) scale(0.7) rotate(10deg);
+  }
+}
+
+.working-stage-card.card-fly-out-forward {
+  animation: workingStageOutForward 0.5s cubic-bezier(0.4, 0.0, 0.2, 1) forwards;
+}
+
+/* Flying out backward (incorrect - back to box 1) */
+@keyframes workingStageOutBackward {
+  0% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  30% {
+    transform: translateX(20px);
+  }
+  50% {
+    opacity: 0.7;
+    transform: translateX(-100px) scale(0.9) rotate(-5deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-250px) scale(0.7) rotate(-10deg);
+  }
+}
+
+.working-stage-card.card-fly-out-backward {
+  animation: workingStageOutBackward 0.5s cubic-bezier(0.4, 0.0, 0.2, 1) forwards;
+}
+
+/* Flying in animation */
+@keyframes workingStageIn {
+  0% {
+    opacity: 0;
+    transform: translateY(50px) scale(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.working-stage-card.card-fly-in {
+  animation: workingStageIn 0.4s ease-out;
+}
+
+/* ============================================
+   BOX PROGRESSION TRACK
+   ============================================ */
+
+/* Box receiving animation */
+@keyframes boxReceive {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 currentColor;
+  }
+  50% {
+    transform: scale(1.15);
+    box-shadow: 0 0 20px 5px currentColor;
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 currentColor;
+  }
+}
+
+.box-receiving {
+  animation: boxReceive 0.6s ease-out;
+}
+
+/* Active box pulse */
+@keyframes activeBoxPulse {
+  0%, 100% {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  }
+  50% {
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+  }
+}
+
+/* ============================================
+   LEGACY STYLES (for backward compatibility)
+   ============================================ */
+
+.leitner-container {
+  width: 100%;
+  padding: 16px;
+  min-height: fit-content;
+}
+
+.leitner-box {
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.leitner-box:hover {
+  transform: translateY(-4px);
+}
+
+/* ============================================
+   BOX ARROW - Connection Between Boxes
+   ============================================ */
+
+.box-arrow {
+  transition: all 0.3s ease;
+}
+
+.box-arrow:hover {
+  transform: translateY(-50%) scale(1.2);
+}
+
+/* Arrow animation when card moves */
+@keyframes arrowPulse {
+  0%, 100% {
+    transform: translateY(-50%) scale(1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translateY(-50%) scale(1.3);
+    opacity: 1;
+  }
+}
+
+.box-arrow.active {
+  animation: arrowPulse 0.5s ease-out;
+}
+
+/* ============================================
+   RESPONSIVE ADJUSTMENTS
+   ============================================ */
+
+@media (max-width: 1200px) {
+  .leitner-container,
+  .leitner-container-v2 {
+    padding: 12px;
+  }
+}
+
+@media (max-width: 960px) {
+  .leitner-box {
+    width: calc(50% - 8px) !important;
+    min-width: 180px !important;
+  }
+
+  .box-arrow {
+    display: none !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .leitner-box {
+    width: 100% !important;
+    max-width: 100% !important;
     margin-bottom: 16px;
-    display: flex;
-    flex-direction: column;
+  }
+
+  .working-stage-card {
+    transform: scale(0.95);
+  }
+}
+
+/* ============================================
+   BOX HEADER EFFECTS
+   ============================================ */
+
+.leitner-box:hover .box-header {
+  filter: brightness(1.1);
+}
+
+/* ============================================
+   STACKED CARD EFFECT
+   ============================================ */
+
+/* When cards are added, show a brief stack animation */
+@keyframes stackIn {
+  0% {
+    transform: translateY(-20px) scale(0.9);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+.card-stack-layer {
+  animation: stackIn 0.3s ease-out;
+}
+
+/* ============================================
+   EMPTY STATE STYLING
+   ============================================ */
+
+.empty-box svg {
+  transition: all 0.3s ease;
+}
+
+.leitner-box:hover .empty-box svg {
+  transform: scale(1.1);
+}
+
+/* ============================================
+   CELEBRATION ANIMATION (for mastered cards)
+   ============================================ */
+
+@keyframes celebrate {
+  0% {
+    transform: scale(1);
+  }
+  10% {
+    transform: scale(1.05) rotate(-3deg);
+  }
+  20% {
+    transform: scale(1.05) rotate(3deg);
+  }
+  30% {
+    transform: scale(1.05) rotate(-3deg);
+  }
+  40% {
+    transform: scale(1.05) rotate(3deg);
+  }
+  50% {
+    transform: scale(1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.celebrate {
+  animation: celebrate 0.6s ease-out;
+}
+
+/* Confetti effect (triggered via JS) */
+@keyframes confetti {
+  0% {
+    transform: translateY(0) rotate(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-100px) rotate(720deg);
+    opacity: 0;
+  }
+}
+
+.confetti-particle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  animation: confetti 1s ease-out forwards;
+}
+
+/* ============================================
+   PROGRESS DOTS
+   ============================================ */
+
+@keyframes dotPulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+}
+
+.progress-dot-active {
+  animation: dotPulse 1.5s ease-in-out infinite;
+}
+
+/* ============================================
+   SUCCESS/ERROR FEEDBACK
+   ============================================ */
+
+@keyframes successGlow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.6);
+  }
+  50% {
+    box-shadow: 0 0 30px 10px rgba(76, 175, 80, 0.3);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(76, 175, 80, 0);
+  }
+}
+
+@keyframes errorShake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-8px);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(8px);
+  }
+}
+
+.success-glow {
+  animation: successGlow 0.6s ease-out;
+}
+
+.error-shake {
+  animation: errorShake 0.5s ease-out;
+}
+
+/* ============================================
+   ACCESSIBILITY
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .leitner-box,
+  .box-arrow,
+  .card-stack-layer,
+  .empty-box svg,
+  .working-stage-card {
+    transition: none;
+    animation: none;
+  }
+
+  .leitner-box:hover {
+    transform: none;
+  }
+
+  .celebrate,
+  .confetti-particle,
+  .progress-dot-active,
+  .box-receiving {
+    animation: none;
+  }
+
+  .working-stage-card.card-fly-out-forward,
+  .working-stage-card.card-fly-out-backward,
+  .working-stage-card.card-fly-in {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ============================================
+   DARK MODE SPECIFIC STYLES
+   ============================================ */
+
+@media (prefers-color-scheme: dark) {
+  .box-container {
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+}
+
+/* ============================================
+   PRINT STYLES
+   ============================================ */
+
+@media print {
+  .leitner-container,
+  .leitner-container-v2 {
+    display: block;
+  }
+
+  .leitner-box {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin-bottom: 20px;
+  }
+
+  .box-arrow {
+    display: none;
+  }
+}
+
+/* ============================================
+   LEGACY - Box Container (for backward compat)
+   ============================================ */
+
+.box-container {
+  min-height: 280px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 16px;
+  border-radius: 16px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.3s ease;
+}
+
+.two_end_container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.two_end_start {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.two_end_end {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }

@@ -7,7 +7,7 @@ export default class GeminiProvider extends AIProviderInterface {
   constructor(apiKey, model) {
     super(0, false);
     this.apiKey = apiKey;
-    this.model = model || 'gemini-1.5-flash';
+    this.model = model || 'gemini-2.5-flash';
   }
 
   createModel() {
@@ -65,7 +65,7 @@ export default class GeminiProvider extends AIProviderInterface {
     const chat = gemini.startChat({
       history: geminiHistory,
       generationConfig: {
-        maxOutputTokens: configs.maxOutputTokens || 100,
+        maxOutputTokens: configs?.maxOutputTokens || 8192,
       },
     });
     const result = await chat.sendMessage(message);
@@ -112,17 +112,32 @@ export default class GeminiProvider extends AIProviderInterface {
 
   async generateChatStream(history, message) {
     const gemini = this.createModel();
-    const geminiHistory = history.map((m) => {
-      const role = m.role === 'system' ? 'model' : m.role; // 'user'
-      return { role, parts: [{ text: m.content }] };
-    });
-    if (message) {
-      geminiHistory.push({
-        role: 'user', parts: [{ text: message }]
-      });
+
+    // Separate history from the last user message
+    // The last message in history should be sent via sendMessageStream
+    const geminiHistory = [];
+    let lastUserMessage = message;
+
+    for (let i = 0; i < history.length; i++) {
+      const m = history[i];
+      const role = m.role === 'system' ? 'model' : m.role;
+
+      // If this is the last message and it's from user, use it as the message to send
+      if (i === history.length - 1 && m.role === 'user' && !message) {
+        lastUserMessage = m.content;
+      } else {
+        geminiHistory.push({ role, parts: [{ text: m.content }] });
+      }
     }
-    // Use streaming with multi-turn conversations (like chat)
-    const result = await gemini.sendMessageStream(geminiHistory);
+
+    // Start a chat with the history (excluding the last user message)
+    const chat = gemini.startChat({
+      history: geminiHistory,
+    });
+
+    // Use streaming to send the last user message
+    const result = await chat.sendMessageStream(lastUserMessage);
+
     return {
       stream: (async function* () {
         for await (const chunk of result.stream) {

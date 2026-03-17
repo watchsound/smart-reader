@@ -351,10 +351,918 @@ Please provide the layout information for each card in JSON format. Here's a sam
 
 const createDecomposeParagraphPrompt = (content) => {
   return `
-    I need to divide a paragraph into meaningful sections and assign each section to a card from a stack. Each section should be of a moderate length, not  too long, it should represent a clear topic for easy understanding. Please provide the breakdown in JSON format like this: {'data': [{'card_index': 0, 'content': 'xxxx'}, {'card_index': 1, 'content': 'xxx'}]}.
+    I need to divide a paragraph into meaningful sections and assign each section to a card for a slide presentation. Each section should be of a moderate length, not too long, and represent a clear topic for easy understanding.
+
+    You can use simple HTML tags to format and decorate the content for better visual presentation:
+    - Use <strong> or <b> for emphasis on key terms
+    - Use <em> or <i> for italics
+    - Use <ul><li>...</li></ul> for bullet lists
+    - Use <ol><li>...</li></ol> for numbered lists
+    - Use <table><tr><td>...</td></tr></table> for simple tables
+    - Use <h3> or <h4> for section headings within a card
+    - Use <br> for line breaks
+    - Use <span style="color:#xxx"> for colored text highlights
+
+    Also suggest a layout theme for the presentation based on the content type. Available themes:
+    - "spiral": Good for exploratory or expanding topics
+    - "linear": Good for sequential, step-by-step content
+    - "grid": Good for comparisons, lists, or structured data
+    - "circular": Good for cyclical processes or related concepts
+    - "depth_zoom": Good for drilling into details or hierarchical content
+    - "storytelling": Good for narratives with beginning, middle, end
+    - "random_walk": Good for creative or diverse topics
+
+    Please provide the breakdown in JSON format like this:
+    {
+      'layout_theme': 'storytelling',
+      'data': [
+        {'card_index': 0, 'content': '<h4>Title</h4><p>Description...</p>'},
+        {'card_index': 1, 'content': '<ul><li>Point 1</li><li>Point 2</li></ul>'}
+      ]
+    }
 
     ${content}
   `;
+};
+
+/**
+ * Creates a prompt for generating vocabulary-constrained summaries
+ * The AI must use words from the original text + learning vocabulary
+ * Returns JSON with summary words and their source locations
+ *
+ * @param {string} text - The selected text to summarize
+ * @param {string[]} vocabularyWords - User's learning vocabulary words
+ * @returns {string} - The prompt for AI
+ */
+const createSmartSummaryPrompt = (text, vocabularyWords = []) => {
+  const vocabList = vocabularyWords.length > 0
+    ? `\n\nLearning Vocabulary (MUST include at least 2-3 of these words if they fit naturally):\n${vocabularyWords.join(', ')}`
+    : '';
+
+  return `You are a study assistant helping students learn through visual word association.
+
+TASK: Create a concise summary (1-2 sentences, max 20 words) of the following text.
+
+CRITICAL RULES:
+1. Use ONLY words that appear in the original text OR from the Learning Vocabulary list
+2. Do NOT add any new words, synonyms, or paraphrases
+3. The summary must be grammatically correct
+4. Prioritize including Learning Vocabulary words when they fit naturally
+${vocabList}
+
+TEXT TO SUMMARIZE:
+"""
+${text}
+"""
+
+Respond in JSON format:
+{
+  "summary": "Your summary here using only words from the source",
+  "words": ["array", "of", "each", "word", "in", "summary"],
+  "vocabularyUsed": ["words", "from", "learning", "vocabulary", "that", "were", "used"]
+}
+
+Remember: Every word in your summary MUST exist in the original text or the Learning Vocabulary list. No exceptions.`;
+};
+
+/**
+ * Creates a prompt for extracting entities and relationships to build a mindmap
+ * @param {string} text - The source text to analyze
+ * @returns {string} - The prompt for the AI
+ */
+const createMindmapExtractionPrompt = (text) => {
+  return `You are a knowledge extraction assistant helping students understand text through visual mindmaps.
+
+TASK: Extract key entities and their relationships from the following text to create a mindmap structure.
+
+RULES:
+1. Identify the MAIN CONCEPT (central topic) - this becomes the root node
+2. Extract KEY ENTITIES: people, concepts, places, events, objects (max 8 entities)
+3. Identify RELATIONSHIPS between entities (verbs, prepositions that connect them)
+4. Each entity text should be SHORT (1-3 words, use the exact words from text when possible)
+5. Assign entity types: "person", "concept", "place", "event", "object"
+6. Structure should be hierarchical: root -> level1 -> level2 (max 2 levels deep)
+
+TEXT TO ANALYZE:
+"""
+${text}
+"""
+
+Respond in JSON format:
+{
+  "title": "Brief title for the mindmap",
+  "root": {
+    "id": "root",
+    "text": "Main concept (1-3 words)",
+    "type": "concept"
+  },
+  "nodes": [
+    { "id": "n1", "text": "Entity text", "type": "person|concept|place|event|object", "level": 1, "sourcePhrase": "original phrase from text" },
+    { "id": "n2", "text": "Entity text", "type": "concept", "level": 1, "sourcePhrase": "original phrase" },
+    { "id": "n3", "text": "Sub-entity", "type": "event", "level": 2, "parentId": "n1", "sourcePhrase": "original phrase" }
+  ],
+  "edges": [
+    { "from": "root", "to": "n1", "relation": "verb or preposition connecting them" },
+    { "from": "root", "to": "n2", "relation": "relationship word" },
+    { "from": "n1", "to": "n3", "relation": "relationship word" }
+  ]
+}
+
+IMPORTANT:
+- Keep it simple: 4-8 nodes total (not counting root)
+- Use EXACT words from the source text for "sourcePhrase"
+- Relations should be single words or short phrases (1-3 words)
+- Level 1 nodes connect to root, Level 2 nodes connect to their parentId`;
+};
+
+/**
+ * Create prompt for entity resolution / coreference resolution
+ * Identifies entities and all their references in the text
+ */
+const createEntityResolutionPrompt = (text) => {
+  return `You are a coreference resolution assistant helping students understand entity references in text.
+
+TASK: Identify all entities mentioned in the text and group together all references to the same entity.
+
+RULES:
+1. An ENTITY is a person, organization, place, concept, or thing that is referred to multiple times
+2. A REFERENCE is any word or phrase that refers to an entity (names, pronouns, descriptions)
+3. Group all references that refer to the SAME entity together
+4. Use EXACT text from the source - match the exact words/phrases as they appear
+5. Include the character position (start index) of each reference for precise matching
+6. Only include entities that have 2+ references (single mentions are not useful for linking)
+7. Assign each entity a type: "person", "organization", "place", "concept", "thing"
+
+TEXT TO ANALYZE:
+"""
+${text}
+"""
+
+Respond in JSON format:
+{
+  "entities": [
+    {
+      "id": "e1",
+      "canonicalName": "Main name for this entity",
+      "type": "person|organization|place|concept|thing",
+      "references": [
+        { "text": "exact text from source", "startIndex": 0 },
+        { "text": "another reference", "startIndex": 45 },
+        { "text": "pronoun or description", "startIndex": 89 }
+      ]
+    },
+    {
+      "id": "e2",
+      "canonicalName": "Another entity",
+      "type": "concept",
+      "references": [
+        { "text": "first mention", "startIndex": 20 },
+        { "text": "second mention", "startIndex": 120 }
+      ]
+    }
+  ]
+}
+
+EXAMPLE:
+Text: "Einstein published his theory in 1905. The physicist later won the Nobel Prize. He changed physics forever."
+
+Result:
+{
+  "entities": [
+    {
+      "id": "e1",
+      "canonicalName": "Albert Einstein",
+      "type": "person",
+      "references": [
+        { "text": "Einstein", "startIndex": 0 },
+        { "text": "his", "startIndex": 19 },
+        { "text": "The physicist", "startIndex": 39 },
+        { "text": "He", "startIndex": 81 }
+      ]
+    }
+  ]
+}
+
+IMPORTANT:
+- Only include entities with 2+ references
+- Use EXACT text matches from the source
+- startIndex must be accurate character positions
+- Maximum 6 entities to avoid visual clutter`;
+};
+
+/**
+ * NLP Annotation Prompt - Tokenization, POS tagging, NER, dependency parsing
+ * Used by TranslateSkill for linguistic analysis
+ * @param {string} sentence - The sentence to analyze
+ * @returns {string} - The prompt for NLP analysis
+ */
+const getNLPAnnotationPrompt = (sentence) => {
+  return `
+please finish initial step of NLP :  tokenize sentence and assign POS tag for each token. also analysis Named Entity, DEPENDENCY, COREFERENCE.  Response in JSON data. Here is an example:
+
+{
+  "sentence": "I voted for Trump as he was smart.",
+  "tokens": [
+    {
+      "text": "I",
+      "pos": "PRP",
+      "ner": "O",
+      "dependency": "nsubj",
+      "index": 1,
+      "head": "voted"
+    },
+    {
+      "text": "voted",
+      "pos": "VBD",
+      "ner": "O",
+      "dependency": "ROOT",
+      "index": 2,
+      "head": "ROOT"
+    },
+    {
+      "text": "for",
+      "pos": "IN",
+      "ner": "O",
+      "dependency": "prep",
+      "index": 3,
+      "head": "voted"
+    },
+    {
+      "text": "Trump",
+      "pos": "NNP",
+      "ner": "PERSON",
+      "dependency": "pobj",
+      "index": 4,
+      "head": "for"
+    },
+    {
+      "text": "as",
+      "pos": "IN",
+      "ner": "O",
+      "dependency": "mark",
+      "index": 5,
+      "head": "smart"
+    },
+    {
+      "text": "he",
+      "pos": "PRP",
+      "ner": "O",
+      "dependency": "nsubj",
+      "index": 6,
+      "head": "smart"
+    },
+    {
+      "text": "was",
+      "pos": "VBD",
+      "ner": "O",
+      "dependency": "cop",
+      "index": 7,
+      "head": "smart"
+    },
+    {
+      "text": "smart",
+      "pos": "JJ",
+      "ner": "O",
+      "dependency": "advcl",
+      "index": 8,
+      "head": "voted"
+    },
+    {
+      "text": ".",
+      "pos": ".",
+      "ner": "O",
+      "dependency": "punct",
+      "index": 9,
+      "head": "voted"
+    }
+  ],
+  "coreferences": [
+    {
+      "coref_chain": 1,
+      "mentions": [
+        {
+          "text": "Trump",
+          "start_index": 4,
+          "end_index": 4,
+          "type": "proper"
+        },
+        {
+          "text": "he",
+          "start_index": 6,
+          "end_index": 6,
+          "type": "pronoun"
+        }
+      ]
+    }
+  ]
+}
+
+Here is the sentence for analysis:
+
+${sentence}
+
+  `;
+};
+
+/**
+ * Translation Prompt - Multi-step translation learning (Chinese/Japanese to English)
+ * Used by TranslateSkill for structured translation guidance
+ * @param {string} sentence - The sentence to translate
+ * @param {string} language - Source language ('Chinese' or 'Japanese')
+ * @returns {string} - The prompt for translation
+ */
+const getTranslatePrompt = (sentence, language) => {
+  return `
+
+You are a language expert, adept at teaching students how to translate from ${language} to English.
+
+The difference between ${language} and English expression lies in that ${language} often emphasize an entire scene for a single sentence, where the elements within the scene lack prominent logic relationships. In contrast, English states a fact in a single sentence, unfolding from the core scalfold of actor-action-result.
+To overcome the cognitive differences between ${language} and English, when translating from ${language} to English, we need to first extract the basic subject-verb-object structure from ${language} and then expand it into English expression.
+
+###
+A. step-1: Extract the basic subject-verb-object structure from ${language} sentence.
+If there exists more than one sub-verb-obj structures, list all of them.
+
+B. step-2: Consider the extracted verbs, and think about their corresponding English verb phrase expressions. If there are several options,
+choose one that conforms to English expression conventions.
+
+C. step-3: Write down scaffold of english expression. If there are several options, choose one that conforms to English expression conventions.
+ Select sentence structure from common English sentence patterns.
+
+D. step-4: Think about most suitable sentence pattern which will be used for the final translated whole sentence.
+Here are list of common patterns:
+1. 简单句 (Simple Sentence)
+2. 并列句 (Compound Sentence)
+3. 复合句 (Complex Sentence)
+4. 并列复合句 (Compound-Complex Sentence)
+5. 定语从句 (Relative Clause)
+6. 名词从句 (Noun Clause)
+7. 状语从句 (Adverbial Clause)
+8. 直接引语和间接引语 (Direct and Indirect Speech)
+9. 祈使句 (Imperative Sentence)
+10. 感叹句 (Exclamatory Sentence)
+11. 被动语态 (Passive Voice)
+12. 比较级和最高级 (Comparative and Superlative)
+13. 条件句 (Conditional Sentence)
+14. 分词结构 (Participle Construction)
+
+E. step-5:  Expand from the basic framework to include time, place, and modifiers (adverbs and adjectives).
+
+Response with JSON object, here is an sample response:
+{
+    "input-sentence" : "图书馆的二楼有很多书",
+    "step-1" :{
+       "title" : ${language === 'Chinese' ? '"提取句子的主谓宾基本结构"' : '"文の主語・述語・目的語の基本構造を抽出する"'},
+       "sub-verb-obj-list": [
+          {
+            "subject" : {
+                "input" : "二楼",
+                "english" : "the second floor"
+            },
+              "verb" : {
+                "input" : "有",
+                "english" : [ "has", "there are" ]
+            },
+            "object" : {
+                "input" : "书",
+                "english" : "books"
+            }
+          }
+        ],
+        "explain" : "This step abstracts the basic elements of the event."
+    },
+    "step-2" :{
+       "title" : ${language === 'Chinese' ? '"考察谓语动词"' : '"述語動詞を考察する"'},
+        "input-verb-list" : [
+          {
+            "input-verb" : "有",
+            "english-verb-options": [ "has", "there are" ]
+          }
+        ],
+
+       "explain" : "'There are' is commonly used in this scenes."
+    },
+    "step-3" :{
+       "title" :  ${language === 'Chinese' ? '"选择相应英语翻译的基本结构"' : '"対応する英語翻訳の基本構造を選択する"'},
+       "scaffold-options":
+         [
+         "The second floor has books",
+         "There are books on the second floor."
+         ],
+       "best-scaffold" : "There are books on the second floor.",
+       "explain" : ""
+    },
+    "step-4" :{
+       "title" : ${language === 'Chinese' ? '"选择句型结构类项"' : '"文型構造のカテゴリーを選択する"'},
+       "sentence-structure" : "Simple Sentence",
+       "explain" : ""
+    },
+     "step-5" :{
+       "title" : ${language === 'Chinese' ? '"从句子的基本结构扩展为完整句子"' : '"文の基本構造から完全な文へと拡張する"'},
+       "output" : "There are many books on the second floor of the library.",
+       "explain" : ""
+    }
+}
+
+
+NOTE: Attribute values  of "explain" in JSON should use ${language} to express.
+
+###
+Using this approach, please explain the following ${language}-to-English translation:
+
+${sentence}
+  `;
+};
+
+/**
+ * Verb Comparison Prompt - Compare usage of two English verbs
+ * Used by VerbCompareSkill
+ * @param {string} verb1 - First verb to compare
+ * @param {string} verb2 - Second verb to compare
+ * @param {string} language - Language for explanation
+ * @returns {string} - The prompt for verb comparison
+ */
+const getVerbComparisonPrompt = (verb1, verb2, language) => {
+  return `
+     Please compare the different usage of two English verbs, "${verb1}" and "${verb2}", and provide examples. The word count should not be less than 100 words.
+     Please explain in ${language} language.
+  `;
+};
+
+/**
+ * Verb Explanation Prompt - Describe usage of an English verb
+ * @param {string} verb - The verb to explain
+ * @param {string} language - Language for explanation
+ * @returns {string} - The prompt for verb explanation
+ */
+const getVerbExplainedPrompt = (verb, language) => {
+  return `
+     Please describe usage of English verb: "${verb}", and provide examples. The word count should not be less than 100 words.
+     Please explain in ${language} language.
+  `;
+};
+
+/**
+ * Format episodes for the consolidation prompt
+ * @param {Array} episodes - Array of episode objects
+ * @returns {string} - Formatted episode timeline
+ */
+const formatEpisodesForConsolidation = (episodes) => {
+  return episodes.map((ep, i) => {
+    const time = new Date(ep.timestamp || ep.t_valid).toLocaleString();
+    const payload = ep.payload || {};
+    const parts = [`[${i + 1}] ${time} - ${ep.eventType}`];
+
+    // Add relevant details based on event type
+    if (payload.wasCorrect !== undefined) {
+      parts.push(payload.wasCorrect ? 'Correct' : 'Incorrect');
+    }
+    if (payload.rating) {
+      parts.push(`(rating: ${payload.rating})`);
+    }
+    if (payload.hintUsed) {
+      parts.push('[hint used]');
+    }
+    if (payload.newBox !== undefined) {
+      parts.push(`→ Box ${payload.newBox}`);
+    }
+    if (payload.previousBox !== undefined && payload.newBox !== undefined) {
+      parts.push(`(from Box ${payload.previousBox})`);
+    }
+    if (payload.responseTimeMs) {
+      parts.push(`[${payload.responseTimeMs}ms]`);
+    }
+
+    return parts.join(' ');
+  }).join('\n');
+};
+
+/**
+ * Creates a prompt for LLM-powered memory consolidation
+ * Analyzes learning episodes and synthesizes into a consolidated memory
+ *
+ * @param {Array} episodes - Array of episode objects with payloads
+ * @param {string} conceptName - Name of the concept being learned
+ * @param {Object} processAnalysis - Learning process analysis from ConsolidationService
+ * @returns {string} - The prompt for memory synthesis
+ */
+const createMemoryConsolidationPrompt = (episodes, conceptName, processAnalysis = null) => {
+  const episodesSummary = formatEpisodesForConsolidation(episodes);
+
+  const processContext = processAnalysis ? `
+Learning Process Analysis:
+- Total reviews: ${processAnalysis.totalReviews || episodes.length}
+- Correct answers: ${processAnalysis.correctCount || 0}
+- Incorrect answers: ${processAnalysis.incorrectCount || 0}
+- Accuracy: ${processAnalysis.accuracy || 0}%
+- Box progression: ${JSON.stringify(processAnalysis.boxProgression || [])}
+- Struggle patterns detected: ${(processAnalysis.strugglePatterns || []).length}
+- Cramming detected: ${processAnalysis.isCramming ? 'Yes' : 'No'}
+- Average response time: ${processAnalysis.avgResponseTimeMs || 'N/A'}ms
+- Hints used: ${processAnalysis.hintUsage || 0}
+` : '';
+
+  return `You are a learning analytics assistant analyzing a student's learning session.
+
+TASK: Synthesize the following learning episodes for the concept "${conceptName}" into a consolidated memory that captures the learner's journey.
+
+${processContext}
+
+Episode Timeline (chronologically ordered):
+${episodesSummary}
+
+ANALYSIS REQUIREMENTS:
+1. Describe the learner's progression over time (did they improve? plateau? struggle then breakthrough?)
+2. Identify patterns in struggle/success (what was difficult? what clicked?)
+3. Assess learning style indicators (quick learner, needs repetition, steady progress, variable performance)
+4. Note any significant moments (breakthroughs, persistent struggles, cramming behavior)
+
+Respond in JSON format:
+{
+  "summary": "2-3 sentence narrative describing the learning journey for this concept. Be specific about what happened.",
+  "keyInsights": [
+    "Specific insight about how learning progressed",
+    "Pattern observation (e.g., 'struggled initially but improved after 3rd attempt')",
+    "Notable behavior or trend"
+  ],
+  "masteryAssessment": "beginner|developing|proficient|mastered",
+  "learningStyle": "quick|steady|needs-repetition|variable",
+  "progressionNarrative": "Brief story (1-2 sentences) of how understanding developed over this session",
+  "strugglingAreas": ["specific difficulty 1", "specific difficulty 2"],
+  "breakthroughMoments": ["when understanding clicked", "turning point moment"],
+  "recommendations": ["actionable suggestion based on patterns observed"],
+  "metrics": {
+    "totalReviews": ${processAnalysis?.totalReviews || episodes.length},
+    "correctRate": ${processAnalysis?.accuracy || 0},
+    "averageResponseTimeMs": ${processAnalysis?.avgResponseTimeMs || 0},
+    "consistencyScore": "0-100 based on variance in performance (100=very consistent, 0=highly variable)"
+  }
+}
+
+IMPORTANT:
+- Be concise but specific in your analysis
+- Base insights ONLY on the episode data provided
+- If insufficient data, note this in the summary
+- masteryAssessment should reflect the END state of the learning session
+- learningStyle should reflect the PATTERN of learning observed`;
+};
+
+/**
+ * Create a prompt for LLM-based answer verification for STEM problems.
+ * The LLM evaluates whether the student's answer is correct, provides
+ * partial credit assessment, and gives constructive feedback.
+ *
+ * @param {Object} params
+ * @param {string} params.problem - The original problem/question
+ * @param {string} params.studentAnswer - The student's submitted answer
+ * @param {string} params.correctAnswer - The expected correct answer (if available)
+ * @param {string} params.domain - Domain type (math, physics, chemistry, programming, etc.)
+ * @param {string} params.itemType - Item type (formula, problem, code, etc.)
+ * @param {Object} params.variables - Variables from the problem (if any)
+ * @param {string} params.solution - Step-by-step solution (if available)
+ * @returns {string} The verification prompt
+ */
+const createAnswerVerificationPrompt = ({
+  problem,
+  studentAnswer,
+  correctAnswer = null,
+  domain = 'general',
+  itemType = 'problem',
+  variables = null,
+  solution = null,
+}) => {
+  const domainGuidance = {
+    math: `
+- Accept mathematically equivalent expressions (e.g., "1/2" = "0.5" = "50%")
+- Accept different forms of the same answer (e.g., "x=5" = "5" for solving equations)
+- Check for correct units if specified
+- Evaluate intermediate steps if showing work`,
+    physics: `
+- Check for correct units (SI or specified)
+- Accept reasonable numerical approximations
+- Evaluate vector notation if applicable
+- Consider significant figures if specified`,
+    chemistry: `
+- Check chemical formula notation
+- Verify stoichiometry if relevant
+- Accept equivalent notations (e.g., molecular formulas)`,
+    programming: `
+- Focus on correctness of logic, not exact syntax
+- Accept equivalent algorithms
+- Check for edge case handling if specified
+- Evaluate time/space complexity claims if relevant`,
+    general: `
+- Compare semantic meaning, not exact wording
+- Accept equivalent expressions`,
+  };
+
+  const guidance = domainGuidance[domain] || domainGuidance.general;
+
+  let variablesSection = '';
+  if (variables && Array.isArray(variables) && variables.length > 0) {
+    variablesSection = `
+Given Variables:
+${variables.map((v) => `- ${v.symbol}: ${v.meaning}${v.value ? ` = ${v.value}` : ''}`).join('\n')}
+`;
+  }
+
+  let correctAnswerSection = '';
+  if (correctAnswer) {
+    correctAnswerSection = `
+Expected Answer:
+${correctAnswer}
+`;
+  }
+
+  let solutionHint = '';
+  if (solution) {
+    solutionHint = `
+Reference Solution (for verification context only):
+${solution.substring(0, 500)}${solution.length > 500 ? '...' : ''}
+`;
+  }
+
+  return `You are an expert ${domain} tutor evaluating a student's answer. Your task is to:
+1. Determine if the student's answer is correct
+2. Assess partial credit if applicable
+3. Provide constructive, encouraging feedback
+4. Suggest a hint for improvement if incorrect
+
+Domain: ${domain}
+Item Type: ${itemType}
+
+${guidance}
+
+Problem/Question:
+${problem}
+${variablesSection}${correctAnswerSection}
+Student's Answer:
+${studentAnswer}
+${solutionHint}
+Evaluate the student's answer and respond in JSON format:
+
+{
+  "correct": true/false,
+  "confidence": 0.0-1.0,
+  "partialCredit": 0-100,
+  "equivalentToExpected": true/false,
+  "explanation": "Brief explanation of why the answer is correct/incorrect",
+  "feedback": "Encouraging, constructive feedback for the student",
+  "errors": ["List specific errors if any"],
+  "suggestedHint": "A hint to help if incorrect (null if correct)",
+  "workingShown": true/false,
+  "conceptsApplied": ["List of correctly applied concepts"],
+  "conceptsMissing": ["List of concepts not applied or misunderstood"]
+}
+
+IMPORTANT:
+- Be encouraging even for incorrect answers
+- Focus on understanding, not just the final number
+- Give partial credit for correct methodology with calculation errors
+- "confidence" reflects how certain you are in your evaluation (1.0 = very certain)
+- If the student shows their work, evaluate the process not just the final answer
+- Accept mathematically/logically equivalent answers as correct`;
+};
+
+/**
+ * Creates a prompt for LLM-driven schedule reconciliation
+ * The LLM analyzes learner context and provides personalized scheduling decisions
+ *
+ * @param {Object} context - Context object containing learner data
+ * @param {string} context.planName - Name of the learning plan
+ * @param {string} context.domainType - Domain type (vocabulary, math, etc.)
+ * @param {Object} context.profile - Learner profile with forgetting curve, optimal timing
+ * @param {Array} context.overdueItems - Array of overdue items with decay calculations
+ * @param {Object} context.gapAnalysis - Analysis of the learning gap
+ * @param {Array} context.crossConceptPatterns - Cross-concept patterns (prerequisites, interference)
+ * @param {Object} context.recentMemory - Recent consolidated memory summary
+ * @param {Object} context.sessionContext - Current session context (time of day, previous sessions)
+ * @returns {string} - The prompt for schedule reconciliation
+ */
+const createScheduleReconciliationPrompt = (context) => {
+  const {
+    planName,
+    domainType,
+    profile,
+    overdueItems,
+    gapAnalysis,
+    crossConceptPatterns,
+    recentMemory,
+    sessionContext,
+  } = context;
+
+  // Format profile information
+  const profileSummary = profile ? `
+Learner Profile:
+- Forgetting curve slope: ${profile.forgettingCurveSlope || 0.5} (lower = better retention)
+- Optimal review interval: ${profile.optimalReviewInterval || 3} days
+- Average retention rate: ${(profile.averageRetentionRate || 0.7) * 100}%
+- Learning pace preference: ${profile.pacePreference || 'steady'}
+- Optimal time of day: ${profile.preferredTimeOfDay || 'flexible'}
+- Optimal session length: ${profile.optimalSessionLength || 25} minutes
+- Consistency score: ${profile.consistencyScore || 50}/100
+` : '';
+
+  // Format overdue items with priority info
+  const overdueItemsSummary = overdueItems && overdueItems.length > 0 ? `
+Overdue Items (${overdueItems.length} total):
+${overdueItems.slice(0, 10).map((item, i) => {
+    const daysOverdue = Math.floor((Date.now() - new Date(item.nextReview).getTime()) / (1000 * 60 * 60 * 24));
+    const decayedMastery = item.decayedMastery !== undefined ? `${Math.round(item.decayedMastery * 100)}%` : 'N/A';
+    return `  ${i + 1}. "${item.front.substring(0, 30)}..." - Box ${item.boxLevel}, ${daysOverdue} days overdue, mastery: ${decayedMastery}`;
+  }).join('\n')}${overdueItems.length > 10 ? `\n  ... and ${overdueItems.length - 10} more` : ''}
+` : 'No overdue items.';
+
+  // Format gap analysis
+  const gapSummary = gapAnalysis ? `
+Gap Analysis:
+- Gap severity: ${gapAnalysis.severity || 'unknown'}
+- Days since last review: ${gapAnalysis.daysSinceLastReview || 'N/A'}
+- Gap relative to optimal: ${gapAnalysis.gapRelativeToOptimal || 'N/A'}x
+- Estimated mastery decay: ${gapAnalysis.estimatedDecay ? Math.round(gapAnalysis.estimatedDecay * 100) + '%' : 'N/A'}
+- Session type: ${gapAnalysis.sessionType || 'first_today'}
+` : '';
+
+  // Format cross-concept patterns
+  const patternsSummary = crossConceptPatterns && crossConceptPatterns.length > 0 ? `
+Cross-Concept Patterns Detected:
+${crossConceptPatterns.slice(0, 5).map((p) => {
+    if (p.type === 'PREREQUISITE') {
+      return `  - PREREQUISITE: "${p.conceptA}" should be studied before "${p.conceptB}" (confidence: ${Math.round(p.confidence * 100)}%)`;
+    } else if (p.type === 'INTERFERENCE') {
+      return `  - INTERFERENCE: "${p.conceptA}" and "${p.conceptB}" interfere - space them out`;
+    } else if (p.type === 'POSITIVE_TRANSFER') {
+      return `  - POSITIVE TRANSFER: "${p.conceptA}" reinforces "${p.conceptB}"`;
+    }
+    return `  - ${p.type}: ${p.conceptA} ↔ ${p.conceptB}`;
+  }).join('\n')}
+` : '';
+
+  // Format recent memory context
+  const memorySummary = recentMemory ? `
+Recent Learning Context:
+- Last session: ${recentMemory.lastSessionSummary || 'No recent session data'}
+- Recent mastery trend: ${recentMemory.masteryTrend || 'unknown'}
+- Struggling concepts: ${recentMemory.strugglingConcepts?.join(', ') || 'None identified'}
+- Strong concepts: ${recentMemory.strongConcepts?.join(', ') || 'None identified'}
+` : '';
+
+  // Format current session context
+  const sessionSummary = sessionContext ? `
+Current Session Context:
+- Time of day: ${sessionContext.timeOfDay || 'unknown'}
+- Day of week: ${sessionContext.dayOfWeek || 'unknown'}
+- Sessions today: ${sessionContext.sessionsToday || 0}
+- Items reviewed today: ${sessionContext.itemsReviewedToday || 0}
+- Available study time: ${sessionContext.availableMinutes || 'unknown'} minutes
+` : '';
+
+  return `You are an adaptive learning schedule manager using personalized spaced repetition.
+
+TASK: Analyze the learner's context and provide intelligent scheduling decisions for their study session.
+
+Learning Plan: "${planName || 'Unknown'}"
+Domain: ${domainType || 'general'}
+
+${profileSummary}
+${overdueItemsSummary}
+${gapSummary}
+${patternsSummary}
+${memorySummary}
+${sessionSummary}
+
+ANALYSIS REQUIREMENTS:
+1. Prioritize items based on learner's personal forgetting curve (not generic intervals)
+2. Consider cross-concept relationships (prerequisites first, space out interfering concepts)
+3. Account for the learner's optimal session length and current fatigue
+4. Adjust for time since last review relative to the learner's optimal interval
+5. Consider recent performance trends and struggling areas
+
+Respond in JSON format:
+{
+  "prioritizedItems": [
+    {
+      "itemId": "item_id_here",
+      "priority": 1-10,
+      "reason": "Brief explanation of priority",
+      "suggestedInterval": "next review interval in days if answered correctly"
+    }
+  ],
+  "sessionPlan": {
+    "recommendedItemCount": "number of items for this session",
+    "estimatedDurationMinutes": "expected session length",
+    "focusAreas": ["concepts to focus on"],
+    "conceptsToSpace": ["concepts to avoid in same session due to interference"]
+  },
+  "adjustments": {
+    "intervalMultiplier": "0.5-2.0 adjustment to base intervals based on gap severity",
+    "reasoning": "Why intervals should be adjusted"
+  },
+  "recommendations": {
+    "studyOrder": "Description of optimal study order",
+    "breakSuggestion": "When to take breaks if session is long",
+    "nextSessionTiming": "When to schedule next session"
+  },
+  "confidence": 0.0-1.0
+}
+
+IMPORTANT:
+- Prioritize items at risk of forgetting (high decay, long overdue)
+- Don't overwhelm: suggest reasonable session length based on learner's preferences
+- Consider interference patterns: don't schedule similar confusable items together
+- For prerequisites, ensure foundational concepts are reviewed first
+- Adjust intervals based on gap severity: longer gaps → shorter initial intervals to rebuild retention`;
+};
+
+/**
+ * Creates a prompt for generating a catch-up plan after extended absence
+ * Used when the learner has a significant backlog of overdue items
+ *
+ * @param {Object} context - Context object containing learner data
+ * @param {number} context.totalOverdueCount - Total number of overdue items
+ * @param {number} context.daysSinceLastSession - Days since last study session
+ * @param {Object} context.profile - Learner profile
+ * @param {number} context.availableMinutesPerDay - Available study time per day
+ * @param {Array} context.overdueByDomain - Breakdown of overdue items by domain
+ * @returns {string} - The prompt for catch-up plan generation
+ */
+const createCatchUpPlanPrompt = (context) => {
+  const {
+    totalOverdueCount,
+    daysSinceLastSession,
+    profile,
+    availableMinutesPerDay,
+    overdueByDomain,
+    targetCatchUpDays,
+  } = context;
+
+  const domainBreakdown = overdueByDomain && overdueByDomain.length > 0 ?
+    overdueByDomain.map((d) => `  - ${d.domain}: ${d.count} items (avg ${d.avgDaysOverdue} days overdue)`).join('\n') :
+    'No domain breakdown available';
+
+  return `You are a learning recovery specialist helping a learner get back on track after an extended break.
+
+SITUATION:
+- Days since last session: ${daysSinceLastSession || 'unknown'}
+- Total overdue items: ${totalOverdueCount || 0}
+- Available study time per day: ${availableMinutesPerDay || 30} minutes
+- Target catch-up period: ${targetCatchUpDays || 7} days
+
+Overdue Items by Domain:
+${domainBreakdown}
+
+Learner Profile:
+- Pace preference: ${profile?.pacePreference || 'steady'}
+- Optimal session length: ${profile?.optimalSessionLength || 25} minutes
+- Consistency score: ${profile?.consistencyScore || 50}/100
+- Forgetting curve slope: ${profile?.forgettingCurveSlope || 0.5}
+
+TASK: Create a realistic catch-up plan that:
+1. Prioritizes items at highest risk of being forgotten completely
+2. Doesn't overwhelm the learner (sustainable daily load)
+3. Rebuilds the learning habit gradually
+4. Accounts for re-learning time (overdue items need more repetitions)
+
+Respond in JSON format:
+{
+  "plan": {
+    "totalDays": "number of days to catch up",
+    "dailySchedule": [
+      {
+        "day": 1,
+        "itemCount": "items to review",
+        "focusDomains": ["primary domain focus"],
+        "estimatedMinutes": "expected time",
+        "intensity": "light|moderate|intensive"
+      }
+    ],
+    "priorityTiers": {
+      "critical": "items > 2x optimal interval overdue",
+      "important": "items 1-2x optimal interval overdue",
+      "routine": "items < 1x optimal interval overdue"
+    }
+  },
+  "strategy": {
+    "approach": "Description of overall approach",
+    "dailyGoal": "Concrete daily goal",
+    "milestones": ["day 3: xyz milestone", "day 7: xyz milestone"],
+    "adjustmentTriggers": ["When to adjust the plan"]
+  },
+  "motivation": {
+    "encouragement": "Encouraging message for the learner",
+    "progressMetric": "How to measure progress",
+    "rewards": ["suggested micro-rewards for milestones"]
+  },
+  "warnings": ["potential challenges to watch for"],
+  "confidence": 0.0-1.0
+}
+
+IMPORTANT:
+- Start gently on day 1 to rebuild habit
+- Gradually increase intensity over first 3 days
+- Don't schedule more than learner's optimal session length per day initially
+- Include buffer for items that need extra repetitions
+- Plan for the possibility that some items may need to be re-learned from scratch`;
 };
 
 export default getSummaryChatHistoryPrompt;
@@ -376,4 +1284,20 @@ export {
   langstudyComparisonExerciseMore,
   createRewriteHtmlCodeForWordFrequencyJsonPrompt,
   createDecomposeParagraphPrompt,
+  createSmartSummaryPrompt,
+  createMindmapExtractionPrompt,
+  createEntityResolutionPrompt,
+  // Translation prompts (moved from renderer/views/translate/PromptUtil.js)
+  getNLPAnnotationPrompt,
+  getTranslatePrompt,
+  getVerbComparisonPrompt,
+  getVerbExplainedPrompt,
+  // Memory consolidation prompt
+  createMemoryConsolidationPrompt,
+  formatEpisodesForConsolidation,
+  // Answer verification prompt
+  createAnswerVerificationPrompt,
+  // Schedule reconciliation prompts
+  createScheduleReconciliationPrompt,
+  createCatchUpPlanPrompt,
 };

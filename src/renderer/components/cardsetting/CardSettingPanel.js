@@ -1,7 +1,23 @@
-// src/App.js
+// src/components/cardsetting/CardSettingPanel.js
 import React, { useState, useEffect } from 'react';
-import { Container, Grid, Box, CardContent, Card } from '@mui/material';
+import {
+  Box,
+  Typography,
+  Card,
+  CardContent,
+  Tooltip,
+  Chip,
+} from '@mui/material';
+import { styled, useTheme, alpha } from '@mui/material/styles';
+
+// Icons
 import BookmarkIcon from '@mui/icons-material/Bookmark';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import TextFormatIcon from '@mui/icons-material/TextFormat';
+import FormatColorFillIcon from '@mui/icons-material/FormatColorFill';
+import FormatSizeIcon from '@mui/icons-material/FormatSize';
+import ImageIcon from '@mui/icons-material/Image';
+import GridViewIcon from '@mui/icons-material/GridView';
 
 import FontSelector from '../FontSelector';
 import ColorMultiplePicker from '../ColorMultiplePicker';
@@ -13,32 +29,46 @@ import FontSizeAndSpacingSelector from '../FontSizeAndSpacingSelector';
 import { getImage } from '../../api/booksApi';
 import customStorage from '../../store/customStorage';
 
-/**
- *cardData
-{
-  image: xxx,
-  bgImage: xxx,
-  bgColor: xxx,
-  foreColor: xxx,
-  borderColor: xxx,
-  fontFamily: xxx,
-  fontSize: xx,
-  lineHeight: xx,
-  templateId: xxx,
-  text: xxx,
-}
+// Styled components
+const SettingSection = styled(Box)(({ theme }) => ({
+  padding: theme.spacing(2),
+  borderRadius: '12px',
+  backgroundColor: alpha(theme.palette.background.paper, 0.8),
+  border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+  transition: 'all 0.2s ease',
+  '&:hover': {
+    borderColor: alpha(theme.palette.primary.main, 0.2),
+  },
+}));
 
-localCardData: //used to populate template
-{
-  image: xxx,
-  title: xxx,
-  textBox: [
-    { id: '', content: 'xxx'},
-    { id: '', content: 'xxx'}
-  ]
-}
+const SectionLabel = styled(Box)(({ theme }) => ({
+  display: 'flex',
+  alignItems: 'center',
+  gap: theme.spacing(1),
+  marginBottom: theme.spacing(1.5),
+}));
 
- */
+const TemplateCard = styled(Card)(({ theme, selected }) => ({
+  cursor: 'pointer',
+  position: 'relative',
+  borderRadius: '12px',
+  border: selected
+    ? `2px solid ${theme.palette.primary.main}`
+    : `1px solid ${alpha(theme.palette.divider, 0.15)}`,
+  boxShadow: selected
+    ? `0 4px 20px ${alpha(theme.palette.primary.main, 0.25)}`
+    : 'none',
+  transition: 'all 0.2s ease-in-out',
+  overflow: 'hidden',
+  '&:hover': {
+    transform: 'translateY(-4px)',
+    boxShadow: `0 8px 24px ${alpha(theme.palette.text.primary, 0.1)}`,
+    borderColor: selected
+      ? theme.palette.primary.main
+      : alpha(theme.palette.primary.main, 0.4),
+  },
+}));
+
 function CardSettingPanel({
   cardData,
   cardTitle,
@@ -46,6 +76,9 @@ function CardSettingPanel({
   height,
   selectionCallback,
 }) {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+
   const [fontFamily, setFontFamily] = useState('Arial');
   const [colors, setColors] = useState(['#000000', '#FFFFFF', '#000000']);
   const [bgImage, setBgImage] = useState(0);
@@ -152,6 +185,7 @@ function CardSettingPanel({
         fontFamily,
       });
   };
+
   const onImageChange = (imageIndex) => {
     setBgImage(imageIndex);
     updateTemplateUI(
@@ -163,6 +197,7 @@ function CardSettingPanel({
       colors,
     );
   };
+
   const onColorChange = (colors) => {
     setColors(colors);
     updateTemplateUI(
@@ -174,6 +209,7 @@ function CardSettingPanel({
       colors,
     );
   };
+
   const onFontChange = (font) => {
     setFontFamily(font);
     updateTemplateUI(
@@ -185,6 +221,7 @@ function CardSettingPanel({
       colors,
     );
   };
+
   const onSpacingChange = (lineHeight) => {
     setLineHeight(lineHeight);
     updateTemplateUI(
@@ -196,6 +233,7 @@ function CardSettingPanel({
       colors,
     );
   };
+
   const onFontSizeChange = (fontSize) => {
     setFontSize(fontSize);
     updateTemplateUI(
@@ -209,72 +247,181 @@ function CardSettingPanel({
   };
 
   return (
-    <Container style={{ padding: 20 }}>
-      <Grid container spacing={2}>
-        <Grid item xs={12} sm={3}>
+    <Box sx={{ p: 3 }}>
+      {/* Settings Row */}
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: 2,
+          mb: 3,
+        }}
+      >
+        {/* Font Setting */}
+        <SettingSection>
+          <SectionLabel>
+            <TextFormatIcon
+              sx={{ fontSize: 18, color: theme.palette.primary.main }}
+            />
+            <Typography variant="caption" sx={{ fontWeight: 600 }}>
+              Font Family
+            </Typography>
+          </SectionLabel>
           <FontSelector onFontChange={onFontChange} />
-        </Grid>
-        <Grid item xs={12} sm={3}>
+        </SettingSection>
+
+        {/* Colors Setting */}
+        <SettingSection>
+          <SectionLabel>
+            <FormatColorFillIcon
+              sx={{ fontSize: 18, color: theme.palette.warning.main }}
+            />
+            <Typography variant="caption" sx={{ fontWeight: 600 }}>
+              Colors
+            </Typography>
+          </SectionLabel>
           <ColorMultiplePicker onColorChange={onColorChange} />
-        </Grid>
-        <Grid item xs={12} sm={3}>
+        </SettingSection>
+
+        {/* Font Size & Spacing */}
+        <SettingSection>
+          <SectionLabel>
+            <FormatSizeIcon
+              sx={{ fontSize: 18, color: theme.palette.info.main }}
+            />
+            <Typography variant="caption" sx={{ fontWeight: 600 }}>
+              Size & Spacing
+            </Typography>
+          </SectionLabel>
           <FontSizeAndSpacingSelector
             onFontSizeChange={onFontSizeChange}
             onSpacingChange={onSpacingChange}
           />
-        </Grid>
-        <Grid item xs={12} sm={3}>
+        </SettingSection>
+
+        {/* Background Image */}
+        <SettingSection>
+          <SectionLabel>
+            <ImageIcon
+              sx={{ fontSize: 18, color: theme.palette.success.main }}
+            />
+            <Typography variant="caption" sx={{ fontWeight: 600 }}>
+              Background Image
+            </Typography>
+          </SectionLabel>
           <ImageSelector onImageChange={onImageChange} />
-        </Grid>
-      </Grid>
-      <Box
-        display="flex"
-        flexWrap="wrap"
-        justifyContent="flex-start"
-        style={{ marginTop: 20 }}
-      >
-        {templateCodes.map((code, index) => (
-          <Box
-            key={index}
-            width={width} // Fixed width for each card
-            height={height} // Fixed height for each card
-            margin={1}
-            onClick={() => templateSelected(index)}
-            style={{
-              flex: `1 1 ${width}px`,
-              maxWidth: width,
-              position: 'relative',
-            }}
-          >
-            {selected === index && (
-              <BookmarkIcon
-                sx={{
-                  position: 'absolute',
-                  top: '4px',
-                  right: '4px',
-                  color: '#913831',
-                }}
-              />
-            )}
-            <Card>
-              <CardContent
-                sx={{
-                  margin: '2px',
-                  overflowY: 'auto',
-                  maxWidth: `${width + 25}px`,
-                  maxHeight: `${height + 25}px`,
-                }}
-              >
-                <div
-                  className="note__body"
-                  dangerouslySetInnerHTML={{ __html: code }}
-                />
-              </CardContent>
-            </Card>
-          </Box>
-        ))}
+        </SettingSection>
       </Box>
-    </Container>
+
+      {/* Templates Section */}
+      <Box>
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1.5,
+            mb: 2,
+          }}
+        >
+          <GridViewIcon
+            sx={{ fontSize: 20, color: theme.palette.primary.main }}
+          />
+          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+            Choose Layout Template
+          </Typography>
+          <Chip
+            label={`${templateCodes.length} templates`}
+            size="small"
+            sx={{
+              height: 22,
+              fontSize: '0.7rem',
+              bgcolor: alpha(theme.palette.primary.main, 0.1),
+              color: theme.palette.primary.main,
+            }}
+          />
+        </Box>
+
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: `repeat(auto-fill, minmax(${width}px, 1fr))`,
+            gap: 2,
+            maxHeight: '400px',
+            overflowY: 'auto',
+            p: 1,
+            '&::-webkit-scrollbar': {
+              width: 8,
+            },
+            '&::-webkit-scrollbar-thumb': {
+              backgroundColor: alpha(theme.palette.text.primary, 0.2),
+              borderRadius: 4,
+            },
+            '&::-webkit-scrollbar-track': {
+              backgroundColor: alpha(theme.palette.text.primary, 0.05),
+              borderRadius: 4,
+            },
+          }}
+        >
+          {templateCodes.map((code, index) => (
+            <Tooltip
+              key={index}
+              title={`Template ${index + 1}${selected === index ? ' (Selected)' : ''}`}
+              placement="top"
+              arrow
+            >
+              <TemplateCard
+                selected={selected === index}
+                onClick={() => templateSelected(index)}
+              >
+                {/* Selected indicator */}
+                {selected === index && (
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: 8,
+                      right: 8,
+                      zIndex: 10,
+                      width: 24,
+                      height: 24,
+                      borderRadius: '50%',
+                      bgcolor: theme.palette.primary.main,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      boxShadow: `0 2px 8px ${alpha(theme.palette.primary.main, 0.4)}`,
+                    }}
+                  >
+                    <CheckCircleIcon
+                      sx={{ fontSize: 16, color: '#fff' }}
+                    />
+                  </Box>
+                )}
+
+                <CardContent
+                  sx={{
+                    p: '8px !important',
+                    '&:last-child': { pb: '8px !important' },
+                  }}
+                >
+                  <Box
+                    sx={{
+                      maxWidth: `${width + 10}px`,
+                      maxHeight: `${height + 10}px`,
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <div
+                      className="note__body"
+                      dangerouslySetInnerHTML={{ __html: code }}
+                    />
+                  </Box>
+                </CardContent>
+              </TemplateCard>
+            </Tooltip>
+          ))}
+        </Box>
+      </Box>
+    </Box>
   );
 }
 

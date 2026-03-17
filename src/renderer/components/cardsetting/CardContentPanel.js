@@ -1,6 +1,8 @@
 /* eslint-disable prefer-destructuring */
 // src/components/Card.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
 
 import populateCardHtmlCode, {
   cardImageOverlapTemplateId,
@@ -38,6 +40,7 @@ function CardContentPanel({
   const [assetsPath, setAssetsPath] = useState('');
   const [fontSize, setFontSize] = useState(16);
   const [lineHeight, setLineHeight] = useState(1.3);
+  const containerRef = useRef(null);
 
   const updateTemplateUI = (
     localCardData,
@@ -98,7 +101,15 @@ function CardContentPanel({
       const aPath = await window.electron.ipcRenderer.getAssetRootPath();
       setAssetsPath(aPath);
       const hasTitle = !!cardTitle;
-      const text = await parseMarkdownToHtmlNoCallback(cardData.text);
+      // Use html field if available (from rich editor), otherwise parse markdown from text
+      let text;
+      if (cardData.html && cardData.html.trim() !== '' && cardData.html !== '<p></p>') {
+        // Rich editor content - already HTML, but may need KaTeX rendering for math
+        text = cardData.html;
+      } else {
+        // Markdown content - parse to HTML
+        text = await parseMarkdownToHtmlNoCallback(cardData.text);
+      }
       const { title, chunks } = decomposeHTML(text, !hasTitle);
       const d = [];
       chunks.forEach((m, index) => d.push({ id: index, content: m }));
@@ -122,6 +133,31 @@ function CardContentPanel({
     t();
   }, [cardData, cardTitle, imageSrc, width, height]);
 
+  // Render KaTeX for any math expressions in the HTML (from rich editor)
+  useEffect(() => {
+    if (!containerRef.current || !htmlCode) return;
+
+    // Find all elements with data-mathjax attribute and render them
+    const mathElements = containerRef.current.querySelectorAll('[data-mathjax]');
+    mathElements.forEach((el) => {
+      const content = el.getAttribute('data-content');
+      const isInline = el.getAttribute('data-inline') !== 'false';
+      if (content) {
+        try {
+          katex.render(content, el, {
+            displayMode: !isInline,
+            throwOnError: false,
+            errorColor: '#ff9800',
+            trust: true,
+          });
+        } catch (err) {
+          console.error('KaTeX rendering error:', err);
+          el.textContent = isInline ? `$${content}$` : `$$${content}$$`;
+        }
+      }
+    });
+  }, [htmlCode]);
+
   if (!useMiniHeight && (entryEffect !== '' || emphasisEffect !== ''))
     return (
       <RichTextCard
@@ -135,6 +171,7 @@ function CardContentPanel({
     );
   return (
     <div
+      ref={containerRef}
       className="note__body"
       dangerouslySetInnerHTML={{ __html: htmlCode }}
     />

@@ -112,68 +112,120 @@ function FlipCard({ cards, width, height, curCardIndex }) {
       (!forward && currentIndex > 0)
     ) {
       setForward(forward ? 1 : 0);
-      await createImages(forward);
-      setFlipping(true);
-      setPhase(1);
 
-      setTimeout(() => setPhase(2), 1000);
-      setTimeout(() => setPhase(3), 2000);
-      setTimeout(() => {
-        setFlipping(false);
-        setPhase(0);
+      try {
+        await createImages(forward);
+
+        // Only proceed with animation if images were created successfully
+        // Check if images have valid data URLs (not empty strings)
+        setFlipping(true);
+        setPhase(1);
+
+        setTimeout(() => setPhase(2), 1000);
+        setTimeout(() => setPhase(3), 2000);
+        setTimeout(() => {
+          setFlipping(false);
+          setPhase(0);
+          setCurrentIndex((prev) => (forward ? prev + 1 : prev - 1));
+        }, 3000);
+      } catch (error) {
+        console.warn('FlipCard: Failed to create flip animation, falling back to direct transition');
+        // Fallback: just change the index without animation
         setCurrentIndex((prev) => (forward ? prev + 1 : prev - 1));
-      }, 3000);
+      }
     }
   };
 
   const createImages = async (forward) => {
-    const currentCard = contentRef.current.querySelector('#currentCard');
+    const currentCard = contentRef.current?.querySelector('#currentCard');
     const nextCard = forward
-      ? hiddenContentRef.current.querySelector('#nextCard')
-      : hiddenContentRef.current.querySelector('#prevCard');
+      ? hiddenContentRef.current?.querySelector('#nextCard')
+      : hiddenContentRef.current?.querySelector('#prevCard');
 
     if (currentCard && nextCard) {
-      const currentCanvas = await html2canvas(currentCard);
-      const nextCanvas = await html2canvas(nextCard);
+      try {
+        const currentCanvas = await html2canvas(currentCard, {
+          useCORS: true,
+          allowTaint: true,
+          logging: false,
+        });
+        const nextCanvas = await html2canvas(nextCard, {
+          useCORS: true,
+          allowTaint: true,
+          logging: false,
+        });
 
-      const left1 = cropImage(currentCanvas, 'left');
-      const right1 = cropImage(currentCanvas, 'right');
-      const left2 = cropImage(nextCanvas, 'left');
-      const right2 = cropImage(nextCanvas, 'right');
+        // Validate canvas dimensions before cropping
+        if (currentCanvas.width === 0 || currentCanvas.height === 0 ||
+            nextCanvas.width === 0 || nextCanvas.height === 0) {
+          console.warn('FlipCard: Canvas has zero dimensions, skipping flip animation');
+          return;
+        }
 
-      setImages({
-        left1: left1.toDataURL(),
-        right1: right1.toDataURL(),
-        left2: left2.toDataURL(),
-        right2: right2.toDataURL(),
-      });
+        const left1 = cropImage(currentCanvas, 'left');
+        const right1 = cropImage(currentCanvas, 'right');
+        const left2 = cropImage(nextCanvas, 'left');
+        const right2 = cropImage(nextCanvas, 'right');
+
+        if (left1 && right1 && left2 && right2) {
+          setImages({
+            left1: left1.toDataURL(),
+            right1: right1.toDataURL(),
+            left2: left2.toDataURL(),
+            right2: right2.toDataURL(),
+          });
+        }
+      } catch (error) {
+        console.warn('FlipCard: Error creating images for flip animation', error);
+      }
     }
   };
 
   const cropImage = (canvas, side) => {
-    const ctx = canvas.getContext('2d');
-    const width = canvas.width / 2;
+    // Validate canvas dimensions
+    if (!canvas || canvas.width === 0 || canvas.height === 0) {
+      console.warn('FlipCard: Invalid canvas dimensions');
+      return null;
+    }
+
+    const cropWidth = Math.floor(canvas.width / 2);
     const { height } = canvas;
 
+    // Ensure we have valid dimensions
+    if (cropWidth <= 0 || height <= 0) {
+      console.warn('FlipCard: Crop dimensions are invalid');
+      return null;
+    }
+
     const croppedCanvas = document.createElement('canvas');
-    croppedCanvas.width = width;
+    croppedCanvas.width = cropWidth;
     croppedCanvas.height = height;
     const croppedCtx = croppedCanvas.getContext('2d');
 
-    if (side === 'left') {
-      croppedCtx.drawImage(canvas, 0, 0, width, height, 0, 0, width, height);
-    } else {
-      croppedCtx.drawImage(
-        canvas,
-        width,
-        0,
-        width,
-        height,
-        0,
-        0,
-        width,
-        height,
-      );
+    if (!croppedCtx) {
+      console.warn('FlipCard: Could not get canvas context');
+      return null;
+    }
+
+    try {
+      if (side === 'left') {
+        croppedCtx.drawImage(canvas, 0, 0, cropWidth, height, 0, 0, cropWidth, height);
+      } else {
+        croppedCtx.drawImage(
+          canvas,
+          cropWidth,
+          0,
+          cropWidth,
+          height,
+          0,
+          0,
+          cropWidth,
+          height,
+        );
+      }
+    } catch (error) {
+      console.warn('FlipCard: Error drawing image', error);
+      return null;
     }
 
     return croppedCanvas;

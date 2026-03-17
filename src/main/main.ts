@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-syntax */
 /* eslint global-require: off, no-console: off, promise/always-return: off */
 
 /**
@@ -32,6 +33,7 @@ import JSON5 from 'json5';
 
 import natural from 'natural';
 
+import { Ollama } from 'ollama';
 
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
@@ -50,6 +52,11 @@ import {
   AIProvider,
   LeitnerSpeed,
   ClaudeModel,
+  OllamaModel,
+  BaiduModel,
+  KimiModel,
+  DoubaoModel,
+  QwenModel,
 } from '../commons/model/DataTypes';
 
 import { getUserIdFromToken } from './db/dbManager';
@@ -80,7 +87,9 @@ import {
   getChatById,
   createChat,
   getChatsByQuery,
+  getLearnAboutByQuery,
   getPinnedChats,
+  getPinnedLearnAbout,
   updateChat,
   deleteAllChat,
   deleteChatById,
@@ -209,13 +218,27 @@ import createBookmarkUtils, {
 import initialDatabase from './db/DatabaseInitializer';
 import { createVocabularyPrompt } from '../commons/utils/AIPrompts';
 
-import aiProviderManager from '../commons/service/AIProviderManager';
+import { instanceInMain as aiProviderManager } from '../commons/service/AIProviderManager';
 import checkLibreOfficeInstalled from './utils/checkLibreOfficeInstalled';
 
 import getBaiduAccessToken from './utils/baiduUtil';
 import markdownManager from './utils/MarkdownManager';
 import chromaManager from './utils/ChromaManager';
+import registerGraphHandlers from './ipc/graphHandlers';
+import { registerSkillHandlers, updateSkillServices } from './ipc/skillHandlers';
+import { registerLearningHandlers } from './ipc/learningHandlers';
+import { registerNotificationHandlers } from './ipc/notificationHandlers';
+import { registerSpacedRepetitionHandlers } from './ipc/spacedRepetitionHandlers';
+import { registerLearningPlanHandlers } from './ipc/learningPlanHandlers';
+import { registerStudyEnhancementHandlers } from './ipc/studyEnhancementHandlers';
+import { registerStudyAnalyticsHandlers } from './ipc/studyAnalyticsHandlers';
+import { registerBrainHandlers } from './ipc/brainHandlers';
+import { registerUnifiedLearningHandlers } from './ipc/unifiedLearningHandlers';
+import { registerLearningPointHandlers } from './ipc/learningPointHandlers';
+import graphInterface from './utils/GraphInterface';
+import { initializeLearningBrain, shutdownLearningBrain } from './brain';
 
+import { fetchPageHeadless } from './utils/webParserUtil';
 
 const options = {
   width: 1050,
@@ -233,7 +256,6 @@ const options = {
   },
 };
 
-
 let readerWindow: BrowserWindow;
 const store = new Store();
 markdownManager.setupMarkdown(store);
@@ -241,7 +263,6 @@ markdownManager.setupMarkdown(store);
 const RESOURCES_PATH = app.isPackaged
   ? path.join(process.resourcesPath, 'assets')
   : path.join(__dirname, '../../assets');
-
 
 const chatIcon = nativeImage.createFromPath(
   path.join(RESOURCES_PATH, 'images', 'chat-16.png'),
@@ -302,10 +323,15 @@ interface SharedStates {
   store: Store;
 }
 
+// Extend global namespace for shared state
+declare global {
+  // eslint-disable-next-line no-var
+  var shared: SharedStates;
+}
+
 let libreOfficeInstalled = false;
 
-
-async function setupThirdPartySetting(userId) {
+async function setupThirdPartySetting(userId: number): Promise<void> {
   console.log('enter setupThirdPartySetting');
   libreOfficeInstalled = await checkLibreOfficeInstalled();
   console.log(` libreOfficeInstalled = ${libreOfficeInstalled}`);
@@ -365,9 +391,6 @@ setupPathInfo();
 
 const singleInstance = app.requestSingleInstanceLock();
 
-
-
-
 class AppUpdater {
   constructor() {
     log.transports.file.level = 'info';
@@ -378,9 +401,13 @@ class AppUpdater {
 
 let mainWin: BrowserWindow | null = null;
 
-
 /** open book */
-async function openBook(config) {
+async function openBook(config: {
+  url: string;
+  isMergeWord?: string;
+  isFullscreen?: string;
+  isPreventSleep?: string;
+}): Promise<void> {
   const { url, isMergeWord, isFullscreen, isPreventSleep } = config;
   options.webPreferences.nodeIntegrationInSubFrames = true;
   StorageUtil.setReaderConfigs(store, {
@@ -389,7 +416,7 @@ async function openBook(config) {
     isFullscreen: isFullscreen || 'no',
     isPreventSleep: isPreventSleep || 'no',
   });
-  let id;
+  let id: number | undefined;
   if (isPreventSleep === 'yes') {
     id = powerSaveBlocker.start('prevent-display-sleep');
     console.log(powerSaveBlocker.isStarted(id));
@@ -480,7 +507,6 @@ const installExtensions = async () => {
     .catch(console.log);
 };
 
-
 const createWindow = async () => {
   if (isDebug) {
     await installExtensions();
@@ -547,7 +573,6 @@ const createWindow = async () => {
     });
   });
 
-
   /**   store related  */
   ipcMain.on('setStoreValue', (_, key, value) => {
     // console.log(`setStoreValue ${key} = ${value}`);
@@ -561,23 +586,43 @@ const createWindow = async () => {
       console.log(
         `upSertCollectionInStore ${name} ${keyName} = ${keyValue} : ${obj}`,
       );
-      const c = store.get(name);
+      const c = store.get(name) as Array<Record<string, unknown>> | undefined;
       if (!c) {
-        if (name === 'note')
+        if (name === 'note') {
+          // Add to ChromaDB vector store (existing behavior)
           try {
             await chromaManager.addNodeToVecterDB(store, obj, token);
           } catch (e) {}
+          // Also add to graph database (new - parallel storage)
+          try {
+            if (graphInterface.isReady()) {
+              await graphInterface.createNote(obj, token);
+            }
+          } catch (e) {
+            console.error('Failed to add note to graph:', e);
+          }
+        }
 
         store.set(name, [obj]);
         console.log(' return 1');
         _.returnValue = obj;
       } else {
-        const found = c.find((item) => item[keyName] === keyValue);
+        const found = c.find((item: Record<string, unknown>) => item[keyName] === keyValue);
         if (!found) {
-          if (name === 'note')
+          if (name === 'note') {
+            // Add to ChromaDB vector store (existing behavior)
             try {
               await chromaManager.addNodeToVecterDB(store, obj, token);
             } catch (e) {}
+            // Also add to graph database (new - parallel storage)
+            try {
+              if (graphInterface.isReady()) {
+                await graphInterface.createNote(obj, token);
+              }
+            } catch (e) {
+              console.error('Failed to add note to graph:', e);
+            }
+          }
           c.unshift(obj);
           store.set(name, c);
           console.log(' return 2');
@@ -594,12 +639,12 @@ const createWindow = async () => {
 
   ipcMain.on('deleteCollectionInStore', (_, name, keyName, keyValue) => {
     console.log(`deleteCollectionInStore ${name} ${keyName} = ${keyValue} `);
-    const c = store.get(name);
+    const c = store.get(name) as Array<Record<string, unknown>> | undefined;
     if (!c) {
       _.returnValue = false;
       return;
     }
-    const index = c.findIndex((item) => item[keyName] === keyValue);
+    const index = c.findIndex((item: Record<string, unknown>) => item[keyName] === keyValue);
     if (index > -1) {
       c.splice(index, 1);
       store.set(name, c);
@@ -610,16 +655,16 @@ const createWindow = async () => {
   });
 
   ipcMain.on('getByIdsInCollection', (_, name, keyName, keyList) => {
-    const c = store.get(name);
+    const c = store.get(name) as Array<Record<string, unknown>> | undefined;
     if (!c) return null;
-    const found = c.find((item) => keyList.includes(item[keyName]));
+    const found = c.find((item: Record<string, unknown>) => keyList.includes(item[keyName]));
     _.returnValue = found;
   });
 
   ipcMain.on('getOneInCollection', (_, name, keyName, keyValue) => {
-    const c = store.get(name);
+    const c = store.get(name) as Array<Record<string, unknown>> | undefined;
     if (!c) return null;
-    const found = c.find((item) => item[keyName] === keyValue);
+    const found = c.find((item: Record<string, unknown>) => item[keyName] === keyValue);
     _.returnValue = found;
   });
   ipcMain.on('addToVocabulary', async (_, text, token) => {
@@ -652,8 +697,9 @@ const createWindow = async () => {
         token,
       );
       _.returnValue = newOne;
-    } catch (e) {
-      console.log(e.message ? e.message : e);
+    } catch (e: unknown) {
+      const err = e as { message?: string };
+      console.log(err.message ? err.message : e);
       _.returnValue = false;
     }
   });
@@ -672,7 +718,7 @@ const createWindow = async () => {
       _.returnValue = [];
       return;
     }
-    const c = store.get(`recent_url_${userId}`);
+    const c = store.get(`recent_url_${userId}`) as string[] | undefined;
     if (c && c.length > 10) {
       c.splice(0, c.length - 10);
     }
@@ -684,7 +730,7 @@ const createWindow = async () => {
       _.returnValue = [];
       return;
     }
-    const c = store.get(`recent_url_${userId}`) || [];
+    const c = (store.get(`recent_url_${userId}`) || []) as string[];
     if (!c.includes(url)) {
       c.push(url);
     }
@@ -700,7 +746,7 @@ const createWindow = async () => {
       _.returnValue = [];
       return;
     }
-    const c = store.get(`keywords_${mode}_${userId}`);
+    const c = store.get(`keywords_${mode}_${userId}`) as string[] | undefined;
     if (c && c.length > 50) {
       c.splice(0, c.length - 50);
     }
@@ -713,10 +759,10 @@ const createWindow = async () => {
       return;
     }
     try {
-      const c = store.get(`keywords_${mode}_${userId}`) || [];
+      const c = (store.get(`keywords_${mode}_${userId}`) || []) as string[];
       const ks = keyword.split('|');
       const stemmer = natural.PorterStemmer;
-      ks.forEach((word) => {
+      ks.forEach((word: string) => {
         const v = stemmer.stem(word);
         if (!c.includes(v)) {
           c.push(v);
@@ -727,8 +773,9 @@ const createWindow = async () => {
       }
       store.set(`keywords_${mode}_${userId}`, c);
       _.returnValue = c;
-    } catch (e) {
-      console.log(e.message ? e.message : e);
+    } catch (e: unknown) {
+      const err = e as { message?: string };
+      console.log(err.message ? err.message : e);
       _.returnValue = false;
     }
   });
@@ -755,9 +802,9 @@ const createWindow = async () => {
       return;
     }
     try {
-      const c = store.get(`keywords_${mode}_${userId}`) || [];
+      const c = (store.get(`keywords_${mode}_${userId}`) || []) as string[];
       const ks = keyword.split('|');
-      ks.forEach((element) => {
+      ks.forEach((element: string) => {
         const index = c.indexOf(element);
         if (index > -1) {
           c.splice(index, 1);
@@ -765,14 +812,15 @@ const createWindow = async () => {
       });
       store.set(`keywords_${mode}_${userId}`, c);
       _.returnValue = c;
-    } catch (e) {
-      console.log(e.message ? e.message : e);
+    } catch (e: unknown) {
+      const err = e as { message?: string };
+      console.log(err.message ? err.message : e);
       _.returnValue = false;
     }
   });
 
   ipcMain.on('queryCollection', (_, name, query, fieldOne, fieldTwo) => {
-    const c = store.get(name);
+    const c = store.get(name) as Array<Record<string, unknown>> | undefined;
     if (!c) {
       _.returnValue = [];
       return;
@@ -783,16 +831,17 @@ const createWindow = async () => {
     }
 
     try {
-      const r = c.filter((item) => {
-        if (fieldOne && item[fieldOne] && item[fieldOne].indexOf(query) >= 0)
+      const r = c.filter((item: Record<string, unknown>) => {
+        if (fieldOne && item[fieldOne] && (item[fieldOne] as string).indexOf(query) >= 0)
           return true;
-        if (fieldTwo && item[fieldTwo] && item[fieldTwo].indexOf(query) >= 0)
+        if (fieldTwo && item[fieldTwo] && (item[fieldTwo] as string).indexOf(query) >= 0)
           return true;
         return false;
       });
       _.returnValue = r;
-    } catch (e) {
-      console.log(e.message ? e.message : e);
+    } catch (e: unknown) {
+      const err = e as { message?: string };
+      console.log(err.message ? err.message : e);
       _.returnValue = [];
     }
   });
@@ -820,7 +869,7 @@ const createWindow = async () => {
       _.returnValue = -1;
     } else {
       const mode = store.get(`gemini-model_${userId}`);
-      _.returnValue = mode || GeminiModel.GEMINI1_5_flash;
+      _.returnValue = mode || GeminiModel.GEMINI_2_FLASH;
     }
   });
 
@@ -833,13 +882,32 @@ const createWindow = async () => {
       _.returnValue = true;
     }
   });
+  ipcMain.on('getOllamaModel', (_, token) => {
+    const userId = getUserIdFromToken(token);
+    if (userId < 0) {
+      _.returnValue = -1;
+    } else {
+      const mode = store.get(`ollama-model_${userId}`);
+      _.returnValue = mode || OllamaModel.LLAMA_3_2_3B;
+    }
+  });
+
+  ipcMain.on('setOllamaModel', (_, { mode, token }) => {
+    const userId = getUserIdFromToken(token);
+    if (userId < 0) {
+      _.returnValue = false;
+    } else {
+      store.set(`ollama-model_${userId}`, mode);
+      _.returnValue = true;
+    }
+  });
   ipcMain.on('getClaudeModel', (_, token) => {
     const userId = getUserIdFromToken(token);
     if (userId < 0) {
       _.returnValue = -1;
     } else {
       const mode = store.get(`claude-model_${userId}`);
-      _.returnValue = mode || ClaudeModel.CLAUDE_3_HAIKU;
+      _.returnValue = mode || ClaudeModel.CLAUDE_HAIKU_4_5;
     }
   });
 
@@ -858,7 +926,7 @@ const createWindow = async () => {
       _.returnValue = -1;
     } else {
       const mode = store.get(`chatgpt-model_${userId}`);
-      _.returnValue = mode || ChatGPTModel.GPT3_5;
+      _.returnValue = mode || ChatGPTModel.GPT4_1_MINI;
     }
   });
 
@@ -868,6 +936,249 @@ const createWindow = async () => {
       _.returnValue = false;
     } else {
       store.set(`chatgpt-model_${userId}`, mode);
+      _.returnValue = true;
+    }
+  });
+
+  // Advanced model handlers
+  ipcMain.on('getChatGPTAdvancedModel', (_, token) => {
+    const userId = getUserIdFromToken(token);
+    if (userId < 0) {
+      _.returnValue = -1;
+    } else {
+      const mode = store.get(`chatgpt-advanced-model_${userId}`);
+      _.returnValue = mode || ChatGPTModel.GPT4_1;
+    }
+  });
+
+  ipcMain.on('setChatGPTAdvancedModel', (_, { mode, token }) => {
+    const userId = getUserIdFromToken(token);
+    if (userId < 0) {
+      _.returnValue = false;
+    } else {
+      store.set(`chatgpt-advanced-model_${userId}`, mode);
+      _.returnValue = true;
+    }
+  });
+
+  ipcMain.on('getGeminiAdvancedModel', (_, token) => {
+    const userId = getUserIdFromToken(token);
+    if (userId < 0) {
+      _.returnValue = -1;
+    } else {
+      const mode = store.get(`gemini-advanced-model_${userId}`);
+      _.returnValue = mode || GeminiModel.GEMINI_2_5_PRO;
+    }
+  });
+
+  ipcMain.on('setGeminiAdvancedModel', (_, { mode, token }) => {
+    const userId = getUserIdFromToken(token);
+    if (userId < 0) {
+      _.returnValue = false;
+    } else {
+      store.set(`gemini-advanced-model_${userId}`, mode);
+      _.returnValue = true;
+    }
+  });
+
+  ipcMain.on('getClaudeAdvancedModel', (_, token) => {
+    const userId = getUserIdFromToken(token);
+    if (userId < 0) {
+      _.returnValue = -1;
+    } else {
+      const mode = store.get(`claude-advanced-model_${userId}`);
+      _.returnValue = mode || ClaudeModel.CLAUDE_OPUS_4_5;
+    }
+  });
+
+  ipcMain.on('setClaudeAdvancedModel', (_, { mode, token }) => {
+    const userId = getUserIdFromToken(token);
+    if (userId < 0) {
+      _.returnValue = false;
+    } else {
+      store.set(`claude-advanced-model_${userId}`, mode);
+      _.returnValue = true;
+    }
+  });
+
+  ipcMain.on('getOllamaAdvancedModel', (_, token) => {
+    const userId = getUserIdFromToken(token);
+    if (userId < 0) {
+      _.returnValue = -1;
+    } else {
+      const mode = store.get(`ollama-advanced-model_${userId}`);
+      _.returnValue = mode || OllamaModel.LLAMA_3_3_70B;
+    }
+  });
+
+  ipcMain.on('setOllamaAdvancedModel', (_, { mode, token }) => {
+    const userId = getUserIdFromToken(token);
+    if (userId < 0) {
+      _.returnValue = false;
+    } else {
+      store.set(`ollama-advanced-model_${userId}`, mode);
+      _.returnValue = true;
+    }
+  });
+
+  // Baidu model handlers
+  ipcMain.on('getBaiduModel', (_, token) => {
+    const userId = getUserIdFromToken(token);
+    if (userId < 0) {
+      _.returnValue = -1;
+    } else {
+      const mode = store.get(`baidu-model_${userId}`);
+      _.returnValue = mode || BaiduModel.ERNIE_4_5_TURBO;
+    }
+  });
+
+  ipcMain.on('setBaiduModel', (_, { mode, token }) => {
+    const userId = getUserIdFromToken(token);
+    if (userId < 0) {
+      _.returnValue = false;
+    } else {
+      store.set(`baidu-model_${userId}`, mode);
+      _.returnValue = true;
+    }
+  });
+
+  ipcMain.on('getBaiduAdvancedModel', (_, token) => {
+    const userId = getUserIdFromToken(token);
+    if (userId < 0) {
+      _.returnValue = -1;
+    } else {
+      const mode = store.get(`baidu-advanced-model_${userId}`);
+      _.returnValue = mode || BaiduModel.ERNIE_5;
+    }
+  });
+
+  ipcMain.on('setBaiduAdvancedModel', (_, { mode, token }) => {
+    const userId = getUserIdFromToken(token);
+    if (userId < 0) {
+      _.returnValue = false;
+    } else {
+      store.set(`baidu-advanced-model_${userId}`, mode);
+      _.returnValue = true;
+    }
+  });
+
+  // Kimi model handlers
+  ipcMain.on('getKimiModel', (_, token) => {
+    const userId = getUserIdFromToken(token);
+    if (userId < 0) {
+      _.returnValue = -1;
+    } else {
+      const mode = store.get(`kimi-model_${userId}`);
+      _.returnValue = mode || KimiModel.KIMI_K2_LITE;
+    }
+  });
+
+  ipcMain.on('setKimiModel', (_, { mode, token }) => {
+    const userId = getUserIdFromToken(token);
+    if (userId < 0) {
+      _.returnValue = false;
+    } else {
+      store.set(`kimi-model_${userId}`, mode);
+      _.returnValue = true;
+    }
+  });
+
+  ipcMain.on('getKimiAdvancedModel', (_, token) => {
+    const userId = getUserIdFromToken(token);
+    if (userId < 0) {
+      _.returnValue = -1;
+    } else {
+      const mode = store.get(`kimi-advanced-model_${userId}`);
+      _.returnValue = mode || KimiModel.KIMI_K2_5;
+    }
+  });
+
+  ipcMain.on('setKimiAdvancedModel', (_, { mode, token }) => {
+    const userId = getUserIdFromToken(token);
+    if (userId < 0) {
+      _.returnValue = false;
+    } else {
+      store.set(`kimi-advanced-model_${userId}`, mode);
+      _.returnValue = true;
+    }
+  });
+
+  ipcMain.on('getDoubaoModel', (_, token) => {
+    const userId = getUserIdFromToken(token);
+    if (userId < 0) {
+      _.returnValue = -1;
+    } else {
+      const mode = store.get(`doubao-model_${userId}`);
+      _.returnValue = mode || DoubaoModel.DOUBAO_PRO_32K;
+    }
+  });
+
+  ipcMain.on('setDoubaoModel', (_, { mode, token }) => {
+    const userId = getUserIdFromToken(token);
+    if (userId < 0) {
+      _.returnValue = false;
+    } else {
+      store.set(`doubao-model_${userId}`, mode);
+      _.returnValue = true;
+    }
+  });
+
+  ipcMain.on('getDoubaoAdvancedModel', (_, token) => {
+    const userId = getUserIdFromToken(token);
+    if (userId < 0) {
+      _.returnValue = -1;
+    } else {
+      const mode = store.get(`doubao-advanced-model_${userId}`);
+      _.returnValue = mode || DoubaoModel.DOUBAO_SEED_1_6;
+    }
+  });
+
+  ipcMain.on('setDoubaoAdvancedModel', (_, { mode, token }) => {
+    const userId = getUserIdFromToken(token);
+    if (userId < 0) {
+      _.returnValue = false;
+    } else {
+      store.set(`doubao-advanced-model_${userId}`, mode);
+      _.returnValue = true;
+    }
+  });
+
+  ipcMain.on('getQwenModel', (_, token) => {
+    const userId = getUserIdFromToken(token);
+    if (userId < 0) {
+      _.returnValue = -1;
+    } else {
+      const mode = store.get(`qwen-model_${userId}`);
+      _.returnValue = mode || QwenModel.QWEN_PLUS;
+    }
+  });
+
+  ipcMain.on('setQwenModel', (_, { mode, token }) => {
+    const userId = getUserIdFromToken(token);
+    if (userId < 0) {
+      _.returnValue = false;
+    } else {
+      store.set(`qwen-model_${userId}`, mode);
+      _.returnValue = true;
+    }
+  });
+
+  ipcMain.on('getQwenAdvancedModel', (_, token) => {
+    const userId = getUserIdFromToken(token);
+    if (userId < 0) {
+      _.returnValue = -1;
+    } else {
+      const mode = store.get(`qwen-advanced-model_${userId}`);
+      _.returnValue = mode || QwenModel.QWEN3_MAX;
+    }
+  });
+
+  ipcMain.on('setQwenAdvancedModel', (_, { mode, token }) => {
+    const userId = getUserIdFromToken(token);
+    if (userId < 0) {
+      _.returnValue = false;
+    } else {
+      store.set(`qwen-advanced-model_${userId}`, mode);
       _.returnValue = true;
     }
   });
@@ -1167,6 +1478,46 @@ const createWindow = async () => {
     }
   });
 
+  ipcMain.on('getDoubaoKey', (_, token) => {
+    const userId = getUserIdFromToken(token);
+    if (userId < 0) {
+      _.returnValue = false;
+    } else {
+      const key = store.get(`doubao_key_${userId}`);
+      _.returnValue = key || false;
+    }
+  });
+
+  ipcMain.on('setDoubaoKey', (_, { key, token }) => {
+    const userId = getUserIdFromToken(token);
+    if (userId < 0) {
+      _.returnValue = false;
+    } else {
+      store.set(`doubao_key_${userId}`, key || false);
+      _.returnValue = true;
+    }
+  });
+
+  ipcMain.on('getQwenKey', (_, token) => {
+    const userId = getUserIdFromToken(token);
+    if (userId < 0) {
+      _.returnValue = false;
+    } else {
+      const key = store.get(`qwen_key_${userId}`);
+      _.returnValue = key || false;
+    }
+  });
+
+  ipcMain.on('setQwenKey', (_, { key, token }) => {
+    const userId = getUserIdFromToken(token);
+    if (userId < 0) {
+      _.returnValue = false;
+    } else {
+      store.set(`qwen_key_${userId}`, key || false);
+      _.returnValue = true;
+    }
+  });
+
   ipcMain.on('getBaiduAccessToken', async (_, token) => {
     const userId = getUserIdFromToken(token);
     if (userId < 0) {
@@ -1228,6 +1579,22 @@ const createWindow = async () => {
     } catch (e) {
       console.log(e.message ? e.message : e);
       _.returnValue = false;
+    }
+  });
+  // Validate session - check if renderer's token matches main process session
+  ipcMain.on('validateSession', async (_, token) => {
+    try {
+      const info = store.get('session_info');
+      if (info && info.token && info.token === token) {
+        // Token matches, session is valid
+        _.returnValue = info;
+      } else {
+        // Token doesn't match or no session
+        _.returnValue = null;
+      }
+    } catch (e) {
+      console.log(e.message ? e.message : e);
+      _.returnValue = null;
     }
   });
   ipcMain.on('emojiData', async (_, { token }) => {
@@ -1454,9 +1821,33 @@ const createWindow = async () => {
   ipcMain.on('getBooksByQuery', async (_, { query, token }) => {
     try {
       const books = getBooksByQuery(query, token);
+      // Search ChromaDB for semantic matches (existing behavior)
       if (query.indexOf(' ') > 0 && chromaManager.collection) {
         const r = await chromaManager.getBooksByQuery(store, query, token);
         r.forEach((m) => books.push(m));
+      }
+      // Also search graph database if available (new - parallel search)
+      if (graphInterface.isReady()) {
+        const graphBooks = await graphInterface.getBooksByUser(token);
+        // Filter by query and merge results, avoiding duplicates by ID
+        const existingIds = new Set(
+          books.map((b: { id: string | number }) => String(b.id)),
+        );
+        const queryLower = query.toLowerCase();
+        graphBooks.forEach(
+          (gb: { id: string | number; title?: string; author?: string }) => {
+            if (!existingIds.has(String(gb.id))) {
+              // Basic text matching for graph results
+              const titleMatch =
+                gb.title && gb.title.toLowerCase().includes(queryLower);
+              const authorMatch =
+                gb.author && gb.author.toLowerCase().includes(queryLower);
+              if (titleMatch || authorMatch) {
+                books.push(gb);
+              }
+            }
+          },
+        );
       }
       _.returnValue = books;
     } catch (e) {
@@ -1492,8 +1883,14 @@ const createWindow = async () => {
     const b = await createBookmarkUtils(url, token);
     if (b) {
       try {
-        if (typeof b.id !== 'undefined')
+        if (typeof b.id !== 'undefined') {
+          // Add to ChromaDB vector store (existing behavior)
           await chromaManager.AddBookmarkToVectorDB(store, b, token);
+          // Also add to graph database (new - parallel storage)
+          if (graphInterface.isReady()) {
+            await graphInterface.createBookmark(b, token);
+          }
+        }
       } catch (e) {
         console.log(e);
       }
@@ -1517,8 +1914,17 @@ const createWindow = async () => {
     _.returnValue = updateBookmark(noteId, field, value, token);
   });
 
- ipcMain.on('createChat', async (_, { chat, token }) => {
-    _.returnValue = createChat(chat, token);
+  ipcMain.on('createChat', async (_, { chat, token }) => {
+    const c = createChat(chat, token);
+    // Also add to graph database (new - parallel storage)
+    try {
+      if (graphInterface.isReady() && c && typeof c.id !== 'undefined') {
+        await graphInterface.createChat(chat, token);
+      }
+    } catch (graphError) {
+      console.error('Failed to add chat to graph:', graphError);
+    }
+    _.returnValue = c;
   });
   ipcMain.on('getChatById', async (_, { id, token }) => {
     _.returnValue = getChatById(id, token);
@@ -1526,6 +1932,17 @@ const createWindow = async () => {
   ipcMain.on('getPinnedChats', async (_, { token }) => {
     _.returnValue = getPinnedChats(token);
   });
+  ipcMain.on('getPinnedLearnAbout', async (_, { token }) => {
+    _.returnValue = getPinnedLearnAbout(token);
+  });
+
+  ipcMain.on(
+    'getLearnAboutByQuery',
+    async (_, { query, page, limit, token }) => {
+      _.returnValue = getLearnAboutByQuery(query, page, limit, token);
+    },
+  );
+
   ipcMain.on('getChatsByQuery', async (_, { query, page, limit, token }) => {
     _.returnValue = getChatsByQuery(query, page, limit, token);
   });
@@ -1556,7 +1973,21 @@ const createWindow = async () => {
   });
   ipcMain.on('createMessage', async (_, { message, token }) => {
     // console.log(`main message = ${JSON.stringify(message)}`);
-    _.returnValue = createMessage(message, token);
+    const m = createMessage(message, token);
+    // Also add to graph database (new - parallel storage)
+    try {
+      if (
+        graphInterface.isReady() &&
+        m &&
+        typeof m.id !== 'undefined' &&
+        message.chatId
+      ) {
+        await graphInterface.addMessage(message, message.chatId, token);
+      }
+    } catch (graphError) {
+      console.error('Failed to add message to graph:', graphError);
+    }
+    _.returnValue = m;
   });
   ipcMain.on('getMessageById', async (_, { id, token }) => {
     _.returnValue = getMessageById(id, token);
@@ -1564,9 +1995,23 @@ const createWindow = async () => {
   ipcMain.on('getMessageByQuery', async (_, { query, token }) => {
     try {
       const messages = getMessageByQuery(query, token);
+      // Search ChromaDB for semantic matches (existing behavior)
       if (query.indexOf(' ') > 0 && chromaManager.collection) {
         const r = await chromaManager.getMessageByQuery(store, query, token);
         r.forEach((m) => messages.push(m));
+      }
+      // Also search graph database if available (new - parallel search)
+      if (graphInterface.isReady()) {
+        const graphMessages = await graphInterface.searchMessages(query, token);
+        // Merge results avoiding duplicates by ID
+        const existingIds = new Set(
+          messages.map((m: { id: string | number }) => String(m.id)),
+        );
+        graphMessages.forEach((gm: { id: string | number }) => {
+          if (!existingIds.has(String(gm.id))) {
+            messages.push(gm);
+          }
+        });
       }
       _.returnValue = messages;
     } catch (e) {
@@ -1583,9 +2028,17 @@ const createWindow = async () => {
   ipcMain.on('createNote', async (_, { note, token }) => {
     const n = createNote(note, token);
     try {
-      if (typeof n.id !== 'undefined')
+      if (typeof n.id !== 'undefined') {
+        // Add to ChromaDB vector store (existing behavior)
         await chromaManager.addNodeToVecterDB(store, note, token);
-    } catch (e) {}
+        // Also add to graph database (new - parallel storage)
+        if (graphInterface.isReady()) {
+          await graphInterface.createNote(note, token);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to add note to vector/graph store:', e);
+    }
     _.returnValue = n;
   });
   ipcMain.on('getNotesByIds', async (_, { ids, token }) => {
@@ -1615,6 +2068,7 @@ const createWindow = async () => {
     async (_, { query, tag, star, page, limit, token }) => {
       const notes = getNotesByQuery(query, tag, star, page, limit, token);
       try {
+        // Search ChromaDB for semantic matches (existing behavior)
         if (query.indexOf(' ') > 0 && chromaManager.collection) {
           const r = await chromaManager.getNotesByQuery(
             store,
@@ -1627,6 +2081,19 @@ const createWindow = async () => {
           );
           r.forEach((m) => notes.data.push(m));
         }
+        // Also search graph database if available (new - parallel search)
+        if (graphInterface.isReady()) {
+          const graphNotes = await graphInterface.searchNotes(query, token);
+          // Merge results, avoiding duplicates by ID
+          const existingIds = new Set(
+            notes.data.map((n: { id: string | number }) => String(n.id)),
+          );
+          graphNotes.forEach((gn: { id: string | number }) => {
+            if (!existingIds.has(String(gn.id))) {
+              notes.data.push(gn);
+            }
+          });
+        }
       } catch (e) {
         console.log(e.message ? e.message : e);
       }
@@ -1635,7 +2102,19 @@ const createWindow = async () => {
     },
   );
   ipcMain.on('updateNote', async (_, { noteId, field, value, token }) => {
-    _.returnValue = updateNote(noteId, field, value, token);
+    const result = updateNote(noteId, field, value, token);
+    // Sync to graph database if enabled
+    if (result && graphInterface.isReady()) {
+      try {
+        const note = getNoteById(noteId, token);
+        if (note) {
+          await graphInterface.syncNote(note, token);
+        }
+      } catch (e) {
+        console.error('Failed to sync note update to graph:', e);
+      }
+    }
+    _.returnValue = result;
   });
 
   ipcMain.on('clearNotesBy', async (_, { sourceKey, sourceType, token }) => {
@@ -1646,12 +2125,33 @@ const createWindow = async () => {
     );
   });
   ipcMain.on('replaceNote', async (_, { noteId, note, token }) => {
-    _.returnValue = replaceNote(noteId, note, token);
+    const result = replaceNote(noteId, note, token);
+    // Sync to graph database if enabled
+    if (result && graphInterface.isReady()) {
+      try {
+        await graphInterface.syncNote(result, token);
+      } catch (e) {
+        console.error('Failed to sync note replacement to graph:', e);
+      }
+    }
+    _.returnValue = result;
   });
   ipcMain.on(
     'updateNoteCard',
     async (_, { noteId, cardIndex, field, value, token }) => {
-      _.returnValue = updateNoteCard(noteId, cardIndex, field, value, token);
+      const result = updateNoteCard(noteId, cardIndex, field, value, token);
+      // Sync to graph database if enabled
+      if (result && graphInterface.isReady()) {
+        try {
+          const note = getNoteById(noteId, token);
+          if (note) {
+            await graphInterface.syncNote(note, token);
+          }
+        } catch (e) {
+          console.error('Failed to sync note card update to graph:', e);
+        }
+      }
+      _.returnValue = result;
     },
   );
 
@@ -1772,6 +2272,41 @@ const createWindow = async () => {
     _.returnValue = deleteAllVocabularySet(token);
   });
 
+  ipcMain.handle('ollama:stream', async (event, { history, message }) => {
+    const ollama = new Ollama({ host: 'http://127.0.0.1:11434' });
+    const messages = history || [];
+
+    if (message) messages.push(message);
+    console.log(`ollama:stream ${JSON.stringify(messages)}`);
+
+    const model = aiProviderManager.getCurrentModel() || OllamaModel.LLAMA_3_8b;
+    const response = await ollama.chat({
+      model,
+      messages,
+      stream: true,
+    });
+    for await (const part of response) {
+      console.log(part.message.content);
+      event.sender.send('ollama:stream:data', part.message.content);
+    }
+    // Indicate the stream is finished
+    event.sender.send('ollama:stream:done');
+  });
+  /** delegate to ollama */
+  ipcMain.on('generateContent', async (_, { prompt }) => {
+    const r = await aiProviderManager.generateContent(prompt);
+    _.returnValue = r;
+  });
+  ipcMain.on('sendChatMessage', async (_, { history, message }) => {
+    const r = await aiProviderManager.sendChatMessage(history, message);
+    console.log(`sendChatMessage ${JSON.stringify(r)}`);
+    _.returnValue = r;
+  });
+
+  ipcMain.on('fetchPageHeadless', async (_, { url }) => {
+    const r = await fetchPageHeadless(url);
+    _.returnValue = r;
+  });
   /**  related to vector database  */
   // response = { ids:[] documents:[]}
   ipcMain.on('semanticQuery', async (_, query, nResults, condition) => {
@@ -1878,11 +2413,21 @@ const createWindow = async () => {
 
   ipcMain.on('getChromaUrl', (_) => {
     const url = store.get('chroma_url');
-    _.returnValue = url || 'http://localhost:8000';
+    _.returnValue = url || 'http://127.0.0.1:8000';
   });
 
   ipcMain.on('setChromaUrl', (_, url) => {
     store.set('chroma_url', url);
+    _.returnValue = true;
+  });
+
+  ipcMain.on('getOllamaUrl', (_) => {
+    const url = store.get('ollama_url');
+    _.returnValue = url || 'http://127.0.0.1:11434';
+  });
+
+  ipcMain.on('setOllamaUrl', (_, url) => {
+    store.set('ollama_url', url);
     _.returnValue = true;
   });
 
@@ -1917,12 +2462,11 @@ const createWindow = async () => {
 
   //
 
-
   ipcMain.handle('setup-file-dir', (event, data) => {
     const dirPath = global.shared.storageLocation; // ipcRenderer.sendSync('user-data', 'ping');
     if (!fs.existsSync(dirPath)) {
       fs.mkdirSync(dirPath, { recursive: true });
-     // fs.mkdirSync(path.join(dirPath, 'data'));
+      // fs.mkdirSync(path.join(dirPath, 'data'));
       fs.mkdirSync(path.join(dirPath, 'book'));
       console.log('文件夹创建成功');
     } else {
@@ -2013,6 +2557,7 @@ const createWindow = async () => {
         libreOfficeInstalled,
       );
       const book = await createBook(b, token);
+      // Add to ChromaDB vector store (existing behavior)
       await chromaManager.addBookToVecterDB(
         store,
         mainWin,
@@ -2020,6 +2565,14 @@ const createWindow = async () => {
         book,
         token,
       );
+      // Also add to graph database (new - parallel storage)
+      try {
+        if (graphInterface.isReady()) {
+          await graphInterface.createBook(book, token);
+        }
+      } catch (graphError) {
+        console.error('Failed to add book to graph:', graphError);
+      }
       return book;
     } catch (e) {
       console.log(e.message ? e.message : e);
@@ -2046,6 +2599,7 @@ const createWindow = async () => {
         console.log(JSON.stringify(b));
         const book = await createBook(b, token);
         console.log(JSON.stringify(book));
+        // Add to ChromaDB vector store (existing behavior)
         await chromaManager.addBookToVecterDB(
           store,
           mainWin,
@@ -2053,6 +2607,14 @@ const createWindow = async () => {
           book,
           token,
         );
+        // Also add to graph database (new - parallel storage)
+        try {
+          if (graphInterface.isReady()) {
+            await graphInterface.createBook(book, token);
+          }
+        } catch (graphError) {
+          console.error('Failed to add book to graph:', graphError);
+        }
         return book;
       } catch (e) {
         console.log(e.message ? e.message : e);
@@ -2269,7 +2831,6 @@ const createWindow = async () => {
     event.reply('ipc-example', msgTemplate('pong'));
   });
 
-
   // Remove this if your app does not use auto updates
   // eslint-disable-next-line
   new AppUpdater();
@@ -2291,10 +2852,116 @@ app.on('window-all-closed', () => {
   }
 });
 
+// Clean up Learning Brain on quit
+app.on('will-quit', async () => {
+  try {
+    await shutdownLearningBrain();
+    console.log('[main] Learning Brain shutdown complete');
+  } catch (err) {
+    console.error('[main] Learning Brain shutdown error:', err);
+  }
+});
+
 app
   .whenReady()
-  .then(() => {
+  .then(async () => {
     createWindow();
+
+    // Initialize GraphInterface (Kùzu embedded by default, no external server required)
+    try {
+      // Default to Kùzu - embedded database, MIT license, no external server needed
+      const graphConfig = store.get('graph', { enabled: true, adapterType: 'kuzu' });
+      if (graphConfig.enabled) {
+        const adapterType = graphConfig.adapterType || 'kuzu';
+        await graphInterface.initialize(adapterType, store);
+        const status = graphInterface.getStatus();
+        console.log(`[main] GraphInterface initialized with ${adapterType}:`, {
+          connected: status.connected,
+          dbPath: status.dbPath,
+          capabilities: Object.keys(status.capabilities).filter(k => status.capabilities[k]),
+        });
+      } else {
+        console.log('[main] GraphInterface disabled in settings');
+      }
+    } catch (error) {
+      console.error('[main] GraphInterface initialization failed:', error);
+      // Continue app startup - graph features will be unavailable but app works
+      console.log('[main] App will continue without graph database features');
+    }
+
+    // Register graph database IPC handlers (works with both Kùzu and Neo4j)
+    registerGraphHandlers(store);
+
+    // Register skill-based AI IPC handlers
+    registerSkillHandlers(store, {
+      graphApi: graphInterface,
+      aiProvider: aiProviderManager,
+    });
+
+    // Register AI Learning Companion IPC handlers
+    registerLearningHandlers(store, {
+      aiProvider: aiProviderManager,
+    });
+
+    // Register notification system IPC handlers
+    registerNotificationHandlers(store);
+
+    // Register adaptive spaced repetition IPC handlers
+    registerSpacedRepetitionHandlers();
+
+    // Register learning plan wizard IPC handlers
+    registerLearningPlanHandlers(store, {
+      dbManager: {
+        learningPlanManager: require('./db/LearningPlanManager').default,
+        bookManager: require('./db/BookManager').default,
+        vocabularyManager: require('./db/VocabularyManager').default,
+      },
+      aiProvider: aiProviderManager,
+      graphInterface: graphInterface,
+    });
+
+    // Register study session enhancement IPC handlers (hints, sounds, caching)
+    registerStudyEnhancementHandlers(store, {
+      aiProvider: aiProviderManager,
+    });
+
+    // Register study analytics IPC handlers (performance tracking, insights)
+    registerStudyAnalyticsHandlers(store, {
+      aiProvider: aiProviderManager,
+    });
+
+    // Register unified learning IPC handlers (single API for vocabulary, notes, plans)
+    registerUnifiedLearningHandlers();
+
+    // Register learning point IPC handlers (unified learning_point table)
+    registerLearningPointHandlers();
+
+    // Initialize Learning Brain and register IPC handlers
+    initializeLearningBrain({
+      store,
+      aiProvider: aiProviderManager,
+      neo4jAdapter: graphInterface,
+      // Existing skills will be loaded if available
+      adaptiveLearningSkill: null, // Will be injected by skill system
+      learningGraphSkill: null,
+      learnerProfileManager: null,
+      learningPlanManager: require('./db/LearningPlanManager').default,
+      sessionAnalyticsManager: require('./db/SessionAnalyticsManager').default,
+    })
+      .then((brain) => {
+        if (brain) {
+          registerBrainHandlers({ brain, store });
+          console.log('[main] Learning Brain initialized successfully');
+        } else {
+          // Brain disabled or failed - still register handlers for status queries
+          registerBrainHandlers({ brain: null, store });
+          console.log('[main] Learning Brain disabled or unavailable');
+        }
+      })
+      .catch((err) => {
+        console.error('[main] Learning Brain initialization failed:', err);
+        registerBrainHandlers({ brain: null, store });
+      });
 
     // copy resource / script ..
     const dataPath = store.get('storageLocation') as string;

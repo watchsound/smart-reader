@@ -1,14 +1,17 @@
 /* eslint-disable react/prop-types */
 /* eslint-disable no-nested-ternary */
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
+import { useTheme, alpha, styled } from '@mui/material/styles';
 import BuildCircleIcon from '@mui/icons-material/BuildCircle';
 // import { Responsive, WidthProvider } from 'react-grid-layout';
 import { useSelector, useDispatch } from 'react-redux';
 import isEqual from 'is-equal';
 import watch from 'redux-watch';
+import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
 import Card from '@mui/material/Card';
 import Grid from '@mui/material/Grid';
-import { IconButton, SvgIcon } from '@mui/material';
+import { IconButton, SvgIcon, Divider, Chip, Button, CircularProgress } from '@mui/material';
 import Tooltip from '@mui/material/Tooltip';
 import {
   CanvasWidget,
@@ -23,16 +26,74 @@ import createEngine, {
 } from '@projectstorm/react-diagrams';
 import SaveIcon from '@mui/icons-material/Save';
 import PausePresentationIcon from '@mui/icons-material/PausePresentation';
+import SlideshowIcon from '@mui/icons-material/Slideshow';
 import GridViewIcon from '@mui/icons-material/GridView';
+import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
+import EditIcon from '@mui/icons-material/Edit';
+import PreviewIcon from '@mui/icons-material/Preview';
 import LinearScaleIcon from '@mui/icons-material/LinearScale';
 import TimelineIcon from '@mui/icons-material/Timeline';
+import PaletteIcon from '@mui/icons-material/Palette';
+import SettingsIcon from '@mui/icons-material/Settings';
 // import OpenAI from 'openai';
 
 import SmallButton from '../../Button/SmallButton';
 import store from '../../../store/store';
+
+// Styled components for the toolbar
+const ToolbarContainer = styled(Box)(({ theme }) => ({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  padding: '8px 16px',
+  backgroundColor: theme.palette.background.paper,
+  borderBottom: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
+  gap: theme.spacing(1),
+}));
+
+const ToolbarSection = styled(Box)(({ theme }) => ({
+  display: 'flex',
+  alignItems: 'center',
+  gap: theme.spacing(0.5),
+}));
+
+const ToolbarButton = styled(IconButton, {
+  shouldForwardProp: (prop) => prop !== 'isActive',
+})(({ theme, isActive }) => ({
+  width: 32,
+  height: 32,
+  borderRadius: theme.shape.borderRadius,
+  backgroundColor: isActive
+    ? alpha(theme.palette.primary.main, 0.1)
+    : 'transparent',
+  color: isActive
+    ? theme.palette.primary.main
+    : theme.palette.text.secondary,
+  transition: 'all 0.15s ease',
+  '&:hover': {
+    backgroundColor: isActive
+      ? alpha(theme.palette.primary.main, 0.15)
+      : alpha(theme.palette.text.primary, 0.04),
+  },
+}));
+
+const ToolbarDivider = styled(Divider)(({ theme }) => ({
+  height: 24,
+  margin: '0 8px',
+}));
+
+const ActionButton = styled(Button)(({ theme }) => ({
+  height: 32,
+  fontSize: '0.75rem',
+  fontWeight: 500,
+  textTransform: 'none',
+  borderRadius: theme.shape.borderRadius,
+  padding: '4px 12px',
+  minWidth: 'auto',
+}));
 
 import { updateMoodBoard } from '../../../api/moodBoardApi';
 import {
@@ -59,10 +120,11 @@ import CustomLinkFactory from './CustomLinkFactory';
 import ToggleButton from './ToggleButton';
 import customStorage from '../../../store/customStorage';
 import { createMoodBoardLayoutPrompt } from '../../../../commons/utils/AIPrompts';
-import aiProviderManager from '../../../../commons/service/AIProviderManager';
+import { instanceInRender as aiProviderManager } from '../../../../commons/service/AIProviderManager';
 import { adjustFontSize } from '../../../utils/common';
 
 function DetailedDiagramPanel({ curMoodBoard }) {
+  const theme = useTheme();
   const [moodBoard, setMoodBoard] = useState({});
   const [, forceUpdate] = useState(0); // state not directly used by the component
   const [openNoteModal, setOpenNoteModal] = useState(false);
@@ -133,6 +195,50 @@ function DetailedDiagramPanel({ curMoodBoard }) {
 
   const engineRef = useRef(null);
 
+  // Function to setup link listener for auto-delete of dangling links
+  const setupLinkAutoDelete = (model, eng) => {
+    model.registerListener({
+      linksUpdated: (event) => {
+        const { link, isCreated } = event;
+        if (!isCreated) return;
+
+        // Listen for when the user stops dragging the link
+        const linkListener = link.registerListener({
+          targetPortChanged: () => {
+            // Give a short delay for the link to settle
+            setTimeout(() => {
+              // If the link doesn't have both source and target ports, remove it
+              if (!link.getSourcePort() || !link.getTargetPort()) {
+                try {
+                  link.remove();
+                  eng.repaintCanvas();
+                } catch (e) {
+                  // Link might already be removed
+                }
+              }
+            }, 150);
+          },
+        });
+
+        // Also check after mouse up events
+        const handleMouseUp = () => {
+          setTimeout(() => {
+            if (!link.getSourcePort() || !link.getTargetPort()) {
+              try {
+                link.remove();
+                eng.repaintCanvas();
+              } catch (e) {
+                // Link might already be removed
+              }
+            }
+          }, 200);
+          document.removeEventListener('mouseup', handleMouseUp);
+        };
+        document.addEventListener('mouseup', handleMouseUp);
+      },
+    });
+  };
+
   if (!engineRef.current) {
     const eng = createEngine({
       registerDefaultDeleteItemsAction: false,
@@ -157,6 +263,9 @@ function DetailedDiagramPanel({ curMoodBoard }) {
     eng
       .getActionEventBus()
       .registerAction(new DeleteItemsAction({ keyCodes: [46] }));
+
+    // Setup auto-delete for dangling links
+    setupLinkAutoDelete(modelRef.current, eng);
 
     eng.setModel(modelRef.current);
     engineRef.current = eng;
@@ -318,63 +427,154 @@ function DetailedDiagramPanel({ curMoodBoard }) {
 
   // Props spreading for simplicity, consider enumerating specific props as best practice.
   return (
-    <div>
-      <div className="two_end_container">
-        <div className="two_end_start">
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {/* Professional Toolbar */}
+      <ToolbarContainer>
+        {/* Left Section - Zoom & View Controls */}
+        <ToolbarSection>
           <ZoomControls engine={engineRef.current} />
-          <ColorPicker
-            title="Canvas"
-            colorHandler={(color) => setCanvasBackground(color)}
-          />
-          <ColorPicker
-            title="Edge"
-            colorHandler={(color) => ballLinkFactoryRef.current.setColor(color)}
-          />
-          <ToggleButton
-            onToggle={handleEditToggle}
-            iconActive={VisibilityIcon}
-            iconInactive={VisibilityOffIcon}
-            labelActive="Edit"
-            labelInactive="View"
-            title="Toggle Between Edit and View Mode"
-          />
-          <ToggleButton
-            onToggle={handleLinkTypeToggle}
-            iconActive={LinearScaleIcon}
-            iconInactive={TimelineIcon}
-            labelActive="Line"
-            labelInactive="Curve"
-            title="Toggle Between Different Link Type"
-          />
-          <Tooltip title="show/hide control for card">
-            <IconButton aria-label="Layout" onClick={toggleShowCardControl}>
-              <BuildCircleIcon />
-            </IconButton>
+
+          <ToolbarDivider orientation="vertical" flexItem />
+
+          {/* Edit/View Mode Toggle */}
+          <Tooltip title={curEditState ? 'Switch to View Mode' : 'Switch to Edit Mode'}>
+            <ToolbarButton
+              isActive={curEditState}
+              onClick={() => handleEditToggle(!curEditState)}
+            >
+              {curEditState ? <EditIcon sx={{ fontSize: 18 }} /> : <PreviewIcon sx={{ fontSize: 18 }} />}
+            </ToolbarButton>
           </Tooltip>
-        </div>
-        <div className="two_end_end">
-          <Tooltip title="Use AI TO Create New Layout">
-            <IconButton aria-label="Layout" onClick={createLayoutByAI}>
-              <SvgIcon component={GridViewIcon} />
-            </IconButton>
+
+          {/* Link Type Toggle */}
+          <Tooltip title="Toggle line style">
+            <ToolbarButton onClick={() => handleLinkTypeToggle(!curEditState)}>
+              <TimelineIcon sx={{ fontSize: 18 }} />
+            </ToolbarButton>
           </Tooltip>
-          <SmallButton
-            type="button"
-            startIcon={<PausePresentationIcon />}
-            onClick={() => setOpenSliderModal(true)}
+
+          <ToolbarDivider orientation="vertical" flexItem />
+
+          {/* Color Pickers */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <ColorPicker
+              title="Canvas"
+              colorHandler={(color) => setCanvasBackground(color)}
+            />
+            <ColorPicker
+              title="Edge"
+              colorHandler={(color) => ballLinkFactoryRef.current.setColor(color)}
+            />
+          </Box>
+
+          <ToolbarDivider orientation="vertical" flexItem />
+
+          {/* Card Controls Toggle */}
+          <Tooltip title={showCardControl ? 'Hide card controls' : 'Show card controls'}>
+            <ToolbarButton
+              isActive={showCardControl}
+              onClick={toggleShowCardControl}
+            >
+              <SettingsIcon sx={{ fontSize: 18 }} />
+            </ToolbarButton>
+          </Tooltip>
+        </ToolbarSection>
+
+        {/* Center - Board Name */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography
+            variant="subtitle1"
+            sx={{
+              fontWeight: 600,
+              color: theme.palette.text.primary,
+              maxWidth: 200,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
           >
-            Open SliderView
-          </SmallButton>
-          <SmallButton
-            type="button"
-            startIcon={<SaveIcon />}
-            onClick={onSaveGridLayout}
-          >
-            Save
-          </SmallButton>
-        </div>
-      </div>
-      {diagramPanel}
+            {moodBoard.name || 'Untitled Board'}
+          </Typography>
+          {moodBoard.pinned && (
+            <Chip
+              label="Pinned"
+              size="small"
+              sx={{
+                height: 20,
+                fontSize: '0.65rem',
+                bgcolor: alpha(theme.palette.warning.main, 0.1),
+                color: theme.palette.warning.main,
+              }}
+            />
+          )}
+        </Box>
+
+        {/* Right Section - Actions */}
+        <ToolbarSection>
+          {/* AI Layout Button */}
+          <Tooltip title="Auto-arrange with AI">
+            <ActionButton
+              variant="outlined"
+              startIcon={inProcess ? <CircularProgress size={14} /> : <AutoFixHighIcon sx={{ fontSize: 16 }} />}
+              onClick={createLayoutByAI}
+              disabled={inProcess}
+              sx={{
+                borderColor: alpha(theme.palette.primary.main, 0.3),
+                color: theme.palette.primary.main,
+                '&:hover': {
+                  borderColor: theme.palette.primary.main,
+                  bgcolor: alpha(theme.palette.primary.main, 0.05),
+                },
+              }}
+            >
+              {inProcess ? 'Processing...' : 'AI Layout'}
+            </ActionButton>
+          </Tooltip>
+
+          {/* Slideshow Button */}
+          <Tooltip title="Present as slideshow">
+            <ActionButton
+              variant="outlined"
+              startIcon={<SlideshowIcon sx={{ fontSize: 16 }} />}
+              onClick={() => setOpenSliderModal(true)}
+              sx={{
+                borderColor: alpha(theme.palette.text.secondary, 0.3),
+                color: theme.palette.text.secondary,
+                '&:hover': {
+                  borderColor: theme.palette.text.primary,
+                  bgcolor: alpha(theme.palette.text.primary, 0.05),
+                },
+              }}
+            >
+              Present
+            </ActionButton>
+          </Tooltip>
+
+          {/* Save Button */}
+          <Tooltip title="Save changes">
+            <ActionButton
+              variant="contained"
+              startIcon={<SaveIcon sx={{ fontSize: 16 }} />}
+              onClick={onSaveGridLayout}
+              sx={{
+                bgcolor: theme.palette.primary.main,
+                '&:hover': {
+                  bgcolor: theme.palette.primary.dark,
+                },
+              }}
+            >
+              Save
+            </ActionButton>
+          </Tooltip>
+        </ToolbarSection>
+      </ToolbarContainer>
+
+      {/* Diagram Canvas */}
+      <Box sx={{ flex: 1, position: 'relative' }}>
+        {diagramPanel}
+      </Box>
+
+      {/* Modals */}
       {openNoteModal && curNote && (
         <NoteDetailModal
           note={curNote}
@@ -389,7 +589,7 @@ function DetailedDiagramPanel({ curMoodBoard }) {
           callback={() => setOpenSliderModal(false)}
         />
       )}
-    </div>
+    </Box>
   );
 }
 

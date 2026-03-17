@@ -11,7 +11,7 @@ export type Channels = 'ipc-example';
 const electronHandler = {
   ipcRenderer: {
     invoke(channel: string, ...args: any[]): Promise<any> {
-      return ipcRenderer.invoke(channel, args);
+      return ipcRenderer.invoke(channel, ...args);
     },
 
     on(channel: string, func: (...args: unknown[]) => void) {
@@ -38,10 +38,10 @@ const electronHandler = {
      * of a method call, consider using `ipcRenderer.invoke`.
      */
     send(channel: string, ...args: any[]): void {
-      ipcRenderer.send(channel, args);
+      ipcRenderer.send(channel, ...args);
     },
     sendSync(channel: string, ...args: any[]): any {
-      return ipcRenderer.sendSync(channel, args);
+      return ipcRenderer.sendSync(channel, ...args);
     },
 
     removeAllListeners(channel: string): void {
@@ -51,6 +51,18 @@ const electronHandler = {
     removeListener(channel: string, listener: (...args: any[]) => void): void {
       ipcRenderer.removeListener(channel, listener);
     },
+
+    /**   related to ollama code  */
+    startStream: ( history, message ) => {
+      ipcRenderer.invoke('ollama:stream', { history, message });
+    },
+    onStreamData: (callback) => {
+      ipcRenderer.on('ollama:stream:data', (event, data) => callback(data));
+    },
+    onStreamDone: (callback) => {
+      ipcRenderer.on('ollama:stream:done', () => callback());
+    },
+
 
     /** **************************************************** */
     emojiData: () => {
@@ -307,7 +319,7 @@ const electronHandler = {
     },
 
     createBookmark: (url: string, token: string) => {
-      console.log(` preload createbookmark = ${JSON.stringify(url)}`);
+      //  console.log(` preload createbookmark = ${JSON.stringify(url)}`);
       return ipcRenderer.sendSync('createBookmark', { url, token });
     },
 
@@ -395,6 +407,23 @@ const electronHandler = {
     getPinnedChats: (token: string) => {
       return ipcRenderer.sendSync('getPinnedChats', { token });
     },
+    getPinnedLearnAbout: (token: string) => {
+      return ipcRenderer.sendSync('getPinnedLearnAbout', { token });
+    },
+
+    getLearnAboutByQuery: (
+      query: string,
+      page: number,
+      limit: number,
+      token: string,
+    ) => {
+      return ipcRenderer.sendSync('getLearnAboutByQuery', {
+        query,
+        page,
+        limit,
+        token,
+      });
+    },
 
     getChatsByQuery: (
       query: string,
@@ -419,8 +448,20 @@ const electronHandler = {
       });
     },
 
+    generateContent: (prompt: string) => {
+      return ipcRenderer.sendSync('generateContent', { prompt });
+    },
+
+    fetchPageHeadless: (url: string) => {
+      return ipcRenderer.sendSync('fetchPageHeadless', { url });
+    },
+
+    sendChatMessage: (history: [], prompt: string) => {
+      return ipcRenderer.sendSync('sendChatMessage', { history, prompt });
+    },
+
     createMessage: (message: any, token: string) => {
-      console.log(`preload message = ${JSON.stringify(message)}`);
+      // console.log("preload message = ");
       return ipcRenderer.sendSync('createMessage', { message, token });
     },
 
@@ -870,6 +911,10 @@ const electronHandler = {
       const resp = ipcRenderer.sendSync('logout', token);
       return resp;
     },
+    validateSession(token: string) {
+      const resp = ipcRenderer.sendSync('validateSession', token);
+      return resp;
+    },
     getNoteBgImage(token: string) {
       const resp = ipcRenderer.sendSync('getNoteBgImage', token);
       return resp;
@@ -905,6 +950,94 @@ const electronHandler = {
       const resp = ipcRenderer.sendSync('setClaudeModel', { mode, token });
       return resp;
     },
+    getClaudeAdvancedModel(token: string) {
+      const resp = ipcRenderer.sendSync('getClaudeAdvancedModel', token);
+      return resp;
+    },
+    setClaudeAdvancedModel(mode: string, token: string) {
+      const resp = ipcRenderer.sendSync('setClaudeAdvancedModel', { mode, token });
+      return resp;
+    },
+    getBaiduModel(token: string) {
+      const resp = ipcRenderer.sendSync('getBaiduModel', token);
+      return resp;
+    },
+    setBaiduModel(mode: string, token: string) {
+      const resp = ipcRenderer.sendSync('setBaiduModel', { mode, token });
+      return resp;
+    },
+    getBaiduAdvancedModel(token: string) {
+      const resp = ipcRenderer.sendSync('getBaiduAdvancedModel', token);
+      return resp;
+    },
+    setBaiduAdvancedModel(mode: string, token: string) {
+      const resp = ipcRenderer.sendSync('setBaiduAdvancedModel', { mode, token });
+      return resp;
+    },
+    getKimiModel(token: string) {
+      const resp = ipcRenderer.sendSync('getKimiModel', token);
+      return resp;
+    },
+    setKimiModel(mode: string, token: string) {
+      const resp = ipcRenderer.sendSync('setKimiModel', { mode, token });
+      return resp;
+    },
+    getKimiAdvancedModel(token: string) {
+      const resp = ipcRenderer.sendSync('getKimiAdvancedModel', token);
+      return resp;
+    },
+    setKimiAdvancedModel(mode: string, token: string) {
+      const resp = ipcRenderer.sendSync('setKimiAdvancedModel', { mode, token });
+      return resp;
+    },
+    getDoubaoModel(token: string) {
+      const resp = ipcRenderer.sendSync('getDoubaoModel', token);
+      return resp;
+    },
+    setDoubaoModel(mode: string, token: string) {
+      const resp = ipcRenderer.sendSync('setDoubaoModel', { mode, token });
+      return resp;
+    },
+    getDoubaoAdvancedModel(token: string) {
+      const resp = ipcRenderer.sendSync('getDoubaoAdvancedModel', token);
+      return resp;
+    },
+    setDoubaoAdvancedModel(mode: string, token: string) {
+      const resp = ipcRenderer.sendSync('setDoubaoAdvancedModel', { mode, token });
+      return resp;
+    },
+    getQwenModel(token: string) {
+      const resp = ipcRenderer.sendSync('getQwenModel', token);
+      return resp;
+    },
+    setQwenModel(mode: string, token: string) {
+      const resp = ipcRenderer.sendSync('setQwenModel', { mode, token });
+      return resp;
+    },
+    getQwenAdvancedModel(token: string) {
+      const resp = ipcRenderer.sendSync('getQwenAdvancedModel', token);
+      return resp;
+    },
+    setQwenAdvancedModel(mode: string, token: string) {
+      const resp = ipcRenderer.sendSync('setQwenAdvancedModel', { mode, token });
+      return resp;
+    },
+    getOllamaModel(token: string) {
+      const resp = ipcRenderer.sendSync('getOllamaModel', token);
+      return resp;
+    },
+    setOllamaModel(mode: string, token: string) {
+      const resp = ipcRenderer.sendSync('setOllamaModel', { mode, token });
+      return resp;
+    },
+    getOllamaAdvancedModel(token: string) {
+      const resp = ipcRenderer.sendSync('getOllamaAdvancedModel', token);
+      return resp;
+    },
+    setOllamaAdvancedModel(mode: string, token: string) {
+      const resp = ipcRenderer.sendSync('setOllamaAdvancedModel', { mode, token });
+      return resp;
+    },
     getGeminiModel(token: string) {
       const resp = ipcRenderer.sendSync('getGeminiModel', token);
       return resp;
@@ -913,12 +1046,28 @@ const electronHandler = {
       const resp = ipcRenderer.sendSync('setGeminiModel', { mode, token });
       return resp;
     },
+    getGeminiAdvancedModel(token: string) {
+      const resp = ipcRenderer.sendSync('getGeminiAdvancedModel', token);
+      return resp;
+    },
+    setGeminiAdvancedModel(mode: string, token: string) {
+      const resp = ipcRenderer.sendSync('setGeminiAdvancedModel', { mode, token });
+      return resp;
+    },
     getChatGPTModel(token: string) {
       const resp = ipcRenderer.sendSync('getChatGPTModel', token);
       return resp;
     },
     setChatGPTModel(mode: string, token: string) {
       const resp = ipcRenderer.sendSync('setChatGPTModel', { mode, token });
+      return resp;
+    },
+    getChatGPTAdvancedModel(token: string) {
+      const resp = ipcRenderer.sendSync('getChatGPTAdvancedModel', token);
+      return resp;
+    },
+    setChatGPTAdvancedModel(mode: string, token: string) {
+      const resp = ipcRenderer.sendSync('setChatGPTAdvancedModel', { mode, token });
       return resp;
     },
     getLeitnerSpeed(token: string) {
@@ -1019,6 +1168,22 @@ const electronHandler = {
     },
     setKimiKey(key: string, token: string) {
       const resp = ipcRenderer.sendSync('setKimiKey', { key, token });
+      return resp;
+    },
+    getDoubaoKey(token: string) {
+      const resp = ipcRenderer.sendSync('getDoubaoKey', token);
+      return resp;
+    },
+    setDoubaoKey(key: string, token: string) {
+      const resp = ipcRenderer.sendSync('setDoubaoKey', { key, token });
+      return resp;
+    },
+    getQwenKey(token: string) {
+      const resp = ipcRenderer.sendSync('getQwenKey', token);
+      return resp;
+    },
+    setQwenKey(key: string, token: string) {
+      const resp = ipcRenderer.sendSync('setQwenKey', { key, token });
       return resp;
     },
     getRecentURL(token: string) {
@@ -1160,6 +1325,15 @@ const electronHandler = {
       return resp;
     },
 
+    getOllamaUrl() {
+      const resp = ipcRenderer.sendSync('getOllamaUrl');
+      return resp;
+    },
+    setOllamaUrl(url: string) {
+      const resp = ipcRenderer.sendSync('setOllamaUrl', url);
+      return resp;
+    },
+
     getServerUrl() {
       const resp = ipcRenderer.sendSync('getServerUrl');
       return resp;
@@ -1170,7 +1344,7 @@ const electronHandler = {
     },
 
     speakTextBySay: (text: string) => {
-      console.log(' enter speakTextBySay in reload');
+      // console.log(' enter speakTextBySay in reload');
       return ipcRenderer.sendSync('speak-text-by-say', { text });
     },
 
@@ -1196,9 +1370,9 @@ async function addEPubToVecterDB(
   maxLength,
   userId,
 ): Promise<any[]> {
-  console.log(
-    ` bookKey = ${bookKey} filePath = ${filePath} maxLength = ${maxLength} userId = ${userId}`,
-  );
+  // console.log(
+  //   ` bookKey = ${bookKey} filePath = ${filePath} maxLength = ${maxLength} userId = ${userId}`,
+  // );
   const collections: any[] = [];
   if (!filePath) return collections;
 
@@ -1227,7 +1401,7 @@ async function addEPubToVecterDB(
             if (record.length < maxLength) continue;
 
             const id = `${String(bookKey)}|${cfi}`;
-            console.log(`in add v db : id = ${id} `);
+            // console.log(`in add v db : id = ${id} `);
             collections.push({
               // changed from add to push as it seems it should be an array
               ids: [id],
@@ -1259,7 +1433,7 @@ async function addEPubToVecterDB(
 
   // Call the function
   await processBook(filePath);
-  console.log(` final collection size =  ${collections.length}`);
+  // console.log(` final collection size =  ${collections.length}`);
   return collections;
 }
 
@@ -1272,9 +1446,9 @@ window.addEventListener('DOMContentLoaded', () => {
     //    console.log( ` in process-book-for-vectordb param = ${param}`);
 
     (event, { bookKey, filePath, maxLength, userId }) => {
-      console.log(
-        `process-book-for-vectordb  bookKey = ${bookKey} filePath = ${filePath} maxLength = ${maxLength} userId = ${userId}`,
-      );
+      //  console.log(
+      //    `process-book-for-vectordb  bookKey = ${bookKey} filePath = ${filePath} maxLength = ${maxLength} userId = ${userId}`,
+      //   );
       async function t() {
         const result = await addEPubToVecterDB(
           bookKey,
@@ -1292,7 +1466,7 @@ window.addEventListener('DOMContentLoaded', () => {
     link.addEventListener('click', (e) => {
       if (link.href.startsWith('http://mycustomlink/')) {
         e.preventDefault();
-        console.log(`Link clicked: ${link.href}`);
+        //  console.log(`Link clicked: ${link.href}`);
         document.dispatchEvent(
           new CustomEvent('mycustomlink', { data: link.href }),
         );
@@ -1302,16 +1476,6 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 export type ElectronHandler = typeof electronHandler;
-
-
-
-
-
-
-
-
-
-
 
 // // Disable no-unused-vars, broken for spread args
 // /* eslint no-unused-vars: off */

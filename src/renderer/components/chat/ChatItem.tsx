@@ -13,6 +13,7 @@ import MenuItem from '@mui/material/MenuItem';
 import ListItemText from '@mui/material/ListItemText';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import Typography from '@mui/material/Typography';
+import Tooltip from '@mui/material/Tooltip';
 import { NavLink } from 'react-router-dom';
 import ListSubheader from '@mui/material/ListSubheader';
 import List from '@mui/material/List';
@@ -32,6 +33,8 @@ import FormControl from '@mui/material/FormControl';
 import { useSelector, useDispatch } from 'react-redux';
 import PushPinIcon from '@mui/icons-material/PushPin';
 import QuestionAnswerOutlinedIcon from '@mui/icons-material/QuestionAnswerOutlined';
+import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
+import { useTheme, alpha, styled } from '@mui/material/styles';
 
 import { Chat } from '../../../commons/model/chat';
 import DeleteChatModal from './DeleteChatModal';
@@ -40,6 +43,86 @@ import MainLink from './MainLink';
 
 import { updateChatPin } from '../../api/chatApi';
 import { chatHandled, chatUpdated } from '../../store/reducers/chatSlice';
+
+// Color palette matching BookmarkUI style
+const CHAT_COLORS = [
+  { bg: '#E8F5E9', accent: '#4CAF50', icon: '#2E7D32' },
+  { bg: '#E3F2FD', accent: '#2196F3', icon: '#1565C0' },
+  { bg: '#F3E5F5', accent: '#9C27B0', icon: '#6A1B9A' },
+  { bg: '#FFF8E1', accent: '#FFC107', icon: '#FF8F00' },
+  { bg: '#FFEBEE', accent: '#F44336', icon: '#C62828' },
+  { bg: '#E0F7FA', accent: '#00BCD4', icon: '#00838F' },
+];
+
+const CHAT_COLORS_DARK = [
+  { bg: '#1B3A1B', accent: '#4CAF50', icon: '#81C784' },
+  { bg: '#0D2137', accent: '#2196F3', icon: '#64B5F6' },
+  { bg: '#2A1B2E', accent: '#9C27B0', icon: '#BA68C8' },
+  { bg: '#2D2600', accent: '#FFC107', icon: '#FFD54F' },
+  { bg: '#2D1515', accent: '#F44336', icon: '#E57373' },
+  { bg: '#0A2A2D', accent: '#00BCD4', icon: '#4DD0E1' },
+];
+
+// Generate consistent color index from chat id
+function getColorIndex(id: string) {
+  if (!id) return 0;
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = id.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return Math.abs(hash) % CHAT_COLORS.length;
+}
+
+// Styled chat item container
+const ChatItemContainer = styled(Box, {
+  shouldForwardProp: (prop) => prop !== 'isActive' && prop !== 'colors',
+})<{ isActive?: boolean; colors?: any }>(({ theme, isActive, colors }) => ({
+  display: 'flex',
+  alignItems: 'center',
+  gap: theme.spacing(1.5),
+  padding: theme.spacing(1, 1.5),
+  marginBottom: theme.spacing(0.5),
+  borderRadius: 10,
+  cursor: 'pointer',
+  position: 'relative',
+  transition: 'all 0.2s ease-in-out',
+  backgroundColor: isActive
+    ? alpha(colors?.accent || theme.palette.primary.main, 0.12)
+    : 'transparent',
+  '&:hover': {
+    backgroundColor: isActive
+      ? alpha(colors?.accent || theme.palette.primary.main, 0.15)
+      : alpha(theme.palette.action.hover, 0.08),
+    transform: 'translateX(2px)',
+  },
+  // Left accent stripe when active
+  ...(isActive && {
+    '&::before': {
+      content: '""',
+      position: 'absolute',
+      left: 0,
+      top: '50%',
+      transform: 'translateY(-50%)',
+      width: 3,
+      height: '60%',
+      backgroundColor: colors?.accent || theme.palette.primary.main,
+      borderRadius: 2,
+    },
+  }),
+}));
+
+const ChatIconBadge = styled(Box, {
+  shouldForwardProp: (prop) => prop !== 'colors',
+})<{ colors?: any }>(({ theme, colors }) => ({
+  width: 32,
+  height: 32,
+  borderRadius: 8,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  backgroundColor: colors?.bg || alpha(theme.palette.primary.main, 0.1),
+  flexShrink: 0,
+}));
 
 function ChatItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
   const [alert, setAlert] = React.useState(false);
@@ -88,72 +171,180 @@ function ChatItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
     }
   };
 
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+  const colorPalette = isDark ? CHAT_COLORS_DARK : CHAT_COLORS;
+  const colorIndex = getColorIndex(chat.id);
+  const colors = colorPalette[colorIndex];
+  const [isHovered, setIsHovered] = React.useState(false);
+
+  // Format date for display
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays}d`;
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
   return (
     <>
-      <Box
-        key={chat.id}
-        className={isActive ? 'active' : undefined}
-        sx={(theme) => ({
-          flexGrow: 1,
-          marginTop: 1,
-        })}
+      <ChatItemContainer
+        isActive={isActive}
+        colors={colors}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
       >
-        <Grid container sx={{ width: '100%', alignItems: 'center' }}>
-          <Grid item xs={12}>
-            <MainLink
-              icon={
-                chat.pinned ? (
-                  <PushPinIcon fontSize="small" />
-                ) : (
-                  <QuestionAnswerOutlinedIcon fontSize="small" />
-                )
-              }
-              color="teal"
-              chat={chat}
-              label={chat.description}
-              popupCallback={handleClick}
-            />
-          </Grid>
+        {/* Chat Icon */}
+        <ChatIconBadge colors={colors}>
+          {chat.pinned ? (
+            <PushPinIcon sx={{ fontSize: 16, color: colors.icon }} />
+          ) : (
+            <ChatBubbleOutlineIcon sx={{ fontSize: 16, color: colors.icon }} />
+          )}
+        </ChatIconBadge>
 
-          <Menu
-            id="lock-menu"
-            open={open}
-            onClose={handleClose}
-            anchorEl={anchorEl}
-            MenuListProps={{
-              'aria-labelledby': 'lock-button',
-              role: 'listbox',
+        {/* Chat Info */}
+        <Box
+          sx={{ flex: 1, minWidth: 0, cursor: 'pointer' }}
+          onClick={() => dispatch(chatHandled(chat))}
+        >
+          <NavLink
+            to={`/chats/${chat.id}`}
+            style={{ textDecoration: 'none', color: 'inherit' }}
+          >
+            <Typography
+              variant="body2"
+              sx={{
+                fontWeight: isActive ? 600 : 500,
+                fontSize: '0.85rem',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                color: isActive ? colors.icon : 'text.primary',
+              }}
+            >
+              {chat.description || 'New Chat'}
+            </Typography>
+            {chat.createdAt && (
+              <Typography
+                variant="caption"
+                sx={{
+                  fontSize: '0.7rem',
+                  color: 'text.disabled',
+                  display: 'block',
+                }}
+              >
+                {formatDate(chat.createdAt)}
+              </Typography>
+            )}
+          </NavLink>
+        </Box>
+
+        {/* Actions */}
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            opacity: isHovered ? 1 : 0,
+            transition: 'opacity 0.15s ease',
+          }}
+        >
+          <Tooltip title="More options">
+            <IconButton
+              size="small"
+              onClick={handleClick}
+              sx={{
+                width: 28,
+                height: 28,
+                '&:hover': {
+                  bgcolor: alpha(colors.accent, 0.15),
+                },
+              }}
+            >
+              <MoreVertIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          </Tooltip>
+        </Box>
+
+        {/* Context Menu */}
+        <Menu
+          id="chat-menu"
+          open={open}
+          onClose={handleClose}
+          anchorEl={anchorEl}
+          anchorOrigin={{
+            vertical: 'bottom',
+            horizontal: 'right',
+          }}
+          transformOrigin={{
+            vertical: 'top',
+            horizontal: 'right',
+          }}
+          PaperProps={{
+            sx: {
+              borderRadius: 2,
+              minWidth: 150,
+              boxShadow: isDark
+                ? `0 4px 20px ${alpha('#000', 0.4)}`
+                : `0 4px 20px ${alpha('#000', 0.12)}`,
+            },
+          }}
+        >
+          <MenuItem onClick={(event) => toggleChatPinAction(chat.id, event)}>
+            <ListItemIcon>
+              {chat.pinned ? (
+                <NotListedLocationIcon fontSize="small" />
+              ) : (
+                <PinDropIcon fontSize="small" />
+              )}
+            </ListItemIcon>
+            <ListItemText>
+              <Typography variant="body2">
+                {chat.pinned ? 'Unpin' : 'Pin'}
+              </Typography>
+            </ListItemText>
+          </MenuItem>
+          <MenuItem
+            onClick={async () => {
+              setOpenEdit(true);
+              handleClose();
             }}
           >
-            <MenuItem onClick={(event) => toggleChatPinAction(chat.id, event)}>
-              <ListItemIcon>
-                {chat.pinned ? <NotListedLocationIcon /> : <PinDropIcon />}
-              </ListItemIcon>
-              <ListItemText />
-            </MenuItem>
-            <MenuItem
-              onClick={async () => {
-                setOpenEdit(true);
-                handleClose();
-              }}
-            >
-              <ListItemIcon>
-                <EditIcon />
-              </ListItemIcon>
-            </MenuItem>
-            <MenuItem
-              onClick={async () => {
-                setOpenDelete(true);
-                handleClose();
-              }}
-            >
-              <ListItemIcon>
-                <CloseIcon />
-              </ListItemIcon>
-            </MenuItem>
-          </Menu>
-        </Grid>
-      </Box>
+            <ListItemIcon>
+              <EditIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>
+              <Typography variant="body2">Edit</Typography>
+            </ListItemText>
+          </MenuItem>
+          <Divider sx={{ my: 0.5 }} />
+          <MenuItem
+            onClick={async () => {
+              setOpenDelete(true);
+              handleClose();
+            }}
+            sx={{
+              color: 'error.main',
+              '&:hover': {
+                bgcolor: alpha(theme.palette.error.main, 0.08),
+              },
+            }}
+          >
+            <ListItemIcon>
+              <CloseIcon fontSize="small" sx={{ color: 'error.main' }} />
+            </ListItemIcon>
+            <ListItemText>
+              <Typography variant="body2">Delete</Typography>
+            </ListItemText>
+          </MenuItem>
+        </Menu>
+      </ChatItemContainer>
+
       <EditChatModal
         open={openEdit}
         chat={chat}
@@ -168,8 +359,15 @@ function ChatItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
         open={alert}
         autoHideDuration={6000}
         onClose={() => setAlert(false)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
-        <Alert severity="error">{alertContent}</Alert>
+        <Alert
+          severity="error"
+          variant="filled"
+          sx={{ borderRadius: 2 }}
+        >
+          {alertContent}
+        </Alert>
       </Snackbar>
     </>
   );

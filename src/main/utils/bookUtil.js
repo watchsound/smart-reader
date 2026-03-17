@@ -740,13 +740,10 @@ class BookUtil {
           description = dom.window.document.querySelector('dc\\:description')
             ? dom.window.document.querySelector('dc\\:description').textContent
             : '';
-          cover = dom.window.document.querySelector('dc\\:cover')
-            ? dom.window.document.querySelector('dc\\:cover').textContent
-            : '';
-
-          if (cover.indexOf('image') === -1) {
-            cover = '';
-          }
+          // Note: dc:cover only contains an internal EPUB reference ID (e.g., "cover-image"),
+          // not actual image data. We leave cover empty and let the runtime cover
+          // generation capture the first page when the book is opened.
+          cover = '';
           break;
         default:
           break;

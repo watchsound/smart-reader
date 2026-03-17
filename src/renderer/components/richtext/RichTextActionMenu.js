@@ -7,6 +7,7 @@ import {
   Tooltip,
   IconButton,
 } from '@mui/material';
+import { styled, alpha } from '@mui/material/styles';
 import FormatUnderlinedIcon from '@mui/icons-material/FormatUnderlined';
 import WavesIcon from '@mui/icons-material/Waves';
 import BlurCircularIcon from '@mui/icons-material/BlurCircular';
@@ -25,6 +26,21 @@ import LockResetIcon from '@mui/icons-material/LockReset';
 import LoginIcon from '@mui/icons-material/Login';
 import StarBorderPurple500Icon from '@mui/icons-material/StarBorderPurple500';
 import SmallButton from '../Button/SmallButton';
+
+const StyledIconButton = styled(IconButton)(({ theme }) => ({
+  width: 30,
+  height: 30,
+  borderRadius: 8,
+  transition: 'all 0.15s ease-in-out',
+  '& .MuiSvgIcon-root': {
+    fontSize: 16,
+  },
+  '&:hover': {
+    backgroundColor: alpha(theme.palette.secondary.main, 0.12),
+    color: theme.palette.secondary.main,
+    transform: 'scale(1.08)',
+  },
+}));
 
 function RichTextActionMenu({ asIconButton, emphasisCallback, entryCallback }) {
   const [anchorEl, setAnchorEl] = useState(null);
@@ -69,14 +85,15 @@ function RichTextActionMenu({ asIconButton, emphasisCallback, entryCallback }) {
     <Grid item>
       {asIconButton && (
         <>
-          <IconButton
-            label="Animation Effect"
-            size="small"
-            color="primary"
-            onClick={handleClick}
-          >
-            <AttractionsIcon />
-          </IconButton>
+          <Tooltip title="Animation Effects">
+            <StyledIconButton
+              size="small"
+              onClick={handleClick}
+              aria-label="animation effects"
+            >
+              <AttractionsIcon />
+            </StyledIconButton>
+          </Tooltip>
           <Menu
             anchorEl={anchorEl}
             open={Boolean(anchorEl)}

@@ -1,3 +1,9 @@
+/* ========================================
+   BOOKSHELF VIEW STYLES
+   Professional design matching Bookmark view
+   ======================================== */
+
+/* Book Card Enter/Exit Animations */
 .book-card-enter {
   opacity: 0;
   transform: scale(0.9);
@@ -6,7 +12,7 @@
 .book-card-enter-active {
   opacity: 1;
   transform: scale(1);
-  transition: opacity 1300ms, transform 1300ms;
+  transition: opacity 300ms ease-out, transform 300ms ease-out;
 }
 
 .book-card-exit {
@@ -17,5 +23,434 @@
 .book-card-exit-active {
   opacity: 0;
   transform: scale(0.9);
-  transition: opacity 1300ms, transform 1300ms;
+  transition: opacity 300ms ease-out, transform 300ms ease-out;
+}
+
+/* ========================================
+   SIDEBAR STYLES
+   ======================================== */
+
+/* Sidebar scrollbar styling */
+.bookshelf-sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.bookshelf-sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.bookshelf-sidebar::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+}
+
+.bookshelf-sidebar::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+/* Dark mode scrollbar */
+[data-theme='dark'] .bookshelf-sidebar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+[data-theme='dark'] .bookshelf-sidebar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* ========================================
+   MAIN CONTENT AREA
+   ======================================== */
+
+/* Main content scrollbar */
+.bookshelf-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.bookshelf-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.bookshelf-content::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 4px;
+}
+
+.bookshelf-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+/* ========================================
+   BOOK SPINE STYLES
+   ======================================== */
+
+/* Book spine hover animation */
+.book-spine {
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 0.25s ease-out;
+  cursor: pointer;
+  position: relative;
+}
+
+.book-spine:hover {
+  transform: translateY(-10px) scale(1.03);
+  z-index: 10;
+}
+
+/* Book spine inner highlight (simulates spine reflection) */
+.book-spine::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100%;
+  background: linear-gradient(90deg,
+    rgba(255,255,255,0.25) 0%,
+    rgba(255,255,255,0.05) 30%,
+    transparent 50%);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+/* ========================================
+   BOOK CARD STYLES
+   ======================================== */
+
+/* Book card hover animation */
+.book-card {
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 0.25s ease-out;
+  cursor: pointer;
+}
+
+.book-card:hover {
+  transform: translateY(-8px) scale(1.02);
+}
+
+/* ========================================
+   LIST VIEW - RIBBON CARD STYLES
+   Matching BookmarkUI design
+   ======================================== */
+
+.book-ribbon-card {
+  display: flex;
+  align-items: stretch;
+  height: 72px;
+  border-radius: 12px;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.2s ease-in-out;
+}
+
+.book-ribbon-card:hover {
+  transform: translateX(4px);
+}
+
+/* Ribbon left section */
+.book-ribbon-left {
+  width: 72px;
+  min-width: 72px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px 0 0 12px;
+}
+
+/* Accent stripe */
+.book-ribbon-accent {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  border-radius: 12px 0 0 12px;
+}
+
+/* Book notch decoration */
+.book-ribbon-notch {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 12px solid transparent;
+  border-right: 12px solid transparent;
+}
+
+/* Right edge decoration */
+.book-ribbon-edge {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  display: flex;
+  flex-direction: column;
+}
+
+.book-ribbon-edge-notch {
+  width: 0;
+  height: 0;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+/* ========================================
+   GRID VIEW - CARD STYLES
+   ======================================== */
+
+/* Books grid container */
+.books-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 200px));
+  gap: 24px;
+  padding: 16px 8px;
+  justify-content: start;
+}
+
+/* Books flex container (for spines) */
+.books-flex {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px;
+  align-items: flex-end;
+}
+
+/* Book cover 3D effect */
+.book-cover-3d {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  transition: box-shadow 0.3s ease;
+}
+
+.book-cover-3d::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 12px;
+  background: linear-gradient(90deg, rgba(0,0,0,0.05), rgba(0,0,0,0.15));
+  z-index: 2;
+}
+
+.book-cover-3d::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 12px;
+  height: 1px;
+  background: rgba(255,255,255,0.3);
+  z-index: 2;
+}
+
+/* ========================================
+   EMPTY STATE STYLES
+   ======================================== */
+
+.bookshelf-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 60vh;
+  text-align: center;
+  padding: 0 32px;
+}
+
+.bookshelf-empty-icon {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+/* ========================================
+   ANIMATION KEYFRAMES
+   ======================================== */
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+/* Apply animations to book cards */
+.book-card-animated {
+  animation: fadeInUp 0.3s ease-out forwards;
+}
+
+.book-card-animated:nth-child(1) { animation-delay: 0.05s; }
+.book-card-animated:nth-child(2) { animation-delay: 0.1s; }
+.book-card-animated:nth-child(3) { animation-delay: 0.15s; }
+.book-card-animated:nth-child(4) { animation-delay: 0.2s; }
+.book-card-animated:nth-child(5) { animation-delay: 0.25s; }
+.book-card-animated:nth-child(6) { animation-delay: 0.3s; }
+
+/* ========================================
+   RESPONSIVE ADJUSTMENTS
+   ======================================== */
+
+@media (max-width: 768px) {
+  .books-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 160px));
+    gap: 16px;
+  }
+
+  .book-ribbon-card {
+    height: 64px;
+  }
+
+  .book-ribbon-left {
+    width: 64px;
+    min-width: 64px;
+  }
+}
+
+@media (max-width: 480px) {
+  .books-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+}
+
+/* ========================================
+   LEGACY STYLES (kept for compatibility)
+   ======================================== */
+
+/* Main bookshelf container */
+.bookshelf-container {
+  min-height: 100vh;
+  padding: 16px;
+}
+
+.bookshelf-container--light {
+  background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
+}
+
+.bookshelf-container--dark {
+  background: linear-gradient(135deg, #1a1d21 0%, #2d3136 100%);
+}
+
+/* Glass shelf container for books */
+.glass-shelf {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  padding: 24px;
+  position: relative;
+}
+
+.glass-shelf--light {
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+}
+
+.glass-shelf--dark {
+  background: rgba(40, 44, 52, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+/* Shelf bottom edge (subtle 3D effect) */
+.glass-shelf::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 5%;
+  right: 5%;
+  height: 4px;
+  background: linear-gradient(90deg, transparent, rgba(0,0,0,0.1), transparent);
+  border-radius: 0 0 4px 4px;
+}
+
+/* Glass card effect */
+.glass-card {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 0.25s ease-out;
+}
+
+.glass-card:hover {
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
+}
+
+.glass-card--dark {
+  background: rgba(45, 50, 58, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.glass-card--dark:hover {
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+}
+
+/* Header toolbar */
+.bookshelf-header {
+  padding: 16px 20px;
+  margin-bottom: 16px;
+  border-radius: 12px;
+}
+
+.bookshelf-header--light {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+}
+
+.bookshelf-header--dark {
+  background: rgba(40, 44, 52, 0.7);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
 }

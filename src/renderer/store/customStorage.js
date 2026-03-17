@@ -5,8 +5,13 @@ import {
   ChatGPTModel,
   ClaudeModel,
   GeminiModel,
+  OllamaModel,
+  BaiduModel,
+  KimiModel,
+  DoubaoModel,
+  QwenModel,
 } from '../../commons/model/DataTypes';
-import aiProviderManager from '../../commons/service/AIProviderManager';
+import { instanceInRender as aiProviderManager } from '../../commons/service/AIProviderManager';
 
 class customStorage {
   static getUserInfo() {
@@ -24,6 +29,15 @@ class customStorage {
     return this.getUserInfo().token;
   }
 
+  // Alias for getSessionToken - used by LeitnerSystem and other components
+  static getToken() {
+    return this.getSessionToken();
+  }
+
+  static getUserId() {
+    return this.getUserInfo().id;
+  }
+
   static isLoggedIn() {
     const token = this.getSessionToken();
     return token && token.length > 0;
@@ -36,6 +50,8 @@ class customStorage {
     const apiKeyKimi = await this.getKimiKey();
     const apiKeyClaude = await this.getClaudeKey();
     const apiKeyBaidu = await this.getBaiduKey();
+    const apiKeyDoubao = await this.getDoubaoKey();
+    const apiKeyQwen = await this.getQwenKey();
     const { key, provider } = aiProviderManager.preSetup(
       provider0,
       apiKeyChatgpt,
@@ -43,6 +59,8 @@ class customStorage {
       apiKeyKimi,
       apiKeyClaude,
       apiKeyBaidu,
+      apiKeyDoubao,
+      apiKeyQwen,
     );
     let model = '';
     if (provider === AIProvider.ChatGPT) {
@@ -52,7 +70,13 @@ class customStorage {
     } else if (provider === AIProvider.Claude) {
       model = await this.getClaudeModel();
     } else if (provider === AIProvider.Baidu) {
-      model = await this.getBaiduAccessToken();  // ugly but....
+      model = await this.getBaiduAccessToken(); // ugly but....
+    } else if (provider === AIProvider.Ollama) {
+      model = await this.getOllamaModel(); // ugly but....
+    } else if (provider === AIProvider.Doubao) {
+      model = await this.getDoubaoModel();
+    } else if (provider === AIProvider.Qwen) {
+      model = await this.getQwenModel();
     }
 
     aiProviderManager.setup(true, userId, provider, key, model);
@@ -78,6 +102,19 @@ class customStorage {
         if (dispatch) dispatch(logoutHandled(v));
       }
     }
+  }
+
+  // Validate that renderer's token matches main process session
+  // Returns session info if valid, null if invalid
+  static validateSession() {
+    const token = this.getSessionToken();
+    if (!token) return null;
+    const sessionInfo = window.electron.ipcRenderer.validateSession(token);
+    if (!sessionInfo) {
+      // Session invalid - clear local storage
+      this.setUserInfo({ user: '', email: '', token: '' });
+    }
+    return sessionInfo;
   }
 
   static register(user, email, password) {
@@ -118,7 +155,6 @@ class customStorage {
     if (!this.isLoggedIn()) return '';
     return window.electron.ipcRenderer.getPDF4URL(id);
   }
-
 
   static deleteBookById(id) {
     if (!this.isLoggedIn()) return null;
@@ -595,6 +631,35 @@ class customStorage {
     return window.electron.ipcRenderer.getPinnedChats(this.getSessionToken());
   }
 
+  static getPinnedLearnAbout() {
+    if (!this.isLoggedIn()) return null;
+    return window.electron.ipcRenderer.getPinnedLearnAbout(
+      this.getSessionToken(),
+    );
+  }
+
+  static getLearnAboutByQuery({ query, page, limit }) {
+    if (!this.isLoggedIn())
+      return {
+        data: [],
+        total: 0,
+        totalPages: 0,
+        currentPage: 0,
+      };
+    return window.electron.ipcRenderer.getLearnAboutByQuery(
+      query,
+      page,
+      limit,
+      this.getSessionToken(),
+    );
+  }
+
+  static async jsonLearnAboutChats() {
+    if (!this.isLoggedIn()) return [];
+    const result = await this.getLearnAboutByQuery({ query: '', page: 1, limit: 100 });
+    return result?.data || [];
+  }
+
   static getChatsByQuery({ query, page, limit }) {
     if (!this.isLoggedIn())
       return {
@@ -1021,6 +1086,7 @@ class customStorage {
   // quiz problem
   static createMessage(message) {
     if (!this.isLoggedIn()) return null;
+    console.log('create message');
     return window.electron.ipcRenderer.createMessage(
       message,
       this.getSessionToken(),
@@ -1116,6 +1182,14 @@ class customStorage {
     return window.electron.ipcRenderer.setChromaUrl(url);
   }
 
+  static getOllamaUrl() {
+    return window.electron.ipcRenderer.getOllamaUrl();
+  }
+
+  static setOllamaUrl(url) {
+    return window.electron.ipcRenderer.setOllamaUrl(url);
+  }
+
   static getServerUrl() {
     return window.electron.ipcRenderer.getServerUrl();
   }
@@ -1152,8 +1226,22 @@ class customStorage {
   }
 
   static getClaudeModel() {
-    if (!this.isLoggedIn()) return ClaudeModel.CLAUDE_3_HAIKU;
+    if (!this.isLoggedIn()) return ClaudeModel.CLAUDE_HAIKU_4_5;
     return window.electron.ipcRenderer.getClaudeModel(this.getSessionToken());
+  }
+
+  static async setClaudeAdvancedModel(mode) {
+    if (!this.isLoggedIn()) return null;
+    const r = await window.electron.ipcRenderer.setClaudeAdvancedModel(
+      mode,
+      this.getSessionToken(),
+    );
+    return r;
+  }
+
+  static getClaudeAdvancedModel() {
+    if (!this.isLoggedIn()) return ClaudeModel.CLAUDE_OPUS_4_5;
+    return window.electron.ipcRenderer.getClaudeAdvancedModel(this.getSessionToken());
   }
 
   static async setGeminiModel(mode) {
@@ -1167,8 +1255,51 @@ class customStorage {
   }
 
   static getGeminiModel() {
-    if (!this.isLoggedIn()) return GeminiModel.GEMINI1_5_flash;
+    if (!this.isLoggedIn()) return GeminiModel.GEMINI_2_5_FLASH;
     return window.electron.ipcRenderer.getGeminiModel(this.getSessionToken());
+  }
+
+  static async setGeminiAdvancedModel(mode) {
+    if (!this.isLoggedIn()) return null;
+    const r = await window.electron.ipcRenderer.setGeminiAdvancedModel(
+      mode,
+      this.getSessionToken(),
+    );
+    return r;
+  }
+
+  static getGeminiAdvancedModel() {
+    if (!this.isLoggedIn()) return GeminiModel.GEMINI_2_5_PRO;
+    return window.electron.ipcRenderer.getGeminiAdvancedModel(this.getSessionToken());
+  }
+
+  static async setOllamaModel(mode) {
+    if (!this.isLoggedIn()) return null;
+    const r = await window.electron.ipcRenderer.setOllamaModel(
+      mode,
+      this.getSessionToken(),
+    );
+    await this.setupAiProvider(this.getUserInfo().id);
+    return r;
+  }
+
+  static getOllamaModel() {
+    if (!this.isLoggedIn()) return OllamaModel.LLAMA_3_2_3B;
+    return window.electron.ipcRenderer.getOllamaModel(this.getSessionToken());
+  }
+
+  static async setOllamaAdvancedModel(mode) {
+    if (!this.isLoggedIn()) return null;
+    const r = await window.electron.ipcRenderer.setOllamaAdvancedModel(
+      mode,
+      this.getSessionToken(),
+    );
+    return r;
+  }
+
+  static getOllamaAdvancedModel() {
+    if (!this.isLoggedIn()) return OllamaModel.LLAMA_3_3_70B;
+    return window.electron.ipcRenderer.getOllamaAdvancedModel(this.getSessionToken());
   }
 
   static async setChatGPTModel(mode) {
@@ -1182,8 +1313,142 @@ class customStorage {
   }
 
   static getChatGPTModel() {
-    if (!this.isLoggedIn()) return ChatGPTModel.GPT3_5;
+    if (!this.isLoggedIn()) return ChatGPTModel.GPT4_1_MINI;
     return window.electron.ipcRenderer.getChatGPTModel(this.getSessionToken());
+  }
+
+  static async setChatGPTAdvancedModel(mode) {
+    if (!this.isLoggedIn()) return null;
+    const r = await window.electron.ipcRenderer.setChatGPTAdvancedModel(
+      mode,
+      this.getSessionToken(),
+    );
+    return r;
+  }
+
+  static getChatGPTAdvancedModel() {
+    if (!this.isLoggedIn()) return ChatGPTModel.GPT4_1;
+    return window.electron.ipcRenderer.getChatGPTAdvancedModel(this.getSessionToken());
+  }
+
+  // Baidu models
+  static async setBaiduModel(mode) {
+    if (!this.isLoggedIn()) return null;
+    const r = await window.electron.ipcRenderer.setBaiduModel(
+      mode,
+      this.getSessionToken(),
+    );
+    return r;
+  }
+
+  static getBaiduModel() {
+    if (!this.isLoggedIn()) return BaiduModel.ERNIE_4_5_TURBO;
+    return window.electron.ipcRenderer.getBaiduModel(this.getSessionToken());
+  }
+
+  static async setBaiduAdvancedModel(mode) {
+    if (!this.isLoggedIn()) return null;
+    const r = await window.electron.ipcRenderer.setBaiduAdvancedModel(
+      mode,
+      this.getSessionToken(),
+    );
+    return r;
+  }
+
+  static getBaiduAdvancedModel() {
+    if (!this.isLoggedIn()) return BaiduModel.ERNIE_5;
+    return window.electron.ipcRenderer.getBaiduAdvancedModel(this.getSessionToken());
+  }
+
+  // Kimi models
+  static async setKimiModel(mode) {
+    if (!this.isLoggedIn()) return null;
+    const r = await window.electron.ipcRenderer.setKimiModel(
+      mode,
+      this.getSessionToken(),
+    );
+    return r;
+  }
+
+  static getKimiModel() {
+    if (!this.isLoggedIn()) return KimiModel.KIMI_K2;
+    return window.electron.ipcRenderer.getKimiModel(this.getSessionToken());
+  }
+
+  static async setKimiAdvancedModel(mode) {
+    if (!this.isLoggedIn()) return null;
+    const r = await window.electron.ipcRenderer.setKimiAdvancedModel(
+      mode,
+      this.getSessionToken(),
+    );
+    return r;
+  }
+
+  static getKimiAdvancedModel() {
+    if (!this.isLoggedIn()) return KimiModel.KIMI_K2_5;
+    return window.electron.ipcRenderer.getKimiAdvancedModel(this.getSessionToken());
+  }
+
+  // Doubao models
+  static async setDoubaoModel(mode) {
+    if (!this.isLoggedIn()) return null;
+    const r = await window.electron.ipcRenderer.setDoubaoModel(
+      mode,
+      this.getSessionToken(),
+    );
+    return r;
+  }
+
+  static getDoubaoModel() {
+    if (!this.isLoggedIn()) return DoubaoModel.DOUBAO_PRO_32K;
+    return window.electron.ipcRenderer.getDoubaoModel(this.getSessionToken());
+  }
+
+  static async setDoubaoAdvancedModel(mode) {
+    if (!this.isLoggedIn()) return null;
+    const r = await window.electron.ipcRenderer.setDoubaoAdvancedModel(
+      mode,
+      this.getSessionToken(),
+    );
+    return r;
+  }
+
+  static getDoubaoAdvancedModel() {
+    if (!this.isLoggedIn()) return DoubaoModel.DOUBAO_SEED_1_6;
+    return window.electron.ipcRenderer.getDoubaoAdvancedModel(this.getSessionToken());
+  }
+
+  // Qwen models
+  static async setQwenModel(mode) {
+    if (!this.isLoggedIn()) return null;
+    const r = await window.electron.ipcRenderer.setQwenModel(
+      mode,
+      this.getSessionToken(),
+    );
+    return r;
+  }
+
+  static getQwenModel() {
+    if (!this.isLoggedIn()) return QwenModel.QWEN_PLUS;
+    return window.electron.ipcRenderer.getQwenModel(this.getSessionToken());
+  }
+
+  static async setQwenAdvancedModel(mode) {
+    if (!this.isLoggedIn()) return null;
+    const r = await window.electron.ipcRenderer.setQwenAdvancedModel(
+      mode,
+      this.getSessionToken(),
+    );
+    return r;
+  }
+
+  static getQwenAdvancedModel() {
+    if (!this.isLoggedIn()) return QwenModel.QWEN3_MAX;
+    return window.electron.ipcRenderer.getQwenAdvancedModel(this.getSessionToken());
+  }
+
+  static fetchPageHeadless(url) {
+    return window.electron.ipcRenderer.fetchPageHeadless(url);
   }
 
   static getLeitnerSpeed() {
@@ -1346,6 +1611,26 @@ class customStorage {
     return window.electron.ipcRenderer.setKimiKey(key, this.getSessionToken());
   }
 
+  static getDoubaoKey() {
+    if (!this.isLoggedIn()) return null;
+    return window.electron.ipcRenderer.getDoubaoKey(this.getSessionToken());
+  }
+
+  static setDoubaoKey(key) {
+    if (!this.isLoggedIn()) return null;
+    return window.electron.ipcRenderer.setDoubaoKey(key, this.getSessionToken());
+  }
+
+  static getQwenKey() {
+    if (!this.isLoggedIn()) return null;
+    return window.electron.ipcRenderer.getQwenKey(this.getSessionToken());
+  }
+
+  static setQwenKey(key) {
+    if (!this.isLoggedIn()) return null;
+    return window.electron.ipcRenderer.setQwenKey(key, this.getSessionToken());
+  }
+
   static getUseChroma() {
     if (!this.isLoggedIn()) return false;
     return window.electron.ipcRenderer.getUseChroma(this.getSessionToken());
@@ -1497,6 +1782,44 @@ class customStorage {
     const readerConfig = v0 ? JSON5.parse(v0) : {};
     readerConfig[key] = value;
     customStorage.setItem('readerConfig', JSON.stringify(readerConfig));
+  }
+
+  // Graph database settings
+  static getGraphEnabled() {
+    return window.electron.ipcRenderer.getStoreValue('graph.enabled') ?? true;
+  }
+
+  static setGraphEnabled(enabled) {
+    return window.electron.ipcRenderer.setStoreValue('graph.enabled', enabled);
+  }
+
+  static getGraphUri() {
+    return (
+      window.electron.ipcRenderer.getStoreValue('graph.connectionUri') ||
+      'bolt://localhost:7687'
+    );
+  }
+
+  static setGraphUri(uri) {
+    return window.electron.ipcRenderer.setStoreValue('graph.connectionUri', uri);
+  }
+
+  static getGraphUsername() {
+    return (
+      window.electron.ipcRenderer.getStoreValue('graph.username') || 'neo4j'
+    );
+  }
+
+  static setGraphUsername(username) {
+    return window.electron.ipcRenderer.setStoreValue('graph.username', username);
+  }
+
+  static getGraphPassword() {
+    return window.electron.ipcRenderer.getStoreValue('graph.password') || '';
+  }
+
+  static setGraphPassword(password) {
+    return window.electron.ipcRenderer.setStoreValue('graph.password', password);
   }
 }
 

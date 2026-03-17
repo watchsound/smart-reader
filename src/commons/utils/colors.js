@@ -1,13 +1,11 @@
-
-
-
+// Slack-style color palette
 export const colors = [
-  '#42a5f5',
-  '#ba68c8',
-  '#FF5733',
-  '#FFFFFF',
-  '#ff9800',
-  '#4caf50',
+  '#1d9bd1',  // Slack blue
+  '#2eb67d',  // Slack green
+  '#e01e5a',  // Slack red/pink
+  '#ecb22e',  // Slack yellow
+  '#611f69',  // Slack aubergine
+  '#1d1c1d',  // Slack dark
 ];
 
 export const colorsMui = [

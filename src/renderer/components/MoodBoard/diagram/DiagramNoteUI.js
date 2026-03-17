@@ -23,10 +23,16 @@ import CardHeaderNoSwitch from '../../note/CardHeaderNoSwitch';
 import CardContentSwitcher from '../../note/CardContentSwitcher';
 import RichTextActionMenu from '../../richtext/RichTextActionMenu';
 
-const StyledCard = styled(Card)({
+const StyledCard = styled(Card)(({ theme }) => ({
   position: 'relative',
-  overflow: 'visible',
-});
+  overflow: 'hidden',
+  borderRadius: '12px',
+  boxShadow: '0 2px 12px rgba(0, 0, 0, 0.08)',
+  transition: 'box-shadow 0.2s ease, transform 0.2s ease',
+  '&:hover': {
+    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.12)',
+  },
+}));
 
 function DiagramNoteUI({
   selectedNoteKey,
@@ -154,7 +160,9 @@ function DiagramNoteUI({
   return (
     <StyledCard
       sx={{
-        margin: '4px',
+        margin: 0,
+        width: '100%',
+        height: '100%',
         maxWidth: cardWidth,
         maxHeight: cardHeight,
         backgroundColor: useBgColor ? selectedNote.color : 'white',

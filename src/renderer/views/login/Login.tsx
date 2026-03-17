@@ -1,16 +1,15 @@
-import { LockOutlined } from '@mui/icons-material';
+import { AutoStories } from '@mui/icons-material';
 import {
-  Container,
-  CssBaseline,
   Box,
-  Avatar,
   Typography,
   TextField,
   Button,
-  Grid,
   Alert,
   Snackbar,
+  InputAdornment,
+  IconButton,
 } from '@mui/material';
+import { Visibility, VisibilityOff, Email, Lock } from '@mui/icons-material';
 import { useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
@@ -18,117 +17,246 @@ import { login } from '../../api/userAuthApi';
 import { loginHandled } from '../../store/reducers/userSlice';
 
 function Login() {
-  const [email, setEmail] = useState('a@a.com');
+  const [email, setEmail] = useState('abc@abc.com');
   const [password, setPassword] = useState('1234');
+  const [showPassword, setShowPassword] = useState(false);
   const [open, setOpen] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
-  const [alertSeverity, setAlertSeverity] = useState('success');
+  const [alertSeverity, setAlertSeverity] = useState<'success' | 'error' | 'info' | 'warning'>('success');
+  const [loading, setLoading] = useState(false);
 
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
-  const showMessage = (message, severity = 'info') => {
+  const showMessage = (message: string, severity: 'success' | 'error' | 'info' | 'warning' = 'info') => {
     setAlertMessage(message);
     setAlertSeverity(severity);
     setOpen(true);
   };
 
   const handleLogin = async () => {
-    // This is only a basic validation of inputs. Improve this as needed.
     if (email && password) {
-      const userInfo = await login(email, password);
-      if (userInfo && userInfo.token) {
-        dispatch(loginHandled(userInfo));
-        showMessage('Login Success.');
-        navigate('/bookshelf');
-      } else {
-        showMessage('Login Failed.');
+      setLoading(true);
+      try {
+        const userInfo = await login(email, password);
+        if (userInfo && userInfo.token) {
+          dispatch(loginHandled(userInfo));
+          showMessage('Login successful!', 'success');
+          navigate('/bookshelf');
+        } else {
+          showMessage('Login failed. Please check your credentials.', 'error');
+        }
+      } catch (error) {
+        showMessage('Login failed. Please try again.', 'error');
+      } finally {
+        setLoading(false);
       }
     } else {
-      showMessage('Please provide email and password.');
+      showMessage('Please provide email and password.', 'warning');
+    }
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleLogin();
     }
   };
 
   return (
-    <Container maxWidth="xs">
-      <CssBaseline />
-      <Box
-        sx={{
-          mt: 20,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          bgcolor: '#FFFFFFF4',
-          margin: '8px',
-          padding: '8px',
-        }}
+    <Box
+      sx={{
+        p: { xs: 3, sm: 4 },
+        background: '#fff',
+      }}
+    >
+          {/* Logo Section */}
+          <Box sx={{ textAlign: 'center', mb: 4 }}>
+            <Box
+              sx={{
+                width: 70,
+                height: 70,
+                borderRadius: '16px',
+                background: 'linear-gradient(135deg, #5c6bc0 0%, #7e57c2 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                mx: 'auto',
+                mb: 2,
+                boxShadow: '0 8px 25px rgba(92, 107, 192, 0.3)',
+              }}
+            >
+              <AutoStories sx={{ fontSize: 36, color: '#fff' }} />
+            </Box>
+            <Typography
+              variant="h5"
+              fontWeight={700}
+              sx={{ color: '#2d3748', letterSpacing: '-0.5px' }}
+            >
+              Welcome Back
+            </Typography>
+            <Typography variant="body2" sx={{ color: '#718096', mt: 1 }}>
+              Sign in to continue to SmartReader
+            </Typography>
+          </Box>
+
+          {/* Form Section */}
+          <Box sx={{ mt: 3 }}>
+            <TextField
+              fullWidth
+              id="email"
+              label="Email Address"
+              name="email"
+              autoComplete="email"
+              autoFocus
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              onKeyPress={handleKeyPress}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Email sx={{ color: '#a0aec0' }} />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{
+                mb: 2.5,
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: '12px',
+                  '&:hover fieldset': {
+                    borderColor: '#5c6bc0',
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: '#5c6bc0',
+                  },
+                },
+                '& .MuiInputLabel-root.Mui-focused': {
+                  color: '#5c6bc0',
+                },
+              }}
+            />
+
+            <TextField
+              fullWidth
+              id="password"
+              name="password"
+              label="Password"
+              type={showPassword ? 'text' : 'password'}
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyPress={handleKeyPress}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Lock sx={{ color: '#a0aec0' }} />
+                  </InputAdornment>
+                ),
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      onClick={() => setShowPassword(!showPassword)}
+                      edge="end"
+                      sx={{ color: '#a0aec0' }}
+                    >
+                      {showPassword ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+              sx={{
+                mb: 3,
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: '12px',
+                  '&:hover fieldset': {
+                    borderColor: '#5c6bc0',
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: '#5c6bc0',
+                  },
+                },
+                '& .MuiInputLabel-root.Mui-focused': {
+                  color: '#5c6bc0',
+                },
+              }}
+            />
+
+            <Button
+              fullWidth
+              variant="contained"
+              onClick={handleLogin}
+              disabled={loading}
+              sx={{
+                py: 1.5,
+                borderRadius: '12px',
+                textTransform: 'none',
+                fontSize: '1rem',
+                fontWeight: 600,
+                background: 'linear-gradient(135deg, #5c6bc0 0%, #7e57c2 100%)',
+                boxShadow: '0 4px 15px rgba(92, 107, 192, 0.3)',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #5c6bc0 0%, #7e57c2 100%)',
+                  boxShadow: '0 6px 20px rgba(92, 107, 192, 0.4)',
+                  transform: 'translateY(-1px)',
+                },
+                '&:disabled': {
+                  background: '#e2e8f0',
+                  color: '#a0aec0',
+                },
+              }}
+            >
+              {loading ? 'Signing in...' : 'Sign In'}
+            </Button>
+
+            <Box sx={{ textAlign: 'center', mt: 3 }}>
+              <Typography variant="body2" sx={{ color: '#718096' }}>
+                Don&apos;t have an account?{' '}
+                <Button
+                  onClick={() => navigate('/register')}
+                  sx={{
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    color: '#5c6bc0',
+                    p: 0,
+                    minWidth: 'auto',
+                    '&:hover': {
+                      background: 'transparent',
+                      textDecoration: 'underline',
+                    },
+                  }}
+                >
+                  Register
+                </Button>
+              </Typography>
+            </Box>
+          </Box>
+
+      {/* Footer */}
+      <Typography
+        variant="body2"
+        sx={{ textAlign: 'center', mt: 2, color: '#a0aec0' }}
       >
-        <Avatar sx={{ m: 1, bgcolor: 'primary.light' }}>
-          <LockOutlined />
-        </Avatar>
-        <Typography variant="h5">Login</Typography>
-        <Box sx={{ mt: 1 }}>
-          <TextField
-            margin="normal"
-            required
-            fullWidth
-            id="email"
-            label="Email Address"
-            name="email"
-            autoFocus
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
+        SmartReader - AI-Powered Learning
+      </Typography>
 
-          <TextField
-            margin="normal"
-            required
-            fullWidth
-            id="password"
-            name="password"
-            label="Password"
-            type="password"
-            value={password}
-            onChange={(e) => {
-              setPassword(e.target.value);
-            }}
-          />
-
-          <Button
-            fullWidth
-            variant="contained"
-            sx={{ mt: 3, mb: 2 }}
-            onClick={handleLogin}
-          >
-            Login
-          </Button>
-          <Grid container justifyContent="flex-end">
-            <Grid item>
-              <Button
-                variant="contained"
-                sx={{ mt: 3, mb: 2 }}
-                onClick={() => navigate('/register')}
-              >
-                Don't have an account? Register
-              </Button>
-            </Grid>
-          </Grid>
-        </Box>
-      </Box>
       <Snackbar
         open={open}
-        autoHideDuration={6000}
+        autoHideDuration={4000}
         onClose={() => setOpen(false)}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
       >
         <Alert
           onClose={() => setOpen(false)}
           severity={alertSeverity}
-          sx={{ width: '100%' }}
+          sx={{
+            width: '100%',
+            borderRadius: '12px',
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)',
+          }}
         >
           {alertMessage}
         </Alert>
       </Snackbar>
-    </Container>
+    </Box>
   );
 }
 

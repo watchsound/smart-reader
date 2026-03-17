@@ -190,10 +190,6 @@ const promptSettingList = {
       label: 'Concise',
     },
     {
-      value: 'Answer as concise as possible',
-      label: 'Concise',
-    },
-    {
       value: 'Think step-by-step',
       label: 'Step-by-step',
     },

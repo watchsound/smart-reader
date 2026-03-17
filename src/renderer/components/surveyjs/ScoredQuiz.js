@@ -4,6 +4,7 @@ import { Survey } from 'survey-react-ui';
 import 'survey-core/defaultV2.min.css';
 import './index.css';
 import customStorage from '../../store/customStorage';
+import brainApi, { EPISODE_TYPES } from '../../api/brainApi';
 
 // const sampleJson = {
 //   title: 'How Big of a Star Wars Fan You Are',
@@ -159,24 +160,73 @@ function ScoredQuiz({ quizJson, quizProblems }) {
   }
   function calculateTotalScore(data) {
     let totalScore = 0;
+    let correctCount = 0;
+    let incorrectCount = 0;
+
     Object.keys(data).forEach((qName, index) => {
       const question = survey.getQuestionByValueName(qName);
-      if (question.isAnswerCorrect()) {
+      const isCorrect = question.isAnswerCorrect();
+
+      if (isCorrect) {
         if (question.score) {
           totalScore += question.score;
         }
+        correctCount++;
+      } else {
+        incorrectCount++;
       }
+
       try {
         const qz = quizProblems[index];
         customStorage.updateQuizProblem(
           qz.id,
           'correct',
-          question.isAnswerCorrect() ? 1 : -1,
+          isCorrect ? 1 : -1,
         );
+
+        // Record quiz answer episode for brain
+        brainApi.recordEpisode({
+          eventType: EPISODE_TYPES.QUIZ_TAKEN,
+          payload: {
+            quizId: qz.id,
+            question: qz.question?.substring(0, 200),
+            wasCorrect: isCorrect,
+            sourceKey: qz.sourceKey,
+            sourceType: qz.sourceType,
+            quizMode: 'scored',
+            score: question.score || 0,
+          },
+          sourceContext: {
+            view: 'quiz',
+            quizType: 'scored',
+            questionIndex: index + 1,
+            totalQuestions: quizProblems.length,
+          },
+        });
       } catch (e) {
         console.log(e);
       }
     });
+
+    // Record overall quiz session result
+    brainApi.recordEpisode({
+      eventType: EPISODE_TYPES.QUIZ_TAKEN,
+      payload: {
+        totalScore,
+        maxScore: calculateMaxScore(survey.getAllQuestions()),
+        correctCount,
+        incorrectCount,
+        totalQuestions: quizProblems.length,
+        accuracy: quizProblems.length > 0 ? Math.round((correctCount / quizProblems.length) * 100) : 0,
+        quizMode: 'scored',
+        isSessionSummary: true,
+      },
+      sourceContext: {
+        view: 'quiz',
+        quizType: 'scored',
+      },
+    });
+
     return totalScore;
   }
   React.useEffect(() => {

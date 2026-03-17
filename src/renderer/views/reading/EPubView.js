@@ -60,24 +60,53 @@ import store from '../../store/store';
 import CreateNoteModal from '../../components/chat/CreateNoteModal';
 import { NoteType } from '../../../commons/model/Note';
 import { SelectionType } from './CreateAnnotationPanel';
-import openImpressWindow from '../../components/impressjs';
+import { generateImpressHTML } from '../../components/impressjs';
+import ImpressModal from '../../components/impressjs/ImpressModal';
 import customStorage from '../../store/customStorage';
+import { useEPUBAnimations } from '../../components/animation-core/adapters/useEPUBAnimations';
+import brainApi, { recordEvent, EPISODE_TYPES } from '../../api/brainApi';
 
 const cardWidth = 360;
 
-function EPubView({ bookPath, curBook, curCfi }) {
+function EPubView({ bookPath, curBook, curCfi, onSelectionChange, onAnimationReady, onPageChange, onMindMapResult }) {
   const [selections, setSelections] = useState([]);
   const [rendition, setRendition] = useState(null);
   const [location, setLocation] = useState(0);
-  const [page, setPage] = useState({
+  const [page, setPageState] = useState({
     curPage: 0,
     totalPages: 0,
     curChapter: '',
     curChapterId: '',
   });
+
+  // Update page and notify parent
+  const setPage = (pageInfo) => {
+    setPageState(pageInfo);
+    if (onPageChange) {
+      onPageChange(pageInfo);
+    }
+  };
   const toc = useRef([]);
 
+  // Animation hook - provides smartSummary, highlightVocabulary, etc.
+  const animations = useEPUBAnimations(rendition);
+
+  // Notify parent when animations are ready
+  useEffect(() => {
+    if (onAnimationReady && animations.isReady) {
+      onAnimationReady({
+        smartSummary: animations.smartSummary,
+        highlightVocabulary: animations.highlightVocabulary,
+        glowWords: animations.glowWords,
+        removeSummary: animations.removeSummary,
+        removeAllEffects: animations.removeAllEffects,
+      });
+    }
+  }, [animations.isReady, onAnimationReady]);
+
   const [openDialog, setOpenDialog] = useState(false);
+  const [showImpressModal, setShowImpressModal] = useState(false);
+  const [impressContent, setImpressContent] = useState(null);
   const [openNoteDialog, setOpenNoteDialog] = useState(false);
   const [openImageNoteDialog, setOpenImageNoteDialog] = useState(false);
   const [noteColor, setNoteColor] = useState(null);
@@ -305,13 +334,18 @@ function EPubView({ bookPath, curBook, curCfi }) {
 
   function setRenderSelection(cfiRange, contents) {
     if (rendition) {
+      const selectedText = rendition.getRange(cfiRange).toString();
       setSelections((list) =>
         list.concat({
-          text: rendition.getRange(cfiRange).toString(),
+          text: selectedText,
           cfiRange,
         }),
       );
       setCfiRange(cfiRange);
+      // Notify parent of selection change for skill quick actions
+      if (onSelectionChange) {
+        onSelectionChange(selectedText);
+      }
       setImageData('');
       endSelection.current = true;
       rendition.annotations.add('highlight', cfiRange, {}, undefined, 'hl', {
@@ -535,6 +569,22 @@ function EPubView({ bookPath, curBook, curCfi }) {
       className,
       style,
     );
+
+    // Record note created episode for brain
+    recordEvent.noteCreated({
+      noteId: note.id,
+      noteTitle: note.title,
+      bookId: book?.id,
+      bookTitle: book?.title || book?.name,
+      chapter: page.curChapter,
+      cfi: cfiRange,
+      hasImage: !!imageData,
+      sourceContext: {
+        view: 'reading',
+        bookType: 'epub',
+      },
+    });
+
     setOpenNoteDialog(false);
     setOpenImageNoteDialog(false);
     setCfiRange(null);
@@ -558,7 +608,138 @@ function EPubView({ bookPath, curBook, curCfi }) {
     if (selectionType === SelectionType.Presentation) {
       setOpenDialog(false);
       const text = rendition.getRange(cfiRange).toString() || '';
-      if (text.length > 50) openImpressWindow({ paragraph: text });
+      if (text.length > 50) {
+        // Generate presentation HTML and open in modal
+        generateImpressHTML({ paragraph: text }).then((html) => {
+          if (html) {
+            setImpressContent(html);
+            setShowImpressModal(true);
+          }
+        });
+      }
+      return;
+    }
+
+    if (selectionType === SelectionType.SmartSummary) {
+      setOpenDialog(false);
+      const text = rendition.getRange(cfiRange).toString() || '';
+      if (text.length > 20 && animations.isReady && animations.smartSummary) {
+        // Execute smart summary with flying animation
+        (async () => {
+          try {
+            // Import skillApi dynamically to avoid circular deps
+            const skillApi = await import('../../api/skillApi').then(m => m.default);
+
+            // Get vocabulary words for gold highlighting
+            const vocabWords = await customStorage.getVocabularyWords?.() || [];
+
+            // Generate summary using AI
+            const result = await skillApi.executeSkill('smart_summary', {
+              text,
+              vocabularyWords: vocabWords,
+              maxWords: 30,
+            });
+
+            if (result.success && result.result?.summary) {
+              // Trigger the flying word animation
+              await animations.smartSummary(text, result.result.summary, vocabWords);
+            }
+          } catch (error) {
+            console.error('Smart Summary error:', error);
+          }
+        })();
+      }
+      return;
+    }
+
+    if (selectionType === SelectionType.MindMap) {
+      setOpenDialog(false);
+      const text = rendition.getRange(cfiRange).toString() || '';
+
+      console.log('[MindMap] Starting...', {
+        textLength: text?.length,
+        hasOnMindMapResult: !!onMindMapResult,
+      });
+
+      if (text.length > 20) {
+        // Execute mindmap skill
+        (async () => {
+          try {
+            const skillApi = await import('../../api/skillApi').then(m => m.default);
+
+            console.log('[MindMap] Calling mindmap skill...');
+
+            const result = await skillApi.executeSkill('mindmap', {
+              text,
+              maxNodes: 8,
+              format: 'structured',
+            });
+
+            console.log('[MindMap] Skill result:', result);
+
+            if (result.success && result.result) {
+              const skillData = result.result;
+
+              // Convert skill result to ReactFlow format
+              const { title, root, nodes = [], edges = [] } = skillData;
+              const rfNodes = [];
+              const rfEdges = [];
+
+              // Add root node
+              if (root) {
+                rfNodes.push({
+                  id: root.id || 'root',
+                  position: { x: 0, y: 0 },
+                  data: { label: root.text || title || 'Topic' },
+                });
+              }
+
+              // Convert skill nodes to ReactFlow nodes
+              nodes.forEach((node, index) => {
+                const level = node.level || 1;
+                rfNodes.push({
+                  id: node.id,
+                  position: { x: level * 180, y: (index + 1) * 80 },
+                  data: { label: node.text || '' },
+                });
+              });
+
+              // Convert skill edges to ReactFlow edges
+              edges.forEach((edge, index) => {
+                rfEdges.push({
+                  id: `e${index}`,
+                  source: edge.from,
+                  target: edge.to,
+                  label: edge.relation || '',
+                });
+              });
+
+              const width = Math.max(300, (Math.max(...nodes.map(n => n.level || 1), 1) + 1) * 180);
+              const height = Math.max(200, (nodes.length + 1) * 80);
+
+              const reactFlowData = {
+                keywordMap: { width: width + 30, height: height + 30, nodes: rfNodes, edges: rfEdges },
+                descriptionMap: { width: width * 1.5, height: height * 1.5, nodes: rfNodes, edges: rfEdges },
+              };
+
+              console.log('[MindMap] ReactFlow data:', reactFlowData);
+
+              // Inject mindmap result into chat panel
+              if (onMindMapResult) {
+                onMindMapResult({
+                  skillName: 'mindmap',
+                  data: reactFlowData,
+                  sourceText: text.substring(0, 100) + (text.length > 100 ? '...' : ''),
+                });
+              }
+            } else {
+              console.error('[MindMap] Skill failed:', result.error || 'No mindmap data');
+            }
+          } catch (error) {
+            console.error('[MindMap] Error:', error);
+          }
+        })();
+      }
       return;
     }
 
@@ -599,12 +780,13 @@ function EPubView({ bookPath, curBook, curCfi }) {
       style,
     );
     // text: rendition.getRange(cfiRange).toString(),
+    const highlightText = rendition.getRange(cfiRange).toString() || '';
     const newNote = {
       sourceKey: book.id,
       title: '',
       cards: [
         {
-          text: rendition.getRange(cfiRange).toString() || '',
+          text: highlightText,
           html: '',
         },
       ],
@@ -626,61 +808,149 @@ function EPubView({ bookPath, curBook, curCfi }) {
 
     await CreateNote(newNote);
 
+    // Record highlight created episode for brain
+    brainApi.recordEpisode({
+      eventType: EPISODE_TYPES.HIGHLIGHT_CREATED,
+      payload: {
+        bookId: book.id,
+        bookTitle: book.title || book.name,
+        highlightText: highlightText.substring(0, 200),
+        highlightType: aType,
+        color,
+        chapter: page.curChapter,
+        cfi: cfiRange,
+      },
+      sourceContext: {
+        view: 'reading',
+        bookType: 'epub',
+      },
+    });
+
     // dispatch(annotationAdded(newAnnotation));
     setOpenDialog(false);
     //  setShowImpressjs(false);
     setCfiRange(null);
   };
 
-  // create book cover image
+  // Track if we've already attempted cover capture for this book
+  const coverCaptureAttempted = useRef(false);
+
+  // create book cover image - capture from the epub rendition's iframe
   const handlePageChange = (pageNumber) => {
-    if (pageNumber !== 1) return;
+    // Only attempt capture once per book session, and only if book has no cover
+    if (coverCaptureAttempted.current) return;
     if (!book || book.cover) return;
-    const iframe = document.querySelector('iframe');
-    if (!iframe) return;
-    iframe.contentWindow.scrollTo(0, 0);
+    if (!rendition) return;
+
+    // Mark as attempted to prevent multiple captures
+    coverCaptureAttempted.current = true;
+
+    // Get the iframe from the rendition's views
+    // epub.js stores views in rendition.views()._views array
+    const views = rendition.views();
+    if (!views || !views._views || views._views.length === 0) {
+      coverCaptureAttempted.current = false; // Allow retry
+      return;
+    }
+
+    const view = views._views[0];
+    const iframe = view?.iframe || view?.element?.querySelector('iframe');
+    if (!iframe) {
+      coverCaptureAttempted.current = false;
+      return;
+    }
+
+    // Wait for content to fully render (longer timeout for reliability)
     setTimeout(() => {
-      if (!iframe.contentDocument) return;
-      html2canvas(iframe.contentDocument.body)
-        .then((canvas) => {
-          const originalDataURL = canvas.toDataURL('image/png');
-          const imageObj = new Image();
-          imageObj.onload = async function () {
-            // Step 2: Create a new canvas with the desired dimensions
-            const ratio = cardWidth / imageObj.width;
-            const cardHeight = imageObj.height * ratio;
-            const newCanvas = document.createElement('canvas');
-            newCanvas.width = cardWidth;
-            newCanvas.height = cardHeight;
+      try {
+        // Try to access iframe content
+        const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+        if (!iframeDoc || !iframeDoc.body) {
+          console.log('EPubView: Cannot access iframe content for cover capture');
+          return;
+        }
 
-            // Step 3: Draw the original image onto the new canvas with scaling
-            const ctx = newCanvas.getContext('2d');
-            ctx.drawImage(imageObj, 0, 0, cardWidth, cardHeight);
+        // Scroll to top to capture the beginning of the content
+        if (iframe.contentWindow) {
+          iframe.contentWindow.scrollTo(0, 0);
+        }
 
-            // Continue with your process using the newCanvas
-            const dataUrl = newCanvas.toDataURL('image/png');
-            console.log(dataUrl);
-            const r = await createImage(dataUrl);
-            const imageId = r.id;
-            updateBook({
-              id: book.id,
-              field: 'cover',
-              value: imageId,
+        // Additional delay after scroll for rendering
+        setTimeout(() => {
+          html2canvas(iframeDoc.body, {
+            useCORS: true,
+            allowTaint: true,
+            logging: false,
+            scale: 1, // Lower scale for performance
+          })
+            .then((canvas) => {
+              // Validate the captured canvas has actual content
+              const ctx = canvas.getContext('2d');
+              const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+              const pixels = imageData.data;
+
+              // Check if image is not blank (has non-white pixels)
+              let hasContent = false;
+              for (let i = 0; i < pixels.length; i += 4) {
+                // Check if pixel is not white/transparent
+                if (pixels[i] < 250 || pixels[i + 1] < 250 || pixels[i + 2] < 250) {
+                  hasContent = true;
+                  break;
+                }
+              }
+
+              if (!hasContent || canvas.width < 50 || canvas.height < 50) {
+                console.log('EPubView: Captured image appears blank or too small');
+                return;
+              }
+
+              const originalDataURL = canvas.toDataURL('image/png');
+              const imageObj = new Image();
+              imageObj.onload = async function () {
+                // Create a new canvas with the desired card dimensions
+                const ratio = cardWidth / imageObj.width;
+                const cardHeight = imageObj.height * ratio;
+                const newCanvas = document.createElement('canvas');
+                newCanvas.width = cardWidth;
+                newCanvas.height = cardHeight;
+
+                const newCtx = newCanvas.getContext('2d');
+                newCtx.drawImage(imageObj, 0, 0, cardWidth, cardHeight);
+
+                const dataUrl = newCanvas.toDataURL('image/png');
+                const r = await createImage(dataUrl);
+                const imageId = r.id;
+
+                if (imageId && imageId !== -1) {
+                  updateBook({
+                    id: book.id,
+                    field: 'cover',
+                    value: imageId,
+                  });
+                  setBook({ ...book, cover: imageId });
+                  console.log('EPubView: Cover image captured successfully');
+                }
+              };
+              imageObj.onerror = () => {
+                console.log('EPubView: Failed to load captured image');
+              };
+              imageObj.src = originalDataURL;
+            })
+            .catch((e) => {
+              console.log('EPubView: html2canvas failed:', e.message);
             });
-            setBook({ ...book, cover: imageId });
-            return true;
-          };
-          imageObj.src = originalDataURL;
-        })
-        .catch((e) => {
-          console.log(e);
-          return false;
-        });
-    }, 500);
+        }, 300); // Additional delay after scroll
+      } catch (e) {
+        console.log('EPubView: Cover capture error:', e.message);
+      }
+    }, 1000); // Initial delay for content rendering
   };
 
   // this is the entry point
   useEffect(() => {
+    // Reset cover capture flag when book changes
+    coverCaptureAttempted.current = false;
+
     setSelections([]);
     setLocation(0);
     setImageData('');
@@ -698,6 +968,19 @@ function EPubView({ bookPath, curBook, curCfi }) {
     setCfiRange(null);
     setBook(curBook);
     setLocalBookPath(bookPath);
+
+    // Record book opened episode for brain
+    if (curBook && curBook.id) {
+      recordEvent.bookOpened({
+        bookId: curBook.id,
+        bookTitle: curBook.title || curBook.name,
+        bookType: 'epub',
+        sourceContext: {
+          view: 'reading',
+          path: bookPath,
+        },
+      });
+    }
     if (rendition) {
       if (rendition.views() && rendition.views()._views)
         rendition.annotations.deleteAnnotations(
@@ -736,7 +1019,13 @@ function EPubView({ bookPath, curBook, curCfi }) {
         onCaptureComplete={onCaptureCompleteLocal}
       >
         <div
-          style={{ height: 'calc(100vh - 50px)', width: '100%' }}
+          className="epub-view-container"
+          style={{
+            height: 'calc(100vh - 64px)',
+            width: '100%',
+            position: 'relative',
+            background: 'var(--bg-paper, #ffffff)',
+          }}
           ref={epubElement}
         >
           {epubIFrame}
@@ -785,6 +1074,15 @@ function EPubView({ bookPath, curBook, curCfi }) {
           dialogHandle={handleNoteWindowClose}
         />
       )}
+      {/* Impress.js Presentation Modal */}
+      <ImpressModal
+        open={showImpressModal}
+        onClose={() => {
+          setShowImpressModal(false);
+          setImpressContent(null);
+        }}
+        htmlContent={impressContent}
+      />
     </>
   );
 }

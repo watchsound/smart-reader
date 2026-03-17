@@ -47,6 +47,12 @@ import VocabularyPage from './views/vocabulary';
 import TranslatePage from './views/translate';
 import GrammarPage from './views/grammar';
 import ErrorBoundary from './ErrorBoundary';
+import LearnAboutPage from './views/learnabout';
+import KnowledgeDashboard from './views/knowledge';
+import LearningCalendarPage from './views/calendar';
+import { LearningPlansPage } from './views/learning';
+import { StudySessionPage } from './views/study';
+
 
 const router = createHashRouter([
   {
@@ -61,6 +67,7 @@ const router = createHashRouter([
         path: 'notes',
         element: <NotePage />,
         // loader: notesLoader,
+        shouldReload: false,
       },
       // {
       //   path: 'books',
@@ -71,57 +78,118 @@ const router = createHashRouter([
         path: 'bookshelf',
         element: <BookshelfPage />,
         // loader: notesLoader,
+
+        shouldReload: false,
       },
       {
         path: 'bookmarks',
         element: <BookmarksPage />,
         // loader: notesLoader,
+
+        shouldReload: false,
       },
       {
         path: 'home',
         element: <HomePage />,
         // loader: notesLoader,
+
+        shouldReload: false,
       },
       {
         path: 'moodBoard',
         element: <MoodBoardPage />,
         loader: moodBoardLoader,
+
+        shouldReload: false,
       },
       {
         path: 'moodBoard/:id',
         element: <MoodBoardPage />,
         loader: moodBoardLoader,
+
+        shouldReload: false,
       },
       {
         path: 'vocabulary',
         element: <VocabularyPage />,
+
+        shouldReload: false,
       },
       {
         path: 'writing',
         element: <WritingPage />,
+
+        shouldReload: false,
       },
       {
         path: 'translate',
         element: <TranslatePage />,
+
+        shouldReload: false,
         // loader: notesLoader,
       },
       {
         path: 'grammar',
         element: <GrammarPage />,
+
+        shouldReload: false,
       },
       {
         path: 'chat/:id',
         element: <ChatPage />,
         loader: chatLoader,
+
+        shouldReload: false,
       },
       {
         path: 'chat',
         element: <ChatPage />,
         loader: chatLoader,
+
+        shouldReload: false,
+      },
+      {
+        path: 'learnabout',
+        element: <LearnAboutPage />,
+        // loader: notesLoader,
+
+        shouldReload: false,
+      },
+      {
+        path: 'knowledge',
+        element: <KnowledgeDashboard />,
+
+        shouldReload: false,
+      },
+      {
+        path: 'calendar',
+        element: <LearningCalendarPage />,
+
+        shouldReload: false,
+      },
+      {
+        path: 'learning-plans',
+        element: <LearningPlansPage />,
+
+        shouldReload: false,
+      },
+      {
+        path: 'study/:planId',
+        element: <StudySessionPage />,
+
+        shouldReload: false,
+      },
+      {
+        path: 'study',
+        element: <StudySessionPage />,
+
+        shouldReload: false,
       },
       {
         path: 'quiz',
         element: <QuizPage />,
+
+        shouldReload: false,
       },
       {
         path: 'settings',
@@ -139,21 +207,29 @@ const router = createHashRouter([
         path: 'reading/:id',
         element: <EReaderPage />,
         loader: bookLoader,
+
+        shouldReload: false,
       },
       {
         path: 'reading/:id/:noteId',
         element: <EReaderPage />,
         loader: bookLoader,
+
+        shouldReload: false,
       },
       {
         path: 'browser/:id',
         element: <BrowserView />,
         loader: urlLoader,
+
+        shouldReload: false,
       },
       {
         path: 'browser',
         element: <BrowserView />,
         loader: urlLoader,
+
+        shouldReload: false,
       },
     ],
   },

@@ -6,7 +6,7 @@
 /* eslint-disable radix */
 /* eslint-disable react/no-unstable-nested-components */
 /* eslint-disable prettier/prettier */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import JSON5 from 'json5';
 import html2canvas from 'html2canvas';
 import { useTheme } from '@mui/material/styles';
@@ -50,7 +50,12 @@ import CreatePDFAnnotationDialog from './CreatePDFAnnotationDialog';
 import './PDFView.css';
 import searchPdfText from './PDFSearchUtil';
 import customStorage from '../../store/customStorage';
+import ImpressModal from '../../components/impressjs/ImpressModal';
+import { usePDFAnimations } from '../../components/animation-core/adapters/usePDFAnimations';
+import brainApi, { recordEvent, EPISODE_TYPES } from '../../api/brainApi';
 
+// Width for book cover thumbnail
+const cardWidth = 360;
 
 const getNextId = () => parseInt(String(Math.random()).slice(2).substring(0,8));
 
@@ -83,7 +88,7 @@ function ContextMenu({
 }
 
 
-function PDFView({ bookPath, curBook, curNote }) {
+function PDFView({ bookPath, curBook, curNote, onSelectionChange, onAnimationReady, onPageChange, onMindMapResult }) {
   const [url, setUrl] = useState('');
   const [highlights, setHighlights] = useState([]);
   // const currentPdfIndexRef = useRef(0);
@@ -95,6 +100,13 @@ function PDFView({ bookPath, curBook, curNote }) {
   const [book, setBook] = useState(curBook);
   const [alert, setAlert] = useState(false);
   const [alertContent, setAlertContent] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
+  const [showImpressModal, setShowImpressModal] = useState(false);
+  const [impressContent, setImpressContent] = useState(null);
+
+  // Track the last selection to avoid duplicate notifications
+  const lastSelectionRef = useRef('');
 
   const theme = useTheme();
   // const cfiChangeRef = useRef(cfiChange);
@@ -110,6 +122,28 @@ function PDFView({ bookPath, curBook, curNote }) {
 
   // Refs for PdfHighlighter utilities
   const highlighterUtilsRef = useRef();
+
+  // Ref for PDF container - used by animation system
+  const pdfContainerRef = useRef(null);
+
+  // Track if cover capture has been attempted for this book
+  const coverCaptureAttempted = useRef(false);
+
+  // Animation hook - provides smartSummary, highlightVocabulary, etc.
+  const animations = usePDFAnimations(pdfContainerRef);
+
+  // Notify parent when animation API is ready
+  useEffect(() => {
+    if (onAnimationReady && animations.isReady) {
+      onAnimationReady({
+        smartSummary: animations.smartSummary,
+        highlightVocabulary: animations.highlightVocabulary,
+        glowWords: animations.glowWords,
+        removeSummary: animations.removeSummary,
+        removeAllEffects: animations.removeAllEffects,
+      });
+    }
+  }, [animations.isReady, onAnimationReady, animations.smartSummary, animations.highlightVocabulary, animations.glowWords, animations.removeSummary, animations.removeAllEffects]);
 
   const dispatch = useDispatch();
 
@@ -304,8 +338,22 @@ function PDFView({ bookPath, curBook, curNote }) {
 
   useEffect(() => {
     if( !bookPath ||!curBook) return;
+    // Reset cover capture flag when book changes
+    coverCaptureAttempted.current = false;
     setUrl(bookPath);
     if (curBook) setBook(curBook);
+
+    // Record book opened episode for brain
+    recordEvent.bookOpened({
+      bookId: curBook.id,
+      bookTitle: curBook.title || curBook.name,
+      bookType: 'pdf',
+      sourceContext: {
+        view: 'reading',
+        path: bookPath,
+      },
+    });
+
     async function t() {
       const bookNotes = await getBookNotes(curBook.id);
       dispatch(notesQueried(bookNotes || []));
@@ -328,6 +376,26 @@ function PDFView({ bookPath, curBook, curNote }) {
     if (!note) return;
     console.log('Saving highlight', note);
     setHighlights([ noteJson2pdfJson(note, theme) , ...highlights]);
+
+    // Record highlight/note created episode for brain
+    const isHighlightOnly = note.highlightOnly === true;
+    brainApi.recordEpisode({
+      eventType: isHighlightOnly ? EPISODE_TYPES.HIGHLIGHT_CREATED : EPISODE_TYPES.NOTE_CREATED,
+      payload: {
+        noteId: note.id,
+        bookId: book?.id,
+        bookTitle: book?.title || book?.name,
+        highlightText: note.cards?.[0]?.text?.substring(0, 200) || '',
+        highlightType: note.highlightType,
+        color: note.color,
+        page: currentPage,
+        totalPages,
+      },
+      sourceContext: {
+        view: 'reading',
+        bookType: 'pdf',
+      },
+    });
   };
   const handlePdfError = (error) => {
      console.log(error);
@@ -336,55 +404,135 @@ function PDFView({ bookPath, curBook, curNote }) {
   };
 
   // create book cover image
-  const tryToCreateCoverImage = ( ) => {
+  const tryToCreateCoverImage = () => {
+    // Only attempt once per book session
+    if (coverCaptureAttempted.current) return;
     if (!book || book.cover) return;
-    const iframe = document.querySelector('.PdfHighlighter');
-    if (!iframe) return;
-    iframe.contentWindow.scrollTo(0, 0);
+
+    coverCaptureAttempted.current = true;
+
+    // Use the ref if available, otherwise query for the container
+    const pdfContainer = pdfContainerRef.current || document.querySelector('.PdfHighlighter');
+    if (!pdfContainer) {
+      coverCaptureAttempted.current = false; // Allow retry
+      return;
+    }
+
+    // Scroll to top to capture the first page
+    if (pdfContainer.scrollTo) {
+      pdfContainer.scrollTo(0, 0);
+    } else {
+      pdfContainer.scrollTop = 0;
+      pdfContainer.scrollLeft = 0;
+    }
+
+    // Wait for content to render after scroll
     setTimeout(() => {
-      if (!iframe.contentDocument) return;
-      html2canvas(iframe.contentDocument.body)
+      if (!pdfContainer) return;
+
+      html2canvas(pdfContainer, {
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+        scale: 1,
+      })
         .then((canvas) => {
+          // Validate the captured canvas has actual content
+          const ctx = canvas.getContext('2d');
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const pixels = imageData.data;
+
+          // Check if image is not blank (has non-white/non-gray pixels)
+          let hasContent = false;
+          for (let i = 0; i < pixels.length; i += 4) {
+            // Check if pixel is not white/light gray
+            if (pixels[i] < 240 || pixels[i + 1] < 240 || pixels[i + 2] < 240) {
+              hasContent = true;
+              break;
+            }
+          }
+
+          if (!hasContent || canvas.width < 50 || canvas.height < 50) {
+            console.log('PDFView: Captured image appears blank or too small');
+            return;
+          }
+
           const originalDataURL = canvas.toDataURL('image/png');
           const imageObj = new Image();
           imageObj.onload = async function () {
-            // Step 2: Create a new canvas with the desired dimensions
+            // Create a new canvas with the desired card dimensions
             const ratio = cardWidth / imageObj.width;
             const cardHeight = imageObj.height * ratio;
             const newCanvas = document.createElement('canvas');
             newCanvas.width = cardWidth;
             newCanvas.height = cardHeight;
 
-            // Step 3: Draw the original image onto the new canvas with scaling
-            const ctx = newCanvas.getContext('2d');
-            ctx.drawImage(imageObj, 0, 0, cardWidth, cardHeight);
+            const newCtx = newCanvas.getContext('2d');
+            newCtx.drawImage(imageObj, 0, 0, cardWidth, cardHeight);
 
-            // Continue with your process using the newCanvas
             const dataUrl = newCanvas.toDataURL('image/png');
-            console.log(dataUrl);
             const r = await createImage(dataUrl);
             const imageId = r.id;
-            updateBook({
-              id: book.id,
-              field: 'cover',
-              value: imageId,
-            });
-            setBook({ ...book, cover: imageId });
-            return true;
+
+            if (imageId && imageId !== -1) {
+              updateBook({
+                id: book.id,
+                field: 'cover',
+                value: imageId,
+              });
+              setBook({ ...book, cover: imageId });
+              console.log('PDFView: Cover image captured successfully');
+            }
+          };
+          imageObj.onerror = () => {
+            console.log('PDFView: Failed to load captured image');
           };
           imageObj.src = originalDataURL;
         })
         .catch((e) => {
-          console.log(e);
-          return false;
+          console.log('PDFView: html2canvas failed:', e.message);
         });
-    }, 500);
+    }, 800); // Delay for PDF rendering
   };
 
   useEffect(()=> {
     if (!pdfDocument) return;
     setTimeout(() => tryToCreateCoverImage(), 1000);
+    // Set total pages and notify parent
+    setTotalPages(pdfDocument.numPages);
+    if (onPageChange) {
+      onPageChange({
+        curPage: 1,
+        totalPages: pdfDocument.numPages,
+        curChapter: book?.title || '',
+        curChapterId: '',
+      });
+    }
   }, [pdfDocument]);
+
+  // Handler for opening presentation modal
+  const handleOpenPresentation = (htmlContent) => {
+    if (htmlContent) {
+      setImpressContent(htmlContent);
+      setShowImpressModal(true);
+    }
+  };
+
+  // Immediate selection handler - called as soon as text selection completes
+  // This fires before the annotation dialog, providing instant feedback
+  const handleSelection = useCallback((selection) => {
+    if (!selection?.content?.text) return;
+
+    const selectedText = selection.content.text.trim();
+    // Avoid duplicate notifications for the same selection
+    if (selectedText && selectedText !== lastSelectionRef.current && selectedText.length > 0) {
+      lastSelectionRef.current = selectedText;
+      if (onSelectionChange) {
+        onSelectionChange(selectedText);
+      }
+    }
+  }, [onSelectionChange]);
+
   // const updateHighlight = (highlightId, position, content) => {
   //   console.log('Updating highlight', highlightId, position, content);
   //   setHighlights(
@@ -402,13 +550,29 @@ function PDFView({ bookPath, curBook, curNote }) {
   // };
 
   return (
-    <div className="PDFView" style={{ display: 'flex', height: '100vh', overflow: "hidden",
-          position: "relative",
-          flexGrow: 1, }}>
+    <div
+      ref={pdfContainerRef}
+      className="PDFView pdf-view-container"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: 'calc(100vh - 64px)',
+        overflow: 'hidden',
+        position: 'relative',
+        flexGrow: 1,
+        background: theme.palette.mode === 'dark' ? '#1a1d21' : '#525659',
+        borderRadius: '0 0 8px 8px',
+      }}
+    >
       <Toolbar setPdfScaleValue={(value) => setPdfScaleValue(value)} />
        <PdfLoader document={url} onError={handlePdfError}>
           {(pdf) => {
-            setTimeout(() => setPdfDocument(pdf), 500);
+            // Set PDF document immediately - no delay needed
+            // The previous 500ms delay caused selection timing issues
+            if (!pdfDocument) {
+              // Use microtask to avoid setState during render
+              queueMicrotask(() => setPdfDocument(pdf));
+            }
             return (
               <PdfHighlighter
                 enableAreaSelection={(event) => event.altKey}
@@ -418,12 +582,20 @@ function PDFView({ bookPath, curBook, curNote }) {
                   highlighterUtilsRef.current = _pdfHighlighterUtils;
                 }}
                 pdfScaleValue={pdfScaleValue}
+                // Immediate selection callback - fires as soon as text is selected
+                // This provides instant feedback without waiting for annotation confirmation
+                onSelection={handleSelection}
                 selectionTip={
                   <CreatePDFAnnotationDialog
                     bookId={book.id}
+                    animationApi={animations}
                     onConfirm={ note => {
                       addHighlightByNote(note);
+                      // Clear the last selection ref so the same text can be re-selected
+                      lastSelectionRef.current = '';
                     }}
+                    onOpenPresentation={handleOpenPresentation}
+                    onMindMapResult={onMindMapResult}
                   />
                 }
                 highlights={highlights}
@@ -448,6 +620,16 @@ function PDFView({ bookPath, curBook, curNote }) {
         >
           <Alert severity="error">{alertContent}</Alert>
         </Snackbar>
+
+      {/* Impress.js Presentation Modal */}
+      <ImpressModal
+        open={showImpressModal}
+        onClose={() => {
+          setShowImpressModal(false);
+          setImpressContent(null);
+        }}
+        htmlContent={impressContent}
+      />
     </div>
   );
 }

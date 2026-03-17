@@ -1,9 +1,12 @@
 /* eslint-disable no-restricted-syntax */
 /* eslint-disable prettier/prettier */
 /**
+ *
+ * // type can be empty.  used by learn about view
 CREATE TABLE "message" (
   "id"  INTEGER PRIMARY KEY,
   "chat_id"  INTEGER,
+  "type", TEXT,
   "role"  TEXT,
   "content" TEXT,
   "created_at" TEXT
@@ -32,6 +35,7 @@ export const getMessageById = (id, token) => {
       id : message.id,
       chatId:  message.chatId || '',
       role: message.role || '',
+      type: message.type || '',
       content: message.content || '',
       createdAt: message.created_at || '',
     };
@@ -54,18 +58,20 @@ export const createMessage= (message, token) => {
     console.log('session is invalid, userid not found')
     return message;
   }
+  console.log('in createMessage of db');
   addUserIdCreatedAt(message, userId);
   try {
   const chatId =    message.chatId || '';
   const role =     message.role || '';
+  const type = message.type || '';
   const content =    escapeString(message.content || '');
   const createdAt =    message.createdAt || '';
 
 
     const stmt = db.prepare(
-      `INSERT INTO message (chat_id, role, content, created_at, user_id) VALUES (?, ?, ?, ?, ?) `
+      `INSERT INTO message (chat_id, role, type, content, created_at, user_id) VALUES (?, ?, ?, ?, ?, ?) `
     );
-     const result = stmt.run( chatId , role , content , createdAt , userId );
+     const result = stmt.run( chatId , role , type, content , createdAt , userId );
     message.id = result.lastInsertRowid;
   } catch (err) {
     console.error(err);
@@ -90,11 +96,12 @@ export const getMessagesByChatId = (chatId, token) => {
     const stmt = db.prepare('SELECT * FROM message WHERE chat_id = ? and user_id = ? ').bind(chatId, userId);
     for (const card of stmt.iterate()) {
        messages.push({
-          id : card.id,
-          chatId:  card.chat_id || 0,
-          role: card.role || '',
-          content: card.content || '',
-          createdAt: card.created_at || '',
+         id: card.id,
+         chatId: card.chat_id || 0,
+         role: card.role || '',
+         type: card.type || '',
+         content: card.content || '',
+         createdAt: card.created_at || '',
        });
     }
     return messages;
@@ -121,12 +128,13 @@ export const getMessageByQuery = (query, token) => {
     const stmt = db.prepare('SELECT * FROM message WHERE content LIKE ? and user_id = ?  ORDER BY created_at DESC').bind(`'%${query}%'`, userId);
     for (const card of stmt.iterate()) {
        prompts.push({
-          id : card.id,
-          title:  card.title || '',
-          content: card.content || '',
-          source: card.source || '',
-          createdAt: card.created_at || '',
-          userId: card.user_id || 0,
+         id: card.id,
+         title: card.title || '',
+         type: card.type || '',
+         content: card.content || '',
+         source: '',
+         createdAt: card.created_at || '',
+         userId: card.user_id || 0,
        });
     }
     return prompts;

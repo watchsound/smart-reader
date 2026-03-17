@@ -2,6 +2,8 @@ import axios from 'axios';
 import { JSDOM } from 'jsdom';
 // import cheerio from 'cheerio';
 import { Buffer } from 'buffer';
+import puppeteer from 'puppeteer-core';
+import findChrome from 'chrome-finder';
 
 export function cleanString(str) {
   if (!str) return str;
@@ -10,6 +12,55 @@ export function cleanString(str) {
   // Replace consecutive whitespace with a single space
   result = result.replace(/\s{2,}/g, ' ');
   return result;
+}
+
+export async function fetchPageHeadless(url) {
+  const chromePath = findChrome();
+  console.log(` chrompath = ${chromePath}`);
+  const browser = await puppeteer.launch({
+    executablePath: chromePath, // Specify path to Electron's Chromium
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--ignore-certificate-errors', // Add this line
+      '--ignore-ssl-errors', // Add this line
+    ],
+    ignoreDefaultArgs: ['--disable-extensions'],
+    headless: true,
+    dumpio: true,
+  });
+  const page = await browser.newPage();
+
+  try {
+    // Set user agent
+    await page.setUserAgent(
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    );
+
+    // Navigate to the URL
+    // This means the navigation is considered complete when there are no more than 2 ongoing network connections for at least 500ms.
+    try {
+      await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
+    } catch (e) {
+      await page.goto(url, { waitUntil: 'domcontentloaded' });
+    }
+
+    // Check for CAPTCHA
+    const isCaptcha = await page.$('#captcha');
+    if (isCaptcha) {
+      console.log('CAPTCHA detected. Unable to scrape.');
+      return '';
+    }
+
+    // Get the page content as a string
+    const pageContent = await page.content();
+    return pageContent;
+  } catch (error) {
+    console.error('Error occurred:', error);
+    return '';
+  } finally {
+    await browser.close();
+  }
 }
 
 export async function fetchTextContent(url, textLength) {

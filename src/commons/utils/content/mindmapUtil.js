@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 import { Position } from 'reactflow';
 
 export function isSymbolLine(content) {
@@ -60,22 +61,52 @@ export function checkMindmapStartingSymbol(lines) {
   return '';
 }
 
-export function calculateMiniStep(lines, startSymbol) {
-  const startPos = [];
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    startPos[i] = line.indexOf(startSymbol);
+function isAlphaNumeric(code) {
+  if (
+    !(code > 47 && code < 58) && // numeric (0-9)
+    !(code > 64 && code < 91) && // upper alpha (A-Z)
+    !(code > 96 && code < 123)
+  ) {
+    return false;
   }
-  startPos.sort();
-  const prev = startPos[0];
-  for (let i = 1; i < startPos.length; i++) {
-    const pos = startPos[i];
-    if (prev !== pos) {
-      return pos - prev;
-    }
-  }
-  return 0;
+  return true;
 }
+
+export function calculateMiniStepForMindmap(lines) {
+  // for each line
+  // if line starts with alphanumeric, then it is not a mindmap, so skip it
+  // calculate the position of the first non-space character, and keep track of the minimum
+  // return the minimum
+  let min = 1000;
+  lines.forEach((line) => {
+    const content = line.trim();
+    if (!content || content === 'mindmap' || content.indexOf('`') === 0) return;
+    const code = line.charCodeAt(0);
+    if (isAlphaNumeric(code)) {
+      return;
+    }
+    const pos = line.indexOf(content);
+    if (pos !== 0 && pos < min) min = pos;
+  });
+  return min === 1000 ? 0 : min;
+}
+
+// export function calculateMiniStep(lines, startSymbol) {
+//   const startPos = [];
+//   for (let i = 0; i < lines.length; i++) {
+//     const line = lines[i];
+//     startPos[i] = line.indexOf(startSymbol);
+//   }
+//   startPos.sort();
+//   const prev = startPos[0];
+//   for (let i = 1; i < startPos.length; i++) {
+//     const pos = startPos[i];
+//     if (prev !== pos) {
+//       return pos - prev;
+//     }
+//   }
+//   return 0;
+// }
 function getTextWidth(inputText, fontSize) {
   const font2 = `${fontSize || '22px'} times new roman`;
   const canvas = document.createElement('canvas');
@@ -96,7 +127,6 @@ const nodeDefaults = {
 function parseMindmapToReactFlowImp(
   markdown,
   lines,
-  startSymbol,
   stepLength,
   useKeyword,
 ) {
@@ -108,17 +138,28 @@ function parseMindmapToReactFlowImp(
   let height = 0;
   let edgeId = 0;
   const fontSize = useKeyword ? '18px' : '20px';
+
+  console.log('step = ' + stepLength  );
+
   lines.forEach((line, index) => {
     const content = line.trim();
-    if (content === 'mindmap' || content === '') {
+    if (
+      content === 'mindmap' ||
+      content.indexOf('`') === 0 ||
+      content === ''
+    ) {
       return; // Skip 'mindmap' directive and empty lines
+    }
+    const code = line.charCodeAt(0);
+    if (isAlphaNumeric(code)) {
+      return;
     }
 
     let currentIndentation =
       stepLength === 0 ? 0 : line.indexOf(content) / stepLength; // Assuming 4 spaces per indentation level
     if (currentIndentation < 0) currentIndentation = 0;
     const id = `${index}`; // `node-${index}`;
-    let c = content.substring(startSymbol.length);
+    let c = content; // .substring(startSymbol.length);
     const sepPos = c.indexOf('|');
     if (sepPos > 0)
       c = useKeyword ? c.substring(0, sepPos) : c.replace('|', ' :: ');
@@ -135,13 +176,13 @@ function parseMindmapToReactFlowImp(
         fontSize,
         width: getValueRange(
           getTextWidth(c, fontSize) + 10,
-          useKeyword ? 50 : 120,
-          useKeyword ? 80 : 280,
+          useKeyword ? 50 : 140,
+          useKeyword ? 80 : 300,
         ),
       },
       data: { label: c, detail: content },
       position: {
-        x: 20 + currentIndentation * (useKeyword ? 80 : 220),
+        x: 20 + currentIndentation * (useKeyword ? 120 : 260),
         y: 20 + index * (useKeyword ? 35 : 80),
       },
       ...nodeDefaults,
@@ -190,19 +231,17 @@ function parseMindmapToReactFlowImp(
 export default function parseMindmapToReactFlow(markdown) {
   if (!markdown) return {};
   const lines = markdown.split('\n');
-  const startSymbol = checkMindmapStartingSymbol(lines);
-  const stepLength = calculateMiniStep(lines, startSymbol);
+  // const startSymbol = checkMindmapStartingSymbol(lines);
+  const stepLength = calculateMiniStepForMindmap(lines);
   const keywordMap = parseMindmapToReactFlowImp(
     markdown,
     lines,
-    startSymbol,
     stepLength,
     true,
   );
   const descriptionMap = parseMindmapToReactFlowImp(
     markdown,
     lines,
-    startSymbol,
     stepLength,
     false,
   );

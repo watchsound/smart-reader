@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git checkout:*)",
+      "Bash(mkdir:*)",
+      "Bash(npm install:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx eslint:*)",
+      "Bash(npx prettier:*)",
+      "Bash(npm test:*)",
+      "Bash(findstr:*)",
+      "Bash(dir /b \"c:\\\\Users\\\\nihan\\\\Desktop\\\\我的AI项目\\\\smart-e-readers\\\\smart-reader-v2\")",
+      "Bash(powershell -Command:*)",
+      "Bash(find:*)",
+      "Bash(npm run build:renderer:*)",
+      "Bash(dir /s /b node_modulesreact-pdf-highlighter-extended-x2dist*.d.ts)",
+      "Bash(timeout:*)",
+      "Bash(node --check:*)",
+      "Bash(dir:*)",
+      "Bash(wc -l \"c:\\\\Users\\\\nihan\\\\Desktop\\\\我的AI项目\\\\smart-e-readers\\\\smart-reader-v2\\\\src\\\\main\\\\skills\"/**/*.js)",
+      "Bash(wc:*)",
+      "Bash(cat:*)",
+      "Bash(node -e:*)",
+      "Bash(npm run build:main:*)",
+      "Bash(grep:*)",
+      "Bash(npm run start:renderer:*)",
+      "Bash(taskkill:*)",
+      "Bash(netstat:*)",
+      "Bash(npm ls:*)",
+      "Bash(npm view:*)",
+      "Bash(npx electron-builder:*)",
+      "Bash(npm run package:*)",
+      "Skill(superpowers:writing-plans)",
+      "Skill(superpowers:writing-plans:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(tree:*)",
+      "Bash(ls:*)"
+    ]
+  }
+}

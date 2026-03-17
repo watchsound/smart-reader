@@ -36,9 +36,9 @@ export async function queryNote(query) {
   return notes.sort(sortBy("date", "bookKey"));
 }
 
-export async function setShelf(shelfTitle , bookKey ) {
-  const json = await customStorage.getItem("shelfList") as string;
-  const obj = JSON5.parse(json!) || defaultShelf;
+export async function setShelf(shelfTitle, bookKey) {
+  const json = await customStorage.getItem("shelfList");
+  const obj = (json && JSON5.parse(json)) || defaultShelf;
   if (obj[shelfTitle] === undefined) {
     obj[shelfTitle] = [];
   }
@@ -48,14 +48,14 @@ export async function setShelf(shelfTitle , bookKey ) {
   customStorage.setItem("shelfList", JSON.stringify(obj));
 }
 export async function getShelf() {
-  const json = await customStorage.getItem("shelfList") as string;
-  const obj = (json &&JSON5.parse(json!)) || defaultShelf;
+  const json = await customStorage.getItem("shelfList");
+  const obj = (json && JSON5.parse(json)) || defaultShelf;
   return obj;
 }
 
-export async function clearShelf(shelfIndex , bookKey ) {
-  const json = await customStorage.getItem("shelfList") as string;
-  const obj = JSON5.parse(json!) || defaultShelf;
+export async function clearShelf(shelfIndex, bookKey) {
+  const json = await customStorage.getItem("shelfList");
+  const obj = (json && JSON5.parse(json)) || defaultShelf;
   const shelfTitle = Object.keys(obj);
   const currentShelfTitle = shelfTitle[shelfIndex];
   const index = obj[currentShelfTitle].indexOf(bookKey);
@@ -64,8 +64,8 @@ export async function clearShelf(shelfIndex , bookKey ) {
 }
 
 export async function deleteFromAllShelf(bookKey) {
-  const json = await customStorage.getItem("shelfList") as string;
-  const obj = JSON5.parse(json!) || defaultShelf;
+  const json = await customStorage.getItem("shelfList");
+  const obj = (json && JSON5.parse(json)) || defaultShelf;
   const shelfTitle = Object.keys(obj);
   shelfTitle.splice(0, 1);
   shelfTitle.forEach((item) => {
@@ -77,16 +77,16 @@ export async function deleteFromAllShelf(bookKey) {
   customStorage.setItem("shelfList", JSON.stringify(obj));
 }
 
-export async function removeShelf(shelfTitle: string) {
-  const json = await customStorage.getItem("shelfList") as string;
-  const obj = JSON5.parse(json!) || defaultShelf;
+export async function removeShelf(shelfTitle) {
+  const json = await customStorage.getItem("shelfList");
+  const obj = (json && JSON5.parse(json)) || defaultShelf;
   delete obj[shelfTitle];
   customStorage.setItem("shelfList", JSON.stringify(obj));
 }
 
 export async function getBookPosition(bookKey) {
-  const json = await customStorage.getItem("shelfList") as string;
-  const obj = JSON5.parse(json!) || defaultShelf;
+  const json = await customStorage.getItem("shelfList");
+  const obj = (json && JSON5.parse(json)) || defaultShelf;
   const shelfList = [];
   for (const item in obj) {
     if (obj[item] && obj[item].indexOf(bookKey) > -1) {

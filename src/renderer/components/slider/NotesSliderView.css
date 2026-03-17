@@ -1,9 +1,3 @@
-.image-slider-container {
-  margin: 0 auto;
-  width: 450px;
-}
-
-.image-slider-container .slick-prev:before,
-.image-slider-container .slick-next:before {
-  color: black;
-}
+/* NotesSliderView - Presentation Mode Styles */
+/* Most styles are handled via styled-components in the JS file */
+/* This file is kept for any additional global overrides if needed */

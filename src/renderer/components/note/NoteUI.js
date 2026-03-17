@@ -44,7 +44,9 @@ import CardContentSwitcher from './CardContentSwitcher';
 
 const StyledCard = styled(Card)({
   position: 'relative',
-  overflow: 'visible',
+  overflow: 'hidden',
+  borderRadius: '8px',
+  transition: 'box-shadow 0.2s ease',
 });
 const FlexCardContent = styled(CardContent)({
   display: 'flex',
@@ -89,6 +91,7 @@ function NoteUI({
   deleteAction,
   useBgColor,
   isInNotesUIView,
+  noPadding, // When true, removes margin for use in diagram nodes
 }) {
   const [edit, setEdit] = useState(false);
   const [inputText, setInputText] = useState('');
@@ -315,14 +318,16 @@ function NoteUI({
       <StyledCard
         ref={containerRef}
         sx={{
-          margin: '4px',
+          margin: noPadding ? 0 : '4px',
           maxWidth: size.width,
           maxHeight: size.height,
+          width: noPadding ? '100%' : undefined,
+          height: noPadding ? '100%' : undefined,
           backgroundColor: useBgColor ? selectedNote.color : 'white',
           display: 'flex',
           flexDirection: 'column',
           flexGrow: 1,
-          height: '100%',
+          borderRadius: noPadding ? '12px' : undefined,
         }}
       >
         <CardHeaderNoSwitch
@@ -419,11 +424,12 @@ function NoteUI({
       <StyledCard
         ref={containerRef}
         sx={{
-          margin: '6px 3px',
-          height: useMiniHeight ? undefined : size.height,
+          margin: noPadding ? 0 : '6px 3px',
+          height: noPadding ? '100%' : (useMiniHeight ? undefined : size.height),
           miniHeight: useMiniHeight ? size.height : undefined,
-          width: size.width,
+          width: noPadding ? '100%' : size.width,
           backgroundColor: useBgColor ? selectedNote.color : 'white',
+          borderRadius: noPadding ? '12px' : undefined,
         }}
         onClick={selectHandler}
       >
@@ -485,9 +491,10 @@ function NoteUI({
     <StyledCard
       ref={containerRef}
       sx={{
-        width: size.width,
-        height: size.height,
+        width: noPadding ? '100%' : size.width,
+        height: noPadding ? '100%' : size.height,
         backgroundColor: useBgColor ? selectedNote.color : 'white',
+        borderRadius: noPadding ? '12px' : undefined,
       }}
       style={{ display: 'flex', flexDirection: 'column' }}
       onClick={selectHandler}

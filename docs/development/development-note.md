@@ -50,7 +50,9 @@ sample project: https://github.com/deiucanta/chatpad
  
 ## add support for Gemini and More AI provider
 > npm install @google/generative-ai@0.1.3  
-// need to use version @0.1.3 to match chromadb
+// need to use version @0.1.3 to match chromadb 1.8.1
+
+
  
 ## add claude api support
 //https://www.npmjs.com/package/@anthropic-ai/sdk?activeTab=readme
@@ -59,6 +61,11 @@ sample project: https://github.com/deiucanta/chatpad
 ## add baidu api support
 (https://www.npmjs.com/package/@baiducloud/qianfan)
 > npm i @baiducloud/qianfan
+
+## add ollama support
+> npm install ollama 
+Note:  add this to release/app/package.json
+ "ollama": "^0.5.11"  
 
 
 ##  add mindmap support
@@ -86,7 +93,7 @@ sample project: https://github.com/deiucanta/chatpad
 // https://www.npmjs.com/package/xlsx
 > npm i xlsx 
 > npm install epubjs
->  npm install electron-store
+>  npm install electron-store@8.2.0
 
 ### pdf view lib related choices: 
 pdfjs-dist use canvas in nodejs enviroment, and canvas is a native module.
@@ -131,7 +138,7 @@ https://www.npmjs.com/package/markdown-it-replace-link
 
 # add vector db
 //https://docs.trychroma.com/getting-started
-> npm install --save chromadb
+> npm install --save chromadb@1.8.1
 > pip install chromadb   # You will need to install the Chroma python package to use the Chroma CLI and backend server.
  
 // You will need to install the Chroma python package to use the Chroma CLI and backend server.
@@ -327,6 +334,11 @@ https://www.npmjs.com/package/@electron/rebuild
 > npm install stream-http
 > npm i url
 
+# add Learn About (similiar to that from Google)
+
+
+
+############################################################################
 ## ~~~~~~~~~~~~ package ~~~~~~~~~~~~~~~~~
 ## sqlite3
 1. copy sqlite_tables.db to release\app

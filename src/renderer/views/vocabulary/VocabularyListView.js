@@ -23,8 +23,8 @@ import CreateVocabularyModal from './CreateVocabularyModal';
 // //
 const ScrollPane = styled('div')(({ theme }) => ({
   overflowX: 'hidden',
-  overflowY: 'auto',
-  height: 'calc(100vh - 120px)',
+  overflowY: 'hidden',
+  flex: 1,
   width: '100%',
   scrollbarWidth: 'thin',
   scrollbarColor:
@@ -83,15 +83,16 @@ function VocabularyListView({isReviewDue}) {
   };
 
   const handleSave = async (vocabulary) => {
-    if (!vocabulary || !vocabulary.name || !vocabulary.definition) return;
-     const newOne = await customStorage. createVocabulary(
-        {
-          word: vocabulary.name,
-          detail:  { definition: vocabulary.definition || '', root: vocabulary.relatedWord || '', example: vocabulary.example || '' },
-          setId: -1,
-          score: 0,
-        } );
-     if (!newOne) return;
+    if (!vocabulary || !vocabulary.name) return;
+    const newOne = await customStorage.createVocabulary({
+      word: vocabulary.name,
+      definition: vocabulary.definition || '',
+      relatedWords: vocabulary.relatedWord || '',
+      example: vocabulary.example || '',
+      setId: -1,
+      score: 0,
+    });
+    if (!newOne) return;
     setVocabularies([newOne, ...vocabularies]);
     dispatch(vocabularyAdded(newOne));
   };

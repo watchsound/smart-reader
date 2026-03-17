@@ -10,7 +10,7 @@ import pdf from 'pdf-parse/lib/pdf-parse';
 import fs from 'fs';
 
 import ensureChromaIsRunning from './chromaUtil';
-import aiProviderManager from '../../commons/service/AIProviderManager';
+import { instanceInMain as aiProviderManager } from '../../commons/service/AIProviderManager';
 import { AIProvider } from '../../commons/model/DataTypes';
 import { splitTextIntoChunks } from '../../commons/utils/CommonLangUtil';
 import { getUserIdFromToken } from '../db/dbManager';
@@ -34,7 +34,7 @@ class ChromaManager {
   async setupChroma(store) {
     await ensureChromaIsRunning(store);
     this.chromaClient = new ChromaClient({
-      path: store.get('chroma_url') || 'http://localhost:8000',
+      path: store.get('chroma_url') || 'http://127.0.0.1:8000',
     });
   }
 

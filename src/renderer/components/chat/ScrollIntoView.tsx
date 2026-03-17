@@ -1,5 +1,5 @@
 import { ReactNode, useRef, useEffect } from 'react';
-import Card from '@mui/material/Card';
+import Box from '@mui/material/Box';
 
 function ScrollIntoView({ children }: { children: ReactNode }) {
   // Scroll into view as soon as we appear
@@ -8,7 +8,7 @@ function ScrollIntoView({ children }: { children: ReactNode }) {
     if (myRef.current) myRef.current.scrollIntoView({ behavior: 'smooth' });
   }, []);
 
-  return <Card ref={myRef}>{children}</Card>;
+  return <Box ref={myRef}>{children}</Box>;
 }
 
 export default ScrollIntoView;
