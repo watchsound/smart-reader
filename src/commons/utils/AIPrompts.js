@@ -351,35 +351,52 @@ Please provide the layout information for each card in JSON format. Here's a sam
 
 const createDecomposeParagraphPrompt = (content) => {
   return `
-    I need to divide a paragraph into meaningful sections and assign each section to a card for a slide presentation. Each section should be of a moderate length, not too long, and represent a clear topic for easy understanding.
+    I need to divide a paragraph into meaningful sections and assign each section to a card for a slide presentation. Each section should be of moderate length, not too long, and represent a clear topic.
 
-    You can use simple HTML tags to format and decorate the content for better visual presentation:
-    - Use <strong> or <b> for emphasis on key terms
-    - Use <em> or <i> for italics
-    - Use <ul><li>...</li></ul> for bullet lists
-    - Use <ol><li>...</li></ol> for numbered lists
-    - Use <table><tr><td>...</td></tr></table> for simple tables
-    - Use <h3> or <h4> for section headings within a card
-    - Use <br> for line breaks
-    - Use <span style="color:#xxx"> for colored text highlights
+    You can use simple HTML tags for visual formatting:
+    - <strong> or <b> for emphasis on key terms
+    - <em> or <i> for italics
+    - <ul><li>...</li></ul> for bullet lists
+    - <ol><li>...</li></ol> for numbered lists
+    - <table><tr><td>...</td></tr></table> for simple tables
+    - <h3> or <h4> for section headings within a card
+    - <br> for line breaks
+    - <span style="color:#xxx"> for colored text highlights
 
-    Also suggest a layout theme for the presentation based on the content type. Available themes:
-    - "spiral": Good for exploratory or expanding topics
-    - "linear": Good for sequential, step-by-step content
-    - "grid": Good for comparisons, lists, or structured data
-    - "circular": Good for cyclical processes or related concepts
-    - "depth_zoom": Good for drilling into details or hierarchical content
-    - "storytelling": Good for narratives with beginning, middle, end
-    - "random_walk": Good for creative or diverse topics
+    Suggest a layout theme for the presentation. Available themes:
+    - "spiral": exploratory or expanding topics
+    - "linear": sequential, step-by-step content
+    - "grid": comparisons, lists, structured data
+    - "circular": cyclical processes or related concepts
+    - "depth_zoom": drilling into details / hierarchical content
+    - "storytelling": narratives with beginning, middle, end
+    - "random_walk": creative or diverse topics
+    - "helix": vertical, ascending/descending journeys
+    - "mobius": looped or paradoxical ideas
+    - "exploded_text": fragments converging into a whole
+    - "z_tunnel": forward-motion / drilling-into-the-future feel
+    - "page_turn_book": book-like, chapter-by-chapter
 
-    Please provide the breakdown in JSON format like this:
+    For richer presentations you MAY add these OPTIONAL fields. Omit any field if you are uncertain:
+    - top-level "global_mood": one of "calm", "dramatic", "tech", "playful", "scholarly", "cinematic"
+    - top-level "background": one of "none", "gradient_flow", "starfield_parallax", "dust_motes", "ink_wash", "cinema_letterbox", "nebula_cloud", "geometry_field", "data_stream", "aurora"
+    - per-slide "role": one of "opening", "key_concept", "example", "quote", "data", "punchline", "closing"
+    - per-slide "typography": one of "none", "typewriter", "word_by_word_fade", "scramble_decode", "blur_in", "letters_from_edges", "ink_write", "glitch_chromatic", "neon_glow_pulse", "text_3d_extrude", "text_particle_burst", "text_liquid_morph"
+    - per-slide "transition": one of "default", "depth_blur", "dissolve", "ink_bleed", "shatter_rebuild"
+    - per-slide "background": overrides the global background for this one slide
+
+    Return JSON like:
     {
       'layout_theme': 'storytelling',
+      'global_mood': 'dramatic',
+      'background': 'nebula_cloud',
       'data': [
-        {'card_index': 0, 'content': '<h4>Title</h4><p>Description...</p>'},
-        {'card_index': 1, 'content': '<ul><li>Point 1</li><li>Point 2</li></ul>'}
+        {'card_index': 0, 'content': '<h4>Title</h4>', 'role': 'opening', 'typography': 'blur_in', 'transition': 'default'},
+        {'card_index': 1, 'content': '<ul><li>Point 1</li></ul>', 'role': 'key_concept', 'typography': 'word_by_word_fade', 'transition': 'depth_blur'}
       ]
     }
+
+    Only include the optional fields when they meaningfully enhance the content. Omit them otherwise.
 
     ${content}
   `;
