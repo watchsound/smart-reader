@@ -216,14 +216,26 @@ Cross-cutting design docs (longer-form, written separately from the per-subsyste
 - [AI Learning Brain Architecture](docs/technical/AI-Learning-Brain-Architecture.md)
 - [Agentic AI Implementation Analysis](docs/technical/Agentic-AI-Implementation-Analysis.md)
 
-## AI-Driven Shell (Plan 1 skeleton — 2026-06-14)
+## AI-Driven Shell (Plans 1–3, 2026-06-14)
 
-The 21-route CRUD shell is being layered with a reactive Brain-orchestrated surface. Plan 1 lands the skeleton + Phase 4 architectural proof; Plan 2 will add the remaining Flow Units, Quest layer, and Phase 5–8 migrations.
+The 21-route CRUD shell now wears a reactive Brain-orchestrated surface. Plan 1 landed the skeleton + Phase 4 architectural proof; Plan 2 added the remaining two Flow Units, real migrations of Phase 7/8a/b/c, the Quest layer, queue persistence, and the Brain dashboard panel; Plan 3 added Quest weighting, LLM-backed pull suggestion, the Orb right-click Quest menu, the Quest creation dialog, and Phase 7's Quest auto-link.
 
-**Shape:** Phase 0–8 services emit Triggers via `TriggerEmitter` (`src/main/brain/TriggerEmitter.js`); the renderer `triggerBus` (`src/renderer/brain/triggerBus.js`) enqueues them into a `ProposalQueue`; a `BrainOrb` injected into `Root.jsx`'s AppBar reflects the queue's state; `FlowCoordinator` routes accepted Proposals to their Flow Unit host (`AtomicChipHost` in Plan 1; `InlineSequenceHost` and `MultiSurfaceFlowHost` are Plan 2 stubs).
+**Shape:** Phase 0–8 services emit Triggers via `TriggerEmitter` (`src/main/brain/TriggerEmitter.js`); the renderer `triggerBus` (`src/renderer/brain/triggerBus.js`) enqueues them into a `ProposalQueue` that consults an active-Quest book-ID set for in-tier weighting; a `BrainOrb` injected into `Root.jsx`'s AppBar reflects queue state and opens an `OrbQuestMenu` on right-click; `FlowCoordinator` routes accepted Proposals to one of three real hosts (`AtomicChipHost`, `InlineSequenceHost`, `MultiSurfaceFlowHost`).
 
-**Phase 4 proof:** the `microcard-propose` IPC handler dual-emits — returns the proposal to the existing in-reader `MicroCardChip` AND emits a Trigger via `TriggerEmitter`. The Orb blooms on the new proposal, and clicking it renders the same payload in `AtomicChipHost`. Plan 2 dedups to a single render path.
+**Migrated trigger sources:**
+- Phase 7 (`learning-path-plan`) → `multi-surface-flow` Trigger + auto-creates a `Quest` record on success
+- Phase 8a (`reread-queue-schedule`) → atomic-chip with `Open` action
+- Phase 8b (`MoodBoardOrganizerService.suggestOrganize`) → atomic-chip with `Open MoodBoard` action
+- Phase 8c (`ProductionPromptService.schedulePrompt`) → atomic-chip with `Try it` action
 
-**Glossary:** [CONTEXT.md](CONTEXT.md) — Brain, Orb, Trigger, Proposal, Flow (Atomic Chip / Inline Sequence / Multi-Surface Flow), Quest, Pull / Push, Escape Hatch.
+**Phase 4/5/6 stay in-context.** Their in-paragraph (`MicroCardChip`), pre-reading (`PreReadingPanel`), and end-of-chapter (`ComprehensionPanel`) surfaces are natural; Orb migration would create visual duplication. The Orb is reserved for triggers without an obvious in-context home.
 
-**Reference:** [docs/superpowers/specs/2026-06-14-ai-driven-shell-design.md](docs/superpowers/specs/2026-06-14-ai-driven-shell-design.md) (spec) and [docs/superpowers/plans/2026-06-14-ai-driven-shell-skeleton.md](docs/superpowers/plans/2026-06-14-ai-driven-shell-skeleton.md) (plan).
+**Pull when queue is empty:** `BrainShell.onOrbClick` and `BrainDashboardPanel` call `triggerBus.pull()` → main-side `LearningBrainAgent.synthesizePullSuggestion` returns `{ title, body, navigate?, source: 'llm' | 'deterministic-fallback' }`. LLM path uses the active aiProvider with a tight JSON prompt; fallback uses active-Quest goals.
+
+**Quest lifecycle:** users create Quests via the `+` button in `OrbQuestMenu` → `NewQuestDialog` → `quest-create` IPC → main broadcasts `quest:changed` → renderer triggerBus rehydrates its weighting set. Phase 7 also auto-creates a Quest with the path's bookIds when a plan succeeds.
+
+**Queue persistence:** every queue mutation snapshots to electron-store (`brainShell.queueSnapshot`); bus init rehydrates and purges expired items.
+
+**Glossary:** [CONTEXT.md](CONTEXT.md) — Brain, Orb, Trigger, Proposal, Flow (Atomic Chip / Inline Sequence / Multi-Surface Flow), Quest, Pull / Push, Escape Hatch, Pull Suggestion, Quest Auto-Creation, Quest Weighting, Atomic Chip Actions, Queue Persistence.
+
+**Reference:** [docs/superpowers/specs/2026-06-14-ai-driven-shell-design.md](docs/superpowers/specs/2026-06-14-ai-driven-shell-design.md) (spec — describes the v1 intent; some Plan 2/3 outcomes diverged: Phase 4/5/6 stay in-context, Phase 7 auto-creates a Quest, Brain Dashboard is additive panel not full route replacement).
