@@ -93,6 +93,7 @@ npm start
 | `npm run lint` | Run ESLint |
 | `npm test` | Run Jest tests |
 | `npm run test:integration` | Run integration tests (rebuilds `better-sqlite3` for Node, runs the `src/__tests__/integration/` suite, restores Electron's binary in a `finally` so `npm start` keeps working) |
+| `npm run test:smoke` | Boot Electron for ~12s and scan main-process logs for crash patterns (catches missing tables, undefined function calls, ABI mismatches without UI interaction) |
 | `npm run rebuild` | Rebuild native modules |
 
 ## Building for Production
@@ -302,28 +303,42 @@ Optional: Configure **Neo4j** for advanced features:
 
 ## Testing
 
+Three layers, ordered cheapest → most expensive:
+
 ```bash
-# Run all unit tests
+# Unit tests — mock dbManager + AI providers, fast, no native modules
 npm test
 
-# Run specific test file
+# Specific test file
 npm test -- --testPathPattern=KuzuAdapter
 
-# Run with coverage
+# With coverage
 npm test -- --coverage
 
-# Run integration tests (Phase 4-8 loops, end-to-end)
+# Integration tests — Phase 4-8 loops end-to-end (Phase 8 uses real :memory: SQLite)
 npm run test:integration
+
+# Smoke test — boot Electron, scan main-process logs for known crash patterns
+npm run test:smoke
 ```
 
-Unit tests mock `dbManager` and the AI providers, so they're fast and
-don't need native modules. Integration tests under
-`src/__tests__/integration/` exercise the full service composition;
-Phase 8 uses a real in-memory SQLite database to catch schema and SQL
-issues that mock-DB tests can't see. The `test:integration` script
-handles the `better-sqlite3` ABI dance automatically (rebuild for Node,
-run, restore for Electron — including a `finally` so `npm start`
-still works if the test run fails).
+### What each layer catches
+
+| Layer | Catches | Misses |
+|---|---|---|
+| **Unit** | logic bugs in isolated functions, contract bugs at boundaries | anything depending on real DB or real IPC chain |
+| **Integration** | wrong API signatures across services, missing tables (Phase 8 uses real SQLite), schema mismatches | bugs that only appear when Electron actually boots |
+| **Smoke** | boot-time crashes, `require(...).X is not a function`, `SqliteError`, missing modules, ABI mismatches | UI interaction bugs, anything after the 12-second sample window |
+
+### `test:integration` setup notes
+
+Phase 8 integration tests need `better-sqlite3` built against system Node (Jest doesn't run inside Electron). The script handles the rebuild dance automatically: rebuild for Node → run the suite → restore Electron's binary in a `finally` so `npm start` keeps working whether tests pass or fail.
+
+### `test:smoke` setup notes
+
+Launches Electron via `ts-node` against `src/main/main.ts` (matching what `npm start:main` does — no separate build step needed). Captures stdout + stderr for 12 seconds and matches against a small set of error patterns defined in [`.erb/scripts/test-smoke.js`](.erb/scripts/test-smoke.js). Add new patterns there as you find new bug classes worth pinning.
+
+The smoke test is **not** UI testing — it doesn't click buttons or read the DOM. We tried Playwright; Electron 26 doesn't accept its `--remote-debugging-port=0` flag. True UI tests need either an Electron version bump (≥28) or a heavier alternative like WebdriverIO with `@wdio/electron-service`.
 
 ## Troubleshooting
 

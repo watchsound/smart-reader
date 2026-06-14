@@ -33,7 +33,9 @@ npm run rebuild
 
 # Linting and testing
 npm run lint              # ESLint for .js,.jsx,.ts,.tsx
-npm test                  # Jest tests
+npm test                  # Jest unit tests (mock DB + AI)
+npm run test:integration  # Phase 4-8 service-level tests (Phase 8 uses real :memory: SQLite)
+npm run test:smoke        # Boot Electron 12s + scan main-process logs for crash patterns
 ```
 
 ## Architecture
@@ -188,6 +190,8 @@ Cross-loop plumbing:
 - Streak chain: `completeLearningSession` → `updateStreakAfterSession` → `LearnerProfileManager.updateGlobalProfile`
 
 Integration tests under `src/__tests__/integration/` exercise the Phase 4–8 loops end-to-end. Phase 8 uses real `:memory:` SQLite; run via `npm run test:integration` (rebuilds `better-sqlite3` for Node, runs, restores for Electron).
+
+For boot-time crash detection, `npm run test:smoke` launches Electron against `src/main/main.ts` via `ts-node` (matching `npm start:main`), waits 12 s for the brain heartbeat to fire once, and scans stdout+stderr for known bug patterns (defined in `.erb/scripts/test-smoke.js` — extend the `ERROR_PATTERNS` list as new bug classes are found). This is NOT UI testing — Playwright is incompatible with Electron 26's flag handling, so true e2e UI tests are blocked until an Electron bump.
 
 ## Subsystem Documentation
 
