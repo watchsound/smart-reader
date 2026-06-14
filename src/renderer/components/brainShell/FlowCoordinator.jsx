@@ -1,10 +1,11 @@
 import React from 'react';
 import AtomicChipHost from './AtomicChipHost';
+import InlineSequenceHost from './InlineSequenceHost';
 
 /**
  * FlowCoordinator — routes an active Proposal to its Flow Unit host.
- * Plan 1: only `atomic-chip` is implemented; `inline-sequence` and
- * `multi-surface-flow` are deferred to Plan 2.
+ * Plan 1: atomic-chip. Plan 2 slice 1: inline-sequence. multi-surface-flow
+ * remains deferred.
  *
  * @param {object} props
  * @param {import('../../../commons/brain/triggerTypes').Proposal | null} props.proposal
@@ -15,11 +16,12 @@ export default function FlowCoordinator({ proposal }) {
     case 'atomic-chip':
       return <AtomicChipHost proposal={proposal} />;
     case 'inline-sequence':
+      return <InlineSequenceHost proposal={proposal} />;
     case 'multi-surface-flow':
       // eslint-disable-next-line no-console
       console.warn(
-        '[FlowCoordinator] flow unit not yet implemented:',
-        proposal.unit,
+        '[FlowCoordinator] multi-surface-flow not yet implemented:',
+        proposal.id,
       );
       return null;
     default:
