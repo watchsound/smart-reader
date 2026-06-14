@@ -1,0 +1,445 @@
+/**
+ * Phase 8 Integration Tests — Spaced Re-reading + Organize + Production loops.
+ *
+ * Exercises each loop end-to-end against a REAL in-memory SQLite database
+ * with the real `learning_point` schema. The bug we hit last week (missing
+ * `learning_point` table) was invisible to the unit tests because they
+ * mock dbManager; this file deliberately doesn't.
+ *
+ * What's mocked vs real:
+ *   - electron       MOCK (app.getPath, ipcMain.handle stubs)
+ *   - dbManager      REAL (better-sqlite3 :memory:)
+ *   - LearningPoint  REAL (init runs on import, creates the table)
+ *   - Notification   MOCK (captures payloads instead of touching IPC)
+ *   - Services       REAL (RereadQueue, MoodBoardOrganizer, ProductionPrompt)
+ *   - electron-store MOCK (in-memory key-value)
+ *
+ * @jest-environment node
+ */
+
+jest.mock('electron', () => ({
+  app: { getPath: jest.fn(() => '/tmp/test-userData') },
+  ipcMain: { handle: jest.fn() },
+}));
+
+// In an Electron project, better-sqlite3 is normally compiled against
+// Electron's Node ABI (via `npm run rebuild`). Jest runs in system Node
+// with a different ABI, so loading the .node binary throws unless someone
+// has done `npm rebuild better-sqlite3 --build-from-source` first.
+// We probe in a way the jest.mock factory can survive: if the load fails,
+// the mock returns a stub and the describe blocks below short-circuit.
+let testDB = null;
+let sqliteLoadError = null;
+try {
+  // eslint-disable-next-line global-require
+  const Database = require('better-sqlite3');
+  testDB = new Database(':memory:');
+} catch (err) {
+  sqliteLoadError = err;
+}
+
+jest.mock('../../main/db/dbManager', () => ({
+  __esModule: true,
+  default: testDB || { prepare: () => ({}), exec: () => {} },
+  getUserIdFromToken: jest.fn((token) => {
+    const sessionInfo = global?.shared?.store?.get?.('session_info');
+    return sessionInfo?.token === token ? sessionInfo.id : -1;
+  }),
+  addUserIdCreatedAt: (obj, userId) => {
+    obj.userId = userId;
+    obj.createdAt = new Date().toISOString();
+    return obj;
+  },
+  escapeString: (v) => {
+    if (typeof v === 'string') return v.replace(/'/g, "''");
+    if (typeof v === 'number') return v.toString();
+    return v || '';
+  },
+  getNextId: jest.fn(),
+}));
+
+// Capture notifications instead of hitting the renderer IPC bus.
+const capturedNotifications = [];
+jest.mock('../../main/db/NotificationManager', () => {
+  let nextId = 1;
+  return {
+    createNotification: jest.fn((payload, token) => {
+      const notif = { id: `notif_${nextId++}`, token, ...payload };
+      capturedNotifications.push(notif);
+      return notif;
+    }),
+    NOTIFICATION_TYPES: {
+      PROGRESS: 'progress',
+      STUDY_REMINDER: 'study_reminder',
+      SYSTEM: 'system',
+      STREAK: 'streak',
+    },
+    NOTIFICATION_PRIORITIES: { LOW: 'low', NORMAL: 'normal', HIGH: 'high' },
+  };
+});
+
+// If better-sqlite3 didn't load we still want the file to import cleanly
+// so Jest reports "skipped" instead of failing the whole suite. Wrap the
+// SUT requires + lifecycle so they only fire when the DB is usable.
+const describeIfDB = testDB ? describe : describe.skip;
+
+let db;
+let RereadQueueService;
+let MoodBoardOrganizerService;
+let ProductionPromptService;
+if (testDB) {
+  // Loading the manager runs initLearningPointTable() on the test DB.
+  // eslint-disable-next-line global-require
+  require('../../main/db/LearningPointManager');
+  // eslint-disable-next-line global-require
+  ({ default: db } = require('../../main/db/dbManager'));
+  // eslint-disable-next-line global-require
+  RereadQueueService = require('../../main/utils/RereadQueueService').default;
+  // eslint-disable-next-line global-require
+  MoodBoardOrganizerService = require('../../main/brain/MoodBoardOrganizerService');
+  // eslint-disable-next-line global-require
+  ProductionPromptService = require('../../main/brain/ProductionPromptService');
+}
+
+if (!testDB) {
+  // eslint-disable-next-line no-console
+  console.warn(
+    `[phase8.integration] better-sqlite3 unavailable (${
+      sqliteLoadError?.message || 'unknown'
+    }); skipping all suites. ` +
+      'Run `npm rebuild better-sqlite3 --build-from-source` to enable, ' +
+      'then `npm run rebuild` to restore the Electron binary.',
+  );
+}
+
+const SESSION_TOKEN = 'test-session-token';
+const USER_ID = 1;
+
+// =============================================================================
+// Helpers
+// =============================================================================
+
+function makeStore() {
+  const data = {};
+  return {
+    get: jest.fn((key, fallback) =>
+      data[key] === undefined ? fallback : data[key],
+    ),
+    set: jest.fn((key, value) => {
+      data[key] = value;
+    }),
+    _data: data,
+  };
+}
+
+function seedLearningPoint(overrides = {}) {
+  const id = overrides.id || `lp_${Math.random().toString(36).substr(2, 8)}`;
+  const now = overrides.createdAt || new Date().toISOString();
+  db.prepare(
+    `
+    INSERT INTO learning_point (
+      id, user_id, title, front, back, status,
+      domain_type, item_type, source_type, book_id,
+      mastery_level, review_count, box, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `,
+  ).run(
+    id,
+    USER_ID,
+    overrides.title || `concept-${id.slice(-4)}`,
+    overrides.front || 'What is it?',
+    overrides.back ||
+      JSON.stringify({ text: 'A substantive explanation worth eliciting.' }),
+    overrides.status || 'active',
+    overrides.domainType || 'vocabulary',
+    overrides.itemType || 'concept',
+    overrides.sourceType || 'book',
+    overrides.bookId == null ? 1 : overrides.bookId,
+    overrides.masteryLevel || 0,
+    overrides.reviewCount || 0,
+    overrides.box || 1,
+    now,
+  );
+  return id;
+}
+
+function ensureBookTable() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS book (
+      id INTEGER PRIMARY KEY,
+      name TEXT
+    )
+  `);
+  db.prepare('INSERT OR IGNORE INTO book (id, name) VALUES (?, ?)').run(
+    1,
+    'Test Book',
+  );
+}
+
+// =============================================================================
+// Lifecycle
+// =============================================================================
+
+beforeAll(() => {
+  if (!testDB) return;
+  // Brain services look up the real session token via global.shared.store.
+  global.shared = {
+    store: {
+      get: jest.fn((key) => {
+        if (key === 'session_info') {
+          return {
+            id: USER_ID,
+            token: SESSION_TOKEN,
+            username: 'test',
+            email: 'test@test.com',
+          };
+        }
+        return null;
+      }),
+      set: jest.fn(),
+    },
+  };
+  ensureBookTable();
+});
+
+beforeEach(() => {
+  if (!testDB) return;
+  capturedNotifications.length = 0;
+  db.prepare('DELETE FROM learning_point').run();
+});
+
+// =============================================================================
+// Spaced Re-reading
+// =============================================================================
+
+describeIfDB('Phase 8 integration — spaced re-reading', () => {
+  it('schedule -> getPending -> complete pulls item off the queue', () => {
+    const service = new RereadQueueService(makeStore());
+
+    const scheduled = service.schedule({
+      userId: USER_ID,
+      bookId: 1,
+      bookTitle: 'Test Book',
+      chapterId: 'ch_1',
+      chapterName: 'Chapter 1',
+      gaps: ['concept-a', 'concept-b'],
+      score: 35,
+    });
+    expect(scheduled.id).toBeTruthy();
+    expect(scheduled.completedAt).toBeNull();
+
+    const pending = service.getPending(USER_ID);
+    expect(pending).toHaveLength(1);
+    expect(pending[0].chapterName).toBe('Chapter 1');
+    expect(pending[0].gaps).toEqual(['concept-a', 'concept-b']);
+
+    const completed = service.complete(scheduled.id);
+    expect(completed.completedAt).toBeTruthy();
+    expect(service.getPending(USER_ID)).toHaveLength(0);
+  });
+
+  it('schedule is idempotent per (book, chapter) — updates the open item', () => {
+    const service = new RereadQueueService(makeStore());
+    const first = service.schedule({
+      userId: USER_ID,
+      bookId: 1,
+      bookTitle: 'Test Book',
+      chapterId: 'ch_1',
+      chapterName: 'Chapter 1',
+      gaps: ['x'],
+      score: 30,
+    });
+    const second = service.schedule({
+      userId: USER_ID,
+      bookId: 1,
+      bookTitle: 'Test Book',
+      chapterId: 'ch_1',
+      chapterName: 'Chapter 1',
+      gaps: ['x', 'y'],
+      score: 25,
+    });
+    expect(second.id).toBe(first.id);
+    expect(service.getPending(USER_ID)).toHaveLength(1);
+  });
+
+  it('dismiss on a non-existent id returns false (no throw)', () => {
+    const service = new RereadQueueService(makeStore());
+    expect(service.dismiss('does-not-exist')).toBe(false);
+  });
+});
+
+// =============================================================================
+// Organize Loop
+// =============================================================================
+
+describeIfDB('Phase 8 integration — organize loop', () => {
+  it('detects a cluster, fires notification, dedups on rerun', () => {
+    for (let i = 0; i < 6; i += 1) {
+      seedLearningPoint({ domainType: 'vocabulary', bookId: 1 });
+    }
+
+    const store = makeStore();
+    const collector = { record: jest.fn() };
+    const service = new MoodBoardOrganizerService({
+      store,
+      episodeCollector: collector,
+    });
+
+    const first = service.suggestOrganize(USER_ID, SESSION_TOKEN);
+    expect(first.created).toBe(1);
+    expect(capturedNotifications).toHaveLength(1);
+    expect(capturedNotifications[0].title).toContain('6 new vocabulary');
+    expect(capturedNotifications[0].actionUrl).toBe(
+      '/moodBoard?organize=1%3Avocabulary',
+    );
+    expect(collector.record).toHaveBeenCalledTimes(1);
+    expect(collector.record.mock.calls[0][0].eventType).toBe(
+      'ORGANIZE_SUGGESTED',
+    );
+
+    const second = service.suggestOrganize(USER_ID, SESSION_TOKEN);
+    expect(second.created).toBe(0);
+    expect(second.skipped).toBe(1);
+    expect(capturedNotifications).toHaveLength(1);
+  });
+
+  it('clearSuggestion frees the dedup slot so the next run re-suggests', () => {
+    for (let i = 0; i < 6; i += 1) {
+      seedLearningPoint({ domainType: 'vocabulary', bookId: 1 });
+    }
+    const service = new MoodBoardOrganizerService({ store: makeStore() });
+
+    service.suggestOrganize(USER_ID, SESSION_TOKEN);
+    expect(capturedNotifications).toHaveLength(1);
+
+    expect(service.clearSuggestion(USER_ID, 1, 'vocabulary')).toBe(true);
+
+    service.suggestOrganize(USER_ID, SESSION_TOKEN);
+    expect(capturedNotifications).toHaveLength(2);
+  });
+
+  it('no-ops below the minClusterSize threshold (default 5)', () => {
+    for (let i = 0; i < 4; i += 1) {
+      seedLearningPoint({ domainType: 'vocabulary', bookId: 1 });
+    }
+    const service = new MoodBoardOrganizerService({ store: makeStore() });
+
+    const result = service.suggestOrganize(USER_ID, SESSION_TOKEN);
+    expect(result.created).toBe(0);
+    expect(result.clusters).toEqual([]);
+    expect(capturedNotifications).toHaveLength(0);
+  });
+
+  it('falls back to "Book #ID" when the book row is missing', () => {
+    for (let i = 0; i < 5; i += 1) {
+      seedLearningPoint({ domainType: 'programming', bookId: 99 });
+    }
+    const service = new MoodBoardOrganizerService({ store: makeStore() });
+
+    const result = service.suggestOrganize(USER_ID, SESSION_TOKEN);
+    expect(result.created).toBe(1);
+    expect(capturedNotifications[0].message).toContain('Book #99');
+  });
+});
+
+// =============================================================================
+// Production Loop
+// =============================================================================
+
+describeIfDB('Phase 8 integration — production loop', () => {
+  it('selects high-mastery candidate and fires the prompt', () => {
+    seedLearningPoint({
+      title: 'serendipity',
+      masteryLevel: 80,
+      reviewCount: 5,
+      back: JSON.stringify({
+        text: 'a happy accident or pleasant surprise found by chance',
+      }),
+    });
+
+    const store = makeStore();
+    const collector = { record: jest.fn() };
+    const service = new ProductionPromptService({
+      store,
+      episodeCollector: collector,
+    });
+
+    const result = service.schedulePrompt(USER_ID, SESSION_TOKEN);
+
+    expect(result.created).toBe(1);
+    expect(capturedNotifications).toHaveLength(1);
+    expect(capturedNotifications[0].title).toContain('serendipity');
+    expect(capturedNotifications[0].actionUrl).toMatch(
+      /^\/knowledge\?produce=/,
+    );
+    expect(collector.record).toHaveBeenCalledWith(
+      expect.objectContaining({ eventType: 'PRODUCTION_PROMPTED' }),
+    );
+  });
+
+  it('skips candidates below MIN_MASTERY (60)', () => {
+    seedLearningPoint({
+      masteryLevel: 40,
+      reviewCount: 5,
+      back: JSON.stringify({ text: 'sufficient explanation here for testing' }),
+    });
+
+    const service = new ProductionPromptService({ store: makeStore() });
+    const result = service.schedulePrompt(USER_ID, SESSION_TOKEN);
+
+    expect(result.created).toBe(0);
+    expect(result.reason).toBe('no candidates');
+    expect(capturedNotifications).toHaveLength(0);
+  });
+
+  it('skips candidates below MIN_REVIEWS (3)', () => {
+    seedLearningPoint({
+      masteryLevel: 80,
+      reviewCount: 2,
+      back: JSON.stringify({ text: 'long enough back text for the threshold' }),
+    });
+
+    const service = new ProductionPromptService({ store: makeStore() });
+    const result = service.schedulePrompt(USER_ID, SESSION_TOKEN);
+    expect(result.created).toBe(0);
+  });
+
+  it('skips candidates without substantive back text', () => {
+    seedLearningPoint({
+      masteryLevel: 80,
+      reviewCount: 5,
+      back: JSON.stringify({ text: 'short' }),
+    });
+
+    const service = new ProductionPromptService({ store: makeStore() });
+    const result = service.schedulePrompt(USER_ID, SESSION_TOKEN);
+    expect(result.created).toBe(0);
+  });
+
+  it('dedups the same point for 21 days after prompting', () => {
+    seedLearningPoint({
+      masteryLevel: 80,
+      reviewCount: 5,
+      back: JSON.stringify({
+        text: 'substantive enough explanation for the production threshold',
+      }),
+    });
+
+    const service = new ProductionPromptService({ store: makeStore() });
+    expect(service.schedulePrompt(USER_ID, SESSION_TOKEN).created).toBe(1);
+    expect(service.schedulePrompt(USER_ID, SESSION_TOKEN).created).toBe(0);
+  });
+
+  it('no-session short-circuits cleanly', () => {
+    const originalShared = global.shared;
+    global.shared = { store: { get: jest.fn(() => null) } };
+
+    const service = new ProductionPromptService({ store: makeStore() });
+    const result = service.schedulePrompt(USER_ID, null);
+
+    expect(result.reason).toBe('no session');
+    expect(capturedNotifications).toHaveLength(0);
+
+    global.shared = originalShared;
+  });
+});
