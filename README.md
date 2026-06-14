@@ -5,13 +5,20 @@ An AI-powered e-reader desktop application that combines document reading, intel
 ## Features
 
 - **Multi-format Reader**: Read EPUB, PDF, and Word documents with annotations and highlights
-- **AI-Powered Learning**: Integrated AI chat with multiple providers (ChatGPT, Claude, Gemini, Ollama)
+- **AI-Powered Learning**: Integrated AI chat with multiple providers (ChatGPT, Claude, Gemini, Ollama, DeepSeek, Kimi, Qwen, Baidu, Doubao) with a capability registry + polyfills so each feature degrades gracefully on weaker providers
 - **Spaced Repetition**: Leitner 5-box system for vocabulary and concept retention
+- **Domain-Aware Learning Points**: Concepts carry a domain (vocabulary, programming, math, formal-concept, knowledge) with per-domain extractors and study cards
 - **Knowledge Graph**: Visualize connections between concepts using embedded Kuzu database
 - **Learning Plans**: Create structured curricula with AI-generated study schedules
 - **Smart Summary**: Word constellation animations for visual learning
 - **Built-in Browser**: Research and save web content with smart bookmarks
 - **Quiz System**: Auto-generate quizzes from your reading materials
+- **Tutor Mode**: AI chat that knows your reading history, weak concepts, and last quiz performance
+- **Pre-Book Diagnostic**: New books get a short prerequisite quiz + a primer covering gaps
+- **In-Reading Micro-Cards**: 1-tap creates a domain-correct learning card from the paragraph you just read
+- **End-of-Chapter Comprehension Check**: Open-ended questions graded distinctly from SRS recall, feeding the re-reading queue
+- **Cross-Book Learning Path**: Ask for a topic and the AI walks your library to suggest an ordered chapter sequence
+- **Brain Loops**: Spaced re-reading, MoodBoard organize suggestions (with auto-populated boards), and "explain it in your own words" production prompts — all surfaced via the Knowledge Dashboard
 
 ## Installation
 
@@ -85,6 +92,7 @@ npm start
 | `npm run package` | Package for current platform |
 | `npm run lint` | Run ESLint |
 | `npm test` | Run Jest tests |
+| `npm run test:integration` | Run integration tests (rebuilds `better-sqlite3` for Node, runs the `src/__tests__/integration/` suite, restores Electron's binary in a `finally` so `npm start` keeps working) |
 | `npm run rebuild` | Rebuild native modules |
 
 ## Building for Production
@@ -205,26 +213,41 @@ smart-reader-v2/
 │   │   ├── main.ts        # Main entry point
 │   │   ├── preload.ts     # Preload script
 │   │   ├── db/            # SQLite database managers
-│   │   ├── ipc/           # IPC handlers
-│   │   ├── utils/         # Utilities (Graph, Chroma, etc.)
+│   │   ├── ipc/           # IPC handlers (incl. Phase 4-8 brain loops)
+│   │   ├── utils/         # Brain services + utilities
+│   │   │   ├── BookDiagnosticService.js          # Phase 5
+│   │   │   ├── ComprehensionGradingService.js    # Phase 6
+│   │   │   ├── LearningPathPlannerService.js     # Phase 7
+│   │   │   ├── MicroCardProposer.js              # Phase 4
+│   │   │   ├── RereadQueueService.js             # Phase 8a
+│   │   │   └── extractors/                       # Phase 3 per-domain
 │   │   ├── brain/         # AI Learning Brain
+│   │   │   ├── LearningBrainAgent.js  +  HybridScheduler.js  +  EpisodeCollector.js
+│   │   │   ├── MoodBoardOrganizerService.js      # Phase 8b
+│   │   │   └── ProductionPromptService.js        # Phase 8c
 │   │   └── skills/        # Skill system
 │   ├── renderer/          # React frontend
 │   │   ├── views/         # Page components
-│   │   ├── components/    # Reusable components
-│   │   ├── api/           # IPC client APIs
+│   │   │   ├── reading/   # + PreReadingPanel, MicroCardChip, ComprehensionPanel + hooks/
+│   │   │   └── study/components/cards/  # Per-domain study cards
+│   │   ├── components/
+│   │   │   └── knowledge/ # RereadQueuePanel, ProductionPromptPanel, CrossBookPathPanel
+│   │   ├── api/           # IPC client APIs (brain, microCard, comprehension, etc.)
 │   │   ├── store/         # Redux store
-│   │   └── theme/         # MUI themes
-│   └── commons/           # Shared code
-│       ├── model/         # Data types
-│       ├── service/       # AI providers
-│       └── utils/         # Utilities
+│   │   ├── theme/         # MUI themes
+│   │   └── utils/         # tutorContext.js (Phase 1 Brain → chat system prompt)
+│   ├── commons/           # Shared code
+│   │   ├── model/         # Data types, LearningPointDomains.ts
+│   │   ├── service/       # AI providers + polyfills/ (Phase 0 capability layer)
+│   │   └── utils/         # AIPrompts.js, DomainDetector.js, learningPointExtras.js
+│   └── __tests__/
+│       └── integration/   # End-to-end tests for Phase 4-8 loops
 ├── release/
 │   ├── app/               # Production app
 │   └── build/             # Distribution files
 ├── assets/                # Icons, images
 ├── docs/                  # Documentation
-├── .erb/                  # Webpack configs
+├── .erb/                  # Webpack configs (+ scripts/test-integration.js)
 ├── db.sql                 # SQLite schema
 └── package.json
 ```
@@ -280,7 +303,7 @@ Optional: Configure **Neo4j** for advanced features:
 ## Testing
 
 ```bash
-# Run all tests
+# Run all unit tests
 npm test
 
 # Run specific test file
@@ -288,7 +311,19 @@ npm test -- --testPathPattern=KuzuAdapter
 
 # Run with coverage
 npm test -- --coverage
+
+# Run integration tests (Phase 4-8 loops, end-to-end)
+npm run test:integration
 ```
+
+Unit tests mock `dbManager` and the AI providers, so they're fast and
+don't need native modules. Integration tests under
+`src/__tests__/integration/` exercise the full service composition;
+Phase 8 uses a real in-memory SQLite database to catch schema and SQL
+issues that mock-DB tests can't see. The `test:integration` script
+handles the `better-sqlite3` ABI dance automatically (rebuild for Node,
+run, restore for Electron — including a `finally` so `npm start`
+still works if the test run fails).
 
 ## Troubleshooting
 
