@@ -2996,19 +2996,19 @@ app
       .then((brain) => {
         if (brain) {
           registerBrainHandlers({ brain, store });
-          registerTriggerBusHandlers({ brain });
+          registerTriggerBusHandlers({ brain, store });
           console.log('[main] Learning Brain initialized successfully');
         } else {
           // Brain disabled or failed - still register handlers for status queries
           registerBrainHandlers({ brain: null, store });
-          registerTriggerBusHandlers({ brain: null });
+          registerTriggerBusHandlers({ brain: null, store });
           console.log('[main] Learning Brain disabled or unavailable');
         }
       })
       .catch((err) => {
         console.error('[main] Learning Brain initialization failed:', err);
         registerBrainHandlers({ brain: null, store });
-        registerTriggerBusHandlers({ brain: null });
+        registerTriggerBusHandlers({ brain: null, store });
       });
 
     // copy resource / script ..

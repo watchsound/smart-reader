@@ -25,6 +25,18 @@ function getOrbState() {
   return 'has-proposal';
 }
 
+function persistQueueSnapshot() {
+  const ipc = window.electron?.ipcRenderer;
+  if (!ipc) return;
+  try {
+    // Fire-and-forget; persistence is best-effort.
+    ipc.invoke('brain:trigger:queue-snapshot', queue.list());
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('[triggerBus] persist failed', e);
+  }
+}
+
 function notify() {
   const snapshot = {
     queue: queue.list(),
@@ -32,6 +44,7 @@ function notify() {
     activeProposalId,
     activeProposal: activeProposalSnapshot,
   };
+  persistQueueSnapshot();
   subscribers.forEach((cb) => {
     try {
       cb(snapshot);
@@ -54,6 +67,20 @@ function init() {
     queue.enqueue(trigger);
     notify();
   });
+  // Restore any queue snapshot persisted by a previous session.
+  // Best-effort: queue.enqueue dedups by id, so re-restoring is idempotent;
+  // expired items are purged by queue.purgeExpired on next reaching it.
+  try {
+    Promise.resolve(ipc.invoke('brain:trigger:queue-restore')).then((items) => {
+      if (!Array.isArray(items) || items.length === 0) return;
+      items.forEach((item) => queue.enqueue(item));
+      queue.purgeExpired();
+      notify();
+    });
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('[triggerBus] restore failed', e);
+  }
   initialized = true;
 }
 
