@@ -2926,9 +2926,13 @@ app
     registerLearningPathPlannerHandlers({ triggerEmitter });
     // Phase 8: spaced re-reading queue IPC handlers
     registerRereadQueueHandlers(store, { triggerEmitter });
-    // Plan 2 fork #5: Quest layer (data model + IPC; brain weighting + UI
-    // deferred to Plan 3).
-    registerQuestHandlers(store);
+    // Plan 2 fork #5: Quest layer + Plan 3 fork: Brain weighting hook.
+    // The handlers broadcast `quest:changed` after each mutation so the
+    // renderer triggerBus can re-hydrate its quest book IDs and re-sort
+    // the queue with quest-aligned items bubbled to the top.
+    registerQuestHandlers(store, {
+      getWebContents: () => mainWin?.webContents ?? null,
+    });
     // Phase 8: MoodBoard organize-suggestion IPC handlers (renderer side
     // of the brain heartbeat's `suggestOrganizeSessions` task).
     registerMoodBoardOrganizerHandlers(store);

@@ -62,4 +62,81 @@ describe('ProposalQueue', () => {
     expect(dismissed.status).toBe('dismissed');
     expect(q.size()).toBe(0);
   });
+
+  test('quest weighting bubbles quest-aligned items within priority tier', () => {
+    const questBooks = new Set([42]);
+    const q = new ProposalQueue({
+      getQuestBookIds: () => questBooks,
+    });
+    // Two normal-priority items: one matches the quest book, one doesn't.
+    q.enqueue(
+      makeTrigger({
+        id: 'unrelated',
+        priority: 'normal',
+        emittedAt: 200,
+        payload: { bookId: 7 },
+      }),
+    );
+    q.enqueue(
+      makeTrigger({
+        id: 'questy',
+        priority: 'normal',
+        emittedAt: 100,
+        payload: { bookId: 42 },
+      }),
+    );
+    // Quest-aligned item wins even though it's older.
+    expect(q.peek().id).toBe('questy');
+  });
+
+  test('quest weighting respects priority tiers (high still beats quest-aligned-normal)', () => {
+    const questBooks = new Set([42]);
+    const q = new ProposalQueue({
+      getQuestBookIds: () => questBooks,
+    });
+    q.enqueue(
+      makeTrigger({
+        id: 'high-unrelated',
+        priority: 'high',
+        emittedAt: 100,
+        payload: { bookId: 7 },
+      }),
+    );
+    q.enqueue(
+      makeTrigger({
+        id: 'normal-quest',
+        priority: 'normal',
+        emittedAt: 200,
+        payload: { bookId: 42 },
+      }),
+    );
+    expect(q.peek().id).toBe('high-unrelated');
+  });
+
+  test('quest weighting extracts bookId from multi-surface-flow steps', () => {
+    const questBooks = new Set([99]);
+    const q = new ProposalQueue({
+      getQuestBookIds: () => questBooks,
+    });
+    q.enqueue(
+      makeTrigger({
+        id: 'unrelated',
+        priority: 'normal',
+        emittedAt: 100,
+        payload: { bookId: 7 },
+      }),
+    );
+    q.enqueue(
+      makeTrigger({
+        id: 'flow-quest',
+        priority: 'normal',
+        emittedAt: 50,
+        unit: 'multi-surface-flow',
+        payload: {
+          steps: [{ view: 'reading/99' }, { view: 'vocabulary' }],
+        },
+      }),
+    );
+    expect(q.peek().id).toBe('flow-quest');
+  });
 });

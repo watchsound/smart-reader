@@ -24,7 +24,11 @@ const { getUserIdFromToken } = require('../db/dbManager');
 let registered = false;
 let service = null;
 
-function registerQuestHandlers(store) {
+/**
+ * @param {object} store electron-store instance
+ * @param {{ getWebContents?: () => Electron.WebContents | null }} [services]
+ */
+function registerQuestHandlers(store, services = {}) {
   if (registered) {
     console.warn('[questHandlers] already registered, skipping');
     return;
@@ -37,11 +41,22 @@ function registerQuestHandlers(store) {
     return uid > 0 ? uid : 1;
   };
 
+  const broadcastChanged = () => {
+    try {
+      const wc = services.getWebContents?.();
+      if (wc) wc.send('quest:changed');
+    } catch (e) {
+      console.warn('[questHandlers] broadcast failed:', e?.message || e);
+    }
+  };
+
   ipcMain.handle('quest-create', (_event, payload) => {
     try {
       const { name, goal, bookIds, metadata, token } = payload || {};
       const userId = tokenToUserId(token);
-      return service.create({ name, goal, bookIds, metadata, userId });
+      const created = service.create({ name, goal, bookIds, metadata, userId });
+      if (created && !created.error) broadcastChanged();
+      return created;
     } catch (err) {
       console.error('[questHandlers] create failed:', err);
       return { error: err?.message || 'create failed' };
@@ -74,7 +89,9 @@ function registerQuestHandlers(store) {
     try {
       const { id, patch } = payload || {};
       if (!id) return null;
-      return service.update(id, patch || {});
+      const updated = service.update(id, patch || {});
+      if (updated) broadcastChanged();
+      return updated;
     } catch (err) {
       console.error('[questHandlers] update failed:', err);
       return { error: err?.message || 'update failed' };
@@ -85,7 +102,9 @@ function registerQuestHandlers(store) {
     try {
       const { id } = payload || {};
       if (!id) return null;
-      return service.pause(id);
+      const result = service.pause(id);
+      if (result) broadcastChanged();
+      return result;
     } catch (err) {
       console.error('[questHandlers] pause failed:', err);
       return null;
@@ -96,7 +115,9 @@ function registerQuestHandlers(store) {
     try {
       const { id } = payload || {};
       if (!id) return null;
-      return service.resume(id);
+      const result = service.resume(id);
+      if (result) broadcastChanged();
+      return result;
     } catch (err) {
       console.error('[questHandlers] resume failed:', err);
       return null;
@@ -107,7 +128,9 @@ function registerQuestHandlers(store) {
     try {
       const { id } = payload || {};
       if (!id) return null;
-      return service.archive(id);
+      const result = service.archive(id);
+      if (result) broadcastChanged();
+      return result;
     } catch (err) {
       console.error('[questHandlers] archive failed:', err);
       return null;

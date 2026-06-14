@@ -12,7 +12,13 @@
 
 const ProposalQueue = require('./proposalQueue');
 
-const queue = new ProposalQueue();
+// Set of bookIds in active Quests. Bus owns this so ProposalQueue can
+// consult it lazily during sort (see proposalQueue.getQuestBookIds opt).
+let questBookIds = new Set();
+
+const queue = new ProposalQueue({
+  getQuestBookIds: () => questBookIds,
+});
 const subscribers = new Set();
 let initialized = false;
 let activeProposalId = null;
@@ -55,6 +61,42 @@ function notify() {
   });
 }
 
+/**
+ * Set the active Quest book IDs. Bus consults this set when sorting the
+ * Proposal queue: matching proposals bubble to the top within their
+ * priority tier. Triggers a notify so subscribers re-render with the
+ * reordered queue immediately.
+ *
+ * @param {Iterable<number>} ids
+ */
+function setQuestBookIds(ids) {
+  questBookIds = new Set();
+  if (ids) {
+    for (const id of ids) if (typeof id === 'number') questBookIds.add(id);
+  }
+  notify();
+}
+
+async function _hydrateQuestContext() {
+  const ipc = window.electron?.ipcRenderer;
+  if (!ipc) return;
+  try {
+    const list = await ipc.invoke('quest-list', { status: 'active' });
+    if (!Array.isArray(list)) return;
+    const ids = new Set();
+    list.forEach((q) => {
+      (q.bookIds || []).forEach((b) => {
+        if (typeof b === 'number') ids.add(b);
+      });
+    });
+    questBookIds = ids;
+    notify();
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('[triggerBus] hydrate quest context failed', e);
+  }
+}
+
 function init() {
   if (initialized) return;
   const ipc = window.electron?.ipcRenderer;
@@ -67,6 +109,14 @@ function init() {
     queue.enqueue(trigger);
     notify();
   });
+  // Quest mutations on main re-broadcast so the bus can refresh its
+  // weighting context without a renderer poll.
+  ipc.on('quest:changed', () => {
+    _hydrateQuestContext();
+  });
+  // Initial hydrate so a freshly-mounted bus already weights the queue
+  // against existing active Quests from previous sessions.
+  _hydrateQuestContext();
   // Restore any queue snapshot persisted by a previous session.
   // Best-effort: queue.enqueue dedups by id, so re-restoring is idempotent;
   // expired items are purged by queue.purgeExpired on next reaching it.
@@ -136,6 +186,7 @@ function _resetForTests() {
   initialized = false;
   activeProposalId = null;
   activeProposalSnapshot = null;
+  questBookIds = new Set();
 }
 
 module.exports = {
@@ -148,5 +199,6 @@ module.exports = {
   dismiss,
   completeActive,
   pull,
+  setQuestBookIds,
   _resetForTests,
 };

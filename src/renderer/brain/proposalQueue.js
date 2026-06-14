@@ -7,14 +7,41 @@
 
 const PRIORITY_RANK = { high: 3, normal: 2, low: 1 };
 
+/**
+ * Walk a proposal's payload and return the set of bookIds it references.
+ * Atomic chip / inline sequence carry payload.bookId. Multi-surface flow
+ * embeds bookIds in step.view = "reading/<id>".
+ */
+function extractBookIds(proposal) {
+  const ids = new Set();
+  const direct = proposal?.payload?.bookId;
+  if (typeof direct === 'number') ids.add(direct);
+  const steps = Array.isArray(proposal?.payload?.steps)
+    ? proposal.payload.steps
+    : [];
+  steps.forEach((s) => {
+    const v = s?.view || '';
+    const m = /^reading\/(\d+)/.exec(String(v).replace(/^\/+/, ''));
+    if (m) ids.add(Number(m[1]));
+  });
+  return ids;
+}
+
 class ProposalQueue {
   /**
-   * @param {{ maxSize?: number, now?: () => number }} [opts]
+   * @param {{ maxSize?: number, now?: () => number, getQuestBookIds?: () => Set<number> }} [opts]
+   *
+   * `getQuestBookIds`, when provided, is consulted on every sort: any
+   * proposal whose payload references one of the returned book IDs is
+   * bubbled above proposals of the same priority tier that don't. The
+   * getter is called lazily so the queue always sees the current Quest
+   * context without needing explicit invalidation.
    */
   constructor(opts = {}) {
     this._items = new Map(); // id → Proposal
     this._maxSize = opts.maxSize ?? 32;
     this._now = opts.now ?? (() => Date.now());
+    this._getQuestBookIds = opts.getQuestBookIds ?? (() => new Set());
   }
 
   /**
@@ -61,11 +88,23 @@ class ProposalQueue {
   }
 
   _sortedQueued() {
+    const questBooks = this._getQuestBookIds();
+    const isQuestAligned = (p) => {
+      if (!questBooks || questBooks.size === 0) return false;
+      const ids = extractBookIds(p);
+      for (const id of ids) if (questBooks.has(id)) return true;
+      return false;
+    };
     return Array.from(this._items.values())
       .filter((p) => p.status === 'queued')
       .sort((a, b) => {
+        // Priority tier first — quests never beat genuinely-higher-priority items.
         const pr = PRIORITY_RANK[b.priority] - PRIORITY_RANK[a.priority];
         if (pr !== 0) return pr;
+        // Quest-aligned items bubble to the top within the same tier.
+        const aQ = isQuestAligned(a);
+        const bQ = isQuestAligned(b);
+        if (aQ !== bQ) return bQ ? 1 : -1;
         return b.emittedAt - a.emittedAt; // newer first inside same tier
       });
   }
