@@ -2922,8 +2922,14 @@ app
     registerBookDiagnosticHandlers();
     // Phase 6: chapter-end comprehension grading IPC handlers
     registerComprehensionHandlers();
-    // Phase 7: cross-book curriculum planner IPC handlers
-    registerLearningPathPlannerHandlers({ triggerEmitter });
+    // Phase 7: cross-book curriculum planner IPC handlers.
+    // Receives `store` + `getWebContents` so it can auto-create a Quest
+    // when a path succeeds and broadcast `quest:changed` to the renderer.
+    registerLearningPathPlannerHandlers({
+      triggerEmitter,
+      store,
+      getWebContents: () => mainWin?.webContents ?? null,
+    });
     // Phase 8: spaced re-reading queue IPC handlers
     registerRereadQueueHandlers(store, { triggerEmitter });
     // Plan 2 fork #5: Quest layer + Plan 3 fork: Brain weighting hook.

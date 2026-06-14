@@ -47,6 +47,9 @@ describe('learningPathPlannerHandlers — Phase 7 trigger emit', () => {
     jest.doMock('../../main/db/BookManager', () => ({
       getBooksByCategory: () => [{ id: 1, name: 'A' }],
     }));
+    jest.doMock('../../main/db/dbManager', () => ({
+      getUserIdFromToken: () => 1,
+    }));
     jest.doMock('../../main/utils/LearningPathPlannerService', () => ({
       __esModule: true,
       default: {
@@ -65,7 +68,20 @@ describe('learningPathPlannerHandlers — Phase 7 trigger emit', () => {
       registerLearningPathPlannerHandlers,
     } = require('../../main/ipc/learningPathPlannerHandlers');
     const triggerEmitter = { emit: jest.fn() };
-    registerLearningPathPlannerHandlers({ triggerEmitter });
+    // In-memory electron-store double for Quest auto-creation.
+    const state = {};
+    const store = {
+      get: (k, d) => (k in state ? state[k] : d),
+      set: (k, v) => {
+        state[k] = v;
+      },
+    };
+    const send = jest.fn();
+    registerLearningPathPlannerHandlers({
+      triggerEmitter,
+      store,
+      getWebContents: () => ({ send }),
+    });
 
     const result = await handlers['learning-path-plan'](
       null,
@@ -73,6 +89,13 @@ describe('learningPathPlannerHandlers — Phase 7 trigger emit', () => {
     );
 
     expect(result.summary).toBe('Plan summary');
+    expect(result.questId).toMatch(/^q_/);
+    // Quest got persisted with both bookIds.
+    expect(state['quests.items']).toHaveLength(1);
+    expect(state['quests.items'][0].bookIds).toEqual([1, 2]);
+    // Renderer notified so triggerBus refreshes weighting context.
+    expect(send).toHaveBeenCalledWith('quest:changed');
+
     expect(triggerEmitter.emit).toHaveBeenCalledTimes(1);
 
     const emitted = triggerEmitter.emit.mock.calls[0][0];
@@ -84,9 +107,10 @@ describe('learningPathPlannerHandlers — Phase 7 trigger emit', () => {
       view: 'reading/1',
       payload: expect.objectContaining({ label: 'Book One' }),
     });
+    expect(emitted.payload.questId).toBe(result.questId);
   });
 
-  test('does not emit when plan returns error', async () => {
+  test('does not emit or create a quest when plan returns error', async () => {
     const handlers = {};
     jest.doMock('electron', () => ({
       ipcMain: {
@@ -95,6 +119,9 @@ describe('learningPathPlannerHandlers — Phase 7 trigger emit', () => {
     }));
     jest.doMock('../../main/db/BookManager', () => ({
       getBooksByCategory: () => [],
+    }));
+    jest.doMock('../../main/db/dbManager', () => ({
+      getUserIdFromToken: () => 1,
     }));
     jest.doMock('../../main/utils/LearningPathPlannerService', () => ({
       __esModule: true,
@@ -107,7 +134,14 @@ describe('learningPathPlannerHandlers — Phase 7 trigger emit', () => {
       registerLearningPathPlannerHandlers,
     } = require('../../main/ipc/learningPathPlannerHandlers');
     const triggerEmitter = { emit: jest.fn() };
-    registerLearningPathPlannerHandlers({ triggerEmitter });
+    const state = {};
+    const store = {
+      get: (k, d) => (k in state ? state[k] : d),
+      set: (k, v) => {
+        state[k] = v;
+      },
+    };
+    registerLearningPathPlannerHandlers({ triggerEmitter, store });
 
     const result = await handlers['learning-path-plan'](
       null,
@@ -115,5 +149,6 @@ describe('learningPathPlannerHandlers — Phase 7 trigger emit', () => {
     );
     expect(result.error).toBe('no books');
     expect(triggerEmitter.emit).not.toHaveBeenCalled();
+    expect(state['quests.items']).toBeUndefined();
   });
 });
