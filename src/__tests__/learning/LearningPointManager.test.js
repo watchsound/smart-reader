@@ -47,6 +47,7 @@ const {
   resetLearningPoint,
   getStats,
   getDailyForecast,
+  applyProductionGrade,
   ITEM_TYPES,
   DOMAIN_TYPES,
   DIFFICULTY_LEVELS,
@@ -1185,6 +1186,115 @@ describe('LearningPointManager', () => {
     test('returns empty object for invalid token', () => {
       const result = getDailyForecast('invalid-token', 7);
       expect(Object.keys(result).length).toBe(0);
+    });
+  });
+
+  // ==========================================================================
+  // Phase 8 production loop write-back
+  // ==========================================================================
+
+  describe('applyProductionGrade', () => {
+    // Helper: stub the SELECT current-state query and capture the UPDATE
+    // statement so we can assert on its bound values.
+    const setupCurrentState = ({ masteryLevel, box }) => {
+      const updateStmt = { run: jest.fn() };
+      const selectStmt = {
+        get: jest.fn(() => ({ id: 'lp_1', masteryLevel, box })),
+      };
+      // First prepare → SELECT, second prepare → UPDATE.
+      mockDb.prepare
+        .mockReturnValueOnce(selectStmt)
+        .mockReturnValueOnce(updateStmt);
+      return updateStmt;
+    };
+
+    test('score >= 75 confirms mastery (raises to score, keeps box)', () => {
+      const updateStmt = setupCurrentState({ masteryLevel: 60, box: 3 });
+      const result = applyProductionGrade('lp_1', 85, 'valid-token');
+
+      expect(result.beforeMastery).toBe(60);
+      expect(result.afterMastery).toBe(85);
+      expect(result.beforeBox).toBe(3);
+      expect(result.afterBox).toBe(3);
+      expect(result.demoted).toBe(false);
+      expect(result.nextReview).toBeNull();
+      // Confirm-branch UPDATE does NOT touch next_review or correct_streak.
+      const sql = mockDb.prepare.mock.calls[1][0];
+      expect(sql).toContain('mastery_level');
+      expect(sql).toContain('box');
+      expect(sql).not.toContain('next_review');
+      expect(sql).not.toContain('correct_streak');
+      expect(updateStmt.run).toHaveBeenCalled();
+    });
+
+    test('score >= 75 does NOT lower an already-higher mastery', () => {
+      setupCurrentState({ masteryLevel: 90, box: 4 });
+      const result = applyProductionGrade('lp_1', 80, 'valid-token');
+      // max(90, 80) = 90 — confirmation must never demote on a pass.
+      expect(result.afterMastery).toBe(90);
+    });
+
+    test('score 50-74 lowers mastery to score, keeps box', () => {
+      setupCurrentState({ masteryLevel: 80, box: 4 });
+      const result = applyProductionGrade('lp_1', 60, 'valid-token');
+
+      expect(result.beforeMastery).toBe(80);
+      expect(result.afterMastery).toBe(60);
+      expect(result.beforeBox).toBe(4);
+      expect(result.afterBox).toBe(4);
+      expect(result.demoted).toBe(false);
+      expect(result.nextReview).toBeNull();
+    });
+
+    test('score < 50 demotes box, resets correct_streak, requeues tomorrow', () => {
+      const updateStmt = setupCurrentState({ masteryLevel: 80, box: 4 });
+      const result = applyProductionGrade('lp_1', 30, 'valid-token');
+
+      expect(result.beforeMastery).toBe(80);
+      expect(result.afterMastery).toBe(30);
+      expect(result.beforeBox).toBe(4);
+      expect(result.afterBox).toBe(3);
+      expect(result.demoted).toBe(true);
+      expect(result.nextReview).toBeTruthy();
+      // Hard-fail UPDATE MUST hit next_review + correct_streak so SRS
+      // re-queues with a fresh attempt count.
+      const sql = mockDb.prepare.mock.calls[1][0];
+      expect(sql).toContain('next_review');
+      expect(sql).toContain('correct_streak = 0');
+      expect(updateStmt.run).toHaveBeenCalled();
+    });
+
+    test('score < 50 from box 1 does not go below box 1', () => {
+      setupCurrentState({ masteryLevel: 30, box: 1 });
+      const result = applyProductionGrade('lp_1', 10, 'valid-token');
+      expect(result.afterBox).toBe(1);
+      expect(result.demoted).toBe(false); // no actual change
+    });
+
+    test('clamps score above 100 down to 100', () => {
+      setupCurrentState({ masteryLevel: 50, box: 2 });
+      const result = applyProductionGrade('lp_1', 200, 'valid-token');
+      expect(result.afterMastery).toBe(100);
+    });
+
+    test('clamps negative score up to 0 and demotes', () => {
+      setupCurrentState({ masteryLevel: 80, box: 4 });
+      const result = applyProductionGrade('lp_1', -50, 'valid-token');
+      expect(result.afterMastery).toBe(0);
+      expect(result.afterBox).toBe(3);
+      expect(result.demoted).toBe(true);
+    });
+
+    test('returns error for invalid session', () => {
+      const result = applyProductionGrade('lp_1', 80, 'invalid-token');
+      expect(result.error).toBe('Invalid session');
+    });
+
+    test('returns error when learning point not found', () => {
+      const selectStmt = { get: jest.fn(() => undefined) };
+      mockDb.prepare.mockReturnValueOnce(selectStmt);
+      const result = applyProductionGrade('missing', 80, 'valid-token');
+      expect(result.error).toBe('Learning point not found');
     });
   });
 });

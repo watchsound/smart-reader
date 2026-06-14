@@ -1,0 +1,246 @@
+/**
+ * ProductionPromptService — Phase 8 production loop (Slice 1).
+ *
+ * Runs inside the Brain heartbeat. Picks ONE learning point the reader
+ * has demonstrated recognition for (passed SRS, mastery ≥ 60) and asks
+ * them to explain it in their own words via a notification. The actual
+ * answer panel + grading is Slice 2 — for now the notification carries
+ * `actionUrl: /knowledge?produce=<learningPointId>` and the front-end
+ * builds the UI off that param.
+ *
+ * Why a separate loop from SRS:
+ *   SRS asks "do you recognize the answer?" — recognition.
+ *   Production asks "can you generate the explanation?" — much higher
+ *   bar that catches passive knowledge dressed up as active.
+ *
+ * Candidate criteria (intentionally conservative):
+ *   - status = 'active'
+ *   - mastery_level >= 60  (passed the recognition threshold)
+ *   - review_count >= 3    (we have data on it)
+ *   - source_type IN ('book','note','chat')
+ *   - back.text exists and is non-trivial (explanation worth eliciting)
+ *   - not prompted in the dedup table within PRODUCTION_DEDUP_DAYS
+ *
+ * Pacing: at most 1 prompt per heartbeat per user. Production is
+ * effortful — don't pile up. The dedup table is keyed by
+ * (userId, learningPointId) and stored in electron-store under
+ * `productionLoop.recentPrompts`.
+ */
+
+const { default: db } = require('../db/dbManager');
+const {
+  createNotification,
+  NOTIFICATION_TYPES,
+  NOTIFICATION_PRIORITIES,
+} = require('../db/NotificationManager');
+
+const STORE_KEY = 'productionLoop.recentPrompts';
+const PRODUCTION_DEDUP_DAYS = 21;
+const MIN_MASTERY = 60;
+const MIN_REVIEWS = 3;
+const MIN_BACK_TEXT_CHARS = 30;
+const MAX_PROMPTS_PER_HEARTBEAT = 1;
+
+function getActiveSessionToken() {
+  const sessionInfo = global?.shared?.store?.get?.('session_info');
+  return sessionInfo?.token || null;
+}
+
+/**
+ * Pick eligible learning points ordered so the BEST production candidate
+ * comes first. Best = highest mastery (so we test passive-vs-active gap
+ * on the strongest material) with newest last_reviewed_at as a tiebreak
+ * (recency = still warm enough that a failed explanation is real, not
+ * just forgotten).
+ *
+ * `back` is JSON; we only need to know it has substantive text. We
+ * parse on the client side rather than in SQL so we don't depend on
+ * SQLite JSON functions being available.
+ */
+function queryCandidates(userId, limit = 5) {
+  const stmt = db.prepare(`
+    SELECT id, title, back, mastery_level AS masteryLevel,
+           review_count AS reviewCount, last_reviewed_at AS lastReviewedAt,
+           source_type AS sourceType, book_id AS bookId, domain_type AS domainType
+    FROM learning_point
+    WHERE user_id = ?
+      AND status = 'active'
+      AND mastery_level >= ?
+      AND review_count >= ?
+      AND source_type IN ('book','note','chat')
+      AND back IS NOT NULL AND back <> ''
+    ORDER BY mastery_level DESC, last_reviewed_at DESC
+    LIMIT ?
+  `);
+  return stmt.all(userId, MIN_MASTERY, MIN_REVIEWS, limit * 4);
+}
+
+function backHasSubstantiveText(backJson) {
+  if (!backJson) return false;
+  try {
+    const parsed =
+      typeof backJson === 'string' ? JSON.parse(backJson) : backJson;
+    const text = (parsed?.text || '').trim();
+    return text.length >= MIN_BACK_TEXT_CHARS;
+  } catch (_) {
+    // Treat malformed JSON as a plain string and length-check it.
+    return (
+      typeof backJson === 'string' && backJson.length >= MIN_BACK_TEXT_CHARS
+    );
+  }
+}
+
+class ProductionPromptService {
+  constructor(services = {}) {
+    this.store = services.store || null;
+    this.episodeCollector = services.episodeCollector || null;
+  }
+
+  readDedup() {
+    if (!this.store) return {};
+    const raw = this.store.get(STORE_KEY, {});
+    return raw && typeof raw === 'object' ? raw : {};
+  }
+
+  writeDedup(map) {
+    if (this.store) this.store.set(STORE_KEY, map);
+  }
+
+  /**
+   * Return up to `limit` eligible learning points that aren't currently
+   * deduplicated. Pure read — never writes the dedup table.
+   *
+   * @param {number} userId
+   * @param {number} [limit]
+   * @returns {Array}
+   */
+  selectCandidates(userId, limit = MAX_PROMPTS_PER_HEARTBEAT) {
+    const dedup = this.readDedup();
+    const userKey = String(userId);
+    const userDedup = dedup[userKey] || {};
+    const cutoff = Date.now() - PRODUCTION_DEDUP_DAYS * 86400000;
+
+    const rows = queryCandidates(userId, limit);
+    const eligible = [];
+    rows.forEach((row) => {
+      if (eligible.length >= limit) return;
+      if (!backHasSubstantiveText(row.back)) return;
+      const dedupAt = userDedup[row.id]?.promptedAt;
+      if (dedupAt && new Date(dedupAt).getTime() > cutoff) return;
+      eligible.push(row);
+    });
+    return eligible;
+  }
+
+  /**
+   * Pick the top eligible candidate and emit a "explain in your own
+   * words" notification. Records the dedup entry on success so the
+   * same point isn't asked again for PRODUCTION_DEDUP_DAYS.
+   *
+   * @param {number} userId
+   * @param {string} token
+   * @returns {{ created: number, skipped: number, candidates: Array, reason?: string }}
+   */
+  schedulePrompt(userId, token) {
+    const effectiveToken = getActiveSessionToken() || token;
+    if (!effectiveToken) {
+      return { created: 0, skipped: 0, candidates: [], reason: 'no session' };
+    }
+
+    const candidates = this.selectCandidates(userId, MAX_PROMPTS_PER_HEARTBEAT);
+    if (candidates.length === 0) {
+      return {
+        created: 0,
+        skipped: 0,
+        candidates: [],
+        reason: 'no candidates',
+      };
+    }
+
+    const dedup = this.readDedup();
+    const userKey = String(userId);
+    if (!dedup[userKey]) dedup[userKey] = {};
+
+    let created = 0;
+    candidates.forEach((candidate) => {
+      try {
+        const notification = createNotification(
+          {
+            type: NOTIFICATION_TYPES.PROGRESS,
+            priority: NOTIFICATION_PRIORITIES.NORMAL,
+            title: `Explain "${candidate.title}" in your own words`,
+            message:
+              `You've passed recognition on this. Can you produce the ` +
+              `explanation cold? A 2-minute check tells us if it's really stuck.`,
+            actionUrl: `/knowledge?produce=${encodeURIComponent(candidate.id)}`,
+            actionLabel: 'Try it',
+            persistent: false,
+            dismissible: true,
+          },
+          effectiveToken,
+        );
+
+        dedup[userKey][candidate.id] = {
+          notificationId: notification?.id || null,
+          promptedAt: new Date().toISOString(),
+          masteryAtPrompt: candidate.masteryLevel,
+        };
+        created += 1;
+
+        // Brain episode so analytics can compute prompt → submit conversion.
+        if (this.episodeCollector) {
+          try {
+            this.episodeCollector.record({
+              userId,
+              eventType: 'PRODUCTION_PROMPTED',
+              payload: {
+                learningPointId: candidate.id,
+                title: candidate.title,
+                masteryLevel: candidate.masteryLevel,
+                reviewCount: candidate.reviewCount,
+                sourceType: candidate.sourceType,
+                bookId: candidate.bookId,
+                domainType: candidate.domainType,
+                notificationId: notification?.id || null,
+              },
+              sourceContext: { view: 'brain-heartbeat' },
+            });
+          } catch (_) {
+            // best-effort
+          }
+        }
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error(
+          '[ProductionPromptService] createNotification failed:',
+          err?.message || err,
+        );
+      }
+    });
+
+    this.writeDedup(dedup);
+    return { created, skipped: candidates.length - created, candidates };
+  }
+
+  /**
+   * Clear the dedup record for a learning point so the next heartbeat
+   * can re-prompt. Intended for the renderer to call after the user
+   * has actually answered the production prompt (so we can re-test on
+   * the next cycle if mastery decays) or after they explicitly skip.
+   *
+   * @param {number} userId
+   * @param {string} learningPointId
+   * @returns {boolean}
+   */
+  clearPrompt(userId, learningPointId) {
+    const dedup = this.readDedup();
+    const userKey = String(userId);
+    if (!dedup[userKey] || !dedup[userKey][learningPointId]) return false;
+    delete dedup[userKey][learningPointId];
+    this.writeDedup(dedup);
+    return true;
+  }
+}
+
+module.exports = ProductionPromptService;
+module.exports.default = ProductionPromptService;

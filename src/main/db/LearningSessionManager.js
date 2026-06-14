@@ -41,6 +41,7 @@
 
 import db, { getUserIdFromToken } from './dbManager';
 import { dateToSQLiteString } from '../../commons/utils/SqliteHelper';
+import { getGlobalProfile, updateGlobalProfile } from './LearnerProfileManager';
 
 /**
  * Initialize tables if they don't exist
@@ -48,7 +49,8 @@ import { dateToSQLiteString } from '../../commons/utils/SqliteHelper';
 const initializeTables = () => {
   try {
     // Create learning_session table if it doesn't exist
-    db.prepare(`
+    db.prepare(
+      `
       CREATE TABLE IF NOT EXISTS "learning_session" (
         "id" TEXT PRIMARY KEY,
         "plan_id" TEXT,
@@ -65,16 +67,20 @@ const initializeTables = () => {
         FOREIGN KEY ("plan_id") REFERENCES "learning_plan"("id"),
         FOREIGN KEY ("user_id") REFERENCES "user"("id")
       )
-    `).run();
+    `,
+    ).run();
 
     // Create indexes if they don't exist
-    db.prepare(`
+    db.prepare(
+      `
       CREATE INDEX IF NOT EXISTS "idx_learning_session_user"
       ON "learning_session"("user_id", "started_at")
-    `).run();
+    `,
+    ).run();
 
     // Create learning_item_performance table if it doesn't exist
-    db.prepare(`
+    db.prepare(
+      `
       CREATE TABLE IF NOT EXISTS "learning_item_performance" (
         "id" INTEGER PRIMARY KEY AUTOINCREMENT,
         "user_id" INTEGER NOT NULL,
@@ -93,7 +99,8 @@ const initializeTables = () => {
         FOREIGN KEY ("session_id") REFERENCES "learning_session"("id"),
         FOREIGN KEY ("user_id") REFERENCES "user"("id")
       )
-    `).run();
+    `,
+    ).run();
   } catch (error) {
     console.error('Error initializing learning session tables:', error);
   }
@@ -299,6 +306,64 @@ export const startLearningSession = (session, token) => {
 };
 
 /**
+ * Increment (or reset) the user's streakRecord based on whether they
+ * have a session yesterday. Called only after a session with real work
+ * completes — see `completeLearningSession`.
+ *
+ *   prev session date == today      → no-op (streak already counted today)
+ *   prev session date == yesterday  → streak += 1
+ *   prev session date older / none  → streak = 1
+ *
+ * @param {Object} args
+ * @param {number} args.userId
+ * @param {string} args.currentSessionId
+ * @param {string} args.currentSessionStartedAt
+ * @param {string} args.token
+ */
+function updateStreakAfterSession({
+  userId,
+  currentSessionId,
+  currentSessionStartedAt,
+  token,
+}) {
+  // Most recent OTHER completed session, regardless of date.
+  const prev = db
+    .prepare(
+      `SELECT started_at AS startedAt
+         FROM learning_session
+        WHERE user_id = ? AND id <> ? AND items_reviewed > 0
+        ORDER BY started_at DESC LIMIT 1`,
+    )
+    .get(userId, currentSessionId);
+
+  const todayStr = new Date(currentSessionStartedAt).toDateString();
+  const yesterdayStr = new Date(
+    new Date(currentSessionStartedAt).getTime() - 86400000,
+  ).toDateString();
+
+  let nextStreak;
+  if (!prev) {
+    nextStreak = 1;
+  } else {
+    const prevStr = new Date(prev.startedAt).toDateString();
+    if (prevStr === todayStr) {
+      // Already counted today — leave streak alone, just bump updated_at.
+      const existing = getGlobalProfile(token);
+      const current = existing?.globalProfile?.streakRecord ?? 1;
+      nextStreak = current;
+    } else if (prevStr === yesterdayStr) {
+      const existing = getGlobalProfile(token);
+      const current = existing?.globalProfile?.streakRecord ?? 0;
+      nextStreak = current + 1;
+    } else {
+      nextStreak = 1; // Gap of 2+ days breaks the streak.
+    }
+  }
+
+  updateGlobalProfile({ streakRecord: nextStreak }, token);
+}
+
+/**
  * Complete a learning session
  * @param {string} id - Session ID
  * @param {Object} results - Session results
@@ -349,6 +414,23 @@ export const completeLearningSession = (id, results, token) => {
       id,
       userId,
     );
+
+    // Streak write-back: only count sessions that did real work. The brain
+    // heartbeat's `checkStreak` reads this; without the write-back, alerts
+    // are dead code (streakRecord stays 0).
+    if ((results.itemsReviewed || 0) > 0) {
+      try {
+        updateStreakAfterSession({
+          userId,
+          currentSessionId: id,
+          currentSessionStartedAt: session.startedAt,
+          token,
+        });
+      } catch (err) {
+        // Streak is a best-effort signal — don't fail the session complete.
+        console.error('completeLearningSession streak update failed:', err);
+      }
+    }
 
     return getLearningSessionById(id, token);
   } catch (err) {

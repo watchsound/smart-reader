@@ -1,0 +1,148 @@
+/**
+ * productionPromptHandlers — Phase 8 production loop renderer-facing IPC.
+ *
+ * The Brain heartbeat (LearningBrainAgent.schedulePromptForProduction) picks
+ * a learning point and emits a notification with
+ * `actionUrl: /knowledge?produce=<learningPointId>`. These handlers let the
+ * renderer:
+ *   - fetch the learning point so the panel can show the prompt,
+ *   - grade the free-text answer (reuses Phase 6's grading service so we
+ *     don't maintain two prompt+schema pipelines),
+ *   - clear the dedup record on submit OR skip so the slot frees up for
+ *     the next heartbeat to pick a different point.
+ *
+ * Channels:
+ *   production-get-prompt    { id, token }                   → { learningPoint | null }
+ *   production-grade-answer  { id, answer, token }           → { score, strengths, gaps, feedback } | { error }
+ *   production-complete      { id, score, token }            → { ok }
+ *   production-skip          { id, token }                   → { ok }
+ */
+
+import { ipcMain } from 'electron';
+import db, { getUserIdFromToken } from '../db/dbManager';
+import {
+  getLearningPointById,
+  applyProductionGrade,
+} from '../db/LearningPointManager';
+import comprehensionGradingService from '../utils/ComprehensionGradingService';
+
+const ProductionPromptService = require('../brain/ProductionPromptService');
+
+let registered = false;
+let service = null;
+
+function getBookTitle(bookId) {
+  if (!bookId) return '';
+  try {
+    const row = db.prepare('SELECT name FROM book WHERE id = ?').get(bookId);
+    return row?.name || '';
+  } catch (_) {
+    return '';
+  }
+}
+
+function extractBackText(point) {
+  if (!point?.back) return '';
+  try {
+    const parsed =
+      typeof point.back === 'string' ? JSON.parse(point.back) : point.back;
+    return parsed?.text || '';
+  } catch (_) {
+    return typeof point.back === 'string' ? point.back : '';
+  }
+}
+
+function registerProductionPromptHandlers(store) {
+  if (registered) {
+    console.warn('[productionPromptHandlers] already registered, skipping');
+    return;
+  }
+  registered = true;
+  service = new ProductionPromptService({ store });
+
+  ipcMain.handle('production-get-prompt', (_event, payload) => {
+    try {
+      const { id, token } = payload || {};
+      if (!id) return { learningPoint: null };
+      const point = getLearningPointById(id, token);
+      if (!point) return { learningPoint: null };
+      const bookTitle = getBookTitle(point.bookId);
+      const backText = extractBackText(point);
+      return {
+        learningPoint: {
+          id: point.id,
+          title: point.title,
+          bookTitle,
+          bookId: point.bookId,
+          domainType: point.domainType,
+          masteryLevel: point.masteryLevel,
+          backText,
+        },
+      };
+    } catch (err) {
+      console.error('[productionPromptHandlers] get-prompt failed:', err);
+      return { learningPoint: null, error: err?.message };
+    }
+  });
+
+  ipcMain.handle('production-grade-answer', async (_event, payload) => {
+    try {
+      const { id, answer = '', token } = payload || {};
+      if (!id || !answer.trim()) return { error: 'Empty answer.' };
+      const point = getLearningPointById(id, token);
+      if (!point) return { error: 'Learning point not found.' };
+      const bookTitle = getBookTitle(point.bookId);
+      const backText = extractBackText(point);
+      const grading = await comprehensionGradingService.gradeAnswer({
+        chapterTitle: point.title,
+        textExcerpt: backText,
+        bookTitle,
+        question: `Explain "${point.title}" in your own words.`,
+        answer,
+      });
+      if (grading?.error) return grading;
+
+      // Submitting IS the commitment — write the SRS delta now so the
+      // panel can display "mastery 80 → 35" in the result state. The
+      // `Done` button after this is acknowledgement, not commitment.
+      const update = applyProductionGrade(id, grading.score, token);
+      return { ...grading, update };
+    } catch (err) {
+      console.error('[productionPromptHandlers] grade-answer failed:', err);
+      return { error: err?.message || 'grading failed' };
+    }
+  });
+
+  ipcMain.handle('production-complete', (_event, payload) => {
+    try {
+      const { id, token } = payload || {};
+      if (!id) return { ok: false };
+      const userId = token ? getUserIdFromToken(token) : 1;
+      const cleared = service.clearPrompt(userId > 0 ? userId : 1, id);
+      return { ok: true, cleared };
+    } catch (err) {
+      console.error('[productionPromptHandlers] complete failed:', err);
+      return { ok: false, error: err?.message };
+    }
+  });
+
+  ipcMain.handle('production-skip', (_event, payload) => {
+    try {
+      const { id, token } = payload || {};
+      if (!id) return { ok: false };
+      const userId = token ? getUserIdFromToken(token) : 1;
+      // Symmetric with production-complete: `cleared` reports whether a
+      // dedup record existed; `ok` reports whether the skip operation
+      // itself succeeded. A "no such record" outcome is a successful
+      // no-op, not a failure.
+      const cleared = service.clearPrompt(userId > 0 ? userId : 1, id);
+      return { ok: true, cleared };
+    } catch (err) {
+      console.error('[productionPromptHandlers] skip failed:', err);
+      return { ok: false, error: err?.message };
+    }
+  });
+}
+
+export default registerProductionPromptHandlers;
+export { registerProductionPromptHandlers };

@@ -19,9 +19,9 @@
  * - Statistics and analytics
  */
 
+import { v4 as uuidv4 } from 'uuid';
 import db, { getUserIdFromToken } from './dbManager';
 import { dateToSQLiteString } from '../../commons/utils/SqliteHelper';
-import { v4 as uuidv4 } from 'uuid';
 
 // =============================================================================
 // CONSTANTS
@@ -29,41 +29,41 @@ import { v4 as uuidv4 } from 'uuid';
 
 // Leitner box intervals in days
 const BOX_INTERVALS = {
-  1: 1,   // Box 1: review next day
-  2: 2,   // Box 2: review in 2 days
-  3: 4,   // Box 3: review in 4 days
-  4: 7,   // Box 4: review in 7 days
-  5: 14,  // Box 5: review in 14 days (graduated after stable)
+  1: 1, // Box 1: review next day
+  2: 2, // Box 2: review in 2 days
+  3: 4, // Box 3: review in 4 days
+  4: 7, // Box 4: review in 7 days
+  5: 14, // Box 5: review in 14 days (graduated after stable)
 };
 
 // Valid item types
 const ITEM_TYPES = [
-  'word',       // Vocabulary word
-  'concept',    // General concept/idea
-  'formula',    // Mathematical formula
-  'rule',       // Grammar rule, law, etc.
-  'fact',       // Factual information
-  'problem',    // Practice problem with solution
-  'technique',  // Method or procedure
-  'pattern',    // Design pattern, code pattern
+  'word', // Vocabulary word
+  'concept', // General concept/idea
+  'formula', // Mathematical formula
+  'rule', // Grammar rule, law, etc.
+  'fact', // Factual information
+  'problem', // Practice problem with solution
+  'technique', // Method or procedure
+  'pattern', // Design pattern, code pattern
   'definition', // Formal definition
-  'example',    // Example or case study
+  'example', // Example or case study
 ];
 
 // Valid domain types
 const DOMAIN_TYPES = [
   'vocabulary', // Language vocabulary
-  'math',       // Mathematics
-  'physics',    // Physics
-  'chemistry',  // Chemistry
-  'biology',    // Biology
-  'language',   // Language learning (grammar, etc.)
+  'math', // Mathematics
+  'physics', // Physics
+  'chemistry', // Chemistry
+  'biology', // Biology
+  'language', // Language learning (grammar, etc.)
   'programming', // Programming/coding
-  'knowledge',  // General knowledge
-  'skill',      // Practical skills
-  'history',    // Historical facts
-  'geography',  // Geography
-  'custom',     // User-defined domain
+  'knowledge', // General knowledge
+  'skill', // Practical skills
+  'history', // Historical facts
+  'geography', // Geography
+  'custom', // User-defined domain
 ];
 
 // Valid difficulty levels
@@ -81,12 +81,12 @@ const FORMATS = ['card', 'mindmap', 'quiz', 'image', 'code'];
 // Valid source types
 const SOURCE_TYPES = [
   'vocabulary', // Migrated from vocabulary table
-  'note',       // Migrated from note table
-  'book',       // Extracted from a book
-  'url',        // Imported from URL
-  'chat',       // Created from chat
-  'plan',       // Part of learning plan
-  'manual',     // Manually created
+  'note', // Migrated from note table
+  'book', // Extracted from a book
+  'url', // Imported from URL
+  'chat', // Created from chat
+  'plan', // Part of learning plan
+  'manual', // Manually created
 ];
 
 // Valid statuses
@@ -342,7 +342,7 @@ export const createLearningPoint = (point, token) => {
       1, // Initial interval
       point.status || 'active',
       now,
-      now
+      now,
     );
 
     return getLearningPointById(id, token);
@@ -389,15 +389,27 @@ export const createLearningPointsBatch = (points, token) => {
         `);
 
         stmt.run(
-          id, userId, point.title.trim(),
-          serializeContent(point.front), serializeContent(point.back),
+          id,
+          userId,
+          point.title.trim(),
+          serializeContent(point.front),
+          serializeContent(point.back),
           point.extras ? JSON.stringify(point.extras) : null,
-          point.itemType || 'concept', point.domainType || 'knowledge',
-          point.difficulty || 'intermediate', point.format || 'card',
+          point.itemType || 'concept',
+          point.domainType || 'knowledge',
+          point.difficulty || 'intermediate',
+          point.format || 'card',
           point.tags ? JSON.stringify(point.tags) : null,
-          point.sourceType || 'manual', point.sourceId || null,
-          point.planId || null, point.bookId || null,
-          1, nextReview, 0, point.status || 'active', now, now
+          point.sourceType || 'manual',
+          point.sourceId || null,
+          point.planId || null,
+          point.bookId || null,
+          1,
+          nextReview,
+          0,
+          point.status || 'active',
+          now,
+          now,
         );
         results.created++;
       } catch (err) {
@@ -454,10 +466,20 @@ export const updateLearningPoint = (id, updates, token) => {
 
   // Build dynamic update query
   const allowedFields = [
-    'title', 'front', 'back', 'extras',
-    'item_type', 'domain_type', 'difficulty', 'format',
-    'tags', 'source_type', 'source_id', 'plan_id', 'book_id',
-    'status'
+    'title',
+    'front',
+    'back',
+    'extras',
+    'item_type',
+    'domain_type',
+    'difficulty',
+    'format',
+    'tags',
+    'source_type',
+    'source_id',
+    'plan_id',
+    'book_id',
+    'status',
   ];
 
   const setClauses = [];
@@ -503,6 +525,91 @@ export const updateLearningPoint = (id, updates, token) => {
     console.error('updateLearningPoint error:', err);
     return { error: err.message };
   }
+};
+
+/**
+ * Phase 8 production loop write-back.
+ *
+ * Applies a "explain it in your own words" grade to a learning point's
+ * SRS state. Production scores reveal passive-vs-active gaps that SRS
+ * recognition can't detect, so we use them as ground-truth corrections
+ * to mastery_level (and on hard failures, demote the SRS box too).
+ *
+ * Rules:
+ *   score >= 75  → confirmed. mastery_level = max(current, score). No box change.
+ *   score 50-74  → partial. mastery_level = score (lower than current). No box change.
+ *   score < 50   → failed. mastery_level = score, box -= 1 (min 1),
+ *                  next_review = tomorrow so SRS surfaces it again.
+ *
+ * Returns { changed, beforeMastery, afterMastery, beforeBox, afterBox, demoted }.
+ *
+ * @param {string} id              learning_point.id
+ * @param {number} productionScore 0–100 score from ComprehensionGradingService
+ * @param {string} token
+ */
+export const applyProductionGrade = (id, productionScore, token) => {
+  const userId = getUserIdFromToken(token);
+  if (userId < 0) return { error: 'Invalid session' };
+
+  const current = db
+    .prepare(
+      `SELECT id, mastery_level AS masteryLevel, box
+         FROM learning_point WHERE id = ? AND user_id = ?`,
+    )
+    .get(id, userId);
+  if (!current) return { error: 'Learning point not found' };
+
+  const score = Math.max(0, Math.min(100, Math.round(productionScore || 0)));
+  let nextMastery = current.masteryLevel;
+  let nextBox = current.box;
+  let demoted = false;
+  let nextReview = null;
+
+  if (score >= 75) {
+    nextMastery = Math.max(current.masteryLevel || 0, score);
+  } else if (score >= 50) {
+    nextMastery = score;
+  } else {
+    nextMastery = score;
+    nextBox = Math.max(1, (current.box || 1) - 1);
+    demoted = nextBox !== current.box;
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    nextReview = dateToSQLiteString(tomorrow);
+  }
+
+  const updatedAt = dateToSQLiteString(new Date());
+  try {
+    if (nextReview !== null) {
+      // Hard failure: also reset correct_streak so the SRS engine
+      // treats the next review as a fresh attempt, not a continuation.
+      db.prepare(
+        `UPDATE learning_point
+            SET mastery_level = ?, box = ?, next_review = ?,
+                correct_streak = 0, updated_at = ?
+          WHERE id = ? AND user_id = ?`,
+      ).run(nextMastery, nextBox, nextReview, updatedAt, id, userId);
+    } else {
+      db.prepare(
+        `UPDATE learning_point
+            SET mastery_level = ?, box = ?, updated_at = ?
+          WHERE id = ? AND user_id = ?`,
+      ).run(nextMastery, nextBox, updatedAt, id, userId);
+    }
+  } catch (err) {
+    console.error('applyProductionGrade error:', err);
+    return { error: err.message };
+  }
+
+  return {
+    changed: nextMastery !== current.masteryLevel || nextBox !== current.box,
+    beforeMastery: current.masteryLevel,
+    afterMastery: nextMastery,
+    beforeBox: current.box,
+    afterBox: nextBox,
+    demoted,
+    nextReview,
+  };
 };
 
 /**
@@ -677,13 +784,20 @@ export const searchLearningPoints = (query, token, options = {}) => {
   const userId = getUserIdFromToken(token);
   if (userId < 0) return [];
 
-  const { limit = 50, offset = 0, domainType = null, itemType = null } = options;
+  const {
+    limit = 50,
+    offset = 0,
+    domainType = null,
+    itemType = null,
+  } = options;
 
   const conditions = ['user_id = ?', 'status != ?'];
   const params = [userId, 'deleted'];
 
   // Full-text search on title and content
-  conditions.push('(title LIKE ? OR front LIKE ? OR back LIKE ? OR tags LIKE ?)');
+  conditions.push(
+    '(title LIKE ? OR front LIKE ? OR back LIKE ? OR tags LIKE ?)',
+  );
   const searchPattern = `%${query}%`;
   params.push(searchPattern, searchPattern, searchPattern, searchPattern);
 
@@ -766,8 +880,17 @@ export const getAllLearningPoints = (token, options = {}) => {
     const { total } = countStmt.get(...params);
 
     // Get items
-    const validSortColumns = ['created_at', 'updated_at', 'title', 'box', 'mastery_level', 'next_review'];
-    const sortColumn = validSortColumns.includes(sortBy) ? sortBy : 'created_at';
+    const validSortColumns = [
+      'created_at',
+      'updated_at',
+      'title',
+      'box',
+      'mastery_level',
+      'next_review',
+    ];
+    const sortColumn = validSortColumns.includes(sortBy)
+      ? sortBy
+      : 'created_at';
     const order = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
     const stmt = db.prepare(`
@@ -855,7 +978,11 @@ export const processReview = (id, rating, responseTimeMs, token) => {
 
     // Calculate next review
     const nextReview = calculateNextReview(newBox, newEaseFactor);
-    const masteryLevel = calculateMasteryLevel(newBox, newStreak, point.review_count + 1);
+    const masteryLevel = calculateMasteryLevel(
+      newBox,
+      newStreak,
+      point.review_count + 1,
+    );
 
     // Calculate average response time
     const avgResponseTime = point.avg_response_time_ms
@@ -897,7 +1024,7 @@ export const processReview = (id, rating, responseTimeMs, token) => {
       responseTimeMs,
       now,
       id,
-      userId
+      userId,
     );
 
     return {
@@ -1055,9 +1182,14 @@ export const getStats = (token, options = {}) => {
       },
       avgMastery: Math.round(overall.avgMastery || 0),
       totalReviews: overall.totalReviews || 0,
-      accuracy: overall.totalReviews > 0
-        ? Math.round((overall.totalCorrect / (overall.totalCorrect + overall.totalIncorrect)) * 100)
-        : 0,
+      accuracy:
+        overall.totalReviews > 0
+          ? Math.round(
+              (overall.totalCorrect /
+                (overall.totalCorrect + overall.totalIncorrect)) *
+                100,
+            )
+          : 0,
       byDomain: byDomain.reduce((acc, { domain_type, count }) => {
         acc[domain_type] = count;
         return acc;

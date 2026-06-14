@@ -18,6 +18,18 @@ jest.mock('../../commons/utils/SqliteHelper', () => ({
   dateToSQLiteString: jest.fn((date) => date?.toISOString?.() || date),
 }));
 
+// completeLearningSession now writes back to streakRecord on the learner
+// profile (Phase 8 streak chain). Stub the two functions it calls so the
+// session tests don't need to mock learner_profile DB rows.
+jest.mock('../../main/db/LearnerProfileManager', () => ({
+  getGlobalProfile: jest.fn(() => ({
+    globalProfile: { streakRecord: 0 },
+  })),
+  updateGlobalProfile: jest.fn(() => ({
+    globalProfile: { streakRecord: 1 },
+  })),
+}));
+
 const db = require('../../main/db/dbManager').default;
 const { getUserIdFromToken } = require('../../main/db/dbManager');
 
@@ -310,13 +322,19 @@ describe('LearningSessionManager', () => {
         get: jest.fn().mockReturnValue(createMockSessionRow()),
       };
       const mockUpdateStmt = { run: jest.fn() };
+      // The streak write-back runs a SELECT against learning_session
+      // to find the previous session's date. Returning null => "no
+      // prior session" path => streak resets to 1, no extra prepares.
+      const mockPrevSessionStmt = { get: jest.fn().mockReturnValue(null) };
 
-      // First call: getLearningSessionById (initial check)
-      // Second call: UPDATE statement
-      // Third call: getLearningSessionById (return updated)
+      // 1: getLearningSessionById (initial check)
+      // 2: UPDATE statement
+      // 3: SELECT prev session inside updateStreakAfterSession (Phase 8)
+      // 4: getLearningSessionById (return updated)
       db.prepare
         .mockReturnValueOnce(mockGetStmt)
         .mockReturnValueOnce(mockUpdateStmt)
+        .mockReturnValueOnce(mockPrevSessionStmt)
         .mockReturnValueOnce(mockGetStmt);
 
       const result = completeLearningSession(
@@ -357,6 +375,98 @@ describe('LearningSessionManager', () => {
       );
 
       expect(result.error).toBe('Session not found');
+    });
+
+    // -------------------------------------------------------------------
+    // Phase 8 streak chain — verify the three updateStreakAfterSession
+    // branches by inspecting the writeback call to updateGlobalProfile.
+    // -------------------------------------------------------------------
+    describe('streak write-back', () => {
+      const {
+        getGlobalProfile,
+        updateGlobalProfile,
+      } = require('../../main/db/LearnerProfileManager');
+
+      // Anchor the "current" session to real now so toDateString()
+      // comparisons against `new Date(...)` derived prev timestamps line up.
+      // The default mock row uses 2024-01-15 which won't match real-clock
+      // "yesterday" / "today" values.
+      const runCompleteWithPrevSession = (prevStartedAt, currentStreak) => {
+        getGlobalProfile.mockReturnValue({
+          globalProfile: { streakRecord: currentStreak },
+        });
+        const currentStartedAt = new Date().toISOString();
+        const mockGetStmt = {
+          get: jest
+            .fn()
+            .mockReturnValue(
+              createMockSessionRow({ started_at: currentStartedAt })
+            ),
+        };
+        const mockUpdateStmt = { run: jest.fn() };
+        const mockPrevStmt = {
+          get: jest.fn().mockReturnValue({ startedAt: prevStartedAt }),
+        };
+        db.prepare
+          .mockReturnValueOnce(mockGetStmt) // initial getLearningSessionById
+          .mockReturnValueOnce(mockUpdateStmt) // UPDATE
+          .mockReturnValueOnce(mockPrevStmt) // prev-session SELECT
+          .mockReturnValueOnce(mockGetStmt); // final getLearningSessionById
+
+        completeLearningSession(
+          'session_123',
+          { itemsReviewed: 5, itemsCorrect: 4 },
+          'valid_token'
+        );
+      };
+
+      it('extends streak by 1 when prev session was yesterday', () => {
+        const yesterday = new Date(Date.now() - 86400000).toISOString();
+        runCompleteWithPrevSession(yesterday, 5);
+        expect(updateGlobalProfile).toHaveBeenCalledWith(
+          { streakRecord: 6 },
+          'valid_token'
+        );
+      });
+
+      it('keeps streak unchanged when prev session was today', () => {
+        const today = new Date().toISOString();
+        runCompleteWithPrevSession(today, 5);
+        expect(updateGlobalProfile).toHaveBeenCalledWith(
+          { streakRecord: 5 },
+          'valid_token'
+        );
+      });
+
+      it('resets streak to 1 after a 2+ day gap', () => {
+        const threeDaysAgo = new Date(
+          Date.now() - 3 * 86400000
+        ).toISOString();
+        runCompleteWithPrevSession(threeDaysAgo, 10);
+        expect(updateGlobalProfile).toHaveBeenCalledWith(
+          { streakRecord: 1 },
+          'valid_token'
+        );
+      });
+
+      it('skips streak write-back entirely when itemsReviewed is 0', () => {
+        const mockGetStmt = {
+          get: jest.fn().mockReturnValue(createMockSessionRow()),
+        };
+        const mockUpdateStmt = { run: jest.fn() };
+        db.prepare
+          .mockReturnValueOnce(mockGetStmt)
+          .mockReturnValueOnce(mockUpdateStmt)
+          .mockReturnValueOnce(mockGetStmt);
+
+        completeLearningSession(
+          'session_123',
+          { itemsReviewed: 0, itemsCorrect: 0 },
+          'valid_token'
+        );
+
+        expect(updateGlobalProfile).not.toHaveBeenCalled();
+      });
     });
   });
 
