@@ -297,7 +297,7 @@ describe('learningPointHandlers', () => {
       const result = await handlers['lp-delete']({}, id, token);
 
       expect(mockService.deleteLearningPoint).toHaveBeenCalledWith(id, token, false);
-      expect(result.success).toBe(true);
+      expect(result).toEqual({ success: true, deleted: true });
     });
 
     test('calls deleteLearningPoint with hard delete when specified', async () => {
@@ -309,7 +309,27 @@ describe('learningPointHandlers', () => {
       const result = await handlers['lp-delete']({}, id, token, true);
 
       expect(mockService.deleteLearningPoint).toHaveBeenCalledWith(id, token, true);
-      expect(result.success).toBe(true);
+      expect(result).toEqual({ success: true, deleted: true });
+    });
+
+    test('returns success:true deleted:false when no record was removed', async () => {
+      // Regression guard for the conflation bug: prior contract returned
+      // {success: false} when the service returned false ("not found"),
+      // which misreported a successful no-op as a failure.
+      mockService.deleteLearningPoint.mockResolvedValue(false);
+
+      const result = await handlers['lp-delete']({}, 'missing', 'valid-token');
+
+      expect(result).toEqual({ success: true, deleted: false });
+    });
+
+    test('returns success:false with error when the service throws', async () => {
+      mockService.deleteLearningPoint.mockRejectedValue(new Error('db down'));
+
+      const result = await handlers['lp-delete']({}, 'item-123', 'valid-token');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('db down');
     });
   });
 

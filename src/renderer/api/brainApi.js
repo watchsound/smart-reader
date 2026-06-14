@@ -261,7 +261,11 @@ const brainApi = {
    * @returns {Promise<Object>}
    */
   async deleteOldMemories(olderThanDays, token) {
-    return ipcRenderer?.invoke('brain-delete-old-memories', olderThanDays, token);
+    return ipcRenderer?.invoke(
+      'brain-delete-old-memories',
+      olderThanDays,
+      token,
+    );
   },
 
   /**
@@ -299,7 +303,11 @@ const brainApi = {
    * @returns {Promise<Array>}
    */
   async getCrossConceptPatterns(token, limit = 10) {
-    return ipcRenderer?.invoke('brain-get-cross-concept-patterns', token, limit);
+    return ipcRenderer?.invoke(
+      'brain-get-cross-concept-patterns',
+      token,
+      limit,
+    );
   },
 
   /**
@@ -694,6 +702,44 @@ export const EPISODE_TYPES = {
   // Streak Events
   STREAK_EXTENDED: 'STREAK_EXTENDED',
   STREAK_BROKEN: 'STREAK_BROKEN',
+
+  // Reading Comprehension Events (Phase 2)
+  // Silent reading-behavior signals. Mirror of EpisodeCollector.EVENT_TYPES.
+  CHAPTER_ENTERED: 'CHAPTER_ENTERED',
+  CHAPTER_LEFT: 'CHAPTER_LEFT',
+  BACKTRACK: 'BACKTRACK',
+  PARAGRAPH_DWELL: 'PARAGRAPH_DWELL',
+  PARAGRAPH_REREAD: 'PARAGRAPH_REREAD',
+
+  // Micro-card Proposal Events (Phase 4)
+  // Mirror of EpisodeCollector.EVENT_TYPES.
+  CARD_PROPOSED: 'CARD_PROPOSED',
+  CARD_ACCEPTED: 'CARD_ACCEPTED',
+  CARD_ACKNOWLEDGED: 'CARD_ACKNOWLEDGED',
+  CARD_DISMISSED: 'CARD_DISMISSED',
+
+  // Chapter-end Comprehension Events (Phase 6)
+  // Mirror of EpisodeCollector.EVENT_TYPES.
+  COMPREHENSION_OFFERED: 'COMPREHENSION_OFFERED',
+  COMPREHENSION_SUBMITTED: 'COMPREHENSION_SUBMITTED',
+  COMPREHENSION_SKIPPED: 'COMPREHENSION_SKIPPED',
+
+  // Spaced Re-reading Events (Phase 8)
+  // Mirror of EpisodeCollector.EVENT_TYPES.
+  REREAD_SCHEDULED: 'REREAD_SCHEDULED',
+  REREAD_COMPLETED: 'REREAD_COMPLETED',
+
+  // Production Loop Events (Phase 8)
+  // Mirror of EpisodeCollector.EVENT_TYPES.
+  PRODUCTION_PROMPTED: 'PRODUCTION_PROMPTED',
+  PRODUCTION_SUBMITTED: 'PRODUCTION_SUBMITTED',
+  PRODUCTION_SKIPPED: 'PRODUCTION_SKIPPED',
+
+  // Organize Loop Events (Phase 8)
+  // Mirror of EpisodeCollector.EVENT_TYPES.
+  ORGANIZE_SUGGESTED: 'ORGANIZE_SUGGESTED',
+  ORGANIZE_ACCEPTED: 'ORGANIZE_ACCEPTED',
+  ORGANIZE_DISMISSED: 'ORGANIZE_DISMISSED',
 };
 
 /**
@@ -774,6 +820,191 @@ export const recordEvent = {
     return brainApi.recordEpisode({
       eventType: EPISODE_TYPES.QUIZ_TAKEN,
       payload: data,
+    });
+  },
+
+  // ==================== Reading Comprehension (Phase 2) ====================
+
+  /**
+   * Record entering a new chapter while reading.
+   * @param {Object} data — { bookId, bookType, chapterId, chapterName, fromChapter, fromChapterDurationMs }
+   */
+  chapterEntered(data) {
+    return brainApi.recordEpisode({
+      eventType: EPISODE_TYPES.CHAPTER_ENTERED,
+      payload: data,
+      sourceContext: { view: 'reading', bookType: data?.bookType },
+    });
+  },
+
+  /**
+   * Record leaving a chapter (immediately before chapter change or view close).
+   * @param {Object} data — { bookId, bookType, chapterId, chapterName, durationMs, pagesVisited, lastPage, totalPages }
+   */
+  chapterLeft(data) {
+    return brainApi.recordEpisode({
+      eventType: EPISODE_TYPES.CHAPTER_LEFT,
+      payload: data,
+      sourceContext: { view: 'reading', bookType: data?.bookType },
+    });
+  },
+
+  /**
+   * Record a backward navigation event (user scrolled back to earlier content).
+   * @param {Object} data — { bookId, bookType, chapterId, fromPage, toPage, pagesBack }
+   */
+  backtrack(data) {
+    return brainApi.recordEpisode({
+      eventType: EPISODE_TYPES.BACKTRACK,
+      payload: data,
+      sourceContext: { view: 'reading', bookType: data?.bookType },
+    });
+  },
+
+  /**
+   * Record abnormal dwell time on a single paragraph (signal of difficulty or interest).
+   * @param {Object} data — { bookId, paragraphId, dwellMs, expectedMs }
+   */
+  paragraphDwell(data) {
+    return brainApi.recordEpisode({
+      eventType: EPISODE_TYPES.PARAGRAPH_DWELL,
+      payload: data,
+      sourceContext: { view: 'reading' },
+    });
+  },
+
+  /**
+   * Record a paragraph being re-read (revisited after being scrolled past).
+   * @param {Object} data — { bookId, paragraphId, rereadCount, secondsSinceFirstView }
+   */
+  paragraphReread(data) {
+    return brainApi.recordEpisode({
+      eventType: EPISODE_TYPES.PARAGRAPH_REREAD,
+      payload: data,
+      sourceContext: { view: 'reading' },
+    });
+  },
+
+  // ==================== Micro-card Proposals (Phase 4) ====================
+
+  /**
+   * AI proposed a card from the current reading context.
+   * @param {Object} data — { proposalId, bookId, chapterId, paragraphHash, front, back, domain, confidence }
+   */
+  cardProposed(data) {
+    return brainApi.recordEpisode({
+      eventType: EPISODE_TYPES.CARD_PROPOSED,
+      payload: data,
+      sourceContext: { view: 'reading' },
+    });
+  },
+
+  /**
+   * User accepted the proposed card → it enters the SRS at Box 1.
+   * @param {Object} data — { proposalId, learningPointId, planId }
+   */
+  cardAccepted(data) {
+    return brainApi.recordEpisode({
+      eventType: EPISODE_TYPES.CARD_ACCEPTED,
+      payload: data,
+      sourceContext: { view: 'reading' },
+    });
+  },
+
+  /**
+   * User accepted but flagged "I already know this" → card enters at a
+   * higher Leitner box for a deep-decay refresher rather than fresh learning.
+   * @param {Object} data — { proposalId, learningPointId, planId, startingBox }
+   */
+  cardAcknowledged(data) {
+    return brainApi.recordEpisode({
+      eventType: EPISODE_TYPES.CARD_ACKNOWLEDGED,
+      payload: data,
+      sourceContext: { view: 'reading' },
+    });
+  },
+
+  /**
+   * User dismissed the proposed card → tuning signal for the proposer.
+   * @param {Object} data — { proposalId, bookId, chapterId, paragraphHash, reason }
+   */
+  cardDismissed(data) {
+    return brainApi.recordEpisode({
+      eventType: EPISODE_TYPES.CARD_DISMISSED,
+      payload: data,
+      sourceContext: { view: 'reading' },
+    });
+  },
+
+  comprehensionOffered(data) {
+    return brainApi.recordEpisode({
+      eventType: EPISODE_TYPES.COMPREHENSION_OFFERED,
+      payload: data,
+      sourceContext: { view: 'reading' },
+    });
+  },
+
+  comprehensionSubmitted(data) {
+    return brainApi.recordEpisode({
+      eventType: EPISODE_TYPES.COMPREHENSION_SUBMITTED,
+      payload: data,
+      sourceContext: { view: 'reading' },
+    });
+  },
+
+  comprehensionSkipped(data) {
+    return brainApi.recordEpisode({
+      eventType: EPISODE_TYPES.COMPREHENSION_SKIPPED,
+      payload: data,
+      sourceContext: { view: 'reading' },
+    });
+  },
+
+  rereadScheduled(data) {
+    return brainApi.recordEpisode({
+      eventType: EPISODE_TYPES.REREAD_SCHEDULED,
+      payload: data,
+      sourceContext: { view: 'reading' },
+    });
+  },
+
+  rereadCompleted(data) {
+    return brainApi.recordEpisode({
+      eventType: EPISODE_TYPES.REREAD_COMPLETED,
+      payload: data,
+      sourceContext: { view: 'knowledge' },
+    });
+  },
+
+  productionSubmitted(data) {
+    return brainApi.recordEpisode({
+      eventType: EPISODE_TYPES.PRODUCTION_SUBMITTED,
+      payload: data,
+      sourceContext: { view: 'knowledge' },
+    });
+  },
+
+  productionSkipped(data) {
+    return brainApi.recordEpisode({
+      eventType: EPISODE_TYPES.PRODUCTION_SKIPPED,
+      payload: data,
+      sourceContext: { view: 'knowledge' },
+    });
+  },
+
+  organizeAccepted(data) {
+    return brainApi.recordEpisode({
+      eventType: EPISODE_TYPES.ORGANIZE_ACCEPTED,
+      payload: data,
+      sourceContext: { view: 'moodboard' },
+    });
+  },
+
+  organizeDismissed(data) {
+    return brainApi.recordEpisode({
+      eventType: EPISODE_TYPES.ORGANIZE_DISMISSED,
+      payload: data,
+      sourceContext: { view: 'moodboard' },
     });
   },
 };

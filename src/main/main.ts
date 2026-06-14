@@ -235,6 +235,14 @@ import { registerStudyAnalyticsHandlers } from './ipc/studyAnalyticsHandlers';
 import { registerBrainHandlers } from './ipc/brainHandlers';
 import { registerUnifiedLearningHandlers } from './ipc/unifiedLearningHandlers';
 import { registerLearningPointHandlers } from './ipc/learningPointHandlers';
+import { registerMicroCardHandlers } from './ipc/microCardHandlers';
+import { registerEnrichmentHandlers } from './ipc/enrichmentHandlers';
+import { registerBookDiagnosticHandlers } from './ipc/bookDiagnosticHandlers';
+import { registerComprehensionHandlers } from './ipc/comprehensionHandlers';
+import { registerRereadQueueHandlers } from './ipc/rereadQueueHandlers';
+import { registerMoodBoardOrganizerHandlers } from './ipc/moodBoardOrganizerHandlers';
+import { registerProductionPromptHandlers } from './ipc/productionPromptHandlers';
+import { registerLearningPathPlannerHandlers } from './ipc/learningPathPlannerHandlers';
 import graphInterface from './utils/GraphInterface';
 import { initializeLearningBrain, shutdownLearningBrain } from './brain';
 
@@ -2892,6 +2900,24 @@ app
     // Register graph database IPC handlers (works with both Kùzu and Neo4j)
     registerGraphHandlers(store);
 
+    // Phase 3d + 4a: micro-card proposer and batch enrichment IPC handlers
+    registerMicroCardHandlers();
+    registerEnrichmentHandlers();
+    // Phase 5: pre-book diagnostic IPC handlers
+    registerBookDiagnosticHandlers();
+    // Phase 6: chapter-end comprehension grading IPC handlers
+    registerComprehensionHandlers();
+    // Phase 7: cross-book curriculum planner IPC handlers
+    registerLearningPathPlannerHandlers();
+    // Phase 8: spaced re-reading queue IPC handlers
+    registerRereadQueueHandlers(store);
+    // Phase 8: MoodBoard organize-suggestion IPC handlers (renderer side
+    // of the brain heartbeat's `suggestOrganizeSessions` task).
+    registerMoodBoardOrganizerHandlers(store);
+    // Phase 8: production-prompt IPC handlers (renderer side of the brain
+    // heartbeat's `schedulePromptForProduction` task).
+    registerProductionPromptHandlers(store);
+
     // Register skill-based AI IPC handlers
     registerSkillHandlers(store, {
       graphApi: graphInterface,
@@ -2944,7 +2970,7 @@ app
       // Existing skills will be loaded if available
       adaptiveLearningSkill: null, // Will be injected by skill system
       learningGraphSkill: null,
-      learnerProfileManager: null,
+      learnerProfileManager: require('./db/LearnerProfileManager'),
       learningPlanManager: require('./db/LearningPlanManager').default,
       sessionAnalyticsManager: require('./db/SessionAnalyticsManager').default,
     })

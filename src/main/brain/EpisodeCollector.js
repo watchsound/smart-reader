@@ -79,7 +79,9 @@ class EpisodeCollector {
     const eventsToFlush = [...this.eventBuffer];
     this.eventBuffer = [];
 
-    console.log(`[EpisodeCollector] Flushing ${eventsToFlush.length} events...`);
+    console.log(
+      `[EpisodeCollector] Flushing ${eventsToFlush.length} events...`,
+    );
 
     try {
       // Try Neo4j first
@@ -105,13 +107,17 @@ class EpisodeCollector {
   async writeToNeo4j(events) {
     // Check if adapter is available and ready
     if (!this.neo4jAdapter) {
-      console.warn('[EpisodeCollector] Neo4j adapter not available, skipping flush to graph');
+      console.warn(
+        '[EpisodeCollector] Neo4j adapter not available, skipping flush to graph',
+      );
       return;
     }
 
     // Check if adapter is initialized (for GraphInterface wrapper)
     if (this.neo4jAdapter.isReady && !this.neo4jAdapter.isReady()) {
-      console.warn('[EpisodeCollector] Neo4j adapter not ready, skipping flush to graph');
+      console.warn(
+        '[EpisodeCollector] Neo4j adapter not ready, skipping flush to graph',
+      );
       return;
     }
 
@@ -132,7 +138,9 @@ class EpisodeCollector {
    */
   async writeToLocalStorage(events) {
     if (!this.store) {
-      console.warn('[EpisodeCollector] No storage available, events will be lost');
+      console.warn(
+        '[EpisodeCollector] No storage available, events will be lost',
+      );
       return;
     }
 
@@ -311,9 +319,14 @@ class EpisodeCollector {
           processedAt: now,
           consolidatedInto: consolidatedMemoryId,
         });
-        console.log(`[EpisodeCollector] Marked ${episodeIds.length} episodes as processed in Neo4j`);
+        console.log(
+          `[EpisodeCollector] Marked ${episodeIds.length} episodes as processed in Neo4j`,
+        );
       } catch (e) {
-        console.warn('[EpisodeCollector] Failed to mark episodes in Neo4j:', e.message);
+        console.warn(
+          '[EpisodeCollector] Failed to mark episodes in Neo4j:',
+          e.message,
+        );
       }
     }
 
@@ -332,7 +345,9 @@ class EpisodeCollector {
         return ep;
       });
       this.store.set('learningBrain.episodes', updated);
-      console.log(`[EpisodeCollector] Marked ${episodeIds.length} episodes as processed in local storage`);
+      console.log(
+        `[EpisodeCollector] Marked ${episodeIds.length} episodes as processed in local storage`,
+      );
     }
   }
 
@@ -428,6 +443,63 @@ EpisodeCollector.EVENT_TYPES = {
   // Brain Events (internal)
   PATTERN_DETECTED: 'PATTERN_DETECTED',
   SUMMARY_CREATED: 'SUMMARY_CREATED',
+
+  // Reading Comprehension Events (Phase 2)
+  // These signals close the loop between reading behavior and the Brain's
+  // mastery model. They are collected silently as the user reads and become
+  // input to features like pre-book diagnostic calibration, micro-card
+  // tuning, and tutor-mode struggle detection.
+  CHAPTER_ENTERED: 'CHAPTER_ENTERED',
+  CHAPTER_LEFT: 'CHAPTER_LEFT',
+  BACKTRACK: 'BACKTRACK',
+  PARAGRAPH_DWELL: 'PARAGRAPH_DWELL',
+  PARAGRAPH_REREAD: 'PARAGRAPH_REREAD',
+
+  // Micro-card Proposal Events (Phase 4)
+  // Feedback loop for the in-reading card-proposal flow. ACCEPTED items
+  // become SRS cards; ACKNOWLEDGED items skip Box 1 (user already knows
+  // them); DISMISSED items teach the proposer what NOT to surface next time.
+  CARD_PROPOSED: 'CARD_PROPOSED',
+  CARD_ACCEPTED: 'CARD_ACCEPTED',
+  CARD_ACKNOWLEDGED: 'CARD_ACKNOWLEDGED',
+  CARD_DISMISSED: 'CARD_DISMISSED',
+
+  // Chapter-end Comprehension Events (Phase 6)
+  // Distinct from REVIEW_COMPLETED (SRS card outcomes). These are
+  // user-authored explanations of what they just read, AI-graded against
+  // the chapter content. Score + identified gaps feed the Brain's
+  // mastery model as a stronger signal than "did you remember the card".
+  COMPREHENSION_OFFERED: 'COMPREHENSION_OFFERED',
+  COMPREHENSION_SUBMITTED: 'COMPREHENSION_SUBMITTED',
+  COMPREHENSION_SKIPPED: 'COMPREHENSION_SKIPPED',
+
+  // Spaced Re-reading Events (Phase 8)
+  // Triggered by the reader after a comprehension check surfaces gaps.
+  // SCHEDULED → item enters the re-read queue; COMPLETED → reader finished
+  // the re-read and acknowledged it. Brain uses these to weight future
+  // comprehension and micro-card offers toward recently-struggled chapters.
+  REREAD_SCHEDULED: 'REREAD_SCHEDULED',
+  REREAD_COMPLETED: 'REREAD_COMPLETED',
+
+  // Production Loop Events (Phase 8)
+  // PROMPTED  → brain heartbeat picked an LP and notified the user.
+  // SUBMITTED → user gave a free-text explanation and was graded; payload
+  //             carries score + beforeMastery/afterMastery + box-delta so
+  //             downstream analytics can measure passive-vs-active gaps.
+  // SKIPPED   → user dismissed the prompt without answering.
+  PRODUCTION_PROMPTED: 'PRODUCTION_PROMPTED',
+  PRODUCTION_SUBMITTED: 'PRODUCTION_SUBMITTED',
+  PRODUCTION_SKIPPED: 'PRODUCTION_SKIPPED',
+
+  // Organize Loop Events (Phase 8)
+  // Symmetric with the production loop: SUGGESTED when the brain
+  // heartbeat detects a cluster and notifies; ACCEPTED when the user
+  // clicks "Create board with these concepts"; DISMISSED when the user
+  // clicks "Not now". Together they let analytics compute the
+  // suggest→accept conversion rate per cluster type.
+  ORGANIZE_SUGGESTED: 'ORGANIZE_SUGGESTED',
+  ORGANIZE_ACCEPTED: 'ORGANIZE_ACCEPTED',
+  ORGANIZE_DISMISSED: 'ORGANIZE_DISMISSED',
 };
 
 module.exports = EpisodeCollector;

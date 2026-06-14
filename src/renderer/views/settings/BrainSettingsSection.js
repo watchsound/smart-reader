@@ -130,13 +130,14 @@ function BrainSettingsSection() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [statusRes, serviceRes, insightsRes, historyRes, configRes] = await Promise.all([
-        brainApi.getStatus(),
-        brainApi.getServiceStatus(),
-        brainApi.getInsights(),
-        brainApi.getHeartbeatHistory(10),
-        brainApi.getConfig(),
-      ]);
+      const [statusRes, serviceRes, insightsRes, historyRes, configRes] =
+        await Promise.all([
+          brainApi.getStatus(),
+          brainApi.getServiceStatus(),
+          brainApi.getInsights(),
+          brainApi.getHeartbeatHistory(10),
+          brainApi.getConfig(),
+        ]);
 
       setBrainStatus(statusRes);
       setServiceStatus(serviceRes);
@@ -220,10 +221,18 @@ function BrainSettingsSection() {
       return { status: 'disabled', label: 'Disabled', icon: <PauseIcon /> };
     }
     if (brainStatus?.mode === 'service' && serviceStatus?.running) {
-      return { status: 'running', label: 'Running (Service)', icon: <SuccessIcon /> };
+      return {
+        status: 'running',
+        label: 'Running (Service)',
+        icon: <SuccessIcon />,
+      };
     }
     if (brainStatus?.mode === 'hybrid' && brainStatus?.isRunning) {
-      return { status: 'running', label: 'Running (Hybrid)', icon: <SuccessIcon /> };
+      return {
+        status: 'running',
+        label: 'Running (Hybrid)',
+        icon: <SuccessIcon />,
+      };
     }
     return { status: 'stopped', label: 'Stopped', icon: <WarningIcon /> };
   };
@@ -257,7 +266,12 @@ function BrainSettingsSection() {
     <Box>
       {/* Header */}
       <SectionPaper>
-        <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+        <Box
+          display="flex"
+          alignItems="center"
+          justifyContent="space-between"
+          mb={2}
+        >
           <Box display="flex" alignItems="center" gap={2}>
             <BrainIcon color="primary" sx={{ fontSize: 32 }} />
             <Box>
@@ -276,7 +290,11 @@ function BrainSettingsSection() {
             />
             <Tooltip title="Refresh">
               <span>
-                <IconButton onClick={loadData} disabled={isLoading} size="small">
+                <IconButton
+                  onClick={loadData}
+                  disabled={isLoading}
+                  size="small"
+                >
                   <RefreshIcon />
                 </IconButton>
               </span>
@@ -308,39 +326,55 @@ function BrainSettingsSection() {
                 <Typography variant="h6">Current Insights</Typography>
               </Box>
 
-              <Box display="grid" gridTemplateColumns="repeat(auto-fit, minmax(150px, 1fr))" gap={2}>
+              <Box
+                display="grid"
+                gridTemplateColumns="repeat(auto-fit, minmax(150px, 1fr))"
+                gap={2}
+              >
                 <InsightCard>
                   <Typography variant="body2" color="text.secondary">
                     Due Items
                   </Typography>
-                  <Typography variant="h4">{insights.dueItemsCount || 0}</Typography>
+                  <Typography variant="h4">
+                    {insights.dueItemsCount || 0}
+                  </Typography>
                 </InsightCard>
 
                 <InsightCard>
                   <Typography variant="body2" color="text.secondary">
                     Streak
                   </Typography>
-                  <Typography variant="h4">{insights.streakDays || 0} days</Typography>
+                  <Typography variant="h4">
+                    {insights.streakDays || 0} days
+                  </Typography>
                 </InsightCard>
 
                 <InsightCard>
                   <Typography variant="body2" color="text.secondary">
                     Weekly Accuracy
                   </Typography>
-                  <Typography variant="h4">{insights.weeklyAccuracy || 0}%</Typography>
+                  <Typography variant="h4">
+                    {insights.weeklyAccuracy || 0}%
+                  </Typography>
                 </InsightCard>
 
                 <InsightCard>
                   <Typography variant="body2" color="text.secondary">
                     Weekly Reviews
                   </Typography>
-                  <Typography variant="h4">{insights.weeklyReviews || 0}</Typography>
+                  <Typography variant="h4">
+                    {insights.weeklyReviews || 0}
+                  </Typography>
                 </InsightCard>
               </Box>
 
               {insights.weakConcepts?.length > 0 && (
                 <Box mt={2}>
-                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    gutterBottom
+                  >
                     Focus Areas
                   </Typography>
                   <Box display="flex" flexWrap="wrap" gap={1}>
@@ -358,8 +392,14 @@ function BrainSettingsSection() {
               )}
 
               {insights.lastUpdated && (
-                <Typography variant="caption" color="text.secondary" display="block" mt={2}>
-                  Last updated: {new Date(insights.lastUpdated).toLocaleString()}
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  display="block"
+                  mt={2}
+                >
+                  Last updated:{' '}
+                  {new Date(insights.lastUpdated).toLocaleString()}
                 </Typography>
               )}
             </SectionPaper>
@@ -377,7 +417,9 @@ function BrainSettingsSection() {
                 <Typography variant="body1">Next Heartbeat</Typography>
                 <Typography variant="body2" color="text.secondary">
                   {brainStatus?.nextScheduledHeartbeat
-                    ? new Date(brainStatus.nextScheduledHeartbeat).toLocaleString()
+                    ? new Date(
+                        brainStatus.nextScheduledHeartbeat,
+                      ).toLocaleString()
                     : 'Not scheduled'}
                 </Typography>
               </Box>
@@ -399,6 +441,92 @@ function BrainSettingsSection() {
                 </Button>
               </Box>
             </SettingRow>
+
+            {/* Last heartbeat nudge stats — surfaces what the brain
+                actually pushed to the user on its most recent tick.
+                Hovering a chip reveals the per-nudge-type breakdown
+                so debugging "why am I seeing X every day" is one
+                glance, not a console dive. */}
+            {brainStatus?.lastHeartbeatResult?.persistedNotifications &&
+              (() => {
+                const stats =
+                  brainStatus.lastHeartbeatResult.persistedNotifications;
+                const byType = stats.byType || {};
+                // Internal nudge keys → user-facing labels. Falls back to
+                // the raw key for unknown types so future additions still
+                // render legibly without a code change.
+                const NUDGE_LABELS = {
+                  streakAlert: 'Streak alert',
+                  dailySummary: 'Daily summary',
+                  welcomeBack: 'Welcome back',
+                  struggleAlert: 'Struggle alert',
+                };
+                const breakdownFor = (field) => {
+                  const lines = Object.entries(byType)
+                    .filter(([, counts]) => (counts[field] || 0) > 0)
+                    .map(
+                      ([type, counts]) =>
+                        `${NUDGE_LABELS[type] || type}: ${counts[field]}`,
+                    );
+                  return lines.length > 0 ? lines.join('\n') : 'none';
+                };
+                return (
+                  <SettingRow>
+                    <Box>
+                      <Typography variant="body1">
+                        Last Heartbeat Nudges
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {brainStatus.lastHeartbeat
+                          ? new Date(brainStatus.lastHeartbeat).toLocaleString()
+                          : ''}
+                      </Typography>
+                    </Box>
+                    <Box display="flex" alignItems="center" gap={1}>
+                      {/* The row's presence (gated on persistedNotifications
+                        above) already signals "brain ran". Chips only render
+                        when their count > 0; when everything is zero, a
+                        terse "nothing fired" caption replaces the chips. */}
+                      {(stats.created ?? 0) > 0 && (
+                        <Tooltip title={breakdownFor('created')} arrow>
+                          <Chip
+                            label={`${stats.created} fired`}
+                            size="small"
+                            color="success"
+                            variant="outlined"
+                          />
+                        </Tooltip>
+                      )}
+                      {(stats.skipped ?? 0) > 0 && (
+                        <Tooltip title={breakdownFor('skipped')} arrow>
+                          <Chip
+                            label={`${stats.skipped} deduped`}
+                            size="small"
+                            variant="outlined"
+                          />
+                        </Tooltip>
+                      )}
+                      {stats.errors > 0 && (
+                        <Tooltip title={breakdownFor('errors')} arrow>
+                          <Chip
+                            label={`${stats.errors} errors`}
+                            size="small"
+                            color="error"
+                            variant="outlined"
+                          />
+                        </Tooltip>
+                      )}
+                      {!stats.created && !stats.skipped && !stats.errors && (
+                        <Typography variant="caption" color="text.secondary">
+                          {stats.reason === 'no session'
+                            ? 'skipped (not signed in)'
+                            : 'nothing fired'}
+                        </Typography>
+                      )}
+                    </Box>
+                  </SettingRow>
+                );
+              })()}
 
             <Divider sx={{ my: 2 }} />
 
@@ -454,15 +582,21 @@ function BrainSettingsSection() {
             </Box>
 
             <Typography variant="body2" color="text.secondary" paragraph>
-              The background service allows the Learning Brain to run even when the app is closed,
-              sending notifications and analyzing your learning patterns.
+              The background service allows the Learning Brain to run even when
+              the app is closed, sending notifications and analyzing your
+              learning patterns.
             </Typography>
 
             {installError && (
-              <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setInstallError(null)}>
+              <Alert
+                severity="warning"
+                sx={{ mb: 2 }}
+                onClose={() => setInstallError(null)}
+              >
                 {installError}
                 <Typography variant="caption" display="block" mt={1}>
-                  The app will use hybrid mode (in-app scheduler + catch-up on launch) instead.
+                  The app will use hybrid mode (in-app scheduler + catch-up on
+                  launch) instead.
                 </Typography>
               </Alert>
             )}
@@ -514,7 +648,9 @@ function BrainSettingsSection() {
               control={
                 <Switch
                   checked={config.notifications?.enabled !== false}
-                  onChange={(e) => handleNotificationToggle('enabled', e.target.checked)}
+                  onChange={(e) =>
+                    handleNotificationToggle('enabled', e.target.checked)
+                  }
                 />
               }
               label="Enable notifications"
@@ -526,7 +662,12 @@ function BrainSettingsSection() {
                   control={
                     <Switch
                       checked={config.notifications?.streakAlert !== false}
-                      onChange={(e) => handleNotificationToggle('streakAlert', e.target.checked)}
+                      onChange={(e) =>
+                        handleNotificationToggle(
+                          'streakAlert',
+                          e.target.checked,
+                        )
+                      }
                       size="small"
                     />
                   }
@@ -536,7 +677,12 @@ function BrainSettingsSection() {
                   control={
                     <Switch
                       checked={config.notifications?.dailySummary !== false}
-                      onChange={(e) => handleNotificationToggle('dailySummary', e.target.checked)}
+                      onChange={(e) =>
+                        handleNotificationToggle(
+                          'dailySummary',
+                          e.target.checked,
+                        )
+                      }
                       size="small"
                     />
                   }
@@ -546,7 +692,12 @@ function BrainSettingsSection() {
                   control={
                     <Switch
                       checked={config.notifications?.weeklyReport !== false}
-                      onChange={(e) => handleNotificationToggle('weeklyReport', e.target.checked)}
+                      onChange={(e) =>
+                        handleNotificationToggle(
+                          'weeklyReport',
+                          e.target.checked,
+                        )
+                      }
                       size="small"
                     />
                   }
@@ -556,7 +707,12 @@ function BrainSettingsSection() {
                   control={
                     <Switch
                       checked={config.notifications?.struggleAlert !== false}
-                      onChange={(e) => handleNotificationToggle('struggleAlert', e.target.checked)}
+                      onChange={(e) =>
+                        handleNotificationToggle(
+                          'struggleAlert',
+                          e.target.checked,
+                        )
+                      }
                       size="small"
                     />
                   }
@@ -566,7 +722,12 @@ function BrainSettingsSection() {
                   control={
                     <Switch
                       checked={config.notifications?.welcomeBack !== false}
-                      onChange={(e) => handleNotificationToggle('welcomeBack', e.target.checked)}
+                      onChange={(e) =>
+                        handleNotificationToggle(
+                          'welcomeBack',
+                          e.target.checked,
+                        )
+                      }
                       size="small"
                     />
                   }

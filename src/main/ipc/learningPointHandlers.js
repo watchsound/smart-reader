@@ -149,11 +149,20 @@ export function registerLearningPointHandlers(store, services = {}) {
   /**
    * Delete a learning point
    * @channel lp-delete
+   * @returns {{ success: true, deleted: boolean } | { success: false, error: string }}
+   *   `success` = operation completed without throwing.
+   *   `deleted` = whether a record was actually removed (false = not found).
+   *   Symmetric with the Phase 8 IPC idempotent-clear pattern. Prior shape
+   *   `{success: bool}` conflated "operation failed" with "not found."
    */
   ipcMain.handle('lp-delete', async (event, id, token, hard = false) => {
     try {
-      const result = await learningPointService.deleteLearningPoint(id, token, hard);
-      return { success: result };
+      const deleted = await learningPointService.deleteLearningPoint(
+        id,
+        token,
+        hard,
+      );
+      return { success: true, deleted };
     } catch (error) {
       console.error('lp-delete error:', error);
       return { success: false, error: error.message };

@@ -194,20 +194,40 @@ class HybridScheduler {
   }
 
   /**
-   * Save state to file
+   * Save state to file + electron-store. Best-effort: a disk or store
+   * failure must NOT kill the heartbeat — the agent already did its work
+   * and the next tick will overwrite anyway. Errors are logged and
+   * swallowed.
+   *
    * @param {Object} state
    */
   saveState(state) {
-    const statePath = this.getStatePath();
-    fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
+    try {
+      const statePath = this.getStatePath();
+      fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
+    } catch (err) {
+      console.error('[HybridScheduler] saveState file write failed:', err);
+    }
 
-    // Also save to electron-store if available
     if (this.store) {
-      if (state.lastHeartbeat) {
-        this.store.set('learningBrain.lastHeartbeat', state.lastHeartbeat);
-      }
-      if (state.nextScheduledHeartbeat) {
-        this.store.set('learningBrain.nextScheduledHeartbeat', state.nextScheduledHeartbeat);
+      try {
+        if (state.lastHeartbeat) {
+          this.store.set('learningBrain.lastHeartbeat', state.lastHeartbeat);
+        }
+        if (state.nextScheduledHeartbeat) {
+          this.store.set(
+            'learningBrain.nextScheduledHeartbeat',
+            state.nextScheduledHeartbeat,
+          );
+        }
+        if (state.lastHeartbeatResult) {
+          this.store.set(
+            'learningBrain.lastHeartbeatResult',
+            state.lastHeartbeatResult,
+          );
+        }
+      } catch (err) {
+        console.error('[HybridScheduler] saveState store write failed:', err);
       }
     }
   }
@@ -296,7 +316,9 @@ class HybridScheduler {
         mode: this.mode,
       });
 
-      // Save state
+      // Save state — include persistedNotifications so getStatus can
+      // surface "fired N nudges today, skipped M duplicates" without
+      // requiring a separate query.
       this.saveState({
         lastHeartbeat: new Date().toISOString(),
         lastHeartbeatResult: {
@@ -304,6 +326,7 @@ class HybridScheduler {
           duration: Date.now() - startTime,
           isCatchUp,
           manual,
+          persistedNotifications: result.persistedNotifications || null,
         },
       });
 
@@ -350,6 +373,9 @@ class HybridScheduler {
       mode: this.mode,
       isRunning: this.isRunning,
       lastHeartbeat: lastHeartbeat?.toISOString(),
+      lastHeartbeatResult: this.store?.get(
+        'learningBrain.lastHeartbeatResult',
+      ),
       nextScheduledHeartbeat: this.store?.get('learningBrain.nextScheduledHeartbeat'),
       config: this.config,
     };

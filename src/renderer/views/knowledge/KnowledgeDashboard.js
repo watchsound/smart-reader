@@ -7,7 +7,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useTheme, alpha, styled } from '@mui/material/styles';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -37,6 +37,7 @@ import BoltIcon from '@mui/icons-material/Bolt';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import TuneIcon from '@mui/icons-material/Tune';
 import MemoryIcon from '@mui/icons-material/Memory';
+import ReplayIcon from '@mui/icons-material/Replay';
 import Badge from '@mui/material/Badge';
 import Popover from '@mui/material/Popover';
 
@@ -53,6 +54,9 @@ import {
 
 // Knowledge components
 import MemoryTimelinePanel from '../../components/knowledge/MemoryTimelinePanel';
+import CrossBookPathPanel from '../../components/knowledge/CrossBookPathPanel';
+import RereadQueuePanel from '../../components/knowledge/RereadQueuePanel';
+import ProductionPromptPanel from '../../components/knowledge/ProductionPromptPanel';
 
 // API
 import graphApi from '../../api/graphApi';
@@ -276,8 +280,25 @@ const TabsContainer = styled(Tabs)(({ theme }) => ({
 function KnowledgeDashboard() {
   const theme = useTheme();
   const navigate = useNavigate();
+  const location = useLocation();
   const isDark = theme.palette.mode === 'dark';
   const colors = isDark ? ACCENT_COLORS_DARK : ACCENT_COLORS;
+
+  // Phase 8 production loop: notification's actionUrl carries `?produce=<id>`.
+  const produceParam = React.useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get('produce') || null;
+  }, [location.search]);
+
+  const closeProducePanel = useCallback(() => {
+    const params = new URLSearchParams(location.search);
+    params.delete('produce');
+    const next = params.toString();
+    navigate(
+      { pathname: location.pathname, search: next ? `?${next}` : '' },
+      { replace: true },
+    );
+  }, [location.search, location.pathname, navigate]);
 
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(0);
@@ -667,6 +688,16 @@ function KnowledgeDashboard() {
               iconPosition="start"
               label="Memory Timeline"
             />
+            <Tab
+              icon={<RouteIcon sx={{ fontSize: 20 }} />}
+              iconPosition="start"
+              label="Curriculum Builder"
+            />
+            <Tab
+              icon={<ReplayIcon sx={{ fontSize: 20 }} />}
+              iconPosition="start"
+              label="Re-read Queue"
+            />
           </TabsContainer>
           <Tooltip title="Refresh data">
             <span>
@@ -739,9 +770,23 @@ function KnowledgeDashboard() {
                   console.log('Memory selected:', memory);
                 }}
                 height={500}
-                showStats={true}
-                showGaps={true}
+                showStats
+                showGaps
               />
+            </Box>
+          </Fade>
+
+          {/* Phase 7: Cross-book curriculum builder */}
+          <Fade in={activeTab === 5} unmountOnExit>
+            <Box sx={{ display: activeTab === 5 ? 'block' : 'none' }}>
+              <CrossBookPathPanel />
+            </Box>
+          </Fade>
+
+          {/* Phase 8: spaced re-reading queue */}
+          <Fade in={activeTab === 6} unmountOnExit>
+            <Box sx={{ display: activeTab === 6 ? 'block' : 'none' }}>
+              <RereadQueuePanel />
             </Box>
           </Fade>
         </Box>
@@ -767,8 +812,8 @@ function KnowledgeDashboard() {
         <NotificationsPanel
           onClose={handleNotificationClose}
           onNotificationClick={(notification) => {
-            console.log('Notification clicked:', notification);
             handleNotificationClose();
+            if (notification?.actionUrl) navigate(notification.actionUrl);
           }}
           maxHeight={400}
         />
@@ -860,6 +905,13 @@ function KnowledgeDashboard() {
           </Box>
         </Tooltip>
       </Box>
+
+      {/* Phase 8 production loop: floating "explain in your own words" panel. */}
+      <ProductionPromptPanel
+        open={Boolean(produceParam)}
+        learningPointId={produceParam}
+        onClose={closeProducePanel}
+      />
     </DashboardContainer>
   );
 }
