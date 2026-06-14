@@ -51,6 +51,7 @@ import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import BuildIcon from '@mui/icons-material/Build';
 import SearchIcon from '@mui/icons-material/Search';
 import NoteAddIcon from '@mui/icons-material/NoteAdd';
+import SchoolIcon from '@mui/icons-material/School';
 
 import customStorage from '../../store/customStorage';
 import MessageItem from "./MessageItem";
@@ -66,7 +67,8 @@ import SmallButton from "../Button/SmallButton";
 
 import { chatHandled, messageUpdated, messageAdded, messageHandled, messageQueried } from '../../store/reducers/chatSlice';
 import { stripJsonWrap } from '../../../commons/utils/commonUtil';
-import { mapToNewJsonSchema, createReaderLevelPrompt } from '../../../commons/utils/AIPrompts';
+import { mapToNewJsonSchema, createReaderLevelPrompt, createTutorSystemPrompt } from '../../../commons/utils/AIPrompts';
+import { buildTutorContext, composeTutorContextString } from '../../utils/tutorContext';
 import JsonSchemaManager from '../../utils/json/JsonSchemaManager';
 import mindMapSchema, {mindMapSchema0} from '../../utils/json/mindmapSchema';
 import { convertToReactFlow, convertToReactFlow0 } from '../../../commons/utils/content/mindmapUtil';
@@ -197,6 +199,12 @@ function InContextChatPanel({ articleStr, curBook, selectedText = '', onRef }) {
   const [skillStatus, setSkillStatus] = useState({ initialized: false, skillCount: 0, supportsToolUse: false });
   const [toolsUsed, setToolsUsed] = useState([]);
   const [lastToolsUsed, setLastToolsUsed] = useState([]);
+
+  // Phase 1: Tutor mode — injects learner profile + knowledge graph + recent
+  // activity into the system prompt so the chat answers as a teacher who
+  // remembers this specific reader.
+  const [tutorMode, setTutorMode] = useState(false);
+  const [tutorContextLoading, setTutorContextLoading] = useState(false);
 
 
   const [mindMapData, setMindMapData] = useState(null);
@@ -435,6 +443,32 @@ function InContextChatPanel({ articleStr, curBook, selectedText = '', onRef }) {
     return message.join(' ');
   };
 
+  /**
+   * Build the tutor-mode prefix to prepend to the system message.
+   * Returns '' when tutorMode is off or no context could be assembled.
+   * Cached by tutorContext.js — repeated calls within the same book/chapter
+   * are cheap.
+   */
+  const buildTutorPrefix = async () => {
+    if (!tutorMode) return '';
+    setTutorContextLoading(true);
+    try {
+      const ctx = await buildTutorContext({
+        bookId: curBook?.id,
+        chapterId: undefined,
+      });
+      const contextString = composeTutorContextString(ctx);
+      return createTutorSystemPrompt(contextString, {
+        bookTitle: curBook?.title,
+      });
+    } catch (err) {
+      console.warn('[TutorMode] context build failed', err);
+      return '';
+    } finally {
+      setTutorContextLoading(false);
+    }
+  };
+
   const systemMessageLocal = `
     You are assistant and you confidently answer questions based on the knowledge user provided during conversation.
     if a question is out of the knowledge, you politely refuse. your response should be less than 100 words.
@@ -548,11 +582,15 @@ function InContextChatPanel({ articleStr, curBook, selectedText = '', onRef }) {
       msgs = [...msgs, userMessage];
       setMessages(msgs);
 
+      // Tutor-mode prefix (Phase 1) — async; cheap on cache hit.
+      const tutorPrefix = await buildTutorPrefix();
+
       // Build messages for skill chat
       const chatMessages = [
         {
           role: 'system',
-          content: `${readerLevelPrompt}
+          content: `${tutorPrefix}
+                    ${readerLevelPrompt}
                     ${keywordExercisePrompt}
                     ${getSystemMessage()}
                     You are a helpful reading assistant with access to various skills/tools.
@@ -682,10 +720,13 @@ function InContextChatPanel({ articleStr, curBook, selectedText = '', onRef }) {
       } else {
          msgs = [...msgs, userMessage]
         setMessages(msgs);
+        // Tutor-mode prefix (Phase 1) — async; cheap on cache hit.
+        const tutorPrefix = await buildTutorPrefix();
         const result = await aiProviderManager.generateChatStream([
             {
               role: 'system',
-              content: `${readerLevelPrompt  }
+              content: `${tutorPrefix}
+                        ${readerLevelPrompt  }
                        ${ keywordExercisePrompt   }
                         ${getSystemMessage()  }
                         ${useLocalData?localData:''}`,
@@ -958,6 +999,23 @@ function InContextChatPanel({ articleStr, curBook, selectedText = '', onRef }) {
             />
           </Tooltip>
         )}
+
+        {/* Tutor Mode Toggle — Phase 1 */}
+        <Tooltip
+          title={
+            tutorMode
+              ? 'Tutor Mode active — chat uses your learner profile, knowledge graph, and recent activity'
+              : 'Enable Tutor Mode (chat as your personal teacher who remembers what you know)'
+          }
+        >
+          <SkillModeChip
+            icon={<SchoolIcon />}
+            label={tutorContextLoading ? 'Tutor…' : tutorMode ? 'Tutor On' : 'Tutor Off'}
+            active={tutorMode ? 1 : 0}
+            onClick={() => setTutorMode(!tutorMode)}
+            size="small"
+          />
+        </Tooltip>
       </ContextIndicator>
 
       {/* Tool Usage Indicator */}
