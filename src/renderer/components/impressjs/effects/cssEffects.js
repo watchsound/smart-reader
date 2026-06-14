@@ -89,6 +89,29 @@ const CSS_KEYFRAMES = `
   100% { clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); opacity: 1; }
 }
 .impress-transition-shatter_rebuild .step.active { animation: impress-shatter 1s ease-out 1; }
+
+@keyframes impress-ink-wash-drift {
+  0%   { background-position: 0% 0%; }
+  100% { background-position: 100% 100%; }
+}
+.impress-bg-ink_wash {
+  position: relative;
+  background-color: #f4ecd8;
+}
+.impress-bg-ink_wash::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background-image:
+    radial-gradient(circle at 20% 30%, rgba(20, 20, 30, 0.18) 0%, transparent 35%),
+    radial-gradient(circle at 70% 60%, rgba(20, 20, 30, 0.14) 0%, transparent 40%),
+    radial-gradient(circle at 40% 80%, rgba(20, 20, 30, 0.10) 0%, transparent 30%);
+  background-size: 200% 200%;
+  filter: blur(2px);
+  animation: impress-ink-wash-drift 24s ease-in-out infinite alternate;
+}
 `;
 
 /**
@@ -326,6 +349,139 @@ register({
     injectStylesheet(doc);
     doc.body.classList.add('impress-bg-gradient_flow');
     return () => doc.body.classList.remove('impress-bg-gradient_flow');
+  },
+});
+
+register({
+  name: 'starfield_parallax',
+  track: 'background',
+  requiresWebGL: false,
+  mood: ['dramatic'],
+  roles: ['*'],
+  apply: ({ doc }) => {
+    const canvas = doc.createElement('canvas');
+    canvas.style.cssText = 'position:fixed;inset:0;z-index:-1;pointer-events:none;';
+    const w = (doc.defaultView && doc.defaultView.innerWidth) || 1280;
+    const h = (doc.defaultView && doc.defaultView.innerHeight) || 720;
+    canvas.width = w;
+    canvas.height = h;
+    doc.body.appendChild(canvas);
+    const ctx = canvas.getContext && canvas.getContext('2d');
+    const stars = Array.from({ length: 400 }, () => ({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      z: Math.random() * 3 + 0.5,
+    }));
+    let raf = null;
+    if (ctx && typeof requestAnimationFrame === 'function') {
+      const tick = () => {
+        ctx.fillStyle = '#000814';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#fff';
+        stars.forEach((s) => {
+          s.x = (s.x + 0.4 * s.z) % canvas.width;
+          ctx.fillRect(s.x, s.y, s.z, s.z);
+        });
+        raf = requestAnimationFrame(tick);
+      };
+      tick();
+    }
+    return () => {
+      if (raf !== null && typeof cancelAnimationFrame === 'function') {
+        cancelAnimationFrame(raf);
+      }
+      canvas.remove();
+    };
+  },
+});
+
+register({
+  name: 'dust_motes',
+  track: 'background',
+  requiresWebGL: false,
+  mood: ['playful', 'calm'],
+  roles: ['*'],
+  apply: ({ doc }) => {
+    const canvas = doc.createElement('canvas');
+    canvas.style.cssText = 'position:fixed;inset:0;z-index:-1;pointer-events:none;';
+    const w = (doc.defaultView && doc.defaultView.innerWidth) || 1280;
+    const h = (doc.defaultView && doc.defaultView.innerHeight) || 720;
+    canvas.width = w;
+    canvas.height = h;
+    doc.body.appendChild(canvas);
+    const ctx = canvas.getContext && canvas.getContext('2d');
+    const motes = Array.from({ length: 200 }, () => ({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      r: Math.random() * 2 + 0.5,
+      vx: (Math.random() - 0.5) * 0.3,
+      vy: (Math.random() - 0.5) * 0.3,
+    }));
+    let raf = null;
+    if (ctx && typeof requestAnimationFrame === 'function') {
+      const tick = () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = 'rgba(255, 240, 200, 0.3)';
+        motes.forEach((m) => {
+          m.x += m.vx;
+          m.y += m.vy;
+          if (m.x < 0) m.x = canvas.width;
+          if (m.x > canvas.width) m.x = 0;
+          if (m.y < 0) m.y = canvas.height;
+          if (m.y > canvas.height) m.y = 0;
+          ctx.beginPath();
+          ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2);
+          ctx.fill();
+        });
+        raf = requestAnimationFrame(tick);
+      };
+      tick();
+    }
+    return () => {
+      if (raf !== null && typeof cancelAnimationFrame === 'function') {
+        cancelAnimationFrame(raf);
+      }
+      canvas.remove();
+    };
+  },
+});
+
+register({
+  name: 'ink_wash',
+  track: 'background',
+  requiresWebGL: false,
+  mood: ['scholarly', 'calm'],
+  roles: ['*'],
+  apply: ({ doc }) => {
+    injectStylesheet(doc);
+    doc.body.classList.add('impress-bg-ink_wash');
+    return () => doc.body.classList.remove('impress-bg-ink_wash');
+  },
+});
+
+register({
+  name: 'cinema_letterbox',
+  track: 'background',
+  requiresWebGL: false,
+  mood: ['cinematic'],
+  roles: ['*'],
+  apply: ({ doc }) => {
+    const top = doc.createElement('div');
+    const bot = doc.createElement('div');
+    [top, bot].forEach((el) => {
+      el.style.cssText = 'position:fixed;left:0;right:0;height:8vh;background:#000;z-index:9999;';
+    });
+    top.style.top = '0';
+    bot.style.bottom = '0';
+    doc.body.append(top, bot);
+    const vignette = doc.createElement('div');
+    vignette.style.cssText = 'position:fixed;inset:0;box-shadow:inset 0 0 200px rgba(0,0,0,.8);pointer-events:none;z-index:9998;';
+    doc.body.appendChild(vignette);
+    return () => {
+      top.remove();
+      bot.remove();
+      vignette.remove();
+    };
   },
 });
 

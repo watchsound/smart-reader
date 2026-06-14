@@ -78,4 +78,15 @@ describe('cssEffects descriptors', () => {
       cleanup();
     },
   );
+
+  test.each(['starfield_parallax', 'dust_motes', 'ink_wash', 'cinema_letterbox'])(
+    'background effect "%s" mounts and cleans up',
+    (name) => {
+      const d = lookup('background', name);
+      expect(d).not.toBeNull();
+      const cleanup = d.apply(makeCtx());
+      expect(typeof cleanup).toBe('function');
+      cleanup();
+    },
+  );
 });

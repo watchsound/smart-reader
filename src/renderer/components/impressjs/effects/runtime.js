@@ -98,6 +98,29 @@ const CSS_KEYFRAMES = `
   100% { clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); opacity: 1; }
 }
 .impress-transition-shatter_rebuild .step.active { animation: impress-shatter 1s ease-out 1; }
+
+@keyframes impress-ink-wash-drift {
+  0%   { background-position: 0% 0%; }
+  100% { background-position: 100% 100%; }
+}
+.impress-bg-ink_wash {
+  position: relative;
+  background-color: #f4ecd8;
+}
+.impress-bg-ink_wash::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background-image:
+    radial-gradient(circle at 20% 30%, rgba(20, 20, 30, 0.18) 0%, transparent 35%),
+    radial-gradient(circle at 70% 60%, rgba(20, 20, 30, 0.14) 0%, transparent 40%),
+    radial-gradient(circle at 40% 80%, rgba(20, 20, 30, 0.10) 0%, transparent 30%);
+  background-size: 200% 200%;
+  filter: blur(2px);
+  animation: impress-ink-wash-drift 24s ease-in-out infinite alternate;
+}
 `;
 
 /**
@@ -282,6 +305,134 @@ function getRuntimeBundleString() {
       injectStylesheet(ctx.doc);
       ctx.doc.body.classList.add('impress-bg-gradient_flow');
       return function () { ctx.doc.body.classList.remove('impress-bg-gradient_flow'); };
+    },
+  });
+  register({
+    name: 'starfield_parallax', track: 'background',
+    apply: function (ctx) {
+      var doc = ctx.doc;
+      var canvas = doc.createElement('canvas');
+      canvas.style.cssText = 'position:fixed;inset:0;z-index:-1;pointer-events:none;';
+      var view = doc.defaultView || window;
+      var w = view.innerWidth || 1280;
+      var h = view.innerHeight || 720;
+      canvas.width = w;
+      canvas.height = h;
+      doc.body.appendChild(canvas);
+      var c2d = canvas.getContext && canvas.getContext('2d');
+      var stars = [];
+      for (var i = 0; i < 400; i++) {
+        stars.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height,
+          z: Math.random() * 3 + 0.5,
+        });
+      }
+      var raf = null;
+      if (c2d && typeof requestAnimationFrame === 'function') {
+        var tick = function () {
+          c2d.fillStyle = '#000814';
+          c2d.fillRect(0, 0, canvas.width, canvas.height);
+          c2d.fillStyle = '#fff';
+          for (var j = 0; j < stars.length; j++) {
+            var s = stars[j];
+            s.x = (s.x + 0.4 * s.z) % canvas.width;
+            c2d.fillRect(s.x, s.y, s.z, s.z);
+          }
+          raf = requestAnimationFrame(tick);
+        };
+        tick();
+      }
+      return function () {
+        if (raf !== null && typeof cancelAnimationFrame === 'function') {
+          cancelAnimationFrame(raf);
+        }
+        canvas.remove();
+      };
+    },
+  });
+  register({
+    name: 'dust_motes', track: 'background',
+    apply: function (ctx) {
+      var doc = ctx.doc;
+      var canvas = doc.createElement('canvas');
+      canvas.style.cssText = 'position:fixed;inset:0;z-index:-1;pointer-events:none;';
+      var view = doc.defaultView || window;
+      var w = view.innerWidth || 1280;
+      var h = view.innerHeight || 720;
+      canvas.width = w;
+      canvas.height = h;
+      doc.body.appendChild(canvas);
+      var c2d = canvas.getContext && canvas.getContext('2d');
+      var motes = [];
+      for (var i = 0; i < 200; i++) {
+        motes.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height,
+          r: Math.random() * 2 + 0.5,
+          vx: (Math.random() - 0.5) * 0.3,
+          vy: (Math.random() - 0.5) * 0.3,
+        });
+      }
+      var raf = null;
+      if (c2d && typeof requestAnimationFrame === 'function') {
+        var tick = function () {
+          c2d.clearRect(0, 0, canvas.width, canvas.height);
+          c2d.fillStyle = 'rgba(255, 240, 200, 0.3)';
+          for (var j = 0; j < motes.length; j++) {
+            var m = motes[j];
+            m.x += m.vx;
+            m.y += m.vy;
+            if (m.x < 0) m.x = canvas.width;
+            if (m.x > canvas.width) m.x = 0;
+            if (m.y < 0) m.y = canvas.height;
+            if (m.y > canvas.height) m.y = 0;
+            c2d.beginPath();
+            c2d.arc(m.x, m.y, m.r, 0, Math.PI * 2);
+            c2d.fill();
+          }
+          raf = requestAnimationFrame(tick);
+        };
+        tick();
+      }
+      return function () {
+        if (raf !== null && typeof cancelAnimationFrame === 'function') {
+          cancelAnimationFrame(raf);
+        }
+        canvas.remove();
+      };
+    },
+  });
+  register({
+    name: 'ink_wash', track: 'background',
+    apply: function (ctx) {
+      injectStylesheet(ctx.doc);
+      ctx.doc.body.classList.add('impress-bg-ink_wash');
+      return function () { ctx.doc.body.classList.remove('impress-bg-ink_wash'); };
+    },
+  });
+  register({
+    name: 'cinema_letterbox', track: 'background',
+    apply: function (ctx) {
+      var doc = ctx.doc;
+      var top = doc.createElement('div');
+      var bot = doc.createElement('div');
+      var bars = [top, bot];
+      for (var i = 0; i < bars.length; i++) {
+        bars[i].style.cssText = 'position:fixed;left:0;right:0;height:8vh;background:#000;z-index:9999;';
+      }
+      top.style.top = '0';
+      bot.style.bottom = '0';
+      doc.body.appendChild(top);
+      doc.body.appendChild(bot);
+      var vignette = doc.createElement('div');
+      vignette.style.cssText = 'position:fixed;inset:0;box-shadow:inset 0 0 200px rgba(0,0,0,.8);pointer-events:none;z-index:9998;';
+      doc.body.appendChild(vignette);
+      return function () {
+        top.remove();
+        bot.remove();
+        vignette.remove();
+      };
     },
   });
 
