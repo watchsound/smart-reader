@@ -1007,6 +1007,44 @@ export const recordEvent = {
       sourceContext: { view: 'moodboard' },
     });
   },
+
+  // ==================== Trigger Bus (AI-driven shell, Plan 1) ====================
+
+  /**
+   * Subscribe to incoming Triggers from the main-process Brain.
+   * Used by the renderer-side TriggerBus to populate its Proposal Queue.
+   * @param {(trigger: import('../../commons/brain/triggerTypes').Trigger) => void} cb
+   * @returns {() => void} unsubscribe
+   */
+  subscribeTriggers(cb) {
+    const handler = (_evt, trigger) => cb(trigger);
+    ipcRenderer?.on('brain:trigger:push', handler);
+    return () => ipcRenderer?.removeListener?.('brain:trigger:push', handler);
+  },
+
+  /**
+   * Record renderer-side acceptance of a Proposal.
+   * @param {string} proposalId
+   */
+  async acceptProposal(proposalId) {
+    return ipcRenderer?.invoke('brain:trigger:accept', proposalId);
+  },
+
+  /**
+   * Record renderer-side dismissal of a Proposal.
+   * @param {string} proposalId
+   */
+  async dismissProposal(proposalId) {
+    return ipcRenderer?.invoke('brain:trigger:dismiss', proposalId);
+  },
+
+  /**
+   * Pull a synthesized "what's next?" proposal when the queue is empty.
+   * Plan 1 returns null; Plan 2 will synthesize via LLM.
+   */
+  async pullProposal() {
+    return ipcRenderer?.invoke('brain:trigger:pull');
+  },
 };
 
 export default brainApi;
