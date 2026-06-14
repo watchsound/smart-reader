@@ -64,6 +64,7 @@ import Index from './index';
 import HeaderQuickActions from '../components/header/HeaderQuickActions';
 import BrainOrb from '../components/brainShell/BrainOrb';
 import FlowCoordinator from '../components/brainShell/FlowCoordinator';
+import OrbQuestMenu from '../components/brainShell/OrbQuestMenu';
 import useBrainState from '../brain/useBrainState';
 import triggerBus from '../brain/triggerBus';
 
@@ -211,6 +212,7 @@ export default function Root() {
 
   // Brain-driven shell (Plan 1): subscribe to TriggerBus + render Orb + Flow.
   const { orbState, queue, activeProposal } = useBrainState();
+  const [questMenuAnchor, setQuestMenuAnchor] = useState(null);
   const onOrbClick = async () => {
     const top = queue[0];
     if (top) {
@@ -218,6 +220,10 @@ export default function Root() {
     } else {
       await triggerBus.pull();
     }
+  };
+  const onOrbContextMenu = (e) => {
+    e.preventDefault();
+    setQuestMenuAnchor(e.currentTarget);
   };
 
   useEffect(() => {
@@ -472,6 +478,7 @@ export default function Root() {
                 state={orbState}
                 queueDepth={queue.length}
                 onClick={onOrbClick}
+                onContextMenu={onOrbContextMenu}
               />
             </Box>
           )}
@@ -542,6 +549,12 @@ export default function Root() {
 
       {/* Brain-driven shell: active Flow renders here (floating overlay). */}
       <FlowCoordinator proposal={activeProposal} />
+
+      {/* Brain-driven shell: right-click Orb opens the Quest menu. */}
+      <OrbQuestMenu
+        anchorEl={questMenuAnchor}
+        onClose={() => setQuestMenuAnchor(null)}
+      />
 
       {/* Login/Register Modal Dialog */}
       <Dialog
