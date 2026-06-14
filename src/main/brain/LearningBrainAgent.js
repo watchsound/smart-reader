@@ -503,10 +503,10 @@ class LearningBrainAgent {
 
     try {
       if (this.sessionAnalyticsManager) {
+        const sessionInfo = global?.shared?.store?.get?.('session_info');
+        const effectiveToken = sessionInfo?.token || token;
         const velocity =
-          await this.sessionAnalyticsManager.getAggregateVelocity({
-            userId,
-          });
+          this.sessionAnalyticsManager.getAggregateVelocity(effectiveToken);
 
         return {
           task: taskName,
