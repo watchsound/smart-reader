@@ -33,3 +33,12 @@ Canonical names for domain concepts. One source of truth — code, docs, and con
 - **Re-read Queue** — spaced re-reading proposals (Phase 8a).
 - **MoodBoard** — visual organize surface; target of Phase 8b organize loop.
 - **Production Prompt** — high-mastery generative prompt (Phase 8c).
+
+## Plan 2 + 3 additions (Brain shell expansion)
+
+- **Pull Suggestion** — synthesized "what should I do now?" returned by `LearningBrainAgent.synthesizePullSuggestion` when the user pulls (clicks the Orb) and the queue is empty. Shape: `{ title, body, navigate?, source }` where `source` is `'llm'` or `'deterministic-fallback'`. Surfaced in the `BrainDashboardPanel`.
+- **Quest Auto-Creation** — when a Phase 7 cross-book learning-path plan succeeds, the handler creates a `Quest` record with the goal + bookIds from the path steps, broadcasts `quest:changed`, and returns the `questId` to the renderer alongside the path summary. The user can later pause / archive it from the `OrbQuestMenu`.
+- **Quest Weighting** — `ProposalQueue` sort respects an active-Quest book-ID set: proposals whose `payload.bookId` (or `step.view = "reading/<id>"`) intersects the set bubble to the top within their priority tier. Set is hydrated on `triggerBus.init()` and refreshed on `quest:changed` IPC events.
+- **Phase 4/5/6 in-context exception** — Phase 4 (`microcard-propose`), Phase 5 (`PreReadingPanel`), Phase 6 (`ComprehensionPanel`) deliberately do NOT emit Triggers; their in-context surfaces are natural. The Brain Orb is reserved for chapter-end / cluster / cross-book / cross-context proposals (Phase 7, 8a/b/c) where no obvious in-context attachment exists.
+- **Atomic Chip Actions** — `AtomicChipHost` reads optional `payload.actions: Array<{ label, navigate?, primary? }>` and renders them as buttons. Used by Phase 8a/b/c triggers to provide "Open" / "Try it" / "Open MoodBoard" navigation. Engagement (any action click) closes the active flow.
+- **Queue Persistence** — the renderer-side `ProposalQueue` snapshots itself to electron-store on every change (`brain:trigger:queue-snapshot`) and rehydrates on `triggerBus.init()` (`brain:trigger:queue-restore`). `queue.purgeExpired()` drops items past TTL after restore.
