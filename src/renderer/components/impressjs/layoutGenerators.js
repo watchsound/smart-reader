@@ -15,6 +15,7 @@ export const LayoutThemes = {
   DEPTH_ZOOM: 'depth_zoom',
   RANDOM_WALK: 'random_walk',
   STORYTELLING: 'storytelling',
+  HELIX: 'helix',
 };
 
 /**
@@ -217,6 +218,30 @@ function generateStorytellingLayout(count) {
 }
 
 /**
+ * Generate helix layout - slides spiral up a vertical axis (DNA-like).
+ * @param {number} count
+ * @returns {string[]}
+ */
+function generateHelixLayout(count) {
+  const layouts = [];
+  const radius = 1200;
+  const angleStep = 60;
+  const yStep = 500;
+  for (let i = 0; i < count; i++) {
+    const angleDeg = i * angleStep;
+    const angleRad = (angleDeg * Math.PI) / 180;
+    const x = Math.round(radius * Math.cos(angleRad));
+    const z = Math.round(radius * Math.sin(angleRad));
+    const y = -i * yStep;
+    const rotateY = -angleDeg;
+    layouts.push(
+      ` class="step" data-x="${x}" data-y="${y}" data-z="${z}" data-rotate-y="${rotateY}" data-scale="1"`,
+    );
+  }
+  return layouts;
+}
+
+/**
  * Generate layout based on theme
  * @param {string} theme - Layout theme name
  * @param {number} count - Number of slides
@@ -238,6 +263,8 @@ export function generateLayout(theme, count) {
       return generateRandomWalkLayout(count);
     case LayoutThemes.STORYTELLING:
       return generateStorytellingLayout(count);
+    case LayoutThemes.HELIX:
+      return generateHelixLayout(count);
     default:
       return generateSpiralLayout(count);
   }
