@@ -215,3 +215,15 @@ Cross-cutting design docs (longer-form, written separately from the per-subsyste
 - [LLM-Driven Learning Management System](docs/technical/LLM-DRIVEN-LEARNING-MANAGEMENT-SYSTEM.md)
 - [AI Learning Brain Architecture](docs/technical/AI-Learning-Brain-Architecture.md)
 - [Agentic AI Implementation Analysis](docs/technical/Agentic-AI-Implementation-Analysis.md)
+
+## AI-Driven Shell (Plan 1 skeleton — 2026-06-14)
+
+The 21-route CRUD shell is being layered with a reactive Brain-orchestrated surface. Plan 1 lands the skeleton + Phase 4 architectural proof; Plan 2 will add the remaining Flow Units, Quest layer, and Phase 5–8 migrations.
+
+**Shape:** Phase 0–8 services emit Triggers via `TriggerEmitter` (`src/main/brain/TriggerEmitter.js`); the renderer `triggerBus` (`src/renderer/brain/triggerBus.js`) enqueues them into a `ProposalQueue`; a `BrainOrb` injected into `Root.jsx`'s AppBar reflects the queue's state; `FlowCoordinator` routes accepted Proposals to their Flow Unit host (`AtomicChipHost` in Plan 1; `InlineSequenceHost` and `MultiSurfaceFlowHost` are Plan 2 stubs).
+
+**Phase 4 proof:** the `microcard-propose` IPC handler dual-emits — returns the proposal to the existing in-reader `MicroCardChip` AND emits a Trigger via `TriggerEmitter`. The Orb blooms on the new proposal, and clicking it renders the same payload in `AtomicChipHost`. Plan 2 dedups to a single render path.
+
+**Glossary:** [CONTEXT.md](CONTEXT.md) — Brain, Orb, Trigger, Proposal, Flow (Atomic Chip / Inline Sequence / Multi-Surface Flow), Quest, Pull / Push, Escape Hatch.
+
+**Reference:** [docs/superpowers/specs/2026-06-14-ai-driven-shell-design.md](docs/superpowers/specs/2026-06-14-ai-driven-shell-design.md) (spec) and [docs/superpowers/plans/2026-06-14-ai-driven-shell-skeleton.md](docs/superpowers/plans/2026-06-14-ai-driven-shell-skeleton.md) (plan).
