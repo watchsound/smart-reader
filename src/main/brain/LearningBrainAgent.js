@@ -126,13 +126,107 @@ class LearningBrainAgent {
 
   /**
    * Synthesize a "what's next?" suggestion when the user pulls and the
-   * queue is empty.
-   * Plan 1: returns null (Orb click on empty queue shows "you're caught up").
-   * Plan 2 will synthesize via LLM based on learner state.
-   * @returns {Promise<object | null>}
+   * queue is empty. Plan 3: LLM-backed when aiProvider is available,
+   * with a deterministic Quest-aware fallback.
+   *
+   * Returns: { title, body, navigate? } | null
+   *
+   * The result is consumed by the renderer-side triggerBus.pull() which
+   * passes it to BrainShell.onOrbClick; consumers can render it as a
+   * floating chip, narrate it, or enqueue it as a synthetic Proposal.
    */
   async synthesizePullSuggestion() {
-    return null;
+    // Gather lightweight context. Each source is best-effort — failures
+    // degrade gracefully to the deterministic fallback.
+    let activeQuests = [];
+    try {
+      // Lazy require to avoid circular import with main brain bootstrap.
+      const QuestService = require('../utils/QuestService');
+      const questSvc = new QuestService(this.store);
+      activeQuests = questSvc.list({ status: 'active' });
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn('[LearningBrainAgent] quest fetch failed:', e?.message || e);
+    }
+
+    const deterministicFallback = () => {
+      if (activeQuests.length > 0) {
+        const q = activeQuests[0];
+        const firstBook = q.bookIds && q.bookIds.length > 0 ? q.bookIds[0] : null;
+        return {
+          title: `Continue your quest: ${q.name}`,
+          body: q.goal,
+          navigate: firstBook ? `reading/${firstBook}` : null,
+          source: 'deterministic-fallback',
+        };
+      }
+      return {
+        title: "You're caught up",
+        body: 'No pending proposals and no active quests. Pick a book to keep going.',
+        navigate: 'bookshelf',
+        source: 'deterministic-fallback',
+      };
+    };
+
+    if (!this.aiProvider) return deterministicFallback();
+
+    // Compact context block — kept tight to control prompt cost.
+    const questBlock =
+      activeQuests.length === 0
+        ? '(no active quests)'
+        : activeQuests
+            .slice(0, 3)
+            .map(
+              (q, i) =>
+                `${i + 1}. "${q.name}" — ${q.goal} (${q.bookIds?.length || 0} books)`,
+            )
+            .join('\n');
+
+    const prompt = `You are the learner's coach. Suggest ONE specific next action.
+
+Active quests:
+${questBlock}
+
+Reply strictly as JSON with this shape:
+{
+  "title": "short imperative — what to do (max 50 chars)",
+  "body": "one sentence why (max 120 chars)",
+  "navigate": "route path (e.g. reading/3, vocabulary, knowledge) or null if no specific surface"
+}`;
+
+    try {
+      const raw = await this.aiProvider.generateContentWithJson(prompt, true);
+      const parsed =
+        typeof raw === 'string'
+          ? JSON.parse(raw)
+          : raw && typeof raw === 'object'
+            ? raw
+            : null;
+      if (
+        parsed &&
+        typeof parsed.title === 'string' &&
+        typeof parsed.body === 'string'
+      ) {
+        return {
+          title: String(parsed.title).slice(0, 80),
+          body: String(parsed.body).slice(0, 200),
+          navigate:
+            typeof parsed.navigate === 'string' && parsed.navigate.trim()
+              ? parsed.navigate.trim().replace(/^\/+/, '')
+              : null,
+          source: 'llm',
+        };
+      }
+      // Parsed but didn't match shape — fall through.
+      return deterministicFallback();
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[LearningBrainAgent] synthesizePullSuggestion LLM failed:',
+        e?.message || e,
+      );
+      return deterministicFallback();
+    }
   }
 
   /**
