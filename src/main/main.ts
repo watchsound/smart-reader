@@ -2905,15 +2905,15 @@ app
     // Register graph database IPC handlers (works with both Kùzu and Neo4j)
     registerGraphHandlers(store);
 
-    // Brain-driven shell (Plan 1): TriggerEmitter ships Triggers to the
-    // renderer via mainWin.webContents. Instantiated before any handler
-    // registration so Phase 4-8 services can receive it as a dep.
+    // Brain-driven shell: TriggerEmitter ships Triggers to the renderer
+    // via mainWin.webContents. Phase 5-8 services receive it as a dep
+    // (Phase 4 stays in-paragraph and does not emit Triggers).
     const triggerEmitter = new TriggerEmitter({
       getWebContents: () => mainWin?.webContents ?? null,
     });
 
     // Phase 3d + 4a: micro-card proposer and batch enrichment IPC handlers
-    registerMicroCardHandlers({ triggerEmitter });
+    registerMicroCardHandlers();
     registerEnrichmentHandlers();
     // Phase 5: pre-book diagnostic IPC handlers
     registerBookDiagnosticHandlers();
