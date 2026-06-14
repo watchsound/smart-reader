@@ -22,6 +22,8 @@ const {
   NOTIFICATION_TYPES,
   NOTIFICATION_PRIORITIES,
 } = require('../db/NotificationManager');
+const { createNote } = require('../db/NoteJsonManager');
+const { createMoodBoard } = require('../db/MoodBoardJsonManager');
 
 /**
  * The brain's heartbeat passes a synthetic token. NotificationManager
@@ -285,6 +287,156 @@ class MoodBoardOrganizerService {
     this.writeSuggestions(suggestions);
     return true;
   }
+
+  /**
+   * Phase 8 Slice 3 — create a MoodBoard pre-populated with notes derived
+   * from the cluster's learning points. Replaces the renderer's previous
+   * "empty board with description" flow.
+   *
+   * For each active learning point in (book, domain), creates a note whose
+   * `content` is the front/back rendered as markdown, then assembles a
+   * gridLayout with one tile per note. Clears the dedup record so the
+   * organize banner stops surfacing. Emits ORGANIZE_BOARD_CREATED so
+   * analytics can distinguish "accepted-but-empty" from
+   * "accepted-and-populated".
+   *
+   * Wrapped in a single SQLite transaction so a partial failure (note
+   * created, board create throws) doesn't leave orphan notes.
+   *
+   * @param {number} userId
+   * @param {number} bookId
+   * @param {string} domainType
+   * @param {string} token  — real session token (NOT the heartbeat synthetic)
+   * @returns {{ board: Object, noteIds: Array<number> } | { error: string }}
+   */
+  createBoardFromCluster(userId, bookId, domainType, token) {
+    if (!token) return { error: 'No session token.' };
+
+    // Re-query for fresh title/front/back — same logic as getSuggestion
+    // but we also need `back` for note content.
+    const points = db
+      .prepare(
+        `SELECT id, title, front, back, domain_type AS domainType
+           FROM learning_point
+          WHERE user_id = ? AND book_id = ? AND domain_type = ?
+            AND status = 'active'
+          ORDER BY created_at DESC`,
+      )
+      .all(userId, bookId, domainType);
+
+    if (points.length === 0) {
+      return { error: 'No active learning points found for this cluster.' };
+    }
+
+    const bookRow = db
+      .prepare(`SELECT name FROM book WHERE id = ?`)
+      .get(bookId);
+    const bookTitle = bookRow ? bookRow.name : `Book #${bookId}`;
+    const prettyDomain = domainType
+      ? domainType.charAt(0).toUpperCase() + domainType.slice(1)
+      : 'Knowledge';
+
+    // Transaction: notes + board creation must succeed or fail together.
+    // better-sqlite3's transaction() returns a wrapper we invoke synchronously.
+    const run = db.transaction(() => {
+      const noteIds = [];
+      points.forEach((lp) => {
+        const noteContent = buildNoteContent(lp);
+        const note = createNote(
+          {
+            sourceType: 'learning_point',
+            sourceKey: lp.id,
+            content: noteContent,
+            imageData: '',
+            cfi: '',
+            url: '',
+            emoji: '🧠',
+            color: '#673ab7',
+            highlightType: 'concept',
+          },
+          token,
+        );
+        if (note && note.id) noteIds.push(note.id);
+      });
+
+      if (noteIds.length === 0) {
+        throw new Error('Failed to create any notes for the cluster.');
+      }
+
+      // Lay out 2-wide tiles in a grid: x in {0,2,4,6,8,10}, y stepped.
+      const COLS_PER_ROW = 6;
+      const TILE_W = 2;
+      const TILE_H = 4;
+      const layoutItems = noteIds.map((noteId, idx) => ({
+        x: (idx % COLS_PER_ROW) * TILE_W,
+        y: Math.floor(idx / COLS_PER_ROW) * TILE_H,
+        w: TILE_W,
+        h: TILE_H,
+        i: String(noteId),
+      }));
+
+      const board = createMoodBoard(
+        {
+          name: `${prettyDomain} from ${bookTitle}`,
+          description: `Brain-suggested cluster of ${
+            points.length
+          } ${domainType} concepts from "${bookTitle}".`,
+          gridLayout: { layout: { lg: layoutItems } },
+          diagram: {},
+          pinned: false,
+        },
+        token,
+      );
+
+      if (!board || !board.id) {
+        throw new Error('createMoodBoard returned no id.');
+      }
+
+      return { board, noteIds };
+    });
+
+    let result;
+    try {
+      result = run();
+    } catch (err) {
+      return { error: err?.message || 'Failed to create board from cluster.' };
+    }
+
+    // Clear dedup AFTER the transaction commits — if the board create
+    // rolled back, we want the suggestion to remain so the user can retry.
+    // Renderer emits ORGANIZE_ACCEPTED with the noteCount from the returned
+    // result, so we don't double-fire an analytics event here.
+    this.clearSuggestion(userId, bookId, domainType);
+
+    return result;
+  }
+}
+
+/**
+ * Build the note `content` string from a learning point. The back field
+ * is JSON ({ text } or { text, examples }); fall back to the raw string
+ * if it isn't valid JSON (older rows). Front is included as a question
+ * line so the note is self-contained on the MoodBoard.
+ */
+function buildNoteContent(lp) {
+  let backText = '';
+  try {
+    const parsed = JSON.parse(lp.back);
+    backText =
+      typeof parsed?.text === 'string' ? parsed.text : String(lp.back || '');
+  } catch (_) {
+    backText = String(lp.back || '');
+  }
+  const front = (lp.front || '').trim();
+  const title = (lp.title || '').trim();
+  return [
+    `# ${title}`,
+    front ? `*${front}*` : '',
+    '',
+    backText.trim(),
+  ]
+    .filter((s) => s !== '')
+    .join('\n');
 }
 
 module.exports = MoodBoardOrganizerService;

@@ -12,6 +12,8 @@
  * Channels:
  *   moodboard-organizer-get-suggestion    { dedupKey, token } → { suggestion | null }
  *   moodboard-organizer-clear-suggestion  { bookId, domainType, token } → { ok }
+ *   moodboard-organizer-create-board      { bookId, domainType, token } →
+ *     { board, noteIds } | { error }    (Slice 3: builds the populated board)
  *
  * State lives in electron-store; this handler module owns its own service
  * instance but reads/writes the same STORE_KEY as the brain instance, so
@@ -49,6 +51,37 @@ function registerMoodBoardOrganizerHandlers(store) {
       return { suggestion: null, error: err?.message };
     }
   });
+
+  ipcMain.handle(
+    'moodboard-organizer-create-board',
+    (_event, payload) => {
+      try {
+        const { bookId, domainType, token } = payload || {};
+        if (!bookId || !domainType) {
+          return { error: 'bookId and domainType are required.' };
+        }
+        if (!token) {
+          return { error: 'session token is required.' };
+        }
+        const userId = getUserIdFromToken(token);
+        if (userId < 0) {
+          return { error: 'invalid session.' };
+        }
+        return service.createBoardFromCluster(
+          userId,
+          Number(bookId),
+          domainType,
+          token,
+        );
+      } catch (err) {
+        console.error(
+          '[moodBoardOrganizerHandlers] create-board failed:',
+          err,
+        );
+        return { error: err?.message || 'create-board failed' };
+      }
+    },
+  );
 
   ipcMain.handle('moodboard-organizer-clear-suggestion', (_event, payload) => {
     try {

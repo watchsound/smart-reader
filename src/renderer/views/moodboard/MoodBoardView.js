@@ -263,24 +263,29 @@ function MoodBoardView({ moodBoard }) {
   const handleAcceptSuggestion = useCallback(async () => {
     if (!organizeSuggestion) return;
     const { bookTitle, domainType, conceptTitles, bookId } = organizeSuggestion;
-    const previewLines = conceptTitles
-      .map((t, i) => `${i + 1}. ${t}`)
-      .join('\n');
-    const newBoard = {
-      name: `${domainType.charAt(0).toUpperCase() + domainType.slice(1)} from ${bookTitle}`,
-      description: `Concepts to organize:\n${previewLines}`,
-      gridLayout: { layout: { lg: [] } },
-      diagram: {},
-      pinned: false,
-    };
     try {
-      const created = await createMoodBoard(newBoard);
+      // Phase 8 Slice 3: server creates the board + one note per learning
+      // point + clears the dedup record in a single SQLite transaction so
+      // we never end up with an empty board on success.
+      const res = await moodBoardOrganizerApi.createBoardFromCluster(
+        bookId,
+        domainType,
+      );
+      if (!res || res.error || !res.board) {
+        // eslint-disable-next-line no-console
+        console.error(
+          '[MoodBoardView] createBoardFromCluster failed:',
+          res?.error,
+        );
+        return;
+      }
+      const created = res.board;
       dispatch(moodBoardAdded(created));
       setCurMoodBoard(created);
       dispatch(moodBoardHandled(created));
-      await moodBoardOrganizerApi.clearSuggestion(bookId, domainType);
       // Pair with ORGANIZE_SUGGESTED from the brain heartbeat so
-      // analytics can compute suggest → accept conversion.
+      // analytics can compute suggest → accept conversion AND the
+      // population success rate (noteCount per cluster).
       recordEvent.organizeAccepted({
         dedupKey: `${bookId}:${domainType}`,
         bookId,
@@ -288,6 +293,7 @@ function MoodBoardView({ moodBoard }) {
         domainType,
         pointCount: conceptTitles.length,
         newBoardId: created?.id,
+        noteCount: Array.isArray(res.noteIds) ? res.noteIds.length : 0,
       });
       loadMoodBoards();
     } finally {

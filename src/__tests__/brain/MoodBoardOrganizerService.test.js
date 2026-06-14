@@ -21,6 +21,7 @@ jest.mock('electron', () => ({
 const mockAggStmt = { all: jest.fn(() => []) };
 const mockDetailStmt = { all: jest.fn(() => []) };
 const mockBookStmt = { get: jest.fn(() => null) };
+const mockClusterStmt = { all: jest.fn(() => []) };
 
 jest.mock('../../main/db/dbManager', () => ({
   __esModule: true,
@@ -29,8 +30,13 @@ jest.mock('../../main/db/dbManager', () => ({
       // Route to the right mock based on SQL fragments.
       if (sql.includes('GROUP BY')) return mockAggStmt;
       if (sql.includes('FROM book')) return mockBookStmt;
+      // Slice-3 cluster-detail query: SELECT id, title, front, back,
+      // status='active', book_id, domain_type ORDER BY created_at DESC.
+      if (sql.includes('front, back')) return mockClusterStmt;
       return mockDetailStmt;
     }),
+    // db.transaction(fn) returns a wrapper that runs fn synchronously.
+    transaction: jest.fn((fn) => () => fn()),
   },
   getUserIdFromToken: jest.fn(() => 1),
 }));
@@ -40,6 +46,16 @@ jest.mock('../../main/db/NotificationManager', () => ({
   createNotification: (...args) => mockCreateNotification(...args),
   NOTIFICATION_TYPES: { PROGRESS: 'progress', SYSTEM: 'system' },
   NOTIFICATION_PRIORITIES: { NORMAL: 'normal', HIGH: 'high' },
+}));
+
+const mockCreateNote = jest.fn();
+jest.mock('../../main/db/NoteJsonManager', () => ({
+  createNote: (...args) => mockCreateNote(...args),
+}));
+
+const mockCreateMoodBoard = jest.fn();
+jest.mock('../../main/db/MoodBoardJsonManager', () => ({
+  createMoodBoard: (...args) => mockCreateMoodBoard(...args),
 }));
 
 const MoodBoardOrganizerService = require('../../main/brain/MoodBoardOrganizerService');
@@ -85,7 +101,10 @@ describe('MoodBoardOrganizerService', () => {
     mockAggStmt.all.mockReturnValue([]);
     mockDetailStmt.all.mockReturnValue([]);
     mockBookStmt.get.mockReturnValue(null);
+    mockClusterStmt.all.mockReturnValue([]);
     mockCreateNotification.mockReturnValue({ id: 'notif_123' });
+    mockCreateNote.mockReset();
+    mockCreateMoodBoard.mockReset();
 
     // Provide a real session so suggestOrganize doesn't short-circuit.
     global.shared = {
@@ -308,6 +327,138 @@ describe('MoodBoardOrganizerService', () => {
     it('returns false when no such record exists', () => {
       const ok = service.clearSuggestion(1, 99, 'math');
       expect(ok).toBe(false);
+    });
+  });
+
+  // ----------------------------------------------------------------------
+  // createBoardFromCluster (Slice 3)
+  // ----------------------------------------------------------------------
+
+  describe('createBoardFromCluster', () => {
+    const SAMPLE_LP_ROWS = [
+      {
+        id: 'lp_1',
+        title: 'serendipity',
+        front: 'meaning?',
+        back: JSON.stringify({ text: 'a happy accident' }),
+        domainType: 'vocabulary',
+      },
+      {
+        id: 'lp_2',
+        title: 'ephemeral',
+        front: 'meaning?',
+        back: JSON.stringify({ text: 'lasting a very short time' }),
+        domainType: 'vocabulary',
+      },
+    ];
+
+    beforeEach(() => {
+      store.set('moodBoard.organizeSuggestions', {
+        1: {
+          '42:vocabulary': {
+            notificationId: 'notif_123',
+            pointIds: ['lp_1', 'lp_2'],
+            pointCount: 2,
+            createdAt: 'x',
+          },
+        },
+      });
+    });
+
+    it('returns error when token is missing', () => {
+      const res = service.createBoardFromCluster(1, 42, 'vocabulary', null);
+      expect(res).toEqual({ error: 'No session token.' });
+      expect(mockCreateNote).not.toHaveBeenCalled();
+      expect(mockCreateMoodBoard).not.toHaveBeenCalled();
+    });
+
+    it('returns error when no learning points match the cluster', () => {
+      mockClusterStmt.all.mockReturnValue([]);
+      const res = service.createBoardFromCluster(1, 42, 'vocabulary', 'tok');
+      expect(res.error).toMatch(/No active learning points/);
+      expect(mockCreateNote).not.toHaveBeenCalled();
+      expect(mockCreateMoodBoard).not.toHaveBeenCalled();
+    });
+
+    it('creates one note per learning point, builds layout, returns board', () => {
+      mockClusterStmt.all.mockReturnValue(SAMPLE_LP_ROWS);
+      mockBookStmt.get.mockReturnValue({ name: 'The Word Lover' });
+      let noteId = 100;
+      mockCreateNote.mockImplementation((note) => ({
+        ...note,
+        id: ++noteId,
+      }));
+      mockCreateMoodBoard.mockImplementation((board) => ({
+        ...board,
+        id: 'board_1',
+      }));
+
+      const res = service.createBoardFromCluster(1, 42, 'vocabulary', 'tok');
+
+      expect(res.board.id).toBe('board_1');
+      expect(res.noteIds).toEqual([101, 102]);
+
+      // Board metadata pulls book title + capitalizes domain.
+      expect(mockCreateMoodBoard).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'Vocabulary from The Word Lover',
+          description: expect.stringContaining('2 vocabulary concepts'),
+        }),
+        'tok',
+      );
+
+      // gridLayout has one tile per note, with `i` set to the note id.
+      const layoutArg = mockCreateMoodBoard.mock.calls[0][0].gridLayout;
+      expect(layoutArg.layout.lg).toHaveLength(2);
+      expect(layoutArg.layout.lg.map((it) => it.i)).toEqual(['101', '102']);
+
+      // Notes carry the learning-point linkage.
+      expect(mockCreateNote).toHaveBeenCalledTimes(2);
+      expect(mockCreateNote.mock.calls[0][0]).toMatchObject({
+        sourceType: 'learning_point',
+        sourceKey: 'lp_1',
+      });
+      expect(mockCreateNote.mock.calls[0][0].content).toContain('serendipity');
+      expect(mockCreateNote.mock.calls[0][0].content).toContain(
+        'a happy accident',
+      );
+    });
+
+    it('clears the dedup record after success', () => {
+      mockClusterStmt.all.mockReturnValue(SAMPLE_LP_ROWS);
+      mockCreateNote.mockReturnValue({ id: 999 });
+      mockCreateMoodBoard.mockReturnValue({ id: 'board_x' });
+
+      service.createBoardFromCluster(1, 42, 'vocabulary', 'tok');
+
+      const suggestions = store.get('moodBoard.organizeSuggestions');
+      expect(suggestions[1]['42:vocabulary']).toBeUndefined();
+    });
+
+    it('preserves the dedup record on failure so the user can retry', () => {
+      mockClusterStmt.all.mockReturnValue(SAMPLE_LP_ROWS);
+      mockCreateNote.mockReturnValue({ id: 999 });
+      mockCreateMoodBoard.mockImplementation(() => {
+        throw new Error('disk full');
+      });
+
+      const res = service.createBoardFromCluster(1, 42, 'vocabulary', 'tok');
+      expect(res.error).toContain('disk full');
+
+      const suggestions = store.get('moodBoard.organizeSuggestions');
+      expect(suggestions[1]['42:vocabulary']).toBeTruthy();
+    });
+
+    it('falls back to "Book #ID" when the book row is missing', () => {
+      mockClusterStmt.all.mockReturnValue(SAMPLE_LP_ROWS);
+      mockBookStmt.get.mockReturnValue(null);
+      mockCreateNote.mockReturnValue({ id: 999 });
+      mockCreateMoodBoard.mockReturnValue({ id: 'board_x' });
+
+      service.createBoardFromCluster(1, 42, 'vocabulary', 'tok');
+
+      const boardArg = mockCreateMoodBoard.mock.calls[0][0];
+      expect(boardArg.name).toBe('Vocabulary from Book #42');
     });
   });
 });
