@@ -18,30 +18,55 @@ const generateImpressHTML = async ({ paragraph }) => {
   async function decomposeWithAI(input) {
     const prompt = createDecomposeParagraphPrompt(input);
     const r = await aiProviderManager.generateContentWithJson(prompt, true);
-    const a = [];
-    let theme = null;
+    const slides = [];
+    const deck = { layout_theme: null, global_mood: null, background: null };
     if (r) {
-      // Extract layout theme if provided
-      if (r.layout_theme) {
-        theme = r.layout_theme;
-      }
-      // Extract content
-      if (r.data) {
-        r.data.forEach((item) => a.push(item.content));
+      deck.layout_theme = r.layout_theme || null;
+      deck.global_mood = r.global_mood || null;
+      deck.background = r.background || null;
+      if (Array.isArray(r.data)) {
+        r.data.forEach((item) => {
+          slides.push({
+            content: item.content,
+            role: item.role || null,
+            typography: item.typography || null,
+            transition: item.transition || null,
+            background: item.background || null,
+          });
+        });
       }
     }
-    return { contents: a, theme };
+    return { slides, deck };
   }
 
+  let slidesData = [];
+  let deckData = { layout_theme: null, global_mood: null, background: null };
+
   if (Array.isArray(paragraph)) {
+    slidesData = paragraph.map((p) => ({
+      content: p,
+      role: null,
+      typography: null,
+      transition: null,
+      background: null,
+    }));
     sentences = paragraph;
   } else {
     const result = await decomposeWithAI(paragraph);
-    sentences = result.contents;
-    suggestedTheme = result.theme;
+    sentences = result.slides.map((s) => s.content);
+    suggestedTheme = result.deck.layout_theme;
+    slidesData = result.slides;
+    deckData = result.deck;
 
     if (!sentences || sentences.length === 0) {
       sentences = await customStorage.sentenceTokenizer(paragraph);
+      slidesData = sentences.map((p) => ({
+        content: p,
+        role: null,
+        typography: null,
+        transition: null,
+        background: null,
+      }));
     }
   }
 
@@ -71,13 +96,42 @@ const generateImpressHTML = async ({ paragraph }) => {
   let css2Path = `${aPath}/styles/impress-demo.css`;
   css2Path = `file://${css2Path.replace(/\\/g, '/')}`;
 
+  // Load registries (side-effect imports register the descriptors)
+  require('./effects/cssEffects');
+  const { lookup } = require('./effects/registries');
+  const {
+    pickTypographyByMoodRole,
+    pickBackgroundByMood,
+    pickTransitionByMood,
+  } = require('./effects/fallbackTables');
+
+  // Resolve deck-level background: per-deck override -> mood-based fallback -> 'none'
+  const resolvedBackground = deckData.background
+    || (deckData.global_mood ? pickBackgroundByMood(deckData.global_mood) : 'none');
+
   let steps = '';
   const numSentences = sentences.length;
 
-  sentences.forEach((element, index) => {
+  slidesData.forEach((slide, index) => {
+    // Layout — use registry; fall back to legacy `layouts` array if name unknown
+    const layoutDesc = lookup('layout', layoutTheme);
+    const layoutAttrs = layoutDesc
+      ? layoutDesc.generate(index, slidesData.length)
+      : layouts[index];
+
+    // Typography — per-slide -> mood+role fallback -> 'none'
+    const typo = slide.typography
+      || pickTypographyByMoodRole(deckData.global_mood || 'calm', slide.role || 'key_concept');
+
+    // Transition — per-slide -> mood fallback -> 'default'
+    const trans = slide.transition || pickTransitionByMood(deckData.global_mood || 'calm');
+
+    // Background — per-slide override -> deck-level background
+    const bg = slide.background || resolvedBackground;
+
     steps += `
-    <div id="step-${index}" ${layouts[index]} >
-    ${element}
+    <div id="step-${index}" ${layoutAttrs} data-typo="${typo}" data-transition="${trans}" data-bg="${bg}">
+    ${slide.content}
     </div>`;
   });
 
