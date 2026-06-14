@@ -238,6 +238,9 @@ import { registerBrainHandlers } from './ipc/brainHandlers';
 const { registerTriggerBusHandlers } = require('./ipc/triggerBusHandlers');
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const TriggerEmitter = require('./brain/TriggerEmitter');
+// Plan 2 fork #5 (Quest layer)
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { registerQuestHandlers } = require('./ipc/questHandlers');
 import { registerUnifiedLearningHandlers } from './ipc/unifiedLearningHandlers';
 import { registerLearningPointHandlers } from './ipc/learningPointHandlers';
 import { registerMicroCardHandlers } from './ipc/microCardHandlers';
@@ -2923,6 +2926,9 @@ app
     registerLearningPathPlannerHandlers({ triggerEmitter });
     // Phase 8: spaced re-reading queue IPC handlers
     registerRereadQueueHandlers(store, { triggerEmitter });
+    // Plan 2 fork #5: Quest layer (data model + IPC; brain weighting + UI
+    // deferred to Plan 3).
+    registerQuestHandlers(store);
     // Phase 8: MoodBoard organize-suggestion IPC handlers (renderer side
     // of the brain heartbeat's `suggestOrganizeSessions` task).
     registerMoodBoardOrganizerHandlers(store);
