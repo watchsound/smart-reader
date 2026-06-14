@@ -82,7 +82,14 @@ async function _hydrateQuestContext() {
   if (!ipc) return;
   try {
     const list = await ipc.invoke('quest-list', { status: 'active' });
-    if (!Array.isArray(list)) return;
+    if (!Array.isArray(list)) {
+      // quest-list handler guarantees an array; reaching this branch means
+      // a transport regression. Log so it's not invisible — bus runs
+      // unweighted, which is correct fallback semantics.
+      // eslint-disable-next-line no-console
+      console.warn('[triggerBus] quest-list returned non-array:', list);
+      return;
+    }
     const ids = new Set();
     list.forEach((q) => {
       (q.bookIds || []).forEach((b) => {
