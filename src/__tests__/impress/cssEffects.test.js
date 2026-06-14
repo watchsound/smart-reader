@@ -55,4 +55,16 @@ describe('cssEffects descriptors', () => {
     expect(typeof cleanup).toBe('function');
     cleanup();
   });
+
+  test.each([
+    'typewriter', 'word_by_word_fade', 'scramble_decode',
+    'letters_from_edges', 'glitch_chromatic', 'neon_glow_pulse', 'ink_write',
+  ])('typography effect "%s" mounts and cleans up without throwing', (name) => {
+    const d = lookup('typography', name);
+    expect(d).not.toBeNull();
+    const ctx = makeCtx();
+    const cleanup = d.apply(ctx);
+    expect(typeof cleanup).toBe('function');
+    cleanup();
+  });
 });

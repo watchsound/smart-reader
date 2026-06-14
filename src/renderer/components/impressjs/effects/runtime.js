@@ -36,6 +36,51 @@ const CSS_KEYFRAMES = `
 .impress-transition-depth_blur .step.active {
   filter: blur(0px);
 }
+@keyframes impress-typewriter {
+  from { width: 0; }
+  to   { width: 100%; }
+}
+.impress-typo-typewriter {
+  display: inline-block; overflow: hidden; white-space: nowrap;
+  border-right: 2px solid currentColor;
+  animation: impress-typewriter 1.2s steps(40, end) forwards;
+}
+.impress-typo-word_by_word_fade > span {
+  opacity: 0; display: inline-block;
+  animation: impress-fade-up 0.5s ease forwards;
+}
+@keyframes impress-fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes impress-letters-in {
+  from { transform: translate(var(--dx, 0), var(--dy, 0)) scale(0.5); opacity: 0; }
+  to   { transform: translate(0, 0) scale(1);                          opacity: 1; }
+}
+.impress-typo-letters_from_edges > span {
+  display: inline-block;
+  animation: impress-letters-in 0.7s cubic-bezier(.2,.7,.3,1) forwards;
+}
+@keyframes impress-glitch {
+  0%   { transform: translate(0); filter: none; }
+  20%  { transform: translate(-2px, 0); filter: hue-rotate(20deg); }
+  40%  { transform: translate(2px, 0);  filter: hue-rotate(-20deg); }
+  60%  { transform: translate(-1px, 1px); filter: none; }
+  100% { transform: translate(0); filter: none; }
+}
+.impress-typo-glitch_chromatic {
+  animation: impress-glitch 0.6s steps(8) 1;
+  text-shadow: 1px 0 #ff0044, -1px 0 #00ffff;
+}
+@keyframes impress-neon-pulse {
+  0%, 100% { text-shadow: 0 0 4px #fff, 0 0 8px currentColor; }
+  50%      { text-shadow: 0 0 8px #fff, 0 0 24px currentColor, 0 0 48px currentColor; }
+}
+.impress-typo-neon_glow_pulse { animation: impress-neon-pulse 1.2s ease 1; }
+@keyframes impress-scramble-pulse { 0% { opacity: 0.4; } 100% { opacity: 1; } }
+.impress-typo-scramble_decode { animation: impress-scramble-pulse 0.8s linear forwards; }
+.impress-typo-ink_write text { stroke-dasharray: 500; stroke-dashoffset: 500; animation: impress-ink 1.4s ease forwards; }
+@keyframes impress-ink { to { stroke-dashoffset: 0; } }
 `;
 
 /**
@@ -80,6 +125,132 @@ function getRuntimeBundleString() {
       injectStylesheet(ctx.doc);
       ctx.slideEl.classList.add('impress-typo-blur_in');
       return function () { ctx.slideEl.classList.remove('impress-typo-blur_in'); };
+    },
+  });
+  register({
+    name: 'typewriter', track: 'typography',
+    apply: function (ctx) {
+      injectStylesheet(ctx.doc);
+      ctx.slideEl.classList.add('impress-typo-typewriter');
+      return function () { ctx.slideEl.classList.remove('impress-typo-typewriter'); };
+    },
+  });
+  register({
+    name: 'word_by_word_fade', track: 'typography',
+    apply: function (ctx) {
+      injectStylesheet(ctx.doc);
+      var slideEl = ctx.slideEl;
+      var doc = ctx.doc;
+      var text = slideEl.textContent;
+      var words = text.split(/(\s+)/);
+      slideEl.textContent = '';
+      for (var i = 0; i < words.length; i++) {
+        var w = words[i];
+        if (/^\s+$/.test(w)) {
+          slideEl.appendChild(doc.createTextNode(w));
+        } else {
+          var span = doc.createElement('span');
+          span.textContent = w;
+          span.style.animationDelay = (i * 80) + 'ms';
+          slideEl.appendChild(span);
+        }
+      }
+      slideEl.classList.add('impress-typo-word_by_word_fade');
+      return function () {
+        slideEl.textContent = text;
+        slideEl.classList.remove('impress-typo-word_by_word_fade');
+      };
+    },
+  });
+  register({
+    name: 'scramble_decode', track: 'typography',
+    apply: function (ctx) {
+      injectStylesheet(ctx.doc);
+      var slideEl = ctx.slideEl;
+      var original = slideEl.textContent;
+      var chars = '!@#$%^&*<>/?\\\\|{}[]=+-_';
+      var start = Date.now();
+      var duration = 700;
+      var interval = setInterval(function () {
+        var elapsed = Date.now() - start;
+        var progress = Math.min(elapsed / duration, 1);
+        var reveal = Math.floor(original.length * progress);
+        var out = '';
+        for (var i = 0; i < original.length; i++) {
+          if (i < reveal) {
+            out += original[i];
+          } else if (/\s/.test(original[i])) {
+            out += original[i];
+          } else {
+            out += chars[Math.floor(Math.random() * chars.length)];
+          }
+        }
+        slideEl.textContent = out;
+        if (progress >= 1) {
+          slideEl.textContent = original;
+          clearInterval(interval);
+        }
+      }, 40);
+      slideEl.classList.add('impress-typo-scramble_decode');
+      return function () {
+        clearInterval(interval);
+        slideEl.textContent = original;
+        slideEl.classList.remove('impress-typo-scramble_decode');
+      };
+    },
+  });
+  register({
+    name: 'letters_from_edges', track: 'typography',
+    apply: function (ctx) {
+      injectStylesheet(ctx.doc);
+      var slideEl = ctx.slideEl;
+      var doc = ctx.doc;
+      var text = slideEl.textContent;
+      var chars = text.split('');
+      slideEl.textContent = '';
+      for (var i = 0; i < chars.length; i++) {
+        var c = chars[i];
+        if (/\s/.test(c)) {
+          slideEl.appendChild(doc.createTextNode(c));
+        } else {
+          var span = doc.createElement('span');
+          span.textContent = c;
+          span.style.setProperty('--dx', ((Math.random() - 0.5) * 1200) + 'px');
+          span.style.setProperty('--dy', ((Math.random() - 0.5) * 800) + 'px');
+          span.style.animationDelay = (i * 30) + 'ms';
+          slideEl.appendChild(span);
+        }
+      }
+      slideEl.classList.add('impress-typo-letters_from_edges');
+      return function () {
+        slideEl.textContent = text;
+        slideEl.classList.remove('impress-typo-letters_from_edges');
+      };
+    },
+  });
+  register({
+    // runtime: simplified -- SVG ink-write requires async font measurement
+    name: 'ink_write', track: 'typography',
+    apply: function (ctx) {
+      injectStylesheet(ctx.doc);
+      ctx.slideEl.classList.add('impress-typo-blur_in');
+      return function () { ctx.slideEl.classList.remove('impress-typo-blur_in'); };
+    },
+  });
+  register({
+    name: 'glitch_chromatic', track: 'typography',
+    apply: function (ctx) {
+      injectStylesheet(ctx.doc);
+      ctx.slideEl.classList.add('impress-typo-glitch_chromatic');
+      return function () { ctx.slideEl.classList.remove('impress-typo-glitch_chromatic'); };
+    },
+  });
+  register({
+    name: 'neon_glow_pulse', track: 'typography',
+    apply: function (ctx) {
+      injectStylesheet(ctx.doc);
+      ctx.slideEl.classList.add('impress-typo-neon_glow_pulse');
+      return function () { ctx.slideEl.classList.remove('impress-typo-neon_glow_pulse'); };
     },
   });
 
