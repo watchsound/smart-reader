@@ -4,6 +4,7 @@ import customStorage from '../../store/customStorage';
 import { createDecomposeParagraphPrompt } from '../../../commons/utils/AIPrompts';
 import { instanceInRender as aiProviderManager } from '../../../commons/service/AIProviderManager';
 import { generateLayout, selectLayoutTheme } from './layoutGenerators';
+import { getRuntimeBundleString } from './effects/runtime';
 
 /**
  * Generate HTML content for impress.js presentation
@@ -228,11 +229,37 @@ const generateImpressHTML = async ({ paragraph }) => {
 
         <script src="${scriptPath}"></script>
         <script>
+          ${getRuntimeBundleString()}
+
           // Hide hint after first interaction
           document.addEventListener("impress:stepenter", function() {
             var hint = document.querySelector('.hint');
             if (hint) hint.style.opacity = '0';
           }, { once: true });
+
+          // Apply deck-level background effect once (resolved at HTML-gen time)
+          (function applyDeckBackground() {
+            var bg = ${JSON.stringify(resolvedBackground)};
+            var desc = window.__impressEffects.lookup('background', bg);
+            if (desc) desc.apply({ slideEl: null, doc: document, slideData: {}, deck: ${JSON.stringify(deckData)}, scene: null });
+          })();
+
+          // Apply per-slide typography + transition on stepenter; cleanup on stepleave
+          var activeCleanups = [];
+          document.addEventListener('impress:stepenter', function (e) {
+            while (activeCleanups.length) { try { activeCleanups.pop()(); } catch (err) {} }
+            var slideEl = e.target;
+            var typoName = slideEl.getAttribute('data-typo') || 'none';
+            var transName = slideEl.getAttribute('data-transition') || 'default';
+            var ctx = {
+              slideEl: slideEl, doc: document, slideData: {},
+              deck: ${JSON.stringify(deckData)}, scene: null,
+            };
+            var typoDesc = window.__impressEffects.lookup('typography', typoName);
+            var transDesc = window.__impressEffects.lookup('transition', transName);
+            if (typoDesc) activeCleanups.push(typoDesc.apply(ctx));
+            if (transDesc) activeCleanups.push(transDesc.apply(ctx));
+          });
 
           impress().init();
         </script>
