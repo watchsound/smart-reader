@@ -89,25 +89,45 @@ See **[docs/technical/graph-database.md](docs/technical/graph-database.md)** for
 ```
 src/
 ├── commons/           # Shared utilities, AI providers, data models
-│   ├── model/         # DataTypes.js (providers, modes, models), entity definitions
-│   ├── service/       # AI provider implementations
-│   └── utils/         # AIPrompts.js, utilities
+│   ├── model/         # DataTypes.js, LearningPointDomains.ts (Phase 3 domain taxonomy)
+│   ├── service/       # AI provider implementations + Phase 0 capability registry
+│   │   └── polyfills/ # structuredOutput.js, cache.js (Phase 0 cross-provider polyfills)
+│   └── utils/         # AIPrompts.js, DomainDetector.js, learningPointExtras.js
 ├── main/              # Electron main process
+│   ├── brain/         # LearningBrainAgent, HybridScheduler, EpisodeCollector,
+│   │                  # MoodBoardOrganizerService + ProductionPromptService (Phase 8)
 │   ├── db/            # SQLite managers
-│   ├── ipc/           # IPC handlers (graphHandlers.js)
-│   └── utils/         # ChromaManager, GraphInterface, Neo4jAdapter, GraphLearningFeatures
+│   ├── ipc/           # IPC handlers (Phase 4-8 + earlier)
+│   └── utils/         # ChromaManager, GraphInterface, Neo4jAdapter,
+│                      # RereadQueueService (Phase 8), BookDiagnosticService (Phase 5),
+│                      # ComprehensionGradingService (Phase 6), MicroCardProposer (Phase 4),
+│                      # LearningPathPlannerService (Phase 7), LearningPointEnrichmentService,
+│                      # extractors/ (Phase 3 per-domain learning-point extractors)
 ├── __tests__/         # Jest tests
-│   ├── graph/         # Graph database tests (240 tests)
-│   └── brain/         # Brain/memory consolidation tests (76+ tests)
+│   ├── brain/         # Brain/memory consolidation tests
+│   ├── graph/         # Graph database tests
+│   ├── integration/   # Phase 4-8 end-to-end tests (real :memory: SQLite for Phase 8)
+│   └── learning/      # Learning point + session + handler tests
 └── renderer/          # React UI
-    ├── views/         # Page components (reading, bookshelf, chat, notes, quiz, etc.)
-    ├── components/    # Reusable components (chat, MoodBoard, dialog, etc.)
+    ├── views/         # Page components
+    │   ├── reading/   # EPubView, PreReadingPanel (Phase 5), MicroCardChip (Phase 4),
+    │   │   │         # ComprehensionPanel (Phase 6)
+    │   │   └── hooks/ # useReadingEpisodes (Phase 2), useMicroCardProposals (Phase 4),
+    │   │              # useComprehensionCheck (Phase 6)
+    │   └── study/components/cards/  # Per-domain cards (Phase 3): VocabCard, CodeCard,
+    │                                # MathCard, KnowledgeCard, GenericCard, StudyCardRouter
+    ├── components/
     │   ├── animation-core/  # Modular animation system for EPUB/PDF/Notes
-    │   ├── graph/           # Knowledge graph UI components
-    │   └── knowledge/       # ConceptReviewPanel, etc.
-    ├── api/           # IPC calls to main process (graphApi.js)
+    │   ├── graph/           # Knowledge graph UI
+    │   ├── knowledge/       # ConceptReviewPanel, RereadQueuePanel + ProductionPromptPanel
+    │   │                    # + CrossBookPathPanel (Phase 7/8)
+    │   └── MoodBoard/       # Grid + diagram views
+    ├── api/           # IPC clients (graphApi, brainApi, microCardApi, comprehensionApi,
+    │                  #  bookDiagnosticApi, rereadQueueApi, moodBoardOrganizerApi,
+    │                  #  productionPromptApi, learningPathPlannerApi, enrichmentApi)
     ├── store/         # Redux configuration
-    └── theme/         # Light/dark theme definitions
+    ├── theme/         # Light/dark theme definitions
+    └── utils/         # tutorContext.js (Phase 1 Brain → chat tutor system prompt)
 ```
 
 ## Key Dependencies & Version Constraints
@@ -135,6 +155,34 @@ Located in `.erb/configs/`:
 ## Security Notes
 
 Context isolation is disabled for file:// protocol support. The preload script provides controlled API exposure between processes.
+
+## Brain-Driven Learning Loops (Phase 0–8)
+
+A sequenced set of features layered onto the existing Brain. Each loop runs
+(or is offered) during the heartbeat in `LearningBrainAgent.runHeartbeat`.
+There is no dedicated technical doc per loop yet — code is the source of truth.
+
+| Loop | Trigger | Service | Renderer surface |
+|------|---------|---------|------------------|
+| Phase 0 — LLM portability | n/a (infra) | `commons/service/polyfills/structuredOutput.js`, `cache.js`; capability registry on `AIProviderInterface` | none |
+| Phase 1 — Tutor context | Chat open | `renderer/utils/tutorContext.js` builds Brain-aware system prompt | `InContextChatPanel` opt-in tutor mode |
+| Phase 2 — Reading episode collector | Reader page-visibility events | `useReadingEpisodes` hook emits CHAPTER_ENTERED / BACKTRACK / PARAGRAPH_DWELL / PARAGRAPH_REREAD via `brainApi.recordEpisode` | invisible |
+| Phase 3 — Domain-aware learning points | Card render + extraction | `extractors/` (per-domain) + `LearningPointDomains.ts` + `StudyCardRouter` | per-domain cards (`VocabCard`, `CodeCard`, `MathCard`, `KnowledgeCard`) |
+| Phase 4 — Micro-card proposal | Paragraph in reading | `MicroCardProposer` (length/density/dedup/rate/AI gates) | `MicroCardChip` + `useMicroCardProposals` |
+| Phase 5 — Pre-book diagnostic | First open of a book | `BookDiagnosticService` (TOC + AI + post-call known-concept annotate) | `PreReadingPanel` |
+| Phase 6 — Comprehension grading | End of chapter | `ComprehensionGradingService.generateQuestion → gradeAnswer` | `ComprehensionPanel` + `useComprehensionCheck` |
+| Phase 7 — Cross-book path planner | User asks for a path | `LearningPathPlannerService.plan(goal, books)` over books' Phase 5 diagnostic data | `CrossBookPathPanel` in Knowledge Dashboard |
+| Phase 8a — Spaced re-reading | Low comprehension score | `RereadQueueService` (electron-store backed) | `RereadQueuePanel` in Knowledge Dashboard |
+| Phase 8b — Organize loop | Cluster of ≥5 same-domain learning points in same book | `MoodBoardOrganizerService` (SQL cluster detection + dedup + Slice 3 `createBoardFromCluster`) | organize banner in `MoodBoardView` |
+| Phase 8c — Production loop | High-mastery learning point | `ProductionPromptService.schedulePrompt` (mastery ≥ 60, ≥3 reviews, substantive back) | `ProductionPromptPanel` |
+
+Cross-loop plumbing:
+- Episode types defined in `EpisodeCollector.EVENT_TYPES` (mirrored on the renderer as `EPISODE_TYPES` in `renderer/api/brainApi.js`)
+- All brain-driven notifications go through `persistBrainNotifications` in `LearningBrainAgent` with per-day per-type dedup
+- SRS write-back from production grading lives in `LearningPointManager.applyProductionGrade`
+- Streak chain: `completeLearningSession` → `updateStreakAfterSession` → `LearnerProfileManager.updateGlobalProfile`
+
+Integration tests under `src/__tests__/integration/` exercise the Phase 4–8 loops end-to-end. Phase 8 uses real `:memory:` SQLite; run via `npm run test:integration` (rebuilds `better-sqlite3` for Node, runs, restores for Electron).
 
 ## Subsystem Documentation
 
