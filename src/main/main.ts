@@ -2920,7 +2920,7 @@ app
     // Phase 6: chapter-end comprehension grading IPC handlers
     registerComprehensionHandlers();
     // Phase 7: cross-book curriculum planner IPC handlers
-    registerLearningPathPlannerHandlers();
+    registerLearningPathPlannerHandlers({ triggerEmitter });
     // Phase 8: spaced re-reading queue IPC handlers
     registerRereadQueueHandlers(store);
     // Phase 8: MoodBoard organize-suggestion IPC handlers (renderer side
