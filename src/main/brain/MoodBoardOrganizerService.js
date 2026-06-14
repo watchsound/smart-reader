@@ -98,6 +98,10 @@ class MoodBoardOrganizerService {
   constructor(services = {}) {
     this.store = services.store || null;
     this.episodeCollector = services.episodeCollector || null;
+    // Brain-driven shell: emit an atomic-chip Trigger alongside the
+    // existing notification so the Orb surfaces organize suggestions
+    // cross-surface. Optional — handler-context instances don't need it.
+    this.triggerEmitter = services.triggerEmitter || null;
   }
 
   readSuggestions() {
@@ -191,6 +195,32 @@ class MoodBoardOrganizerService {
           createdAt: new Date().toISOString(),
         };
         created += 1;
+
+        // Brain-driven shell: surface the same suggestion via the Orb.
+        if (this.triggerEmitter) {
+          this.triggerEmitter.emit({
+            id: `phase8b:${cluster.bookId}:${cluster.domainType}`,
+            source: 'phase-8b-organize',
+            unit: 'atomic-chip',
+            surfaceTarget: { kind: 'global' },
+            priority: 'normal',
+            freshness: 3 * 24 * 60 * 60 * 1000, // 3 days
+            payload: {
+              title: `Organize ${cluster.pointCount} ${cluster.domainType} concepts`,
+              body: `From "${cluster.bookTitle}": ${previewWithSuffix}`,
+              actions: [
+                {
+                  label: 'Open MoodBoard',
+                  navigate: `moodBoard?organize=${encodeURIComponent(dedupKey)}`,
+                  primary: true,
+                },
+              ],
+              dedupKey,
+              bookId: cluster.bookId,
+              domainType: cluster.domainType,
+            },
+          });
+        }
 
         // Brain episode so analytics can compute suggest → accept
         // conversion (paired with ORGANIZE_ACCEPTED / ORGANIZE_DISMISSED

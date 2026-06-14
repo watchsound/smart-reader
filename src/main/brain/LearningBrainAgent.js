@@ -85,9 +85,12 @@ class LearningBrainAgent {
 
     // Phase 8 organize loop: suggest MoodBoard organize sessions for
     // clusters of recently-added learning points (one nudge per cluster).
+    // triggerEmitter is forwarded so the service also emits an Orb chip
+    // alongside the existing in-app notification.
     this.moodBoardOrganizer = new MoodBoardOrganizerService({
       store: this.store,
       episodeCollector: this.episodeCollector,
+      triggerEmitter: services.triggerEmitter || null,
     });
 
     // Phase 8 production loop: pick one well-mastered learning point per
