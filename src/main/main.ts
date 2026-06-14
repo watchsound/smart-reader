@@ -2922,7 +2922,7 @@ app
     // Phase 7: cross-book curriculum planner IPC handlers
     registerLearningPathPlannerHandlers({ triggerEmitter });
     // Phase 8: spaced re-reading queue IPC handlers
-    registerRereadQueueHandlers(store);
+    registerRereadQueueHandlers(store, { triggerEmitter });
     // Phase 8: MoodBoard organize-suggestion IPC handlers (renderer side
     // of the brain heartbeat's `suggestOrganizeSessions` task).
     registerMoodBoardOrganizerHandlers(store);
