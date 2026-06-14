@@ -379,9 +379,9 @@ const createDecomposeParagraphPrompt = (content) => {
 
     For richer presentations you MAY add these OPTIONAL fields. Omit any field if you are uncertain:
     - top-level "global_mood": one of "calm", "dramatic", "tech", "playful", "scholarly", "cinematic"
-    - top-level "background": one of "none", "gradient_flow", "starfield_parallax", "dust_motes", "ink_wash", "cinema_letterbox", "nebula_cloud", "geometry_field", "data_stream", "aurora"
+    - top-level "background": one of "none", "gradient_flow", "starfield_parallax", "dust_motes", "ink_wash", "cinema_letterbox"
     - per-slide "role": one of "opening", "key_concept", "example", "quote", "data", "punchline", "closing"
-    - per-slide "typography": one of "none", "typewriter", "word_by_word_fade", "scramble_decode", "blur_in", "letters_from_edges", "ink_write", "glitch_chromatic", "neon_glow_pulse", "text_3d_extrude", "text_particle_burst", "text_liquid_morph"
+    - per-slide "typography": one of "none", "typewriter", "word_by_word_fade", "scramble_decode", "blur_in", "letters_from_edges", "ink_write", "glitch_chromatic", "neon_glow_pulse"
     - per-slide "transition": one of "default", "depth_blur", "dissolve", "ink_bleed", "shatter_rebuild"
     - per-slide "background": overrides the global background for this one slide
 
@@ -389,7 +389,7 @@ const createDecomposeParagraphPrompt = (content) => {
     {
       'layout_theme': 'storytelling',
       'global_mood': 'dramatic',
-      'background': 'nebula_cloud',
+      'background': 'starfield_parallax',
       'data': [
         {'card_index': 0, 'content': '<h4>Title</h4>', 'role': 'opening', 'typography': 'blur_in', 'transition': 'default'},
         {'card_index': 1, 'content': '<ul><li>Point 1</li></ul>', 'role': 'key_concept', 'typography': 'word_by_word_fade', 'transition': 'depth_blur'}
