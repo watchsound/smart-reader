@@ -62,6 +62,10 @@ import customStorage from '../store/customStorage';
 import { loginHandled } from '../store/reducers/userSlice';
 import Index from './index';
 import HeaderQuickActions from '../components/header/HeaderQuickActions';
+import BrainOrb from '../components/brainShell/BrainOrb';
+import FlowCoordinator from '../components/brainShell/FlowCoordinator';
+import useBrainState from '../brain/useBrainState';
+import triggerBus from '../brain/triggerBus';
 
 const drawerWidth = 260;
 
@@ -204,6 +208,17 @@ export default function Root() {
   const userInfo = useSelector((state) => state.user.userInfo);
   const dispatch = useDispatch();
   const navigate = useNavigate();
+
+  // Brain-driven shell (Plan 1): subscribe to TriggerBus + render Orb + Flow.
+  const { orbState, queue, activeProposal } = useBrainState();
+  const onOrbClick = async () => {
+    const top = queue[0];
+    if (top) {
+      await triggerBus.accept(top.id);
+    } else {
+      await triggerBus.pull();
+    }
+  };
 
   useEffect(() => {
     async function t() {
@@ -451,6 +466,15 @@ export default function Root() {
           <LogoText variant="h6">SmartReader</LogoText>
           <Box sx={{ flexGrow: 1 }} />
           {isLoggedIn && <HeaderQuickActions />}
+          {isLoggedIn && (
+            <Box sx={{ mr: 1.5 }}>
+              <BrainOrb
+                state={orbState}
+                queueDepth={queue.length}
+                onClick={onOrbClick}
+              />
+            </Box>
+          )}
           {isLoggedIn ? (
             <Tooltip title={userInfo?.username || 'User'}>
               <Avatar
@@ -515,6 +539,9 @@ export default function Root() {
           {isAuthPage ? <Index /> : <Outlet />}
         </Box>
       </MainContent>
+
+      {/* Brain-driven shell: active Flow renders here (floating overlay). */}
+      <FlowCoordinator proposal={activeProposal} />
 
       {/* Login/Register Modal Dialog */}
       <Dialog
