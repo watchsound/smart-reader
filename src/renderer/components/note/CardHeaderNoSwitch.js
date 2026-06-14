@@ -36,6 +36,35 @@ const TopRightButton = styled(IconButton)({
   zIndex: 10,
 });
 
+/**
+ * Pure: derive the route path for "Jump to source" from a note's source
+ * fields, or null when no jump is possible. Reads `sourceType` (NOT
+ * `type` — that field is never set by any createNote caller; the old
+ * code that read `.type` here silently no-op'd for every note).
+ *
+ * Exported so the routing rules can be tested without rendering the
+ * whole CardHeader + MUI menu chain.
+ */
+export function getJumpToSourcePath(note) {
+  if (!note) return null;
+  switch (note.sourceType) {
+    case NoteType.Book:
+      if (
+        note.sourceKey &&
+        (note.cfi || (note.position && note.position.length > 0))
+      ) {
+        return `/reading/${note.sourceKey}/${note.id}`;
+      }
+      return null;
+    case NoteType.Url:
+      return note.sourceKey ? `/browser/${note.sourceKey}` : null;
+    case NoteType.Chat:
+      return note.sourceKey ? `/chat/${note.sourceKey}` : null;
+    default:
+      return null;
+  }
+}
+
 function CardHeaderNoSwitch({
   selectedNote,
   toggleAnnotation,
@@ -70,25 +99,8 @@ function CardHeaderNoSwitch({
 
   const tryToJumpToSource = () => {
     if (!selectedNote) return;
-    if (selectedNote.type === NoteType.Book) {
-      if (
-        selectedNote.sourceKey &&
-        (selectedNote.cfi ||
-          (selectedNote.position && selectedNote.position.length > 0))
-      ) {
-        navigate(`/reading/${selectedNote.sourceKey}/${selectedNote.id}`);
-      }
-    }
-    if (selectedNote.type === NoteType.Url) {
-      if (selectedNote.sourceKey) {
-        navigate(`/browser/${selectedNote.sourceKey}`);
-      }
-    }
-    if (selectedNote.type === NoteType.Chat) {
-      if (selectedNote.sourceKey) {
-        navigate(`/chat/${selectedNote.sourceKey}`);
-      }
-    }
+    const path = getJumpToSourcePath(selectedNote);
+    if (path) navigate(path);
   };
 
 
