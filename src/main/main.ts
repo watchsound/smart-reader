@@ -233,6 +233,11 @@ import { registerLearningPlanHandlers } from './ipc/learningPlanHandlers';
 import { registerStudyEnhancementHandlers } from './ipc/studyEnhancementHandlers';
 import { registerStudyAnalyticsHandlers } from './ipc/studyAnalyticsHandlers';
 import { registerBrainHandlers } from './ipc/brainHandlers';
+// Brain-driven shell (Plan 1): renderer trigger-bus IPC + main-process trigger emitter.
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { registerTriggerBusHandlers } = require('./ipc/triggerBusHandlers');
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const TriggerEmitter = require('./brain/TriggerEmitter');
 import { registerUnifiedLearningHandlers } from './ipc/unifiedLearningHandlers';
 import { registerLearningPointHandlers } from './ipc/learningPointHandlers';
 import { registerMicroCardHandlers } from './ipc/microCardHandlers';
@@ -2962,6 +2967,13 @@ app
     // Register learning point IPC handlers (unified learning_point table)
     registerLearningPointHandlers();
 
+    // Brain-driven shell (Plan 1): TriggerEmitter ships Triggers to the
+    // renderer via mainWin.webContents. Lazy getter so it tolerates the
+    // (rare) case where the brain initializes before the window is ready.
+    const triggerEmitter = new TriggerEmitter({
+      getWebContents: () => mainWin?.webContents ?? null,
+    });
+
     // Initialize Learning Brain and register IPC handlers
     initializeLearningBrain({
       store,
@@ -2973,20 +2985,24 @@ app
       learnerProfileManager: require('./db/LearnerProfileManager'),
       learningPlanManager: require('./db/LearningPlanManager').default,
       sessionAnalyticsManager: require('./db/SessionAnalyticsManager').default,
+      triggerEmitter,
     })
       .then((brain) => {
         if (brain) {
           registerBrainHandlers({ brain, store });
+          registerTriggerBusHandlers({ brain });
           console.log('[main] Learning Brain initialized successfully');
         } else {
           // Brain disabled or failed - still register handlers for status queries
           registerBrainHandlers({ brain: null, store });
+          registerTriggerBusHandlers({ brain: null });
           console.log('[main] Learning Brain disabled or unavailable');
         }
       })
       .catch((err) => {
         console.error('[main] Learning Brain initialization failed:', err);
         registerBrainHandlers({ brain: null, store });
+        registerTriggerBusHandlers({ brain: null });
       });
 
     // copy resource / script ..

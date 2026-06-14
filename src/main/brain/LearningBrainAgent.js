@@ -100,6 +100,33 @@ class LearningBrainAgent {
     // Cached insights from last heartbeat
     this.cachedInsights = null;
     this.lastAnalysisTime = null;
+
+    // Brain-driven shell: TriggerEmitter (Plan 1 of AI-driven shell skeleton).
+    // Set when present in services; Phase 4-8 services read it from the brain
+    // instance to push Triggers to the renderer.
+    this.triggerEmitter = services.triggerEmitter || null;
+  }
+
+  /**
+   * Record renderer-side acceptance or dismissal of a Proposal.
+   * Plan 1: log only. Plan 2 will persist to learnerProfileManager for
+   * trigger-quality learning.
+   * @param {{ proposalId: string, kind: 'accept' | 'dismiss' }} event
+   */
+  async recordProposalEvent({ proposalId, kind }) {
+    // eslint-disable-next-line no-console
+    console.log('[LearningBrainAgent] proposal event', { proposalId, kind });
+  }
+
+  /**
+   * Synthesize a "what's next?" suggestion when the user pulls and the
+   * queue is empty.
+   * Plan 1: returns null (Orb click on empty queue shows "you're caught up").
+   * Plan 2 will synthesize via LLM based on learner state.
+   * @returns {Promise<object | null>}
+   */
+  async synthesizePullSuggestion() {
+    return null;
   }
 
   /**
