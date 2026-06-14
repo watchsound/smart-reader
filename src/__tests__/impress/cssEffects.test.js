@@ -89,4 +89,13 @@ describe('cssEffects descriptors', () => {
       cleanup();
     },
   );
+
+  test.each(['mobius', 'exploded_text', 'z_tunnel', 'page_turn_book'])(
+    'layout "%s" generates a data-attribute string',
+    (name) => {
+      const d = lookup('layout', name);
+      expect(d).not.toBeNull();
+      expect(d.generate(0, 5)).toMatch(/data-x=/);
+    },
+  );
 });

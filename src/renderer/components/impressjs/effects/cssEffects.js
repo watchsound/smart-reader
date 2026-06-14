@@ -566,7 +566,8 @@ const { generateLayout: legacyGenerateLayout, LayoutThemes } = layoutGen.default
 const REGISTERED_LAYOUT_NAMES = [
   LayoutThemes.SPIRAL, LayoutThemes.LINEAR, LayoutThemes.GRID, LayoutThemes.CIRCULAR,
   LayoutThemes.DEPTH_ZOOM, LayoutThemes.RANDOM_WALK, LayoutThemes.STORYTELLING,
-  LayoutThemes.HELIX,
+  LayoutThemes.HELIX, LayoutThemes.MOBIUS, LayoutThemes.EXPLODED_TEXT,
+  LayoutThemes.Z_TUNNEL, LayoutThemes.PAGE_TURN_BOOK,
 ];
 
 REGISTERED_LAYOUT_NAMES.forEach((themeName) => {

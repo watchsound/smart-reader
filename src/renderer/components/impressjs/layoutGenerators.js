@@ -16,6 +16,10 @@ export const LayoutThemes = {
   RANDOM_WALK: 'random_walk',
   STORYTELLING: 'storytelling',
   HELIX: 'helix',
+  MOBIUS: 'mobius',
+  EXPLODED_TEXT: 'exploded_text',
+  Z_TUNNEL: 'z_tunnel',
+  PAGE_TURN_BOOK: 'page_turn_book',
 };
 
 /**
@@ -242,6 +246,80 @@ function generateHelixLayout(count) {
 }
 
 /**
+ * Generate mobius layout - half-twisted circular ring.
+ * @param {number} count
+ * @returns {string[]}
+ */
+function generateMobiusLayout(count) {
+  const layouts = [];
+  const radius = 1500;
+  for (let i = 0; i < count; i++) {
+    const t = i / Math.max(count - 1, 1);
+    const angle = t * Math.PI * 2;
+    const x = Math.round(radius * Math.cos(angle));
+    const z = Math.round(radius * Math.sin(angle));
+    const y = Math.round(Math.sin(angle * 2) * 200);
+    const rotateY = -Math.round((angle * 180) / Math.PI);
+    const rotateZ = Math.round(t * 180); // half-twist
+    layouts.push(
+      ` class="step" data-x="${x}" data-y="${y}" data-z="${z}" data-rotate-y="${rotateY}" data-rotate-z="${rotateZ}"`,
+    );
+  }
+  return layouts;
+}
+
+/**
+ * Generate exploded text layout - slides shot outward from center in 3 concentric rings.
+ * @param {number} count
+ * @returns {string[]}
+ */
+function generateExplodedTextLayout(count) {
+  const layouts = [];
+  for (let i = 0; i < count; i++) {
+    const angle = (i / count) * Math.PI * 2;
+    const r = 800 + (i % 3) * 300;
+    const x = Math.round(r * Math.cos(angle));
+    const y = Math.round(r * Math.sin(angle));
+    const z = (i % 2 === 0 ? -1 : 1) * 600;
+    const rotate = Math.round((angle * 180) / Math.PI);
+    layouts.push(
+      ` class="step" data-x="${x}" data-y="${y}" data-z="${z}" data-rotate="${rotate}"`,
+    );
+  }
+  return layouts;
+}
+
+/**
+ * Generate Z-tunnel layout - slides recede into the distance with scaling.
+ * @param {number} count
+ * @returns {string[]}
+ */
+function generateZTunnelLayout(count) {
+  return Array.from(
+    { length: count },
+    (_, i) =>
+      ` class="step" data-x="0" data-y="0" data-z="${-i * 1500}" data-scale="${1 + i * 0.5}"`,
+  );
+}
+
+/**
+ * Generate page-turn book layout - slides arranged as facing book pages with Y-rotation.
+ * @param {number} count
+ * @returns {string[]}
+ */
+function generatePageTurnBookLayout(count) {
+  const layouts = [];
+  for (let i = 0; i < count; i++) {
+    const spread = Math.floor(i / 2);
+    const side = i % 2 === 0 ? -800 : 800;
+    layouts.push(
+      ` class="step" data-x="${spread * 100 + side}" data-y="0" data-z="0" data-rotate-y="${i * 30}"`,
+    );
+  }
+  return layouts;
+}
+
+/**
  * Generate layout based on theme
  * @param {string} theme - Layout theme name
  * @param {number} count - Number of slides
@@ -265,6 +343,14 @@ export function generateLayout(theme, count) {
       return generateStorytellingLayout(count);
     case LayoutThemes.HELIX:
       return generateHelixLayout(count);
+    case LayoutThemes.MOBIUS:
+      return generateMobiusLayout(count);
+    case LayoutThemes.EXPLODED_TEXT:
+      return generateExplodedTextLayout(count);
+    case LayoutThemes.Z_TUNNEL:
+      return generateZTunnelLayout(count);
+    case LayoutThemes.PAGE_TURN_BOOK:
+      return generatePageTurnBookLayout(count);
     default:
       return generateSpiralLayout(count);
   }
