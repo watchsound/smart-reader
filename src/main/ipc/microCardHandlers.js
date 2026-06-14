@@ -26,19 +26,54 @@ import { LIVE_WRITABLE_DOMAINS } from '../../commons/model/LearningPointDomains'
 
 let registered = false;
 
-function registerMicroCardHandlers() {
+/**
+ * @param {{ triggerEmitter?: import('../brain/TriggerEmitter') }} [services]
+ */
+function registerMicroCardHandlers(services = {}) {
   if (registered) {
     console.warn('[microCardHandlers] already registered, skipping');
     return;
   }
   registered = true;
 
+  const triggerEmitter = services.triggerEmitter || null;
+
   ipcMain.handle('microcard-propose', async (_event, input, options) => {
     try {
-      return await microCardProposer.proposeFromParagraph(
+      const result = await microCardProposer.proposeFromParagraph(
         input || {},
         options || {},
       );
+
+      // Brain-driven shell (Plan 1): also emit a Trigger so the Orb
+      // reflects the proposal and AtomicChipHost can render it. The
+      // existing in-reader MicroCardChip continues to render via the
+      // hook's local state — Plan 2 deduplicates to a single path.
+      if (result?.proposed && triggerEmitter) {
+        const { bookId, chapterId } = input || {};
+        triggerEmitter.emit({
+          id: `phase4:${bookId ?? 'no-book'}:${result.paragraphHash || result.proposalId}`,
+          source: 'phase-4-micro-card',
+          unit: 'atomic-chip',
+          surfaceTarget: { kind: 'global' },
+          priority: 'normal',
+          freshness: 5 * 60 * 1000,
+          payload: {
+            title: result.conceptName || result.front || 'New micro-card',
+            body: result.back || '',
+            proposalId: result.proposalId,
+            front: result.front,
+            back: result.back,
+            domain: result.domain,
+            confidence: result.confidence,
+            bookId,
+            chapterId,
+            paragraphHash: result.paragraphHash,
+          },
+        });
+      }
+
+      return result;
     } catch (err) {
       console.error('[microCardHandlers] propose failed:', err);
       return {
