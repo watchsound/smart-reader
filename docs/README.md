@@ -29,13 +29,31 @@ Essential guides for using SmartReader:
 
 Architecture and implementation details:
 
+**Cross-cutting design docs:**
+
 | Document | Description | Audience |
 |----------|-------------|----------|
 | [Architecture Overview](technical/ARCHITECTURE.md) | System architecture | Developers |
-| [AI Learning Brain](technical/AI-Learning-Brain-Architecture.md) | Brain system design | Developers |
+| [AI Learning Brain Architecture](technical/AI-Learning-Brain-Architecture.md) | Brain system design | Developers |
 | [Agentic AI](technical/Agentic-AI-Implementation-Analysis.md) | AI agent implementation | Developers |
 | [LLM-Driven Learning](technical/LLM-DRIVEN-LEARNING-MANAGEMENT-SYSTEM.md) | Learning system | Developers |
 | [API Reference](technical/API_REFERENCE.md) | API documentation | Developers |
+
+**Subsystem references** (extracted from CLAUDE.md — read before touching that subsystem):
+
+| Document | Scope |
+|----------|-------|
+| [Views & Feature Modules](technical/views.md) | Reading, Bookshelf, Notes, Chat, Browser, Vocabulary, Translate, Writing, Grammar, Quiz, MoodBoard, Settings; common UI patterns |
+| [Graph Database (Neo4j)](technical/graph-database.md) | Neo4j adapters, IPC, Memory Consolidation Graph (`SummarizationGraphService`) |
+| [StudyEnhancer System](technical/study-enhancer.md) | Browser word-animation system, Smart Summary, paragraph action icons |
+| [Animation Core](technical/animation-core.md) | Modular animations for EPUB/PDF/Notes (`useEPUBAnimations`, `usePDFAnimations`, `useNoteAnimations`) |
+| [Rich Markdown Editor](technical/rich-markdown-editor.md) | TipTap-based editor, `[[wiki-link]]` Knowledge Web, backlinks |
+| [AI Concept Extraction](technical/concept-extraction.md) | `AIConceptExtractionService`, `ConceptReviewPanel` |
+| [Skill System](technical/skill-system.md) | Agent Skills standard, code- and file-based skills, IPC handlers, view integration |
+| [Knowledge Dashboard](technical/knowledge-dashboard.md) | `/knowledge` route, `MemoryTimelinePanel`, dashboard tabs |
+| [Learning Plan System](technical/learning-plan.md) | 5-step wizard, Universal Learning Points, Leitner/FSRS |
+| [Study Session System](technical/study-session.md) | Session modes, ratings, enhanced features (AI hints, sounds, TTS), analytics |
+| [AI Learning Brain](technical/ai-learning-brain.md) | Background service, heartbeat, episodic memory, consolidation, cross-concept analysis, schedule reconciliation |
 
 ### Archive (`docs/archive/`)
 
