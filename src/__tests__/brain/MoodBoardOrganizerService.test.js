@@ -410,7 +410,7 @@ describe('MoodBoardOrganizerService', () => {
       // gridLayout has one tile per note, with `i` set to the note id.
       const layoutArg = mockCreateMoodBoard.mock.calls[0][0].gridLayout;
       expect(layoutArg.layout.lg).toHaveLength(2);
-      expect(layoutArg.layout.lg.map((it) => it.i)).toEqual(['101', '102']);
+      expect(layoutArg.layout.lg.map((it) => it.i)).toEqual([101, 102]);
 
       // Notes carry the learning-point linkage.
       expect(mockCreateNote).toHaveBeenCalledTimes(2);

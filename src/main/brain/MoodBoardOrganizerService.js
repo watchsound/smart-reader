@@ -368,12 +368,16 @@ class MoodBoardOrganizerService {
       const COLS_PER_ROW = 6;
       const TILE_W = 2;
       const TILE_H = 4;
+      // Match the existing addNewNote convention: `i` is the integer
+      // rowid, NOT a string. SQLite coerces either way, but boards added
+      // through the existing renderer path use integers and downstream
+      // strict-equality checks (selectedNote.id === N) need uniform typing.
       const layoutItems = noteIds.map((noteId, idx) => ({
         x: (idx % COLS_PER_ROW) * TILE_W,
         y: Math.floor(idx / COLS_PER_ROW) * TILE_H,
         w: TILE_W,
         h: TILE_H,
-        i: String(noteId),
+        i: noteId,
       }));
 
       const board = createMoodBoard(
