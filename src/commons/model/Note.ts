@@ -113,7 +113,8 @@ export const NoteType = Object.freeze({
   Note: "note",
   Url: "url",
   Chat: "chat",
-  Book: "book"
+  Book: "book",
+  LearningPoint: "learning_point"
 });
 
 export const CardType = Object.freeze({

@@ -24,6 +24,7 @@ const {
 } = require('../db/NotificationManager');
 const { createNote } = require('../db/NoteJsonManager');
 const { createMoodBoard } = require('../db/MoodBoardJsonManager');
+const { NoteType } = require('../../commons/model/Note');
 
 /**
  * The brain's heartbeat passes a synthetic token. NotificationManager
@@ -344,7 +345,7 @@ class MoodBoardOrganizerService {
         const noteContent = buildNoteContent(lp);
         const note = createNote(
           {
-            sourceType: 'learning_point',
+            sourceType: NoteType.LearningPoint,
             sourceKey: lp.id,
             content: noteContent,
             imageData: '',
