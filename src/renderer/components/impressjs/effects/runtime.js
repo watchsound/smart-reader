@@ -81,6 +81,23 @@ const CSS_KEYFRAMES = `
 .impress-typo-scramble_decode { animation: impress-scramble-pulse 0.8s linear forwards; }
 .impress-typo-ink_write text { stroke-dasharray: 500; stroke-dashoffset: 500; animation: impress-ink 1.4s ease forwards; }
 @keyframes impress-ink { to { stroke-dashoffset: 0; } }
+.impress-transition-dissolve .step.future { opacity: 0; transition: opacity 0.8s ease; }
+.impress-transition-dissolve .step.active { opacity: 1; }
+.impress-transition-dissolve .step.past   { opacity: 0; }
+
+.impress-transition-ink_bleed .step {
+  -webkit-mask-image: radial-gradient(circle at center, black 0%, black 70%, transparent 100%);
+  mask-image:         radial-gradient(circle at center, black 0%, black 70%, transparent 100%);
+  -webkit-mask-size: 200% 200%;
+  transition: mask-position 0.8s ease;
+}
+
+@keyframes impress-shatter {
+  0% { clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); opacity: 1; }
+  50% { clip-path: polygon(20% 20%, 60% 0, 100% 50%, 40% 100%); opacity: 0.4; }
+  100% { clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); opacity: 1; }
+}
+.impress-transition-shatter_rebuild .step.active { animation: impress-shatter 1s ease-out 1; }
 `;
 
 /**
@@ -281,6 +298,39 @@ function getRuntimeBundleString() {
       if (root) root.classList.add('impress-transition-depth_blur');
       return function () {
         if (root) root.classList.remove('impress-transition-depth_blur');
+      };
+    },
+  });
+  register({
+    name: 'dissolve', track: 'transition',
+    apply: function (ctx) {
+      injectStylesheet(ctx.doc);
+      var root = ctx.doc.getElementById('impress');
+      if (root) root.classList.add('impress-transition-dissolve');
+      return function () {
+        if (root) root.classList.remove('impress-transition-dissolve');
+      };
+    },
+  });
+  register({
+    name: 'ink_bleed', track: 'transition',
+    apply: function (ctx) {
+      injectStylesheet(ctx.doc);
+      var root = ctx.doc.getElementById('impress');
+      if (root) root.classList.add('impress-transition-ink_bleed');
+      return function () {
+        if (root) root.classList.remove('impress-transition-ink_bleed');
+      };
+    },
+  });
+  register({
+    name: 'shatter_rebuild', track: 'transition',
+    apply: function (ctx) {
+      injectStylesheet(ctx.doc);
+      var root = ctx.doc.getElementById('impress');
+      if (root) root.classList.add('impress-transition-shatter_rebuild');
+      return function () {
+        if (root) root.classList.remove('impress-transition-shatter_rebuild');
       };
     },
   });

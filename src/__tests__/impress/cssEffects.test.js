@@ -67,4 +67,15 @@ describe('cssEffects descriptors', () => {
     expect(typeof cleanup).toBe('function');
     cleanup();
   });
+
+  test.each(['dissolve', 'ink_bleed', 'shatter_rebuild'])(
+    'transition effect "%s" mounts and cleans up',
+    (name) => {
+      const d = lookup('transition', name);
+      expect(d).not.toBeNull();
+      const cleanup = d.apply(makeCtx());
+      expect(typeof cleanup).toBe('function');
+      cleanup();
+    },
+  );
 });
