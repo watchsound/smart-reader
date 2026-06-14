@@ -15,7 +15,9 @@ import PauseIcon from '@mui/icons-material/Pause';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import ArchiveIcon from '@mui/icons-material/Archive';
 import FlagIcon from '@mui/icons-material/Flag';
+import AddIcon from '@mui/icons-material/Add';
 import questApi from '../../api/questApi';
+import NewQuestDialog from './NewQuestDialog';
 
 /**
  * OrbQuestMenu — popover surfaced by right-clicking the Brain Orb.
@@ -33,6 +35,7 @@ import questApi from '../../api/questApi';
 export default function OrbQuestMenu({ anchorEl, onClose }) {
   const [quests, setQuests] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -66,7 +69,15 @@ export default function OrbQuestMenu({ anchorEl, onClose }) {
     refresh();
   };
 
+  const openDialog = () => {
+    setDialogOpen(true);
+    // Close the menu so the dialog isn't nested inside a still-open Menu
+    // (MUI Menu's focus trap fights with Dialog's focus trap).
+    onClose();
+  };
+
   return (
+    <>
     <Menu
       anchorEl={anchorEl}
       open={Boolean(anchorEl)}
@@ -75,10 +86,25 @@ export default function OrbQuestMenu({ anchorEl, onClose }) {
       transformOrigin={{ vertical: 'top', horizontal: 'right' }}
       slotProps={{ paper: { sx: { minWidth: 320, maxWidth: 420 } } }}
     >
-      <Box sx={{ px: 2, py: 1 }}>
+      <Box
+        sx={{
+          px: 2,
+          py: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
         <Typography variant="overline" sx={{ opacity: 0.6 }}>
           Quests
         </Typography>
+        <IconButton
+          size="small"
+          aria-label="new quest"
+          onClick={openDialog}
+        >
+          <AddIcon fontSize="small" />
+        </IconButton>
       </Box>
       <Divider />
       {loading && (
@@ -162,5 +188,16 @@ export default function OrbQuestMenu({ anchorEl, onClose }) {
           </MenuItem>
         ))}
     </Menu>
+    <NewQuestDialog
+      open={dialogOpen}
+      onClose={() => setDialogOpen(false)}
+      onCreated={() => {
+        // Re-open the menu? No — keep dialog UX simple; the next right-click
+        // on the Orb shows the new quest. We just need the cache to refresh
+        // next time. quest:changed event will hit triggerBus too.
+        refresh();
+      }}
+    />
+    </>
   );
 }
