@@ -95,9 +95,12 @@ class LearningBrainAgent {
 
     // Phase 8 production loop: pick one well-mastered learning point per
     // heartbeat and prompt the user to explain it in their own words.
+    // triggerEmitter is forwarded so the service also emits an Orb chip
+    // alongside the existing in-app notification.
     this.productionPromptService = new ProductionPromptService({
       store: this.store,
       episodeCollector: this.episodeCollector,
+      triggerEmitter: services.triggerEmitter || null,
     });
 
     // Cached insights from last heartbeat

@@ -94,6 +94,9 @@ class ProductionPromptService {
   constructor(services = {}) {
     this.store = services.store || null;
     this.episodeCollector = services.episodeCollector || null;
+    // Brain-driven shell: surface production prompts via the Orb in
+    // addition to the existing notification. Optional.
+    this.triggerEmitter = services.triggerEmitter || null;
   }
 
   readDedup() {
@@ -186,6 +189,33 @@ class ProductionPromptService {
           masteryAtPrompt: candidate.masteryLevel,
         };
         created += 1;
+
+        // Brain-driven shell: also surface via the Orb.
+        if (this.triggerEmitter) {
+          this.triggerEmitter.emit({
+            id: `phase8c:${candidate.id}`,
+            source: 'phase-8c-production',
+            unit: 'atomic-chip',
+            surfaceTarget: { kind: 'global' },
+            priority: 'normal',
+            freshness: 2 * 24 * 60 * 60 * 1000, // 2 days
+            payload: {
+              title: `Explain "${candidate.title}" cold`,
+              body:
+                'You passed recognition. A 2-minute production check ' +
+                'tells us if the explanation is really stuck.',
+              actions: [
+                {
+                  label: 'Try it',
+                  navigate: `knowledge?produce=${encodeURIComponent(candidate.id)}`,
+                  primary: true,
+                },
+              ],
+              learningPointId: candidate.id,
+              masteryLevel: candidate.masteryLevel,
+            },
+          });
+        }
 
         // Brain episode so analytics can compute prompt → submit conversion.
         if (this.episodeCollector) {
