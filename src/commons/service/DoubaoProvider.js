@@ -18,6 +18,34 @@ import { DoubaoModel } from '../model/DataTypes';
 const DOUBAO_BASE_URL = 'https://ark.cn-beijing.volces.com/api/v3';
 
 export default class DoubaoProvider extends AIProviderInterface {
+  // Doubao maxes out at 256k on the pro-256k model; conservative default
+  // reflects the cheaper variants — refined per-model below.
+  static capabilities = {
+    maxContext: 32000,
+    structuredOutput: 'json-mode',
+    toolUse: true,
+    promptCaching: false,
+    extendedThinking: false,
+    imageInput: false,
+    streaming: true,
+  };
+
+  capabilities() {
+    const base = this.constructor.capabilities;
+    const m = this.model;
+
+    // Explicit enum-matching instead of loose substring `.includes()` so that
+    // future model IDs containing "256k"/"thinking" don't silently inherit
+    // capabilities they don't actually have.
+    if (m === DoubaoModel.DOUBAO_1_5_PRO_256K) {
+      return { ...base, maxContext: 256000 };
+    }
+    if (m === DoubaoModel.DOUBAO_SEED_1_6_THINKING) {
+      return { ...base, extendedThinking: true };
+    }
+    return base;
+  }
+
   constructor(apiKey, model) {
     super(0, true);
     this.apiKey = apiKey;

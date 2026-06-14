@@ -95,6 +95,14 @@ export const QwenModel = Object.freeze({
   QWQ_PLUS: 'qwq-plus', // Reasoning model
 });
 
+// DeepSeek Models - Added 2026 (low-cost, open-source-aligned, OpenAI-compatible API)
+export const DeepSeekModel = Object.freeze({
+  // Default model: V3 chat — strong text quality, ~5% of Claude cost
+  DEEPSEEK_CHAT: 'deepseek-chat',
+  // Reasoning model: R1 — extended-thinking-style reasoning
+  DEEPSEEK_REASONER: 'deepseek-reasoner',
+});
+
 export const AIProvider = Object.freeze({
   ChatGPT: 'chatGPT',
   Gemini: 'gemini',
@@ -104,6 +112,7 @@ export const AIProvider = Object.freeze({
   Ollama: 'ollama',
   Doubao: 'doubao',
   Qwen: 'qwen',
+  DeepSeek: 'deepseek',
 });
 
 export const LanguageModel = Object.freeze({

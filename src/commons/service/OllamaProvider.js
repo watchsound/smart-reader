@@ -1,10 +1,55 @@
 import { AIProviderInterface } from './AIProviderInterface'; // Adjust path as necessary
 
 export default class OllamaProvider extends AIProviderInterface {
+  // Conservative defaults — capabilities vary by local model.
+  // The capabilities() instance method below refines per-model.
+  static capabilities = {
+    maxContext: 32000,
+    structuredOutput: 'json-mode',  // Ollama supports format=json
+    toolUse: false,                 // varies; many models lack reliable tool use
+    promptCaching: false,
+    extendedThinking: false,
+    imageInput: false,              // llava-class models support it; not assumed
+    streaming: true,
+  };
+
   constructor(key, model) {
     super(1000, false);
     this.apiKey = key;
     this.model = model || 'llama3:8b';
+  }
+
+  /**
+   * Refine capabilities based on the selected local model.
+   * Override per-instance because Ollama capabilities depend on which
+   * model is loaded, not just on the provider class.
+   */
+  capabilities() {
+    const base = this.constructor.capabilities;
+    const m = (this.model || '').toLowerCase();
+
+    // deepseek-r1 supports extended-thinking-style reasoning
+    if (m.includes('deepseek-r1')) {
+      return {
+        ...base,
+        extendedThinking: true,
+        toolUse: true,
+        maxContext: 64000,
+      };
+    }
+    // Qwen 2.5 series — tool use supported, larger context
+    if (m.includes('qwen2.5')) {
+      return { ...base, toolUse: true, maxContext: 128000 };
+    }
+    // Llama 3.3 — tool use supported
+    if (m.includes('llama3.3')) {
+      return { ...base, toolUse: true, maxContext: 128000 };
+    }
+    // llava / vision-language models
+    if (m.includes('llava') || m.includes('-vl')) {
+      return { ...base, imageInput: true };
+    }
+    return base;
   }
 
   static async createStream() {

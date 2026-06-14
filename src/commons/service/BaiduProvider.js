@@ -8,6 +8,16 @@ import { AIProviderInterface } from './AIProviderInterface';
 const CHAT_URL = 'https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/completions';
 
 export default class BaiduProvider extends AIProviderInterface {
+  static capabilities = {
+    maxContext: 32000,
+    structuredOutput: 'json-mode',
+    toolUse: true,
+    promptCaching: false,
+    extendedThinking: false,
+    imageInput: false,
+    streaming: true,
+  };
+
   constructor(accessToken) {
     super(1000, false);
     this.accessToken = accessToken;

@@ -5,6 +5,16 @@ import { AIProviderInterface } from './AIProviderInterface';
 import { ChatGPTModel } from '../model/DataTypes';
 
 export default class ChatGPTProvider extends AIProviderInterface {
+  static capabilities = {
+    maxContext: 128000,
+    structuredOutput: 'native',
+    toolUse: true,
+    promptCaching: true,
+    extendedThinking: false,
+    imageInput: true,
+    streaming: true,
+  };
+
   constructor(apiKey, model) {
     super(0, true);
     this.apiKey = apiKey;

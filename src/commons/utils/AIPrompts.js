@@ -1079,7 +1079,7 @@ Gap Analysis:
 - Gap severity: ${gapAnalysis.severity || 'unknown'}
 - Days since last review: ${gapAnalysis.daysSinceLastReview || 'N/A'}
 - Gap relative to optimal: ${gapAnalysis.gapRelativeToOptimal || 'N/A'}x
-- Estimated mastery decay: ${gapAnalysis.estimatedDecay ? Math.round(gapAnalysis.estimatedDecay * 100) + '%' : 'N/A'}
+- Estimated mastery decay: ${gapAnalysis.estimatedDecay ? `${Math.round(gapAnalysis.estimatedDecay * 100)  }%` : 'N/A'}
 - Session type: ${gapAnalysis.sessionType || 'first_today'}
 ` : '';
 
@@ -1089,9 +1089,9 @@ Cross-Concept Patterns Detected:
 ${crossConceptPatterns.slice(0, 5).map((p) => {
     if (p.type === 'PREREQUISITE') {
       return `  - PREREQUISITE: "${p.conceptA}" should be studied before "${p.conceptB}" (confidence: ${Math.round(p.confidence * 100)}%)`;
-    } else if (p.type === 'INTERFERENCE') {
+    } if (p.type === 'INTERFERENCE') {
       return `  - INTERFERENCE: "${p.conceptA}" and "${p.conceptB}" interfere - space them out`;
-    } else if (p.type === 'POSITIVE_TRANSFER') {
+    } if (p.type === 'POSITIVE_TRANSFER') {
       return `  - POSITIVE TRANSFER: "${p.conceptA}" reinforces "${p.conceptB}"`;
     }
     return `  - ${p.type}: ${p.conceptA} ↔ ${p.conceptB}`;
@@ -1265,8 +1265,435 @@ IMPORTANT:
 - Plan for the possibility that some items may need to be re-learned from scratch`;
 };
 
+/**
+ * Tutor-mode system prompt — Phase 1.
+ *
+ * Wraps the assembled learner/knowledge/recent-activity blocks (produced by
+ * src/renderer/utils/tutorContext.js) with behavioral guidance so the chat
+ * answers as a teacher who remembers the learner, not a stateless Q&A bot.
+ *
+ * The injected blocks are passed as a single string (`contextString`). They
+ * are wrapped in XML-style tags inside the system prompt so the model treats
+ * them as data, not instructions.
+ *
+ * @param {string} contextString — pre-formatted block bundle (may be '')
+ * @param {Object} [opts]
+ * @param {string} [opts.bookTitle]
+ * @param {string} [opts.chapterTitle]
+ * @returns {string}
+ */
+const createTutorSystemPrompt = (contextString, opts = {}) => {
+  const { bookTitle, chapterTitle } = opts;
+  const bookLine = bookTitle
+    ? `The learner is currently reading "${bookTitle}"${chapterTitle ? `, chapter "${chapterTitle}"` : ''}.`
+    : '';
+
+  const trimmedContext = (contextString || '').trim();
+  const contextSection = trimmedContext
+    ? `Use the following information about the learner silently — do NOT state it back unless directly asked. Adapt your tone, depth, and starting point based on it.\n\n${trimmedContext}\n`
+    : 'No learner profile data is available yet — answer as a careful tutor and ask questions to learn about the reader as you go.\n';
+
+  return `You are a personal learning tutor for this specific reader.
+
+${bookLine}
+
+Behavioral rules:
+- If they ask about a concept they have already mastered (per <KNOWLEDGE>), build on it rather than re-explaining basics.
+- If they ask about a concept they recently struggled with, slow down and try a DIFFERENT framing than a stock explanation — concrete examples, analogies, or a check question.
+- If they ask about a concept new to them, briefly check the prerequisite chain first ("do you know X?") before diving in.
+- Match their preferred learning style (visual / textual / mixed) from <LEARNER>.
+- If <RECENT_ACTIVITY> suggests cramming or burnout, keep responses tight and end with a low-cost suggestion (e.g., "want a 2-minute recap card for this?").
+- Never enumerate the data you have about them. The reader experience is "this AI just gets me," not "this AI is reading my profile out loud."
+- When the page text (provided in the user-turn context) is the focus, answer about *this* passage rather than generic knowledge.
+
+${contextSection}`;
+};
+
+// ===========================================================================
+// Domain-aware extraction prompts (Phase 3b)
+//
+// Each prompt asks the LLM to produce the typed `extras` shape declared
+// in src/commons/model/LearningPointDomains.ts for the given domain.
+// They are deliberately short and instruct the model to focus on the
+// fields that matter for the corresponding card type. The schema itself
+// is appended by the structured-output polyfill (do NOT inline the schema
+// here — keep the prompt focused on the task and the extraction rules).
+// ===========================================================================
+
+/** Vocabulary: word/phrase → ipa, partOfSpeech, examples, collocations, translations */
+const createVocabularyExtractionPrompt = (text, targetLang = '') => `
+You are extracting structured vocabulary data from the following text.
+
+Identify the primary word or phrase being defined or used, and produce a
+JSON object with these fields (omit any field you cannot confidently fill):
+- ipa: IPA pronunciation (e.g. "/ɪˈfɛm(ə)rəl/")
+- partOfSpeech: noun | verb | adjective | adverb | phrase | idiom | other
+- examples: 1-3 short example sentences USING the word
+- collocations: common multi-word patterns (e.g. "ephemeral beauty")
+${targetLang ? `- translations: object keyed by language code, ONLY include "${targetLang}"` : '- translations: object keyed by language code (only if obvious)'}
+
+Do not invent definitions — only extract what is in or directly implied by the text.
+
+TEXT:
+"""
+${text}
+"""
+`;
+
+/**
+ * Formal concept (math / physics / chemistry / biology).
+ * Output shape mirrors FormalConceptExtras in LearningPointDomains.ts.
+ */
+const createFormalConceptExtractionPrompt = (text, domain = 'math') => `
+You are extracting a formal ${domain} concept from the following text.
+
+Produce a JSON object with these fields (omit any field you cannot fill):
+- definitionLatex: the concept's definition. Use LaTeX for math notation (\\frac, \\int, etc.) when applicable, otherwise plain text.
+- workedExampleLatex: ONE worked example demonstrating the concept, in LaTeX where applicable.
+- prerequisites: array of concept NAMES the learner should know first (do not invent IDs)
+- similarProblems: array of up to 2 objects, each { "promptLatex": "...", "solutionLatex": "..." }
+- commonMistakes: array of 1-3 short strings naming frequent pitfalls
+${domain === 'physics' || domain === 'chemistry' ? '- units: SI unit string if applicable (e.g. "m/s", "mol/L")' : ''}
+
+Be precise. Do not paraphrase the definition unless the text is informal.
+
+TEXT:
+"""
+${text}
+"""
+`;
+
+/**
+ * Programming: code snippet + explanation.
+ * Output shape mirrors ProgrammingExtras in LearningPointDomains.ts.
+ */
+const createProgrammingExtractionPrompt = (text) => `
+You are extracting a programming concept or snippet from the following text.
+
+Produce a JSON object with these fields:
+- language (REQUIRED): programming language identifier in lowercase (e.g. "javascript", "python", "rust", "sql")
+- snippet (REQUIRED): the code sample (extract the most representative block; preserve whitespace)
+- expectedOutput: what the snippet outputs / returns, if shown or directly stated
+- variations: array of up to 2 { "snippet": "...", "note": "..." } alternatives or related forms
+- gotchas: array of 1-3 short strings describing pitfalls or surprises
+- runnable: true if the snippet is self-contained and runnable as-is, false if it needs context
+- versionContext: language/library version if behavior depends on it
+
+If no code is present, return { "language": "", "snippet": "" }.
+
+TEXT:
+"""
+${text}
+"""
+`;
+
+/**
+ * Knowledge / history / geography / reading (KnowledgeExtras shape).
+ * General-purpose extractor for prose-like content.
+ */
+const createKnowledgeExtractionPrompt = (text) => `
+You are extracting general factual / contextual information from the following text.
+
+Produce a JSON object with these fields (omit any field with no content):
+- sources: array of { "title": "...", "url": "...", "cite": "..." } if the text cites references
+- relatedConcepts: array of concept NAMES mentioned that the learner may want to follow up on
+- evidence: array of short statements summarizing the key claims supported by the text
+- dates: array of ISO-style date strings (YYYY or YYYY-MM-DD) relevant to the content
+- locations: array of place names mentioned
+
+Be conservative — only include fields the text actually supports.
+
+TEXT:
+"""
+${text}
+"""
+`;
+
+/**
+ * Micro-card proposal prompt (Phase 4).
+ *
+ * Asks the LLM to decide whether a paragraph contains a single learnable
+ * concept worth flashcarding, and if so, generate a tight (front, back)
+ * pair. The model is also the final quality gate — if the paragraph is
+ * boilerplate, narrative filler, or doesn't teach anything, it returns
+ * `shouldPropose: false`.
+ *
+ * The expected output shape matches what MicroCardProposer.normalizeProposal
+ * consumes; do not change one without the other.
+ *
+ * @param {string} paragraphText
+ * @param {Object} [context] — { bookTitle, chapterTitle, knownConcepts: string[] }
+ */
+const createMicroCardProposalPrompt = (paragraphText, context = {}) => {
+  const { bookTitle, chapterTitle, knownConcepts } = context;
+  const bookLine = bookTitle
+    ? `The reader is in "${bookTitle}"${chapterTitle ? `, chapter "${chapterTitle}"` : ''}.`
+    : '';
+  const knownLine =
+    Array.isArray(knownConcepts) && knownConcepts.length > 0
+      ? `Concepts the reader already knows (do NOT propose cards for these): ${knownConcepts.slice(0, 30).join(', ')}.`
+      : '';
+
+  return `${bookLine}
+${knownLine}
+You are evaluating a single paragraph the reader just finished. Decide whether it contains ONE learnable concept worth turning into a flashcard.
+
+Return ONLY one JSON object with these fields:
+- shouldPropose (boolean): true ONLY if the paragraph contains a definitional, factual, or technical idea the reader would benefit from reviewing later. False for narrative filler, transitional text, boilerplate, examples without a generalizable concept, or anything the reader is already known to know.
+- front (string, ≤ 100 chars): a concise question or term that prompts recall of the concept. Use the natural question form ("What is X?" / "Why does Y happen?") or just the term itself.
+- back (string, ≤ 300 chars): the answer / definition / key fact. Self-contained — should not require re-reading the paragraph.
+- domain (string): one of vocabulary, math, programming, knowledge, language, reading, skill. Best-fit domain.
+- conceptName (string, optional): the canonical name of the concept being learned (e.g. "oxidative phosphorylation").
+- confidence (number 0-1): your confidence that THIS card is worth proposing.
+
+Guidance:
+- Prefer FEWER, HIGHER-QUALITY proposals. Returning shouldPropose=false is the right answer most of the time.
+- If the paragraph contains multiple ideas, pick the most central one — never propose multiple cards from one paragraph.
+- The front should test understanding, not regurgitation. Avoid "What does the paragraph say about X?".
+
+PARAGRAPH:
+"""
+${paragraphText}
+"""
+`;
+};
+
+/**
+ * Phase 5: Pre-book diagnostic prompt.
+ *
+ * Given a book's TOC (flat list of chapter labels) plus light metadata,
+ * the LLM returns a structured summary the renderer can render as an
+ * annotated map of what's ahead. The renderer then deterministically
+ * intersects `chapters[].estimatedConcepts` with the learner's known
+ * concepts to surface "you already know X" / "you'll learn Y" annotations
+ * — no second AI call is needed for personalization.
+ *
+ * The output shape is consumed by BookDiagnosticService.parseResponse;
+ * do not change one without the other.
+ *
+ * @param {Object} input
+ * @param {string} input.bookTitle
+ * @param {string} [input.bookAuthor]
+ * @param {string} [input.bookCategory]
+ * @param {Array<{label: string, depth?: number}>} input.tocEntries
+ * @param {string[]} [input.knownConcepts] — for primer personalization (NOT
+ *   used for annotation; that's deterministic post-processing)
+ */
+const createBookDiagnosticPrompt = (input = {}) => {
+  const {
+    bookTitle = '',
+    bookAuthor = '',
+    bookCategory = '',
+    tocEntries = [],
+    knownConcepts = [],
+  } = input;
+
+  const meta = [
+    bookTitle && `Title: ${bookTitle}`,
+    bookAuthor && `Author: ${bookAuthor}`,
+    bookCategory && `Category: ${bookCategory}`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  const tocList = tocEntries
+    .map((e, i) => {
+      const indent = '  '.repeat(Math.max(0, (e.depth || 0)));
+      return `${i + 1}. ${indent}${e.label}`;
+    })
+    .join('\n');
+
+  const knownLine =
+    Array.isArray(knownConcepts) && knownConcepts.length > 0
+      ? `The reader already knows these concepts (use to tailor the primer; ` +
+        `don't suggest revisiting them): ${knownConcepts.slice(0, 40).join(', ')}.`
+      : 'The reader is new to this material.';
+
+  return `You are helping a reader decide how to approach a book they're about to start.
+
+${meta}
+
+TABLE OF CONTENTS (chapter titles only; the body text is not available):
+${tocList}
+
+${knownLine}
+
+Return ONLY one JSON object with these fields:
+- bookSummary (string, ≤ 240 chars): one or two sentences naming what the book is about and what kind of reader it suits.
+- topics (string[], 3-6 items): high-level topics the book covers (e.g. "cellular respiration", "linear algebra", "the French Revolution"). Lowercase canonical phrases.
+- estimatedDifficulty (string): one of beginner | intermediate | advanced. Your best guess from titles + category.
+- chapters (array): one entry per TOC entry in the SAME order. Each entry: { title: string (echo the title), estimatedConcepts: string[] (2-5 specific concept names this chapter likely covers — empty array if the title is too generic e.g. "Introduction", "Appendix") }.
+- primer (string, ≤ 600 chars): a personalized note to the reader. Mention chapters that will be densest, prerequisites worth shoring up, and (if knownConcepts is non-empty) which chapters they can probably skim because they already know the material. Speak directly to the reader ("you'll").
+- prerequisiteWarnings (array, optional, up to 3): { topic: string, reason: string } — topics the reader should be comfortable with before starting; only include if titles strongly imply a prerequisite (e.g. "calculus" for a real analysis book).
+
+Be honest about uncertainty: if titles are too thin to guess content (e.g. "Chapter 1", "Part II"), return empty estimatedConcepts for those entries rather than confabulating. Better to under-guess than to mislead the reader.`;
+};
+
+/**
+ * createComprehensionPromptPrompt — generates a single open-ended comprehension
+ * question from a chapter title + accumulated text excerpt (Phase 6).
+ *
+ * The output is a plain string (the question), not JSON, so no schema is needed.
+ * Keep it open-ended ("explain", "describe", "what is the relationship between")
+ * rather than factual recall — we want to surface understanding gaps, not quiz trivia.
+ */
+const createComprehensionPromptPrompt = (input = {}) => {
+  const { chapterTitle = '', textExcerpt = '', bookTitle = '' } = input;
+
+  const bookLine = bookTitle ? `Book: ${bookTitle}\n` : '';
+  const excerptTrimmed = (textExcerpt || '').slice(0, 3000);
+
+  return `${bookLine}Chapter: ${chapterTitle}
+
+The reader just finished this chapter. Here is the chapter text (possibly truncated):
+---
+${excerptTrimmed}
+---
+
+Generate ONE open-ended comprehension question that would reveal whether the reader genuinely understood the chapter's main idea or central mechanism. The question should:
+- Require the reader to explain, not just recall a fact
+- Be answerable in 2-5 sentences
+- Avoid "list X things" formats
+
+Return ONLY the question text, no preamble, no numbering.`;
+};
+
+/**
+ * createComprehensionGradingPrompt — grades the reader's free-text answer
+ * against the chapter content (Phase 6).
+ *
+ * Returns JSON: { score (0-100), strengths (string[]), gaps (string[]), feedback (string ≤ 200 chars) }
+ * score: 0-49 = significant gaps, 50-74 = partial, 75-100 = solid understanding
+ */
+const createComprehensionGradingPrompt = (input = {}) => {
+  const {
+    chapterTitle = '',
+    textExcerpt = '',
+    question = '',
+    answer = '',
+    bookTitle = '',
+  } = input;
+
+  const bookLine = bookTitle ? `Book: ${bookTitle}\n` : '';
+  const excerptTrimmed = (textExcerpt || '').slice(0, 3000);
+
+  return `${bookLine}Chapter: ${chapterTitle}
+
+Chapter text (possibly truncated):
+---
+${excerptTrimmed}
+---
+
+Question asked: ${question}
+
+Reader's answer: ${answer}
+
+Grade the reader's answer for comprehension depth. Return ONLY one JSON object:
+- score (integer 0-100): 0-49 = significant gaps, 50-74 = partial understanding, 75-100 = solid understanding
+- strengths (string[], 0-3 items): what the reader got right — concrete, specific
+- gaps (string[], 0-3 items): key concepts or mechanisms the reader missed or misunderstood — concrete, specific (empty array if score >= 75)
+- feedback (string, ≤ 200 chars): one or two encouraging sentences that name the most important thing they missed (if any) or affirm what they understood well
+
+Grade for understanding of concepts and relationships, not for matching exact wording from the text.`;
+};
+
+/**
+ * createLearningPathPrompt — given a learning goal and the user's library,
+ * produces an ordered multi-book reading curriculum (Phase 7).
+ *
+ * Books with Phase 5 diagnostic data contribute topics + per-chapter concepts.
+ * Books without diagnostic data appear as title/author only so the AI can
+ * still mention them if they're plausibly relevant.
+ *
+ * Output JSON:
+ *   {
+ *     summary        string   — one sentence on what this path covers
+ *     pathSteps      Array    — ordered reading steps (see below)
+ *     coverageGaps   string[] — goal topics not covered by any book in library (0–4 items)
+ *   }
+ *
+ *   pathStep: { bookId, bookTitle, chapterFocus ('all' | string[]), reason, estimatedHours }
+ */
+const createLearningPathPrompt = (input = {}) => {
+  const { goal = '', analyzedBooks = [], unaanalyzedBooks = [] } = input;
+
+  const analyzedSection = analyzedBooks
+    .map((b, i) => {
+      const topicLine = b.topics?.length
+        ? `  Topics: ${b.topics.slice(0, 6).join(', ')}`
+        : '';
+      const diffLine = b.estimatedDifficulty
+        ? `  Difficulty: ${b.estimatedDifficulty}`
+        : '';
+      const chapterLines = (b.chapters || [])
+        .slice(0, 20)
+        .map((ch) => {
+          const concepts = ch.estimatedConcepts?.slice(0, 4).join(', ') || '';
+          return `    - ${ch.title}${concepts ? ` (${concepts})` : ''}`;
+        })
+        .join('\n');
+      return `[Book ${i + 1}] id=${b.id} "${b.title}"${b.author ? ` by ${b.author}` : ''}\n${topicLine}\n${diffLine}\n  Chapters:\n${chapterLines}`;
+    })
+    .join('\n\n');
+
+  const unanalyzedSection =
+    unaanalyzedBooks.length > 0
+      ? `\nLibrary books without analysis (title only — include only if clearly relevant):\n${unaanalyzedBooks
+          .map((b) => `  id=${b.id} "${b.title}"${b.author ? ` by ${b.author}` : ''}`)
+          .join('\n')}`
+      : '';
+
+  return `You are building a personalized multi-book reading curriculum for a learner.
+
+Learning goal: ${goal}
+
+The learner's library (books with full analysis):
+${analyzedSection || '(none)'}
+${unanalyzedSection}
+
+Create the optimal reading sequence from the books above that best achieves the goal.
+
+Rules:
+- Only include books that meaningfully contribute to the goal. Exclude irrelevant books entirely.
+- Order steps from foundational to advanced — prerequisites first.
+- For each step, chapterFocus should be 'all' if the whole book is relevant, or a list of chapter titles (echo exactly as listed) if only specific chapters matter.
+- estimatedHours: honest estimate in hours of active reading + note-taking.
+- If the goal cannot be well served by the available books, include coverageGaps (topics the learner should seek elsewhere).
+- Keep reasons concise (≤ 100 chars each).
+
+Return ONLY one JSON object:
+{
+  "summary": "string (≤ 160 chars) — what this curriculum achieves",
+  "pathSteps": [
+    {
+      "bookId": number,
+      "bookTitle": "string",
+      "chapterFocus": "all" or ["chapter title 1", "chapter title 2"],
+      "reason": "string ≤ 100 chars",
+      "estimatedHours": number
+    }
+  ],
+  "coverageGaps": ["string"] (0–4 items; only topics genuinely missing from the library)
+}`;
+};
+
 export default getSummaryChatHistoryPrompt;
 export {
+  createTutorSystemPrompt,
+  // Domain-aware extraction prompts (Phase 3b)
+  createVocabularyExtractionPrompt,
+  createFormalConceptExtractionPrompt,
+  createProgrammingExtractionPrompt,
+  createKnowledgeExtractionPrompt,
+  // Micro-card proposal prompt (Phase 4)
+  createMicroCardProposalPrompt,
+  // Pre-book diagnostic prompt (Phase 5)
+  createBookDiagnosticPrompt,
+  // Comprehension grading prompts (Phase 6)
+  createComprehensionPromptPrompt,
+  createComprehensionGradingPrompt,
+  // Cross-book learning path prompt (Phase 7)
+  createLearningPathPrompt,
   getMindMapChatHistoryPrompt,
   getQuizChatHistoryPrompt,
   getUserMessageForCategory,

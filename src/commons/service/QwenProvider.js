@@ -18,6 +18,16 @@ import { QwenModel } from '../model/DataTypes';
 const QWEN_BASE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1';
 
 export default class QwenProvider extends AIProviderInterface {
+  static capabilities = {
+    maxContext: 128000,
+    structuredOutput: 'json-mode',
+    toolUse: true,
+    promptCaching: false,
+    extendedThinking: false,
+    imageInput: false,
+    streaming: true,
+  };
+
   constructor(apiKey, model) {
     super(0, true);
     this.apiKey = apiKey;

@@ -5,6 +5,16 @@ import {ChatCompletion, Text2Image, Image2Text} from "@baiducloud/qianfan";
 import { AIProviderInterface } from './AIProviderInterface';
 
 export default class BaiduQianfanProvider extends AIProviderInterface {
+  static capabilities = {
+    maxContext: 32000,
+    structuredOutput: 'json-mode',
+    toolUse: true,
+    promptCaching: false,
+    extendedThinking: false,
+    imageInput: false,
+    streaming: true,
+  };
+
   constructor(apiKey, apiSecret) {
     super(0, true);
     this.apiKey = apiKey;

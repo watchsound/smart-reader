@@ -5,10 +5,22 @@ import { AIProviderInterface } from './AIProviderInterface';
 import { ClaudeModel } from '../model/DataTypes';
 
 export default class ClaudeProvider extends AIProviderInterface {
+  static capabilities = {
+    maxContext: 200000,
+    structuredOutput: 'native',
+    toolUse: true,
+    promptCaching: true,
+    extendedThinking: true,
+    imageInput: true,
+    streaming: true,
+  };
+
   constructor(apiKey, model) {
     super(0, false);
     this.apiKey = apiKey;
-    this.model = model || ClaudeModel.CLAUDE_3_HAIKU;
+    // CLAUDE_3_HAIKU was removed from ClaudeModel — `undefined` would propagate to the
+    // Anthropic SDK and fail. Use the modern fast/cheap default.
+    this.model = model || ClaudeModel.CLAUDE_HAIKU_4_5;
   }
 
 

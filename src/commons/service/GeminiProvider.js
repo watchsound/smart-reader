@@ -4,6 +4,16 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { AIProviderInterface } from './AIProviderInterface';
 
 export default class GeminiProvider extends AIProviderInterface {
+  static capabilities = {
+    maxContext: 1000000,
+    structuredOutput: 'native',
+    toolUse: true,
+    promptCaching: true,
+    extendedThinking: true,
+    imageInput: true,
+    streaming: true,
+  };
+
   constructor(apiKey, model) {
     super(0, false);
     this.apiKey = apiKey;

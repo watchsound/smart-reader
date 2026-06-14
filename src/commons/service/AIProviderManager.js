@@ -18,7 +18,7 @@ import OllamaMainProvider from './OllamaMainProvider.js';
 import DoubaoProvider from './DoubaoProvider';
 import QwenProvider from './QwenProvider';
 
-class AIProviderManager {
+export class AIProviderManager {
   constructor() {
     if (AIProviderManager.instance) {
       return AIProviderManager.instance;

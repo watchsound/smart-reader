@@ -2,6 +2,7 @@
 /* eslint-disable no-restricted-syntax */
 import OpenAI from 'openai';
 import { AIProviderInterface } from './AIProviderInterface';
+import { KimiModel } from '../model/DataTypes';
 
 /**
  * https://platform.moonshot.cn/docs/api/chat#%E5%8D%95%E8%BD%AE%E5%AF%B9%E8%AF%9D
@@ -10,10 +11,32 @@ import { AIProviderInterface } from './AIProviderInterface';
  * so this code is simply copy from ChatGPTProvider
  */
 export default class KimiProvider extends AIProviderInterface {
+  // Kimi's standout capability is long context + native context caching for documents.
+  // extendedThinking is true for the kimi-k2.5-thinking variant; conservative
+  // default reflects the non-thinking models — refined per-model below.
+  static capabilities = {
+    maxContext: 200000,
+    structuredOutput: 'json-mode',
+    toolUse: true,
+    promptCaching: true,
+    extendedThinking: false,
+    imageInput: false,
+    streaming: true,
+  };
+
+  capabilities() {
+    const base = this.constructor.capabilities;
+    if ((this.model || '').toLowerCase().includes('thinking')) {
+      return { ...base, extendedThinking: true };
+    }
+    return base;
+  }
+
   constructor(key, model) {
     super(1000, false);
     this.apiKey = key;
-    this.model =  model ||  "moonshot-v1-32k";
+    // Reference the enum instead of a stale hardcoded model ID.
+    this.model = model || KimiModel.KIMI_K2;
   }
 
   async generateContent(prompt ) {

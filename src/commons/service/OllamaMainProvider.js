@@ -2,6 +2,40 @@ import { Ollama } from 'ollama';
 import { AIProviderInterface } from './AIProviderInterface'; // Adjust path as necessary
 
 export default class OllamaMainProvider extends AIProviderInterface {
+  // Mirrors OllamaProvider — capabilities vary by local model.
+  static capabilities = {
+    maxContext: 32000,
+    structuredOutput: 'json-mode',
+    toolUse: false,
+    promptCaching: false,
+    extendedThinking: false,
+    imageInput: false,
+    streaming: true,
+  };
+
+  capabilities() {
+    const base = this.constructor.capabilities;
+    const m = (this.model || '').toLowerCase();
+    if (m.includes('deepseek-r1')) {
+      return {
+        ...base,
+        extendedThinking: true,
+        toolUse: true,
+        maxContext: 64000,
+      };
+    }
+    if (m.includes('qwen2.5')) {
+      return { ...base, toolUse: true, maxContext: 128000 };
+    }
+    if (m.includes('llama3.3')) {
+      return { ...base, toolUse: true, maxContext: 128000 };
+    }
+    if (m.includes('llava') || m.includes('-vl')) {
+      return { ...base, imageInput: true };
+    }
+    return base;
+  }
+
   constructor(key, model) {
     super(1000, false);
     this.apiKey = key;
