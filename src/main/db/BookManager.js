@@ -27,6 +27,32 @@
  */
 import db, { getUserIdFromToken, addUserIdCreatedAt, escapeString } from './dbManager';
 
+// Phase 5: pre-book diagnostic columns. Added at runtime via idempotent
+// ALTER TABLE — the project ships a baseline sqlite_tables.db and has no
+// migration framework, so additive columns are introduced here. Only the
+// expected "duplicate column" error is swallowed; any other failure (DB
+// locked, read-only, etc.) is surfaced so a real schema problem doesn't
+// silently degrade later UPDATEs to "no such column" errors.
+let schemaEnsured = false;
+const ensureDiagnosticColumns = () => {
+  if (schemaEnsured) return;
+  schemaEnsured = true;
+  const additions = [
+    "ALTER TABLE book ADD COLUMN first_opened_at TEXT",
+    "ALTER TABLE book ADD COLUMN diagnostic_data TEXT",
+  ];
+  additions.forEach((sql) => {
+    try {
+      db.exec(sql);
+    } catch (err) {
+      const msg = String(err?.message || err);
+      if (/duplicate column/i.test(msg)) return; // expected on second launch
+      console.error('[BookManager] schema-ensure failed:', sql, err);
+    }
+  });
+};
+ensureDiagnosticColumns();
+
 const dbRowToBook = (card) => {
   return {
     id : card.id,
@@ -48,6 +74,8 @@ const dbRowToBook = (card) => {
     bookshelfId: card.bookshelf_id ?? -1,
     createdAt: card.created_at || '',
     userId: card.user_id || 0,
+    firstOpenedAt: card.first_opened_at || '',
+    diagnosticData: card.diagnostic_data || '',
   };
 }
 
@@ -364,6 +392,65 @@ export function deleteBookById(id, token) {
  * @param {*} token
  * @returns  1 or -1
  */
+/**
+ * Phase 5: mark a book as first-opened (idempotent — keeps the original
+ * timestamp on subsequent calls). Returns 1 if the row was updated this
+ * call, 0 if it was already marked, -1 on error.
+ */
+export function markBookFirstOpened(id, token) {
+  const userId = getUserIdFromToken(token);
+  if (userId < 0) return -1;
+  try {
+    const row = db
+      .prepare('SELECT first_opened_at FROM book WHERE id = ? AND user_id = ?')
+      .get(id, userId);
+    if (!row) return -1;
+    if (row.first_opened_at) return 0;
+    const ts = new Date().toISOString();
+    db.prepare('UPDATE book SET first_opened_at = ? WHERE id = ? AND user_id = ?')
+      .run(ts, id, userId);
+    return 1;
+  } catch (err) {
+    console.error(err);
+    return -1;
+  }
+}
+
+/**
+ * Phase 5: read the cached diagnostic JSON for a book (null if not run yet).
+ */
+export function getBookDiagnostic(id, token) {
+  const userId = getUserIdFromToken(token);
+  if (userId < 0) return null;
+  try {
+    const row = db
+      .prepare('SELECT diagnostic_data FROM book WHERE id = ? AND user_id = ?')
+      .get(id, userId);
+    if (!row || !row.diagnostic_data) return null;
+    try { return JSON.parse(row.diagnostic_data); } catch (_) { return null; }
+  } catch (err) {
+    console.error(err);
+    return null;
+  }
+}
+
+/**
+ * Phase 5: persist the diagnostic JSON for a book. Returns 1 on success, -1 on error.
+ */
+export function setBookDiagnostic(id, data, token) {
+  const userId = getUserIdFromToken(token);
+  if (userId < 0) return -1;
+  try {
+    const json = data == null ? null : JSON.stringify(data);
+    db.prepare('UPDATE book SET diagnostic_data = ? WHERE id = ? AND user_id = ?')
+      .run(json, id, userId);
+    return 1;
+  } catch (err) {
+    console.error(err);
+    return -1;
+  }
+}
+
 export function deleteAllBook(token) {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
