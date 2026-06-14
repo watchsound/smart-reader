@@ -101,6 +101,16 @@ async function pull() {
   return ipc.invoke('brain:trigger:pull');
 }
 
+// Test-only: clear all module-level state so tests can share React imports
+// without jest.resetModules() (which causes "two copies of React" errors).
+function _resetForTests() {
+  Array.from(queue.list()).forEach((p) => queue.dismiss(p.id));
+  subscribers.clear();
+  initialized = false;
+  activeProposalId = null;
+  activeProposalSnapshot = null;
+}
+
 module.exports = {
   init,
   subscribe,
@@ -111,4 +121,5 @@ module.exports = {
   dismiss,
   completeActive,
   pull,
+  _resetForTests,
 };
