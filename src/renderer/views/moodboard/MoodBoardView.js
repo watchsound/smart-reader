@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTheme, alpha, styled } from '@mui/material/styles';
 import {
   Box,
@@ -11,8 +11,12 @@ import {
   ToggleButtonGroup,
   Tooltip,
   Pagination,
+  Button,
+  Stack,
+  Paper,
 } from '@mui/material';
 import { useSelector, useDispatch } from 'react-redux';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 // Icons
 import SearchIcon from '@mui/icons-material/Search';
@@ -28,6 +32,8 @@ import NoteAddIcon from '@mui/icons-material/NoteAdd';
 import CollectionsIcon from '@mui/icons-material/Collections';
 
 import { createMoodBoard, getMoodBoardsByQuery } from '../../api/moodBoardApi';
+import moodBoardOrganizerApi from '../../api/moodBoardOrganizerApi';
+import { recordEvent } from '../../api/brainApi';
 import {
   moodBoardAdded,
   moodBoardHandled,
@@ -72,9 +78,9 @@ const QuickFilterChip = styled(Chip)(({ theme, selected }) => ({
   backgroundColor: selected
     ? alpha(theme.palette.primary.main, 0.12)
     : 'transparent',
-  border: `1px solid ${selected
-    ? theme.palette.primary.main
-    : alpha(theme.palette.divider, 0.3)}`,
+  border: `1px solid ${
+    selected ? theme.palette.primary.main : alpha(theme.palette.divider, 0.3)
+  }`,
   color: selected ? theme.palette.primary.main : theme.palette.text.secondary,
   '&:hover': {
     backgroundColor: selected
@@ -106,7 +112,7 @@ const SectionLabel = styled(Typography)(({ theme }) => ({
   paddingLeft: theme.spacing(0.5),
 }));
 
-const EmptyState = ({ icon: Icon, title, subtitle }) => {
+function EmptyState({ icon: Icon, title, subtitle }) {
   const theme = useTheme();
   return (
     <Box
@@ -132,9 +138,14 @@ const EmptyState = ({ icon: Icon, title, subtitle }) => {
           mb: 3,
         }}
       >
-        <Icon sx={{ fontSize: 40, color: theme.palette.primary.main, opacity: 0.7 }} />
+        <Icon
+          sx={{ fontSize: 40, color: theme.palette.primary.main, opacity: 0.7 }}
+        />
       </Box>
-      <Typography variant="h6" sx={{ fontWeight: 600, mb: 1, color: theme.palette.text.primary }}>
+      <Typography
+        variant="h6"
+        sx={{ fontWeight: 600, mb: 1, color: theme.palette.text.primary }}
+      >
         {title}
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 280 }}>
@@ -142,11 +153,13 @@ const EmptyState = ({ icon: Icon, title, subtitle }) => {
       </Typography>
     </Box>
   );
-};
+}
 
 function MoodBoardView({ moodBoard }) {
   const theme = useTheme();
   const dispatch = useDispatch();
+  const location = useLocation();
+  const navigate = useNavigate();
 
   // State
   const [curMoodBoard, setCurMoodBoard] = useState(moodBoard);
@@ -159,6 +172,8 @@ function MoodBoardView({ moodBoard }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState('boards'); // 'boards', 'notes', 'create'
   const [noteQueryStr, setNoteQueryStr] = useState('');
+  // Phase 8 organize loop: cluster the brain wants us to organize, if any.
+  const [organizeSuggestion, setOrganizeSuggestion] = useState(null);
 
   const aMoodBoard = useSelector((state) => state.moodBoard.curMoodBoard);
 
@@ -208,6 +223,97 @@ function MoodBoardView({ moodBoard }) {
     loadMoodBoards();
   };
 
+  // Read `?organize=<bookId:domainType>` (set by the brain heartbeat's
+  // notification actionUrl) and load the cluster details so we can show
+  // an organize banner. Re-runs whenever the search string changes so a
+  // freshly-clicked notification overrides any stale state.
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const dedupKey = params.get('organize');
+    if (!dedupKey) {
+      setOrganizeSuggestion(null);
+      return undefined;
+    }
+    let cancelled = false;
+    moodBoardOrganizerApi
+      .getSuggestion(dedupKey)
+      .then((res) => {
+        if (cancelled) return undefined;
+        setOrganizeSuggestion(res?.suggestion || null);
+        return undefined;
+      })
+      .catch(() => {
+        if (!cancelled) setOrganizeSuggestion(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [location.search]);
+
+  const clearOrganizeParam = useCallback(() => {
+    const params = new URLSearchParams(location.search);
+    params.delete('organize');
+    const next = params.toString();
+    navigate(
+      { pathname: location.pathname, search: next ? `?${next}` : '' },
+      { replace: true },
+    );
+  }, [location.search, location.pathname, navigate]);
+
+  const handleAcceptSuggestion = useCallback(async () => {
+    if (!organizeSuggestion) return;
+    const { bookTitle, domainType, conceptTitles, bookId } = organizeSuggestion;
+    const previewLines = conceptTitles
+      .map((t, i) => `${i + 1}. ${t}`)
+      .join('\n');
+    const newBoard = {
+      name: `${domainType.charAt(0).toUpperCase() + domainType.slice(1)} from ${bookTitle}`,
+      description: `Concepts to organize:\n${previewLines}`,
+      gridLayout: { layout: { lg: [] } },
+      diagram: {},
+      pinned: false,
+    };
+    try {
+      const created = await createMoodBoard(newBoard);
+      dispatch(moodBoardAdded(created));
+      setCurMoodBoard(created);
+      dispatch(moodBoardHandled(created));
+      await moodBoardOrganizerApi.clearSuggestion(bookId, domainType);
+      // Pair with ORGANIZE_SUGGESTED from the brain heartbeat so
+      // analytics can compute suggest → accept conversion.
+      recordEvent.organizeAccepted({
+        dedupKey: `${bookId}:${domainType}`,
+        bookId,
+        bookTitle,
+        domainType,
+        pointCount: conceptTitles.length,
+        newBoardId: created?.id,
+      });
+      loadMoodBoards();
+    } finally {
+      setOrganizeSuggestion(null);
+      clearOrganizeParam();
+    }
+  }, [organizeSuggestion, dispatch, clearOrganizeParam]);
+
+  const handleDismissSuggestion = useCallback(async () => {
+    if (!organizeSuggestion) return;
+    const { bookId, domainType, bookTitle, pointCount } = organizeSuggestion;
+    try {
+      await moodBoardOrganizerApi.clearSuggestion(bookId, domainType);
+      recordEvent.organizeDismissed({
+        dedupKey: `${bookId}:${domainType}`,
+        bookId,
+        bookTitle,
+        domainType,
+        pointCount,
+      });
+    } finally {
+      setOrganizeSuggestion(null);
+      clearOrganizeParam();
+    }
+  }, [organizeSuggestion, clearOrganizeParam]);
+
   const handleSelectMoodBoard = (board) => {
     setCurMoodBoard(board);
     dispatch(moodBoardHandled(board));
@@ -227,9 +333,13 @@ function MoodBoardView({ moodBoard }) {
     }
 
     if (sortBy === 'recent') {
-      filtered.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+      filtered.sort(
+        (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0),
+      );
     } else if (sortBy === 'oldest') {
-      filtered.sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+      filtered.sort(
+        (a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0),
+      );
     } else if (sortBy === 'name') {
       filtered.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     }
@@ -264,7 +374,14 @@ function MoodBoardView({ moodBoard }) {
       >
         {/* Sidebar Header */}
         <SidebarSection sx={{ py: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              mb: 2,
+            }}
+          >
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
               <Box
                 sx={{
@@ -292,7 +409,9 @@ function MoodBoardView({ moodBoard }) {
 
           {/* Search */}
           <SearchContainer>
-            <SearchIcon sx={{ color: theme.palette.text.disabled, mr: 1, fontSize: 20 }} />
+            <SearchIcon
+              sx={{ color: theme.palette.text.disabled, mr: 1, fontSize: 20 }}
+            />
             <InputBase
               placeholder="Search boards..."
               value={searchQuery}
@@ -300,7 +419,11 @@ function MoodBoardView({ moodBoard }) {
               sx={{ flex: 1, fontSize: '0.875rem' }}
             />
             {searchQuery && (
-              <IconButton size="small" onClick={handleClearSearch} sx={{ p: 0.25 }}>
+              <IconButton
+                size="small"
+                onClick={handleClearSearch}
+                sx={{ p: 0.25 }}
+              >
                 <ClearIcon sx={{ fontSize: 16 }} />
               </IconButton>
             )}
@@ -370,7 +493,14 @@ function MoodBoardView({ moodBoard }) {
 
             {/* Mood Boards List */}
             <Box sx={{ flex: 1, overflow: 'auto', px: 1.5, py: 1 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  mb: 1,
+                }}
+              >
                 <SectionLabel sx={{ mb: 0 }}>Your Boards</SectionLabel>
                 <Tooltip title="Sort by">
                   <Box
@@ -406,7 +536,13 @@ function MoodBoardView({ moodBoard }) {
 
               {displayedBoards.length === 0 ? (
                 <Box sx={{ textAlign: 'center', py: 4, px: 2 }}>
-                  <DashboardIcon sx={{ fontSize: 40, color: alpha(theme.palette.text.secondary, 0.3), mb: 1 }} />
+                  <DashboardIcon
+                    sx={{
+                      fontSize: 40,
+                      color: alpha(theme.palette.text.secondary, 0.3),
+                      mb: 1,
+                    }}
+                  />
                   <Typography variant="body2" color="text.secondary">
                     {searchQuery ? 'No boards found' : 'No mood boards yet'}
                   </Typography>
@@ -429,7 +565,14 @@ function MoodBoardView({ moodBoard }) {
               )}
 
               {total > 10 && (
-                <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2, mb: 1 }}>
+                <Box
+                  sx={{
+                    display: 'flex',
+                    justifyContent: 'center',
+                    mt: 2,
+                    mb: 1,
+                  }}
+                >
                   <Pagination
                     count={Math.ceil(total / 10)}
                     page={page}
@@ -451,7 +594,9 @@ function MoodBoardView({ moodBoard }) {
           <Box sx={{ flex: 1, overflow: 'auto', px: 1.5, py: 1 }}>
             <SectionLabel>Drag notes to board</SectionLabel>
             <SearchContainer sx={{ mb: 1.5 }}>
-              <SearchIcon sx={{ color: theme.palette.text.disabled, mr: 1, fontSize: 18 }} />
+              <SearchIcon
+                sx={{ color: theme.palette.text.disabled, mr: 1, fontSize: 18 }}
+              />
               <InputBase
                 placeholder="Search notes..."
                 value={noteQueryStr}
@@ -498,7 +643,72 @@ function MoodBoardView({ moodBoard }) {
       </IconButton>
 
       {/* Main Content */}
-      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <Box
+        sx={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+        }}
+      >
+        {organizeSuggestion && (
+          <Paper
+            elevation={0}
+            sx={{
+              m: 2,
+              p: 2,
+              borderRadius: 2,
+              border: `1px solid ${alpha(theme.palette.primary.main, 0.3)}`,
+              background: alpha(theme.palette.primary.main, 0.06),
+            }}
+          >
+            <Stack spacing={1}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                Organize {organizeSuggestion.pointCount} new{' '}
+                {organizeSuggestion.domainType} concepts
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                From &ldquo;{organizeSuggestion.bookTitle}&rdquo;. The Brain
+                noticed you&apos;ve accumulated several concepts here — a
+                MoodBoard can help them stick.
+              </Typography>
+              <Stack direction="row" flexWrap="wrap" gap={0.5} sx={{ mt: 0.5 }}>
+                {organizeSuggestion.conceptTitles.slice(0, 12).map((t) => (
+                  <Chip
+                    key={t}
+                    label={t}
+                    size="small"
+                    sx={{ fontSize: 11, height: 22 }}
+                  />
+                ))}
+                {organizeSuggestion.conceptTitles.length > 12 && (
+                  <Chip
+                    label={`+${organizeSuggestion.conceptTitles.length - 12} more`}
+                    size="small"
+                    sx={{ fontSize: 11, height: 22 }}
+                  />
+                )}
+              </Stack>
+              <Stack
+                direction="row"
+                spacing={1}
+                justifyContent="flex-end"
+                sx={{ mt: 1 }}
+              >
+                <Button size="small" onClick={handleDismissSuggestion}>
+                  Not now
+                </Button>
+                <Button
+                  size="small"
+                  variant="contained"
+                  onClick={handleAcceptSuggestion}
+                >
+                  Create board with these concepts
+                </Button>
+              </Stack>
+            </Stack>
+          </Paper>
+        )}
         {curMoodBoard ? (
           <DetailedDiagramPanel curMoodBoard={curMoodBoard} />
         ) : (
