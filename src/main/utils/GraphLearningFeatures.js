@@ -326,6 +326,53 @@ class GraphLearningFeatures {
   }
 
   /**
+   * Get concepts the user has mastered (`masteryLevel >= minMastery`).
+   * Used by features that need a "what does the learner already know" list
+   * — e.g. the pre-book diagnostic's personalized primer, which should
+   * skip suggesting concepts the user has already learned.
+   *
+   * @param {string} token - User token
+   * @param {Object} [options]
+   * @param {number} [options.minMastery=70] - mastery threshold (0-100)
+   * @param {number} [options.limit=200] - cap to bound prompt size
+   * @returns {Promise<Array<{id: string, name: string, mastery: number}>>}
+   */
+  async getKnownConcepts(token, { minMastery = 70, limit = 200 } = {}) {
+    if (!this.isAvailable()) return [];
+
+    try {
+      const session = graphInterface.adapter?.session;
+      if (!session) return [];
+
+      const userId = getUserIdFromToken(token);
+
+      const result = await session.run(
+        `
+        MATCH (c:Concept {userId: $userId})
+        WHERE c.masteryLevel >= $minMastery
+        RETURN c.id AS id, c.name AS name, c.masteryLevel AS mastery
+        ORDER BY c.masteryLevel DESC, c.lastReviewedAt DESC
+        LIMIT $limit
+        `,
+        {
+          userId: String(userId),
+          minMastery: parseFloat(minMastery),
+          limit: parseInt(limit, 10),
+        },
+      );
+
+      return result.records.map((record) => ({
+        id: record.get('id'),
+        name: record.get('name'),
+        mastery: record.get('mastery'),
+      }));
+    } catch (e) {
+      console.error('Error getting known concepts:', e);
+      return [];
+    }
+  }
+
+  /**
    * Get concepts where user frequently makes mistakes
    * @param {string} token - User token
    * @param {number} lookbackDays - Days to look back

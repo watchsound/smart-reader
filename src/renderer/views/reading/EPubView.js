@@ -68,7 +68,43 @@ import brainApi, { recordEvent, EPISODE_TYPES } from '../../api/brainApi';
 
 const cardWidth = 360;
 
-function EPubView({ bookPath, curBook, curCfi, onSelectionChange, onAnimationReady, onPageChange, onMindMapResult }) {
+// Phase 4b: extract visible paragraph-like text from the rendered iframe.
+// Called on each page change so the parent can feed the micro-card proposer.
+function extractPageText(rendition) {
+  if (!rendition) return '';
+  try {
+    const contents =
+      typeof rendition.getContents === 'function'
+        ? rendition.getContents()
+        : [];
+    if (!contents || contents.length === 0) return '';
+    const doc = contents[0]?.document;
+    if (!doc) return '';
+    const elements = doc.querySelectorAll('p, li, blockquote');
+    return Array.from(elements)
+      .map((el) => (el.textContent || '').trim())
+      .filter((t) => t.length > 0)
+      .join('\n\n');
+  } catch (err) {
+    console.warn(
+      '[EPubView] page text extraction failed:',
+      err?.message || err,
+    );
+    return '';
+  }
+}
+
+function EPubView({
+  bookPath,
+  curBook,
+  curCfi,
+  onSelectionChange,
+  onAnimationReady,
+  onPageChange,
+  onPageText,
+  onTocReady,
+  onMindMapResult,
+}) {
   const [selections, setSelections] = useState([]);
   const [rendition, setRendition] = useState(null);
   const [location, setLocation] = useState(0);
@@ -126,6 +162,11 @@ function EPubView({ bookPath, curBook, curCfi, onSelectionChange, onAnimationRea
   const epubElement = useRef();
   const mouseDownLoc = useRef();
   const endSelection = useRef();
+  // Phase 4b: pending page-text extraction timeout. Cancelled on every new
+  // locationChanged so rapid page-flips don't fire a stale timeout that
+  // would extract the NEW page's text but emit it labeled with the OLD
+  // page's chapter context.
+  const pageTextTimeoutRef = useRef(null);
   // const curSearchTextInBookRef = useRef(curSearchTextInBook);
   const [cfiChange, setCfiChange] = useState('');
   const [communityNotes, setCommunityNotes] = useState([]);
@@ -419,7 +460,16 @@ function EPubView({ bookPath, curBook, curCfi, onSelectionChange, onAnimationRea
         url={localBookPath}
         tocChanged={(_toc) => {
           toc.current = _toc;
-          console.log(_toc);
+          // Phase 5: surface the raw TOC up so the reading view can run the
+          // pre-book diagnostic on first-open. ReactReader fires this once
+          // per book load — emitting unconditionally is cheap.
+          if (onTocReady) {
+            try {
+              onTocReady(_toc);
+            } catch (_) {
+              /* ignore */
+            }
+          }
         }}
         location={location}
         locationChanged={(epubcfi) => {
@@ -436,6 +486,27 @@ function EPubView({ bookPath, curBook, curCfi, onSelectionChange, onAnimationRea
               curChapterId: chapter ? chapter.id : '',
             });
             handlePageChange(displayed.page);
+            // Phase 4b: emit page text once the new view has rendered.
+            // Cancel any pending extraction first — fast page-flips would
+            // otherwise leak a stale timeout that extracts the NEW page's
+            // text but emits it labeled with the OLD page's chapter.
+            if (onPageText) {
+              if (pageTextTimeoutRef.current) {
+                clearTimeout(pageTextTimeoutRef.current);
+              }
+              const capturedChapterId = chapter ? chapter.id : '';
+              const capturedChapterTitle = chapter ? chapter.label : '';
+              pageTextTimeoutRef.current = setTimeout(() => {
+                pageTextTimeoutRef.current = null;
+                const pageText = extractPageText(rendition);
+                if (pageText) {
+                  onPageText(pageText, {
+                    chapterId: capturedChapterId,
+                    chapterTitle: capturedChapterTitle,
+                  });
+                }
+              }, 300);
+            }
           }
         }}
         getRendition={(_rendition) => {
@@ -628,10 +699,13 @@ function EPubView({ bookPath, curBook, curCfi, onSelectionChange, onAnimationRea
         (async () => {
           try {
             // Import skillApi dynamically to avoid circular deps
-            const skillApi = await import('../../api/skillApi').then(m => m.default);
+            const skillApi = await import('../../api/skillApi').then(
+              (m) => m.default,
+            );
 
             // Get vocabulary words for gold highlighting
-            const vocabWords = await customStorage.getVocabularyWords?.() || [];
+            const vocabWords =
+              (await customStorage.getVocabularyWords?.()) || [];
 
             // Generate summary using AI
             const result = await skillApi.executeSkill('smart_summary', {
@@ -642,7 +716,11 @@ function EPubView({ bookPath, curBook, curCfi, onSelectionChange, onAnimationRea
 
             if (result.success && result.result?.summary) {
               // Trigger the flying word animation
-              await animations.smartSummary(text, result.result.summary, vocabWords);
+              await animations.smartSummary(
+                text,
+                result.result.summary,
+                vocabWords,
+              );
             }
           } catch (error) {
             console.error('Smart Summary error:', error);
@@ -665,7 +743,9 @@ function EPubView({ bookPath, curBook, curCfi, onSelectionChange, onAnimationRea
         // Execute mindmap skill
         (async () => {
           try {
-            const skillApi = await import('../../api/skillApi').then(m => m.default);
+            const skillApi = await import('../../api/skillApi').then(
+              (m) => m.default,
+            );
 
             console.log('[MindMap] Calling mindmap skill...');
 
@@ -714,12 +794,25 @@ function EPubView({ bookPath, curBook, curCfi, onSelectionChange, onAnimationRea
                 });
               });
 
-              const width = Math.max(300, (Math.max(...nodes.map(n => n.level || 1), 1) + 1) * 180);
+              const width = Math.max(
+                300,
+                (Math.max(...nodes.map((n) => n.level || 1), 1) + 1) * 180,
+              );
               const height = Math.max(200, (nodes.length + 1) * 80);
 
               const reactFlowData = {
-                keywordMap: { width: width + 30, height: height + 30, nodes: rfNodes, edges: rfEdges },
-                descriptionMap: { width: width * 1.5, height: height * 1.5, nodes: rfNodes, edges: rfEdges },
+                keywordMap: {
+                  width: width + 30,
+                  height: height + 30,
+                  nodes: rfNodes,
+                  edges: rfEdges,
+                },
+                descriptionMap: {
+                  width: width * 1.5,
+                  height: height * 1.5,
+                  nodes: rfNodes,
+                  edges: rfEdges,
+                },
               };
 
               console.log('[MindMap] ReactFlow data:', reactFlowData);
@@ -729,11 +822,15 @@ function EPubView({ bookPath, curBook, curCfi, onSelectionChange, onAnimationRea
                 onMindMapResult({
                   skillName: 'mindmap',
                   data: reactFlowData,
-                  sourceText: text.substring(0, 100) + (text.length > 100 ? '...' : ''),
+                  sourceText:
+                    text.substring(0, 100) + (text.length > 100 ? '...' : ''),
                 });
               }
             } else {
-              console.error('[MindMap] Skill failed:', result.error || 'No mindmap data');
+              console.error(
+                '[MindMap] Skill failed:',
+                result.error || 'No mindmap data',
+              );
             }
           } catch (error) {
             console.error('[MindMap] Error:', error);
@@ -864,9 +961,12 @@ function EPubView({ bookPath, curBook, curCfi, onSelectionChange, onAnimationRea
     setTimeout(() => {
       try {
         // Try to access iframe content
-        const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+        const iframeDoc =
+          iframe.contentDocument || iframe.contentWindow?.document;
         if (!iframeDoc || !iframeDoc.body) {
-          console.log('EPubView: Cannot access iframe content for cover capture');
+          console.log(
+            'EPubView: Cannot access iframe content for cover capture',
+          );
           return;
         }
 
@@ -886,21 +986,32 @@ function EPubView({ bookPath, curBook, curCfi, onSelectionChange, onAnimationRea
             .then((canvas) => {
               // Validate the captured canvas has actual content
               const ctx = canvas.getContext('2d');
-              const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+              const imageData = ctx.getImageData(
+                0,
+                0,
+                canvas.width,
+                canvas.height,
+              );
               const pixels = imageData.data;
 
               // Check if image is not blank (has non-white pixels)
               let hasContent = false;
               for (let i = 0; i < pixels.length; i += 4) {
                 // Check if pixel is not white/transparent
-                if (pixels[i] < 250 || pixels[i + 1] < 250 || pixels[i + 2] < 250) {
+                if (
+                  pixels[i] < 250 ||
+                  pixels[i + 1] < 250 ||
+                  pixels[i + 2] < 250
+                ) {
                   hasContent = true;
                   break;
                 }
               }
 
               if (!hasContent || canvas.width < 50 || canvas.height < 50) {
-                console.log('EPubView: Captured image appears blank or too small');
+                console.log(
+                  'EPubView: Captured image appears blank or too small',
+                );
                 return;
               }
 

@@ -59,6 +59,16 @@ import ErrorBoundary from '../../ErrorBoundary';
 import graphApi from '../../api/graphApi';
 import ReadingHeader from './ReadingHeader';
 import ReadingControls from './ReadingControls';
+import useReadingEpisodes from './hooks/useReadingEpisodes';
+import useMicroCardProposals from './hooks/useMicroCardProposals';
+import useComprehensionCheck from './hooks/useComprehensionCheck';
+import MicroCardChip from './MicroCardChip';
+import PreReadingPanel from './PreReadingPanel';
+import ComprehensionPanel from './ComprehensionPanel';
+import bookDiagnosticApi from '../../api/bookDiagnosticApi';
+import comprehensionApi from '../../api/comprehensionApi';
+import rereadQueueApi from '../../api/rereadQueueApi';
+import { recordEvent } from '../../api/brainApi';
 import './Reading.css';
 
 // ===== Main Container Styles =====
@@ -798,29 +808,324 @@ function EReaderPage() {
   }, []);
 
   // Handle mindmap results from PDF/EPUB views
-  const handleMindMapResult = useCallback((skillResult) => {
-    if (chatPanelRef?.addSkillResult) {
-      // Switch to AI Bot tab to show the result
-      setTabValue(2);
-      // Add the skill result to the chat panel
-      chatPanelRef.addSkillResult({
-        ...skillResult,
-        title: 'Mind Map',
-      });
-    } else {
-      console.warn('[MindMap] Chat panel ref not available');
-    }
-  }, [chatPanelRef]);
+  const handleMindMapResult = useCallback(
+    (skillResult) => {
+      if (chatPanelRef?.addSkillResult) {
+        // Switch to AI Bot tab to show the result
+        setTabValue(2);
+        // Add the skill result to the chat panel
+        chatPanelRef.addSkillResult({
+          ...skillResult,
+          title: 'Mind Map',
+        });
+      } else {
+        console.warn('[MindMap] Chat panel ref not available');
+      }
+    },
+    [chatPanelRef],
+  );
 
   // Callback to receive the chat panel ref
   const handleChatPanelRef = useCallback((ref) => {
     setChatPanelRef(ref);
   }, []);
 
+  // Phase 2: silent reading-behavior collection — feeds the Brain's
+  // mastery model for pre-book diagnostic, micro-card, and tutor-mode tuning.
+  const { trackPageChange } = useReadingEpisodes({
+    bookId: book?.id,
+    bookType: book?.format,
+  });
+
   // Handle page changes from EPUB/PDF views
-  const handlePageChange = useCallback((pageInfo) => {
-    setPage(pageInfo);
+  const handlePageChange = useCallback(
+    (pageInfo) => {
+      setPage(pageInfo);
+      trackPageChange(pageInfo);
+    },
+    [trackPageChange],
+  );
+
+  // Phase 4b: in-reading micro-card proposals (EPUB only for now).
+  const {
+    currentProposal,
+    processText: processProposalText,
+    acceptProposal,
+    acknowledgeProposal,
+    dismissProposal,
+  } = useMicroCardProposals({
+    bookId: book?.id,
+    bookTitle: book?.title,
+    enabled: book?.format === 'epub',
+  });
+
+  // Phase 5: pre-book diagnostic + primer. Shows once per book on first
+  // open. EPUB-only for now (PDF/Word need their own TOC extractors).
+  const [tocFromReader, setTocFromReader] = useState(null);
+  const [diagPanelOpen, setDiagPanelOpen] = useState(false);
+  const [diagPanelState, setDiagPanelState] = useState('offer'); // offer | loading | result | error
+  const [diagnostic, setDiagnostic] = useState(null);
+  const [diagErrorMessage, setDiagErrorMessage] = useState('');
+  // Latch — never re-evaluate "should I open the panel?" within a single
+  // session, even if React re-runs the effect with the same dependencies.
+  const diagDecidedRef = React.useRef(false);
+
+  const handleTocReady = useCallback((rawToc) => {
+    setTocFromReader(rawToc || []);
   }, []);
+
+  // React-Router can swap the book within the same EReaderPage instance
+  // (e.g. user opens book A, dismisses panel, then navigates to book B).
+  // Reset the latch + transient state so book B gets its own first-open
+  // evaluation. The loader-fresh `book` object's firstOpenedAt is the
+  // source of truth for whether the panel should show.
+  useEffect(() => {
+    diagDecidedRef.current = false;
+    setTocFromReader(null);
+    setDiagPanelOpen(false);
+    setDiagnostic(null);
+    setDiagErrorMessage('');
+  }, [book?.id]);
+
+  // First-open detection — runs once TOC has arrived. We don't gate on
+  // book.firstOpenedAt from the loader alone because if a cached diagnostic
+  // exists we still want to surface it (rare path: user dismissed before
+  // result). The handler checks markOpened.wasFirstOpen as the source of
+  // truth and skips the panel otherwise.
+  useEffect(() => {
+    if (diagDecidedRef.current) return;
+    if (!book?.id) return;
+    if (book.format !== 'epub') return;
+    if (!tocFromReader) return; // wait for TOC
+    diagDecidedRef.current = true;
+
+    (async () => {
+      const token = await customStorage.getToken();
+      // If the book has already been opened before, skip the panel — but
+      // still tolerate the race where TOC arrives before markOpened ran by
+      // checking the live DB flag (firstOpenedAt) via a quick get.
+      if (book.firstOpenedAt) return;
+      // Pre-check the cache; if present, we'll just open straight to result.
+      let cached = null;
+      try {
+        cached = await bookDiagnosticApi.get({ bookId: book.id, token });
+      } catch (_) {
+        /* ignore */
+      }
+      if (cached && !cached.error) {
+        setDiagnostic(cached);
+        setDiagPanelState('result');
+      } else {
+        setDiagPanelState('offer');
+      }
+      setDiagPanelOpen(true);
+    })();
+  }, [book, tocFromReader]);
+
+  const handleDiagSkip = useCallback(async () => {
+    setDiagPanelOpen(false);
+    try {
+      const token = await customStorage.getToken();
+      await bookDiagnosticApi.markOpened({ bookId: book.id, token });
+    } catch (err) {
+      console.warn('[PreReadingPanel] markOpened failed:', err);
+    }
+  }, [book]);
+
+  const handleDiagStartReading = useCallback(async () => {
+    setDiagPanelOpen(false);
+    try {
+      const token = await customStorage.getToken();
+      await bookDiagnosticApi.markOpened({ bookId: book.id, token });
+    } catch (err) {
+      console.warn('[PreReadingPanel] markOpened failed:', err);
+    }
+  }, [book]);
+
+  const handleDiagRun = useCallback(async () => {
+    setDiagPanelState('loading');
+    setDiagErrorMessage('');
+    try {
+      const token = await customStorage.getToken();
+      const result = await bookDiagnosticApi.run({
+        bookId: book.id,
+        token,
+        toc: tocFromReader || [],
+      });
+      if (!result || result.error) {
+        setDiagErrorMessage(result?.error || 'Unknown error.');
+        setDiagPanelState('error');
+      } else {
+        setDiagnostic(result);
+        setDiagPanelState('result');
+      }
+    } catch (err) {
+      setDiagErrorMessage(err?.message || 'Diagnostic call failed.');
+      setDiagPanelState('error');
+    }
+  }, [book, tocFromReader]);
+
+  // Phase 6: chapter-end comprehension check (EPUB only for now).
+  const {
+    trackText: trackComprehensionText,
+    pendingOffer: comprehensionOffer,
+    dismissOffer: dismissComprehensionOffer,
+  } = useComprehensionCheck({
+    bookId: book?.id,
+    enabled: book?.format === 'epub',
+  });
+
+  const [comprPanelOpen, setComprPanelOpen] = useState(false);
+  const [comprPanelState, setComprPanelState] = useState('offer');
+  const [comprQuestion, setComprQuestion] = useState('');
+  const [comprGrading, setComprGrading] = useState(null);
+  const [comprError, setComprError] = useState('');
+  // snapshot of the offer that triggered the current panel session
+  const comprOfferRef = React.useRef(null);
+
+  // Open the panel whenever the hook signals a new pending offer
+  useEffect(() => {
+    if (comprehensionOffer && !comprPanelOpen) {
+      comprOfferRef.current = comprehensionOffer;
+      setComprPanelState('offer');
+      setComprQuestion('');
+      setComprGrading(null);
+      setComprError('');
+      setComprPanelOpen(true);
+      recordEvent.comprehensionOffered({
+        bookId: book?.id,
+        chapterId: comprehensionOffer.chapterId,
+        chapterName: comprehensionOffer.chapterName,
+      });
+    }
+  }, [comprehensionOffer, comprPanelOpen, book?.id]);
+
+  const handleComprCheck = useCallback(async () => {
+    const offer = comprOfferRef.current;
+    if (!offer) return;
+    setComprPanelState('loading');
+    try {
+      const result = await comprehensionApi.generateQuestion({
+        chapterTitle: offer.chapterName,
+        textExcerpt: offer.textExcerpt,
+        bookTitle: book?.name || book?.title || '',
+      });
+      if (result?.error || !result?.question) {
+        setComprError(result?.error || 'Could not generate a question.');
+        setComprPanelState('error');
+      } else {
+        setComprQuestion(result.question);
+        setComprPanelState('question');
+      }
+    } catch (err) {
+      setComprError(err?.message || 'Question generation failed.');
+      setComprPanelState('error');
+    }
+  }, [book]);
+
+  const handleComprSubmit = useCallback(
+    async (answer) => {
+      const offer = comprOfferRef.current;
+      if (!offer || !answer) return;
+      setComprPanelState('grading');
+      try {
+        const result = await comprehensionApi.gradeAnswer({
+          chapterTitle: offer.chapterName,
+          textExcerpt: offer.textExcerpt,
+          bookTitle: book?.name || book?.title || '',
+          question: comprQuestion,
+          answer,
+        });
+        if (result?.error) {
+          setComprError(result.error);
+          setComprPanelState('error');
+        } else {
+          setComprGrading(result);
+          setComprPanelState('result');
+          recordEvent.comprehensionSubmitted({
+            bookId: book?.id,
+            chapterId: offer.chapterId,
+            chapterName: offer.chapterName,
+            score: result.score,
+            gaps: result.gaps,
+          });
+        }
+      } catch (err) {
+        setComprError(err?.message || 'Grading failed.');
+        setComprPanelState('error');
+      }
+    },
+    [book, comprQuestion],
+  );
+
+  const handleComprSkip = useCallback(() => {
+    const offer = comprOfferRef.current;
+    recordEvent.comprehensionSkipped({
+      bookId: book?.id,
+      chapterId: offer?.chapterId,
+      chapterName: offer?.chapterName,
+      panelState: comprPanelState,
+    });
+    setComprPanelOpen(false);
+    dismissComprehensionOffer();
+  }, [book?.id, comprPanelState, dismissComprehensionOffer]);
+
+  const handleComprDone = useCallback(() => {
+    setComprPanelOpen(false);
+    dismissComprehensionOffer();
+  }, [dismissComprehensionOffer]);
+
+  const handleComprScheduleReread = useCallback(
+    async (grading) => {
+      const offer = comprOfferRef.current;
+      if (!offer) return;
+      try {
+        await rereadQueueApi.schedule({
+          bookId: book?.id,
+          bookTitle: book?.name || book?.title || '',
+          chapterId: offer.chapterId,
+          chapterName: offer.chapterName,
+          gaps: grading?.gaps || [],
+          score: grading?.score ?? 0,
+        });
+        recordEvent.rereadScheduled({
+          bookId: book?.id,
+          chapterId: offer.chapterId,
+          chapterName: offer.chapterName,
+          gaps: grading?.gaps,
+          score: grading?.score,
+        });
+      } catch (_) {
+        // best-effort; don't surface errors for a background scheduling action
+      }
+      setComprPanelOpen(false);
+      dismissComprehensionOffer();
+    },
+    [book, dismissComprehensionOffer],
+  );
+
+  // EPubView emits page text on locationChanged. Pick the longest substantive
+  // paragraph from the page and feed it to the proposer (single-flight inside
+  // the hook drops overlapping calls).
+  const handlePageText = useCallback(
+    (text, context) => {
+      if (!text) return;
+      const paragraphs = text
+        .split(/\n\n+/)
+        .map((p) => p.trim())
+        .filter((p) => p.length > 0);
+      if (paragraphs.length === 0) return;
+      const longest = paragraphs.reduce(
+        (a, b) => (a.length >= b.length ? a : b),
+        '',
+      );
+      if (longest) {
+        processProposalText(longest, context);
+        trackComprehensionText(longest, context);
+      }
+    },
+    [processProposalText, trackComprehensionText],
+  );
 
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue);
@@ -961,7 +1266,11 @@ function EReaderPage() {
           <SearchResultPane />
         </CustomTabPanel>
         <CustomTabPanel value={tabValue} index={2} alwaysMount>
-          <InContextChatPanel curBook={book} selectedText={selectedText} onRef={handleChatPanelRef} />
+          <InContextChatPanel
+            curBook={book}
+            selectedText={selectedText}
+            onRef={handleChatPanelRef}
+          />
         </CustomTabPanel>
         <CustomTabPanel value={tabValue} index={3}>
           <BookKnowledgePanel bookId={book.id} bookTitle={book.title} />
@@ -989,6 +1298,8 @@ function EReaderPage() {
           curCfi={note ? note.cfi : ''}
           onSelectionChange={handleSelectionChange}
           onPageChange={handlePageChange}
+          onPageText={handlePageText}
+          onTocReady={handleTocReady}
           onMindMapResult={handleMindMapResult}
         />
       ) : (
@@ -1012,6 +1323,41 @@ function EReaderPage() {
         onFullscreen={handleFullscreen}
         fontSize={fontSize}
         onFontSizeChange={setFontSize}
+      />
+
+      {/* Phase 4b: in-reading micro-card proposal chip (EPUB only). */}
+      <MicroCardChip
+        proposal={currentProposal}
+        onAccept={acceptProposal}
+        onAcknowledge={acknowledgeProposal}
+        onDismiss={dismissProposal}
+      />
+
+      {/* Phase 5: pre-book diagnostic + primer (EPUB only, first-open only). */}
+      <PreReadingPanel
+        open={diagPanelOpen}
+        state={diagPanelState}
+        diagnostic={diagnostic}
+        errorMessage={diagErrorMessage}
+        bookTitle={book?.name || book?.title || ''}
+        onRun={handleDiagRun}
+        onSkip={handleDiagSkip}
+        onStartReading={handleDiagStartReading}
+      />
+
+      {/* Phase 6: chapter-end comprehension check (EPUB only). */}
+      <ComprehensionPanel
+        open={comprPanelOpen}
+        state={comprPanelState}
+        chapterName={comprOfferRef.current?.chapterName || ''}
+        question={comprQuestion}
+        grading={comprGrading}
+        errorMessage={comprError}
+        onCheck={handleComprCheck}
+        onSkip={handleComprSkip}
+        onSubmit={handleComprSubmit}
+        onDone={handleComprDone}
+        onScheduleReread={handleComprScheduleReread}
       />
     </ReadingMainContent>
   );
