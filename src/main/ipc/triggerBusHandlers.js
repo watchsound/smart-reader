@@ -17,16 +17,25 @@ const QUEUE_STORE_KEY = 'brainShell.queueSnapshot';
 function registerTriggerBusHandlers(services = {}) {
   const { brain, store } = services;
 
-  ipcMain.handle('brain:trigger:accept', async (_evt, proposalId) => {
+  // Both accept/dismiss take { proposalId, source } from the renderer; legacy
+  // string form is tolerated (older callers / tests) so this stays robust.
+  const unpack = (arg) =>
+    typeof arg === 'string'
+      ? { proposalId: arg, source: null }
+      : { proposalId: arg?.proposalId, source: arg?.source || null };
+
+  ipcMain.handle('brain:trigger:accept', async (_evt, arg) => {
+    const { proposalId, source } = unpack(arg);
     if (brain?.recordProposalEvent) {
-      await brain.recordProposalEvent({ proposalId, kind: 'accept' });
+      await brain.recordProposalEvent({ proposalId, source, kind: 'accept' });
     }
     return { ok: true };
   });
 
-  ipcMain.handle('brain:trigger:dismiss', async (_evt, proposalId) => {
+  ipcMain.handle('brain:trigger:dismiss', async (_evt, arg) => {
+    const { proposalId, source } = unpack(arg);
     if (brain?.recordProposalEvent) {
-      await brain.recordProposalEvent({ proposalId, kind: 'dismiss' });
+      await brain.recordProposalEvent({ proposalId, source, kind: 'dismiss' });
     }
     return { ok: true };
   });

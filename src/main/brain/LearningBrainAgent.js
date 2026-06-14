@@ -114,14 +114,62 @@ class LearningBrainAgent {
   }
 
   /**
-   * Record renderer-side acceptance or dismissal of a Proposal.
-   * Plan 1: log only. Plan 2 will persist to learnerProfileManager for
-   * trigger-quality learning.
-   * @param {{ proposalId: string, kind: 'accept' | 'dismiss' }} event
+   * Record renderer-side acceptance or dismissal of a Proposal. Persists
+   * a per-source accept/dismiss tally to electron-store so trigger TTLs
+   * and gating thresholds can be tuned against observed engagement.
+   *
+   * Storage shape (under `brainShell.triggerTelemetry`):
+   *   { bySource: { <source>: { accepted, dismissed, lastEvent, lastEventKind } } }
+   *
+   * @param {{ proposalId: string, source?: string | null, kind: 'accept' | 'dismiss' }} event
    */
-  async recordProposalEvent({ proposalId, kind }) {
-    // eslint-disable-next-line no-console
-    console.log('[LearningBrainAgent] proposal event', { proposalId, kind });
+  async recordProposalEvent({ proposalId, source, kind }) {
+    const safeSource = typeof source === 'string' && source ? source : 'unknown';
+    if (!this.store) {
+      // eslint-disable-next-line no-console
+      console.log('[LearningBrainAgent] proposal event (no store)', {
+        proposalId,
+        source: safeSource,
+        kind,
+      });
+      return;
+    }
+    try {
+      const TELEMETRY_KEY = 'brainShell.triggerTelemetry';
+      const raw = this.store.get(TELEMETRY_KEY, { bySource: {} });
+      const telemetry =
+        raw && typeof raw === 'object' && raw.bySource ? raw : { bySource: {} };
+      const entry = telemetry.bySource[safeSource] || {
+        accepted: 0,
+        dismissed: 0,
+        lastEvent: null,
+        lastEventKind: null,
+      };
+      if (kind === 'accept') entry.accepted += 1;
+      else if (kind === 'dismiss') entry.dismissed += 1;
+      entry.lastEvent = new Date().toISOString();
+      entry.lastEventKind = kind;
+      telemetry.bySource[safeSource] = entry;
+      this.store.set(TELEMETRY_KEY, telemetry);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[LearningBrainAgent] recordProposalEvent persist failed:',
+        e?.message || e,
+      );
+    }
+  }
+
+  /**
+   * Read trigger telemetry — used by a future Brain dashboard panel or
+   * dev tooling to inspect per-source accept/dismiss rates.
+   *
+   * @returns {{ bySource: Record<string, { accepted: number, dismissed: number, lastEvent: string | null, lastEventKind: string | null }> }}
+   */
+  getTriggerTelemetry() {
+    if (!this.store) return { bySource: {} };
+    const raw = this.store.get('brainShell.triggerTelemetry', { bySource: {} });
+    return raw && raw.bySource ? raw : { bySource: {} };
   }
 
   /**

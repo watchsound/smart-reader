@@ -101,6 +101,10 @@ async function initializeLearningBrain(services = {}) {
       return brainAgent.synthesizePullSuggestion();
     },
 
+    getTriggerTelemetry() {
+      return brainAgent.getTriggerTelemetry();
+    },
+
     async stop() {
       scheduler.stop();
       await episodeCollector.flush();

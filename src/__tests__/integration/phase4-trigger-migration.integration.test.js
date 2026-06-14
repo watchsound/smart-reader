@@ -78,10 +78,13 @@ test('Phase 4 trigger → Orb blooms → user accepts → AtomicChipHost renders
     fireEvent.click(screen.getByLabelText(/Brain — has-proposal/));
   });
 
-  // 5. IPC accept invoked.
+  // 5. IPC accept invoked with proposalId + source for telemetry.
   expect(ipcInvoke).toHaveBeenCalledWith(
     'brain:trigger:accept',
-    'phase4:book-1:para-hash-1',
+    expect.objectContaining({
+      proposalId: 'phase4:book-1:para-hash-1',
+      source: 'phase-4-micro-card',
+    }),
   );
 
   // 6. AtomicChipHost is now rendered with the proposal payload.
@@ -96,7 +99,10 @@ test('Phase 4 trigger → Orb blooms → user accepts → AtomicChipHost renders
   });
   expect(ipcInvoke).toHaveBeenCalledWith(
     'brain:trigger:dismiss',
-    'phase4:book-1:para-hash-1',
+    expect.objectContaining({
+      proposalId: 'phase4:book-1:para-hash-1',
+      source: 'phase-4-micro-card',
+    }),
   );
 
   // 9. Chip is gone; orb is back to idle.

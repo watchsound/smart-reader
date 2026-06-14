@@ -69,12 +69,20 @@ describe('triggerBus', () => {
   test('accept captures proposal snapshot, invokes IPC, removes from queue, sets mid-flow', async () => {
     const triggerBus = require('../../renderer/brain/triggerBus');
     triggerBus.init();
-    ipcOnHandlers['brain:trigger:push'](null, makeTrigger({ id: 'x', payload: { title: 'Hello' } }));
+    ipcOnHandlers['brain:trigger:push'](
+      null,
+      makeTrigger({ id: 'x', payload: { title: 'Hello' } }),
+    );
     await triggerBus.accept('x');
-    expect(ipcInvoke).toHaveBeenCalledWith('brain:trigger:accept', 'x');
+    expect(ipcInvoke).toHaveBeenCalledWith(
+      'brain:trigger:accept',
+      { proposalId: 'x', source: 'phase-4-micro-card' },
+    );
     expect(triggerBus.getQueueSnapshot()).toHaveLength(0);
     expect(triggerBus.getOrbState()).toBe('mid-flow');
-    expect(triggerBus.getActiveProposal()).toEqual(expect.objectContaining({ id: 'x', payload: { title: 'Hello' } }));
+    expect(triggerBus.getActiveProposal()).toEqual(
+      expect.objectContaining({ id: 'x', payload: { title: 'Hello' } }),
+    );
   });
 
   test('dismiss invokes IPC and removes from queue', async () => {
@@ -82,7 +90,10 @@ describe('triggerBus', () => {
     triggerBus.init();
     ipcOnHandlers['brain:trigger:push'](null, makeTrigger({ id: 'x' }));
     await triggerBus.dismiss('x');
-    expect(ipcInvoke).toHaveBeenCalledWith('brain:trigger:dismiss', 'x');
+    expect(ipcInvoke).toHaveBeenCalledWith(
+      'brain:trigger:dismiss',
+      { proposalId: 'x', source: 'phase-4-micro-card' },
+    );
     expect(triggerBus.getQueueSnapshot()).toHaveLength(0);
   });
 

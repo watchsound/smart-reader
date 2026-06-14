@@ -157,7 +157,12 @@ function getActiveProposal() {
 async function accept(proposalId) {
   const captured = queue.list().find((p) => p.id === proposalId) || null;
   const ipc = window.electron?.ipcRenderer;
-  if (ipc) await ipc.invoke('brain:trigger:accept', proposalId);
+  if (ipc) {
+    await ipc.invoke('brain:trigger:accept', {
+      proposalId,
+      source: captured?.source || null,
+    });
+  }
   activeProposalId = proposalId;
   activeProposalSnapshot = captured;
   queue.dismiss(proposalId);
@@ -165,8 +170,18 @@ async function accept(proposalId) {
 }
 
 async function dismiss(proposalId) {
+  // Capture source BEFORE removing from queue so telemetry sees it.
+  const captured = queue.list().find((p) => p.id === proposalId)
+    || (activeProposalSnapshot && activeProposalSnapshot.id === proposalId
+      ? activeProposalSnapshot
+      : null);
   const ipc = window.electron?.ipcRenderer;
-  if (ipc) await ipc.invoke('brain:trigger:dismiss', proposalId);
+  if (ipc) {
+    await ipc.invoke('brain:trigger:dismiss', {
+      proposalId,
+      source: captured?.source || null,
+    });
+  }
   queue.dismiss(proposalId);
   notify();
 }
