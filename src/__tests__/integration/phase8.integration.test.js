@@ -209,11 +209,14 @@ beforeEach(() => {
 });
 
 // =============================================================================
-// Spaced Re-reading
+// Happy-path walkthroughs — one per loop. The narrower per-rule edge cases
+// (dedup, MIN_MASTERY, missing book, etc.) are covered in the per-service
+// unit tests; this file confirms the loop actually runs end-to-end against
+// real schema + service composition.
 // =============================================================================
 
-describeIfDB('Phase 8 integration — spaced re-reading', () => {
-  it('schedule -> getPending -> complete pulls item off the queue', () => {
+describeIfDB('Phase 8 integration — spaced re-reading happy path', () => {
+  it('schedule -> getPending shows the item -> complete removes it', () => {
     const service = new RereadQueueService(makeStore());
 
     const scheduled = service.schedule({
@@ -237,117 +240,36 @@ describeIfDB('Phase 8 integration — spaced re-reading', () => {
     expect(completed.completedAt).toBeTruthy();
     expect(service.getPending(USER_ID)).toHaveLength(0);
   });
-
-  it('schedule is idempotent per (book, chapter) — updates the open item', () => {
-    const service = new RereadQueueService(makeStore());
-    const first = service.schedule({
-      userId: USER_ID,
-      bookId: 1,
-      bookTitle: 'Test Book',
-      chapterId: 'ch_1',
-      chapterName: 'Chapter 1',
-      gaps: ['x'],
-      score: 30,
-    });
-    const second = service.schedule({
-      userId: USER_ID,
-      bookId: 1,
-      bookTitle: 'Test Book',
-      chapterId: 'ch_1',
-      chapterName: 'Chapter 1',
-      gaps: ['x', 'y'],
-      score: 25,
-    });
-    expect(second.id).toBe(first.id);
-    expect(service.getPending(USER_ID)).toHaveLength(1);
-  });
-
-  it('dismiss on a non-existent id returns false (no throw)', () => {
-    const service = new RereadQueueService(makeStore());
-    expect(service.dismiss('does-not-exist')).toBe(false);
-  });
 });
 
-// =============================================================================
-// Organize Loop
-// =============================================================================
-
-describeIfDB('Phase 8 integration — organize loop', () => {
-  it('detects a cluster, fires notification, dedups on rerun', () => {
+describeIfDB('Phase 8 integration — organize loop happy path', () => {
+  it('cluster of 6 learning points -> notification fires -> episode records', () => {
     for (let i = 0; i < 6; i += 1) {
       seedLearningPoint({ domainType: 'vocabulary', bookId: 1 });
     }
 
-    const store = makeStore();
     const collector = { record: jest.fn() };
     const service = new MoodBoardOrganizerService({
-      store,
+      store: makeStore(),
       episodeCollector: collector,
     });
 
-    const first = service.suggestOrganize(USER_ID, SESSION_TOKEN);
-    expect(first.created).toBe(1);
+    const result = service.suggestOrganize(USER_ID, SESSION_TOKEN);
+
+    expect(result.created).toBe(1);
     expect(capturedNotifications).toHaveLength(1);
     expect(capturedNotifications[0].title).toContain('6 new vocabulary');
     expect(capturedNotifications[0].actionUrl).toBe(
       '/moodBoard?organize=1%3Avocabulary',
     );
-    expect(collector.record).toHaveBeenCalledTimes(1);
-    expect(collector.record.mock.calls[0][0].eventType).toBe(
-      'ORGANIZE_SUGGESTED',
+    expect(collector.record).toHaveBeenCalledWith(
+      expect.objectContaining({ eventType: 'ORGANIZE_SUGGESTED' }),
     );
-
-    const second = service.suggestOrganize(USER_ID, SESSION_TOKEN);
-    expect(second.created).toBe(0);
-    expect(second.skipped).toBe(1);
-    expect(capturedNotifications).toHaveLength(1);
-  });
-
-  it('clearSuggestion frees the dedup slot so the next run re-suggests', () => {
-    for (let i = 0; i < 6; i += 1) {
-      seedLearningPoint({ domainType: 'vocabulary', bookId: 1 });
-    }
-    const service = new MoodBoardOrganizerService({ store: makeStore() });
-
-    service.suggestOrganize(USER_ID, SESSION_TOKEN);
-    expect(capturedNotifications).toHaveLength(1);
-
-    expect(service.clearSuggestion(USER_ID, 1, 'vocabulary')).toBe(true);
-
-    service.suggestOrganize(USER_ID, SESSION_TOKEN);
-    expect(capturedNotifications).toHaveLength(2);
-  });
-
-  it('no-ops below the minClusterSize threshold (default 5)', () => {
-    for (let i = 0; i < 4; i += 1) {
-      seedLearningPoint({ domainType: 'vocabulary', bookId: 1 });
-    }
-    const service = new MoodBoardOrganizerService({ store: makeStore() });
-
-    const result = service.suggestOrganize(USER_ID, SESSION_TOKEN);
-    expect(result.created).toBe(0);
-    expect(result.clusters).toEqual([]);
-    expect(capturedNotifications).toHaveLength(0);
-  });
-
-  it('falls back to "Book #ID" when the book row is missing', () => {
-    for (let i = 0; i < 5; i += 1) {
-      seedLearningPoint({ domainType: 'programming', bookId: 99 });
-    }
-    const service = new MoodBoardOrganizerService({ store: makeStore() });
-
-    const result = service.suggestOrganize(USER_ID, SESSION_TOKEN);
-    expect(result.created).toBe(1);
-    expect(capturedNotifications[0].message).toContain('Book #99');
   });
 });
 
-// =============================================================================
-// Production Loop
-// =============================================================================
-
-describeIfDB('Phase 8 integration — production loop', () => {
-  it('selects high-mastery candidate and fires the prompt', () => {
+describeIfDB('Phase 8 integration — production loop happy path', () => {
+  it('high-mastery point -> prompt notification fires -> episode records', () => {
     seedLearningPoint({
       title: 'serendipity',
       masteryLevel: 80,
@@ -357,10 +279,9 @@ describeIfDB('Phase 8 integration — production loop', () => {
       }),
     });
 
-    const store = makeStore();
     const collector = { record: jest.fn() };
     const service = new ProductionPromptService({
-      store,
+      store: makeStore(),
       episodeCollector: collector,
     });
 
@@ -375,71 +296,5 @@ describeIfDB('Phase 8 integration — production loop', () => {
     expect(collector.record).toHaveBeenCalledWith(
       expect.objectContaining({ eventType: 'PRODUCTION_PROMPTED' }),
     );
-  });
-
-  it('skips candidates below MIN_MASTERY (60)', () => {
-    seedLearningPoint({
-      masteryLevel: 40,
-      reviewCount: 5,
-      back: JSON.stringify({ text: 'sufficient explanation here for testing' }),
-    });
-
-    const service = new ProductionPromptService({ store: makeStore() });
-    const result = service.schedulePrompt(USER_ID, SESSION_TOKEN);
-
-    expect(result.created).toBe(0);
-    expect(result.reason).toBe('no candidates');
-    expect(capturedNotifications).toHaveLength(0);
-  });
-
-  it('skips candidates below MIN_REVIEWS (3)', () => {
-    seedLearningPoint({
-      masteryLevel: 80,
-      reviewCount: 2,
-      back: JSON.stringify({ text: 'long enough back text for the threshold' }),
-    });
-
-    const service = new ProductionPromptService({ store: makeStore() });
-    const result = service.schedulePrompt(USER_ID, SESSION_TOKEN);
-    expect(result.created).toBe(0);
-  });
-
-  it('skips candidates without substantive back text', () => {
-    seedLearningPoint({
-      masteryLevel: 80,
-      reviewCount: 5,
-      back: JSON.stringify({ text: 'short' }),
-    });
-
-    const service = new ProductionPromptService({ store: makeStore() });
-    const result = service.schedulePrompt(USER_ID, SESSION_TOKEN);
-    expect(result.created).toBe(0);
-  });
-
-  it('dedups the same point for 21 days after prompting', () => {
-    seedLearningPoint({
-      masteryLevel: 80,
-      reviewCount: 5,
-      back: JSON.stringify({
-        text: 'substantive enough explanation for the production threshold',
-      }),
-    });
-
-    const service = new ProductionPromptService({ store: makeStore() });
-    expect(service.schedulePrompt(USER_ID, SESSION_TOKEN).created).toBe(1);
-    expect(service.schedulePrompt(USER_ID, SESSION_TOKEN).created).toBe(0);
-  });
-
-  it('no-session short-circuits cleanly', () => {
-    const originalShared = global.shared;
-    global.shared = { store: { get: jest.fn(() => null) } };
-
-    const service = new ProductionPromptService({ store: makeStore() });
-    const result = service.schedulePrompt(USER_ID, null);
-
-    expect(result.reason).toBe('no session');
-    expect(capturedNotifications).toHaveLength(0);
-
-    global.shared = originalShared;
   });
 });
