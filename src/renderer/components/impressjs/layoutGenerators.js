@@ -395,6 +395,11 @@ export function selectLayoutTheme(suggestedTheme, slideCount, contents) {
     LayoutThemes.DEPTH_ZOOM,
     LayoutThemes.RANDOM_WALK,
     LayoutThemes.STORYTELLING,
+    LayoutThemes.HELIX,
+    LayoutThemes.MOBIUS,
+    LayoutThemes.EXPLODED_TEXT,
+    LayoutThemes.Z_TUNNEL,
+    LayoutThemes.PAGE_TURN_BOOK,
   ];
   return themes[Math.floor(Math.random() * themes.length)];
 }
