@@ -280,15 +280,20 @@ class LearningBrainAgent {
         };
       }
 
-      // Fallback: basic analysis from session analytics
+      // Fallback: basic analysis from session analytics.
+      // getSessionHistory's signature is (token, {days, limit, offset, topicId})
+      // and it returns {sessions, total, hasMore}. The previous shape passed
+      // {userId, startDate} as the token, used a startDate option that the
+      // function ignores, and then called .reduce on the wrapper object
+      // instead of the inner array — so this branch silently failed every
+      // heartbeat. Same token-resolution trick as calculateVelocity.
       if (this.sessionAnalyticsManager) {
-        const weekAgo = new Date();
-        weekAgo.setDate(weekAgo.getDate() - 7);
-
-        const sessions = await this.sessionAnalyticsManager.getSessionHistory({
-          userId,
-          startDate: weekAgo.toISOString(),
-        });
+        const sessionInfo = global?.shared?.store?.get?.('session_info');
+        const effectiveToken = sessionInfo?.token || token;
+        const { sessions = [] } =
+          this.sessionAnalyticsManager.getSessionHistory(effectiveToken, {
+            days: 7,
+          }) || {};
 
         const totalReviews = sessions.reduce(
           (sum, s) => sum + (s.itemsReviewed || 0),
