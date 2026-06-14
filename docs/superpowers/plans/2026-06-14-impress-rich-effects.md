@@ -2,6 +2,25 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+## Update 2026-06-14 — Phase C/D deferred, Phase E re-scoped
+
+After Phases A and B landed (Tasks 1–12 plus the revised Task 7 runtime bundle), we **decided not to integrate Three.js / WebGL in this iteration**. The remaining tasks have the following status:
+
+| Phase | Tasks | Status |
+|---|---|---|
+| A. Skeleton + thin slice | 1–8 | ✅ **Shipped** (all 8 implementer dispatches green; 26 tests at end of phase) |
+| B. CSS effect catalog | 9–12 | ✅ **Shipped** (44 tests at end of phase) |
+| (post-B fix) | — | ✅ `selectLayoutTheme` random pool extended to include the 5 new layouts (`b767757`) |
+| C. WebGL skeleton + first WebGL effect | 13–16 | ⏸ **DEFERRED** — do not execute until WebGL integration is re-greenlit |
+| D. WebGL catalog | 17–18 | ⏸ **DEFERRED** |
+| E. Acceptance & polish | 19–23 | ⚠ **PARTIAL DEFER** — Task 19 (wire WebGL bundles) deferred; Tasks 20 (backward-compat test), 21 (WebGL gating test — re-purpose as "no Three.js bundled" assertion), 22 (perf smoke), 23 (acceptance checklist) can still run against the CSS-only catalog |
+
+The original task bodies below are left in place verbatim so that the WebGL work can be picked up unchanged when this iteration resumes. **Do not begin Tasks 13–18 or the WebGL portions of Tasks 19–23 in this iteration.**
+
+**Behavioral consequence:** the AI prompt at [src/commons/utils/AIPrompts.js](../../../src/commons/utils/AIPrompts.js) still lists the 7 WebGL effect names. If the AI suggests one, `registries.lookup()` returns null and the runtime silently no-ops that track — the slide still renders, just without the requested effect. Trimming the WebGL names from the prompt is a small follow-up.
+
+---
+
 **Goal:** Add 38 composable visual effects to the Impress presentation feature across 4 orthogonal tracks (Layout, Typography, Background, Transition), orchestrated by an extended AI JSON schema with a Three.js scene that passively follows impress.js's camera.
 
 **Architecture:** Effect-registry pattern with name→descriptor lookup, populated at module load. The existing `createDecomposeParagraphPrompt` AI call is extended (new fields are additive and optional) so per-slide effect selection costs zero extra LLM calls. A Three.js canvas mounts behind impress.js's DOM (`z-index: -1`) and a tiny adapter reads each step's transform on `impress:stepenter`, mirroring it into a Three.js `PerspectiveCamera`. Three.js loads lazily — only when at least one WebGL effect is selected. Backward compatibility is guaranteed by the additive schema: if AI returns the legacy shape, behavior is identical to today.

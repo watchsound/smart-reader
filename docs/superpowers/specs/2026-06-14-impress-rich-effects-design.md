@@ -1,8 +1,30 @@
 # Impress.js Rich Effects — Design Spec
 
 **Date:** 2026-06-14
-**Status:** Approved (architecture); ready for plan phase
+**Status:** v1 (CSS-only catalog) shipped on `feat/impress-rich-effects`. WebGL/Three.js track **deferred** to a future iteration.
 **Scope:** Renderer-side — [src/renderer/components/impressjs/](../../../src/renderer/components/impressjs/) and the AI prompt that drives it ([src/commons/utils/AIPrompts.js](../../../src/commons/utils/AIPrompts.js)).
+
+---
+
+## Update 2026-06-14 — WebGL deferred
+
+After the CSS catalog landed, we decided **not to integrate Three.js / WebGL effects in this iteration**. The 4-track architecture, registry pattern, AI orchestration schema, and CSS-only catalog all shipped. The WebGL portions of this spec (Section 3.2, the WebGL rows in Section 4, the bundle size discussion in Section 6, the WebGL acceptance criteria in Section 7) remain on record as the **design target for a future iteration** but are **not implemented in v1**.
+
+**What v1 actually ships:**
+- 12 layouts (7 existing + helix, mobius, exploded_text, z_tunnel, page_turn_book)
+- 9 CSS typography effects (none, blur_in, typewriter, word_by_word_fade, scramble_decode, letters_from_edges, ink_write, glitch_chromatic, neon_glow_pulse)
+- 6 CSS backgrounds (none, gradient_flow, starfield_parallax, dust_motes, ink_wash, cinema_letterbox)
+- 5 CSS transitions (default, depth_blur, dissolve, ink_bleed, shatter_rebuild)
+- **Total: 32 CSS-only effects** (the 7 WebGL effects originally planned are deferred)
+
+**What v1 deliberately does NOT ship:**
+- `three` / `troika-three-text` dependencies — not added to `package.json`
+- `SceneManager` / `cameraSync` — not implemented
+- 3 WebGL typography effects (`text_3d_extrude`, `text_particle_burst`, `text_liquid_morph`)
+- 4 WebGL backgrounds (`nebula_cloud`, `geometry_field`, `data_stream`, `aurora`)
+- The lazy-loading WebGL bundle path
+
+**Behavioral consequence:** the AI prompt in [src/commons/utils/AIPrompts.js](../../../src/commons/utils/AIPrompts.js) still advertises the WebGL effect names. If the AI suggests one, `registries.lookup()` returns `null` and the runtime silently no-ops that track for that slide — the slide still renders, just without the requested effect. This is graceful but means the WebGL names should be trimmed from the prompt when convenient (separate follow-up).
 
 ---
 
