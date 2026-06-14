@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-SmartReader v2 is an AI-powered e-reader desktop application built on Electron React Boilerplate. It combines document reading (EPUB, PDF, Word), note-taking with spaced repetition (Leitner system), AI-assisted learning across multiple LLM providers, and semantic search through ChromaDB and Neo4j graph database.
+SmartReader v2 is an AI-powered e-reader desktop application built on Electron React Boilerplate. It combines document reading (EPUB, PDF, Word), note-taking with spaced repetition (Leitner system), AI-assisted learning across multiple LLM providers, semantic search through ChromaDB, and a knowledge graph backed by an embedded Kùzu database (default) with optional Neo4j support.
 
 ## Development Commands
 
@@ -70,13 +70,17 @@ pip install chromadb
 chroma run --path chroma
 ```
 
-### Graph Database (Neo4j)
+### Graph Database (Kùzu / Neo4j)
 
-Neo4j provides knowledge graph features over a SQLite-primary architecture. Quick summary:
-- SQLite (primary): CRUD, categories, user data, settings
-- Neo4j (secondary): Knowledge graph, learning paths, semantic search, memory consolidation
+Two-tier storage: SQLite is primary (CRUD, categories, user data, settings) and the graph backend handles knowledge graph features (concept relationships, learning paths, semantic search, memory consolidation).
 
-See **[docs/technical/graph-database.md](docs/technical/graph-database.md)** for adapters, IPC handlers, Memory Consolidation Graph (Episode/ConsolidatedMemory/Concept nodes), and configuration.
+Two graph backends sit behind `src/main/utils/GraphInterface.js`:
+- **Kùzu (default)**: embedded, MIT license, no external server required. Adapter: `KuzuAdapter.js`. Data lives under `<userData>/kuzu_graph/`.
+- **Neo4j (optional)**: external server, swap in for environments that need it. Adapter: `Neo4jAdapter.js`. Requires connection URI + credentials.
+
+The default is set in `GraphInterface.js` (`DEFAULT_ADAPTER_TYPE = 'kuzu'`). Code calling graph operations goes through the interface, not the adapter, so swapping is configuration-level.
+
+See **[docs/technical/graph-database.md](docs/technical/graph-database.md)** for adapter details, IPC handlers, Memory Consolidation Graph (Episode/ConsolidatedMemory/Concept nodes), and configuration.
 
 ### State Management
 
@@ -98,7 +102,7 @@ src/
 │   │                  # MoodBoardOrganizerService + ProductionPromptService (Phase 8)
 │   ├── db/            # SQLite managers
 │   ├── ipc/           # IPC handlers (Phase 4-8 + earlier)
-│   └── utils/         # ChromaManager, GraphInterface, Neo4jAdapter,
+│   └── utils/         # ChromaManager, GraphInterface, KuzuAdapter (default), Neo4jAdapter,
 │                      # RereadQueueService (Phase 8), BookDiagnosticService (Phase 5),
 │                      # ComprehensionGradingService (Phase 6), MicroCardProposer (Phase 4),
 │                      # LearningPathPlannerService (Phase 7), LearningPointEnrichmentService,
@@ -138,8 +142,9 @@ src/
 
 ## External Runtime Requirements
 
-- **ChromaDB**: Python service for vector search (optional if using Neo4j)
-- **Neo4j**: Graph database for knowledge graph features (optional, enhances learning features)
+- **ChromaDB**: Python service for vector search (optional)
+- **Kùzu**: Embedded by default — no setup required, ships with the app
+- **Neo4j**: Optional alternative graph backend (enables remote/shared graph databases)
 - **LibreOffice** (optional): For Word document conversion
 - **Ollama** (optional): For local LLM support
 - **System TTS**: macOS/Windows built-in; Linux needs espeak/festival/flite
@@ -191,7 +196,7 @@ Detailed reference docs live in [docs/technical/](docs/technical/). Open the rel
 | Subsystem | Doc | Scope |
 |-----------|-----|-------|
 | Views & Feature Modules | [views.md](docs/technical/views.md) | Reading, Bookshelf, Notes, Chat, Browser, Vocabulary, Translate, Writing, Grammar, Quiz, MoodBoard, Settings; common UI patterns; AI integration points |
-| Graph Database (Neo4j) | [graph-database.md](docs/technical/graph-database.md) | Neo4j adapters, IPC, configuration, Memory Consolidation Graph (`SummarizationGraphService`) |
+| Graph Database (Kùzu / Neo4j) | [graph-database.md](docs/technical/graph-database.md) | `GraphInterface` abstraction, KuzuAdapter (default) + Neo4jAdapter (optional), IPC, configuration, Memory Consolidation Graph (`SummarizationGraphService`) |
 | StudyEnhancer System | [study-enhancer.md](docs/technical/study-enhancer.md) | Browser word-animation system, Smart Summary, paragraph action icons |
 | Animation Core | [animation-core.md](docs/technical/animation-core.md) | Modular animations for EPUB/PDF/Notes (`useEPUBAnimations`, `usePDFAnimations`, `useNoteAnimations`) |
 | Rich Markdown Editor | [rich-markdown-editor.md](docs/technical/rich-markdown-editor.md) | TipTap-based editor, `[[wiki-link]]` Knowledge Web, backlinks |
