@@ -47,7 +47,8 @@
     "start:preload": "cross-env NODE_ENV=development TS_NODE_TRANSPILE_ONLY=true webpack --config ./.erb/configs/webpack.config.preload.dev.ts",
     "start:renderer": "cross-env NODE_ENV=development TS_NODE_TRANSPILE_ONLY=true webpack serve --config ./.erb/configs/webpack.config.renderer.dev.ts",
     "test": "jest",
-    "test:integration": "node .erb/scripts/test-integration.js"
+    "test:integration": "node .erb/scripts/test-integration.js",
+    "test:smoke": "node .erb/scripts/test-smoke.js"
   },
   "browserslist": [],
   "prettier": {
