@@ -1,7 +1,7 @@
 /**
  * quest-progress IPC handler test — aggregates a Quest's learning-point
- * counts (from LearningPointManager) and path-step count (from the
- * Quest's persisted metadata.pathSteps).
+ * counts (via learningPointService → graph backend) and path-step count
+ * (from the Quest's persisted metadata.pathSteps).
  */
 
 describe('questHandlers — quest-progress', () => {
@@ -9,7 +9,7 @@ describe('questHandlers — quest-progress', () => {
     jest.resetModules();
   });
 
-  function setup({ state, countByBookIds }) {
+  function setup({ state, getBySource }) {
     const handlers = {};
     jest.doMock('electron', () => ({
       ipcMain: {
@@ -21,8 +21,13 @@ describe('questHandlers — quest-progress', () => {
     jest.doMock('../../main/db/dbManager', () => ({
       getUserIdFromToken: () => 1,
     }));
-    jest.doMock('../../main/db/LearningPointManager', () => ({
-      countByBookIds: countByBookIds || (() => ({ total: 0, booksStarted: 0 })),
+    jest.doMock('../../main/utils/LearningPointService', () => ({
+      __esModule: true,
+      default: {
+        getBySource:
+          getBySource ||
+          (async () => []),
+      },
     }));
     const store = {
       get: (k, d) => (k in state ? state[k] : d),
@@ -57,13 +62,25 @@ describe('questHandlers — quest-progress', () => {
         },
       ],
     };
-    const countByBookIds = jest.fn(() => ({ total: 12, booksStarted: 2 }));
-    const handlers = setup({ state, countByBookIds });
+    // bookId 1 → 7 cards, bookId 2 → 5 cards, bookId 3 → 0 (untouched).
+    // Total = 12, booksStarted = 2.
+    const getBySource = jest.fn(async (sourceType, sourceId) => {
+      if (sourceType !== 'book') return [];
+      if (sourceId === '1') return new Array(7).fill({});
+      if (sourceId === '2') return new Array(5).fill({});
+      return [];
+    });
+    const handlers = setup({ state, getBySource });
     const result = await handlers['quest-progress'](null, {
       id: 'q1',
       token: 't',
     });
-    expect(countByBookIds).toHaveBeenCalledWith([1, 2, 3], 't');
+    // Called once per bookId, with stringified ids (matches how the
+    // graph schema stores sourceId).
+    expect(getBySource).toHaveBeenCalledTimes(3);
+    expect(getBySource).toHaveBeenCalledWith('book', '1', 't');
+    expect(getBySource).toHaveBeenCalledWith('book', '2', 't');
+    expect(getBySource).toHaveBeenCalledWith('book', '3', 't');
     expect(result).toEqual({
       questId: 'q1',
       learningPointsTotal: 12,
@@ -86,16 +103,44 @@ describe('questHandlers — quest-progress', () => {
         },
       ],
     };
-    const handlers = setup({
-      state,
-      // Should be skipped — empty bookIds.
-      countByBookIds: () => ({ total: 99, booksStarted: 99 }),
-    });
+    const getBySource = jest.fn();
+    const handlers = setup({ state, getBySource });
     const result = await handlers['quest-progress'](null, { id: 'q2' });
-    // countByBookIds returns its mock value even for empty input (the
-    // skip is enforced inside the real manager); the handler trusts it.
-    expect(result.booksTotal).toBe(0);
-    expect(result.pathStepsTotal).toBe(0);
+    expect(getBySource).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      questId: 'q2',
+      learningPointsTotal: 0,
+      booksStarted: 0,
+      booksTotal: 0,
+      pathStepsTotal: 0,
+    });
+  });
+
+  test('treats a failing per-book lookup as zero for that book', async () => {
+    const state = {
+      'quests.items': [
+        {
+          id: 'q3',
+          name: 'Mixed',
+          goal: 'g',
+          status: 'active',
+          bookIds: [10, 11],
+          userId: 1,
+        },
+      ],
+    };
+    const getBySource = async (_t, sourceId) => {
+      if (sourceId === '10') return [{}, {}, {}];
+      throw new Error('graph down');
+    };
+    const handlers = setup({ state, getBySource });
+    const result = await handlers['quest-progress'](null, {
+      id: 'q3',
+      token: 't',
+    });
+    expect(result.learningPointsTotal).toBe(3);
+    expect(result.booksStarted).toBe(1);
+    expect(result.booksTotal).toBe(2);
   });
 
   test('returns null for an unknown quest id', async () => {

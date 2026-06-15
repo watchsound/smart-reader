@@ -19,7 +19,13 @@
 const { ipcMain } = require('electron');
 const QuestService = require('../utils/QuestService');
 const { getUserIdFromToken } = require('../db/dbManager');
-const learningPointManager = require('../db/LearningPointManager');
+// Quest progress reads through the graph backend (Kùzu/Neo4j) — the
+// SQLite learning_point table is read-only legacy storage today (writes
+// from learningPointService go to graph only), so a SQLite count would
+// silently return 0 for any post-migration user.
+const learningPointService =
+  require('../utils/LearningPointService').default ||
+  require('../utils/LearningPointService');
 
 let registered = false;
 let service = null;
@@ -137,28 +143,55 @@ function registerQuestHandlers(store, services = {}) {
     }
   });
 
-  // Lightweight progress snapshot for the OrbQuestMenu. Aggregates a single
-  // SQLite COUNT against the Quest's bookIds. Episode-level engagement
-  // (Phase 2) lives in the graph backend and is not aggregated here yet —
-  // a Quest's learning-point count is a directional signal that "the user
-  // is doing work in these books." Path-step total comes from Phase 7's
-  // persisted metadata.pathSteps; completion tracking would require
+  // Lightweight progress snapshot for the OrbQuestMenu. Asks the graph
+  // backend for each scoped book's learning points (in parallel) and
+  // aggregates totals in JS. N+1 queries per Quest, but N is typically
+  // 1–5 and the chip refreshes only on menu open, so cost is fine and
+  // we avoid a custom Cypher COUNT that would need writing twice (Kùzu
+  // + Neo4j adapters). Path-step total comes from Phase 7's persisted
+  // metadata.pathSteps; per-step completion tracking would require
   // walk-step marking, which we don't have yet, so we only return total.
-  ipcMain.handle('quest-progress', (_event, payload) => {
+  ipcMain.handle('quest-progress', async (_event, payload) => {
     try {
       const { id, token } = payload || {};
       if (!id) return null;
       const quest = service.get(id);
       if (!quest) return null;
       const bookIds = Array.isArray(quest.bookIds) ? quest.bookIds : [];
-      const counts = learningPointManager.countByBookIds(bookIds, token);
       const pathSteps = Array.isArray(quest.metadata?.pathSteps)
         ? quest.metadata.pathSteps
         : [];
+
+      let learningPointsTotal = 0;
+      let booksStarted = 0;
+      if (bookIds.length > 0 && learningPointService?.getBySource) {
+        const perBook = await Promise.all(
+          bookIds.map(async (bid) => {
+            try {
+              const points = await learningPointService.getBySource(
+                'book',
+                String(bid),
+                token,
+              );
+              return Array.isArray(points) ? points.length : 0;
+            } catch (e) {
+              console.warn(
+                '[questHandlers] getBySource failed for bookId',
+                bid,
+                e?.message || e,
+              );
+              return 0;
+            }
+          }),
+        );
+        learningPointsTotal = perBook.reduce((a, n) => a + n, 0);
+        booksStarted = perBook.filter((n) => n > 0).length;
+      }
+
       return {
         questId: id,
-        learningPointsTotal: counts.total,
-        booksStarted: counts.booksStarted,
+        learningPointsTotal,
+        booksStarted,
         booksTotal: bookIds.length,
         pathStepsTotal: pathSteps.length,
       };
