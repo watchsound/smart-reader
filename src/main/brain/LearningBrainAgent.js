@@ -1052,6 +1052,39 @@ Reply strictly as JSON with this shape:
         };
         out.created += 1;
         bumpType(nudge.type, 'created');
+
+        // Brain-driven shell: also emit an atomic-chip Trigger so the
+        // Orb surfaces this nudge alongside the in-app notification.
+        // Same daily dedup as the notification path (no double-emit).
+        if (this.triggerEmitter) {
+          const navigate = mapping.actionUrl
+            ? mapping.actionUrl.replace(/^\/+/, '')
+            : null;
+          this.triggerEmitter.emit({
+            id: `notif:${nudge.type}:${today}`,
+            source: `notification-${nudge.type}`,
+            unit: 'atomic-chip',
+            surfaceTarget: { kind: 'global' },
+            priority:
+              priority === NOTIFICATION_PRIORITIES.HIGH ? 'high' : 'normal',
+            freshness: 24 * 60 * 60 * 1000,
+            payload: {
+              title: nudge.title,
+              body: nudge.message,
+              actions: navigate
+                ? [
+                    {
+                      label: mapping.actionLabel || 'Open',
+                      navigate,
+                      primary: true,
+                    },
+                  ]
+                : [],
+              nudgeType: nudge.type,
+              notificationId: created?.id || null,
+            },
+          });
+        }
       } catch (err) {
         out.errors += 1;
         bumpType(nudge.type, 'errors');
