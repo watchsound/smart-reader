@@ -1,7 +1,7 @@
 /* eslint-disable react/prop-types */
 /* eslint-disable react/require-default-props */
 import React, { useState } from 'react';
-import { Box, Tooltip, Zoom } from '@mui/material';
+import { Box, Tooltip } from '@mui/material';
 import {
   ORB_KEYFRAMES,
   ORB_SIZE_PX,
@@ -83,31 +83,35 @@ export default function BrainOrb({
         }}
       >
         {queueDepth > 1 && (
-          <Zoom in mountOnEnter unmountOnExit>
-            <Box
-              role="status"
-              sx={{
-                position: 'absolute',
-                top: -6,
-                right: -6,
-                minWidth: 16,
-                height: 16,
-                borderRadius: '8px',
-                backgroundColor: '#ff5252',
-                color: '#fff',
-                fontSize: 10,
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '0 4px',
-                animation: ORB_BADGE_ANIMATION,
-                ...ORB_KEYFRAMES,
-              }}
-            >
-              {queueDepth}
-            </Box>
-          </Zoom>
+          <Box
+            role="status"
+            sx={{
+              position: 'absolute',
+              top: -6,
+              right: -6,
+              minWidth: 16,
+              height: 16,
+              borderRadius: '8px',
+              backgroundColor: '#ff5252',
+              color: '#fff',
+              fontSize: 10,
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '0 4px',
+              // Mount/unmount happens via the {queueDepth > 1 &&} guard;
+              // the bounce on entrance is owned by this keyframe (with
+              // `both` fill-mode so the final scale(1) sticks). A prior
+              // version wrapped this Box in <Zoom> but Zoom's inline
+              // transform is overridden by the running animation, so it
+              // contributed nothing visually beyond what we already had.
+              animation: ORB_BADGE_ANIMATION,
+              ...ORB_KEYFRAMES,
+            }}
+          >
+            {queueDepth}
+          </Box>
         )}
         {ring && (
           <Box
