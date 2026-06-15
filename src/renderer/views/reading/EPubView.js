@@ -65,32 +65,54 @@ import ImpressModal from '../../components/impressjs/ImpressModal';
 import customStorage from '../../store/customStorage';
 import { useEPUBAnimations } from '../../components/animation-core/adapters/useEPUBAnimations';
 import brainApi, { recordEvent, EPISODE_TYPES } from '../../api/brainApi';
+import { hashParagraph } from '../../../commons/brain/paragraphHash';
 
 const cardWidth = 360;
 
-// Phase 4b: extract visible paragraph-like text from the rendered iframe.
+// Phase 4b: extract visible paragraph-like text from the rendered view(s).
 // Called on each page change so the parent can feed the micro-card proposer.
+//
+// epub.js renders ONE iframe per visible page. With its default
+// `spread: "auto"` + `minSpreadWidth: 800` settings (we don't override),
+// a typical desktop window has TWO iframes side-by-side. We walk every
+// entry of `rendition.getContents()` so the right page's paragraphs aren't
+// invisible to the proposer.
+//
+// Returns { text, paragraphMap } where paragraphMap is a Map<paragraphHash,
+// HTMLElement>; elements may live in different iframe documents. The chip
+// derives the owning iframe from `el.ownerDocument.defaultView.frameElement`
+// at measurement time, so a single iframe ref isn't needed here.
 function extractPageText(rendition) {
-  if (!rendition) return '';
+  if (!rendition) return { text: '', paragraphMap: new Map() };
   try {
     const contents =
       typeof rendition.getContents === 'function'
         ? rendition.getContents()
         : [];
-    if (!contents || contents.length === 0) return '';
-    const doc = contents[0]?.document;
-    if (!doc) return '';
-    const elements = doc.querySelectorAll('p, li, blockquote');
-    return Array.from(elements)
-      .map((el) => (el.textContent || '').trim())
-      .filter((t) => t.length > 0)
-      .join('\n\n');
+    if (!contents || contents.length === 0) {
+      return { text: '', paragraphMap: new Map() };
+    }
+    const parts = [];
+    const paragraphMap = new Map();
+    contents.forEach((content) => {
+      const doc = content?.document;
+      if (!doc) return;
+      const elements = doc.querySelectorAll('p, li, blockquote');
+      Array.from(elements).forEach((el) => {
+        const t = (el.textContent || '').trim();
+        if (!t) return;
+        parts.push(t);
+        // Last writer wins on hash collision — chip anchoring is best-effort.
+        paragraphMap.set(hashParagraph(t), el);
+      });
+    });
+    return { text: parts.join('\n\n'), paragraphMap };
   } catch (err) {
     console.warn(
       '[EPubView] page text extraction failed:',
       err?.message || err,
     );
-    return '';
+    return { text: '', paragraphMap: new Map() };
   }
 }
 
@@ -102,6 +124,7 @@ function EPubView({
   onAnimationReady,
   onPageChange,
   onPageText,
+  onParagraphAnchor,
   onTocReady,
   onMindMapResult,
 }) {
@@ -490,7 +513,7 @@ function EPubView({
             // Cancel any pending extraction first — fast page-flips would
             // otherwise leak a stale timeout that extracts the NEW page's
             // text but emits it labeled with the OLD page's chapter.
-            if (onPageText) {
+            if (onPageText || onParagraphAnchor) {
               if (pageTextTimeoutRef.current) {
                 clearTimeout(pageTextTimeoutRef.current);
               }
@@ -498,8 +521,20 @@ function EPubView({
               const capturedChapterTitle = chapter ? chapter.label : '';
               pageTextTimeoutRef.current = setTimeout(() => {
                 pageTextTimeoutRef.current = null;
-                const pageText = extractPageText(rendition);
-                if (pageText) {
+                const { text: pageText, paragraphMap } =
+                  extractPageText(rendition);
+                if (onParagraphAnchor) {
+                  // Refresh the anchor lookup on every page-load so a stale
+                  // map from the previous page can't pin the chip to an
+                  // element that's no longer in the DOM. With two-page
+                  // spreads the elements span two iframes; the chip derives
+                  // each element's iframe from its ownerDocument, so we
+                  // don't pin one iframe ref here.
+                  onParagraphAnchor({
+                    getElementByHash: (h) => paragraphMap.get(h) || null,
+                  });
+                }
+                if (onPageText && pageText) {
                   onPageText(pageText, {
                     chapterId: capturedChapterId,
                     chapterTitle: capturedChapterTitle,

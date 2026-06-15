@@ -2,7 +2,7 @@
 /* eslint-disable react/prop-types */
 /* eslint-disable react/require-default-props */
 /* eslint-disable react-hooks/exhaustive-deps */
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { styled, alpha, useTheme } from '@mui/material/styles';
 import Typography from '@mui/material/Typography';
 import PropTypes from 'prop-types';
@@ -1104,6 +1104,16 @@ function EReaderPage() {
     [book, dismissComprehensionOffer],
   );
 
+  // Phase 4b: anchor accessor for MicroCardChip. EPubView calls
+  // `handleParagraphAnchor` on every page-load with a fresh paragraph map +
+  // iframe ref so the chip can position itself near the source paragraph.
+  // We hold it in a ref (not state) — the chip re-reads it on each layout
+  // pass and we don't want re-renders on every page turn.
+  const paragraphAnchorRef = useRef(null);
+  const handleParagraphAnchor = useCallback((accessor) => {
+    paragraphAnchorRef.current = accessor;
+  }, []);
+
   // EPubView emits page text on locationChanged. Pick the longest substantive
   // paragraph from the page and feed it to the proposer (single-flight inside
   // the hook drops overlapping calls).
@@ -1299,6 +1309,7 @@ function EReaderPage() {
           onSelectionChange={handleSelectionChange}
           onPageChange={handlePageChange}
           onPageText={handlePageText}
+          onParagraphAnchor={handleParagraphAnchor}
           onTocReady={handleTocReady}
           onMindMapResult={handleMindMapResult}
         />
@@ -1328,6 +1339,7 @@ function EReaderPage() {
       {/* Phase 4b: in-reading micro-card proposal chip (EPUB only). */}
       <MicroCardChip
         proposal={currentProposal}
+        anchorAccessor={paragraphAnchorRef}
         onAccept={acceptProposal}
         onAcknowledge={acknowledgeProposal}
         onDismiss={dismissProposal}
