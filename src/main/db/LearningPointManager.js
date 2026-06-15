@@ -752,6 +752,37 @@ export const getBySource = (sourceType, sourceId, token) => {
 };
 
 /**
+ * Count learning points across a set of bookIds, returning the total and
+ * how many distinct books have at least one. Used by Quest progress.
+ *
+ * @param {Array<number>} bookIds
+ * @param {string} token - User authentication token
+ * @returns {{ total: number, booksStarted: number }}
+ */
+export const countByBookIds = (bookIds, token) => {
+  const userId = getUserIdFromToken(token);
+  if (userId < 0) return { total: 0, booksStarted: 0 };
+  const ids = (bookIds || []).filter((b) => typeof b === 'number');
+  if (ids.length === 0) return { total: 0, booksStarted: 0 };
+  try {
+    const placeholders = ids.map(() => '?').join(',');
+    const stmt = db.prepare(
+      `SELECT COUNT(*) AS total, COUNT(DISTINCT book_id) AS booksStarted
+       FROM learning_point
+       WHERE user_id = ? AND status = 'active' AND book_id IN (${placeholders})`,
+    );
+    const row = stmt.get(userId, ...ids);
+    return {
+      total: row?.total || 0,
+      booksStarted: row?.booksStarted || 0,
+    };
+  } catch (err) {
+    console.error('countByBookIds error:', err);
+    return { total: 0, booksStarted: 0 };
+  }
+};
+
+/**
  * Get learning points by plan
  * @param {string} planId - Plan ID
  * @param {string} token - User authentication token

@@ -55,6 +55,20 @@ const questApi = {
   async walk(questId) {
     return ipc()?.invoke('quest-walk', { questId });
   },
+
+  /**
+   * Lightweight engagement snapshot used by OrbQuestMenu.
+   * @returns {Promise<{
+   *   questId: string,
+   *   learningPointsTotal: number,
+   *   booksStarted: number,
+   *   booksTotal: number,
+   *   pathStepsTotal: number,
+   * } | null>}
+   */
+  async getProgress(id, token) {
+    return ipc()?.invoke('quest-progress', { id, token });
+  },
 };
 
 export default questApi;

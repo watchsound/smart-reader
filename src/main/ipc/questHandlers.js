@@ -9,17 +9,17 @@
  *   quest-pause    { id, token } → quest | null
  *   quest-resume   { id, token } → quest | null
  *   quest-archive  { id, token } → quest | null
+ *   quest-progress { id, token } → { learningPointsTotal, booksStarted,
+ *                                    booksTotal, pathStepsTotal }
  *
  * All userId scoping is derived from the session token (matches the
  * existing reread-queue and notification handler patterns).
- *
- * Brain weighting + renderer UI (Orb right-click menu, Quest progress
- * panel) are deferred to Plan 3.
  */
 
 const { ipcMain } = require('electron');
 const QuestService = require('../utils/QuestService');
 const { getUserIdFromToken } = require('../db/dbManager');
+const learningPointManager = require('../db/LearningPointManager');
 
 let registered = false;
 let service = null;
@@ -133,6 +133,37 @@ function registerQuestHandlers(store, services = {}) {
       return result;
     } catch (err) {
       console.error('[questHandlers] archive failed:', err);
+      return null;
+    }
+  });
+
+  // Lightweight progress snapshot for the OrbQuestMenu. Aggregates a single
+  // SQLite COUNT against the Quest's bookIds. Episode-level engagement
+  // (Phase 2) lives in the graph backend and is not aggregated here yet —
+  // a Quest's learning-point count is a directional signal that "the user
+  // is doing work in these books." Path-step total comes from Phase 7's
+  // persisted metadata.pathSteps; completion tracking would require
+  // walk-step marking, which we don't have yet, so we only return total.
+  ipcMain.handle('quest-progress', (_event, payload) => {
+    try {
+      const { id, token } = payload || {};
+      if (!id) return null;
+      const quest = service.get(id);
+      if (!quest) return null;
+      const bookIds = Array.isArray(quest.bookIds) ? quest.bookIds : [];
+      const counts = learningPointManager.countByBookIds(bookIds, token);
+      const pathSteps = Array.isArray(quest.metadata?.pathSteps)
+        ? quest.metadata.pathSteps
+        : [];
+      return {
+        questId: id,
+        learningPointsTotal: counts.total,
+        booksStarted: counts.booksStarted,
+        booksTotal: bookIds.length,
+        pathStepsTotal: pathSteps.length,
+      };
+    } catch (err) {
+      console.error('[questHandlers] progress failed:', err);
       return null;
     }
   });
