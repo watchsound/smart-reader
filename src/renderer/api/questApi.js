@@ -46,6 +46,15 @@ const questApi = {
   async archive(id) {
     return ipc()?.invoke('quest-archive', { id });
   },
+
+  /**
+   * Re-emit a Phase 7 path's multi-surface-flow Trigger so the user can
+   * resume walking it. Only supported for quests auto-created by Phase 7
+   * (i.e. metadata.source === 'phase-7-learning-path').
+   */
+  async walk(questId) {
+    return ipc()?.invoke('quest-walk', { questId });
+  },
 };
 
 export default questApi;

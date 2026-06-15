@@ -16,6 +16,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import ArchiveIcon from '@mui/icons-material/Archive';
 import FlagIcon from '@mui/icons-material/Flag';
 import AddIcon from '@mui/icons-material/Add';
+import RouteIcon from '@mui/icons-material/Route';
 import questApi from '../../api/questApi';
 import NewQuestDialog from './NewQuestDialog';
 
@@ -67,6 +68,13 @@ export default function OrbQuestMenu({ anchorEl, onClose }) {
   const onArchive = async (q) => {
     await questApi.archive(q.id);
     refresh();
+  };
+  const onWalk = async (q) => {
+    // Re-emit the Phase 7 path as a multi-surface-flow Trigger. The Orb
+    // will bloom on the new proposal; user clicks Orb to engage. Close
+    // this menu so the user sees the Orb update.
+    await questApi.walk(q.id);
+    onClose();
   };
 
   const openDialog = () => {
@@ -160,6 +168,16 @@ export default function OrbQuestMenu({ anchorEl, onClose }) {
               }
             />
             <Stack direction="row" spacing={0.5} sx={{ ml: 1, mt: 0.5 }}>
+              {q.metadata?.source === 'phase-7-learning-path' && (
+                <IconButton
+                  size="small"
+                  aria-label="walk quest"
+                  title="Walk the path"
+                  onClick={() => onWalk(q)}
+                >
+                  <RouteIcon fontSize="small" />
+                </IconButton>
+              )}
               {q.status === 'active' ? (
                 <IconButton
                   size="small"

@@ -241,6 +241,9 @@ const TriggerEmitter = require('./brain/TriggerEmitter');
 // Plan 2 fork #5 (Quest layer)
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { registerQuestHandlers } = require('./ipc/questHandlers');
+// Plan 4: re-emit a Phase 7 path from OrbQuestMenu
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { registerQuestWalkHandlers } = require('./ipc/questWalkHandlers');
 import { registerUnifiedLearningHandlers } from './ipc/unifiedLearningHandlers';
 import { registerLearningPointHandlers } from './ipc/learningPointHandlers';
 import { registerMicroCardHandlers } from './ipc/microCardHandlers';
@@ -2939,6 +2942,8 @@ app
     registerQuestHandlers(store, {
       getWebContents: () => mainWin?.webContents ?? null,
     });
+    // Plan 4: quest-walk re-emits a Phase 7 path so OrbQuestMenu can resume.
+    registerQuestWalkHandlers(store, { triggerEmitter });
     // Phase 8: MoodBoard organize-suggestion IPC handlers (renderer side
     // of the brain heartbeat's `suggestOrganizeSessions` task).
     registerMoodBoardOrganizerHandlers(store);

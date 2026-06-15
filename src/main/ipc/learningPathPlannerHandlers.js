@@ -60,13 +60,31 @@ function registerLearningPathPlannerHandlers(services = {}) {
               ),
             )
           : [];
+        // Persist the path steps in Quest metadata so the user can later
+        // re-emit the walk trigger from OrbQuestMenu without re-running
+        // the planner.
+        const persistedSteps = Array.isArray(result.pathSteps)
+          ? result.pathSteps
+              .filter((s) => s && s.bookId)
+              .map((s) => ({
+                bookId: s.bookId,
+                bookTitle: s.bookTitle || `Book ${s.bookId}`,
+                reason: s.reason || '',
+                chapterFocus: s.chapterFocus || null,
+                estimatedHours: s.estimatedHours || null,
+              }))
+          : [];
         try {
           const userId = token ? getUserIdFromToken(token) : 1;
           const quest = questService.create({
             name: goal.length > 60 ? `${goal.slice(0, 57)}\u2026` : goal,
             goal,
             bookIds: pathBookIds,
-            metadata: { source: 'phase-7-learning-path' },
+            metadata: {
+              source: 'phase-7-learning-path',
+              pathSteps: persistedSteps,
+              summary: result.summary || '',
+            },
             userId: userId > 0 ? userId : 1,
           });
           if (quest && !quest.error) {
