@@ -36,25 +36,32 @@ function registerMoodBoardOrganizerHandlers(store) {
   registered = true;
   service = new MoodBoardOrganizerService({ store });
 
-  ipcMain.handle('moodboard-organizer-get-suggestion', (_event, payload) => {
-    try {
-      const { dedupKey, token } = payload || {};
-      if (!dedupKey) return { suggestion: null };
-      const userId = token ? getUserIdFromToken(token) : 1;
-      const suggestion = service.getSuggestion(
-        userId > 0 ? userId : 1,
-        dedupKey,
-      );
-      return { suggestion };
-    } catch (err) {
-      console.error('[moodBoardOrganizerHandlers] get-suggestion failed:', err);
-      return { suggestion: null, error: err?.message };
-    }
-  });
+  ipcMain.handle(
+    'moodboard-organizer-get-suggestion',
+    async (_event, payload) => {
+      try {
+        const { dedupKey, token } = payload || {};
+        if (!dedupKey) return { suggestion: null };
+        const userId = token ? getUserIdFromToken(token) : 1;
+        const suggestion = await service.getSuggestion(
+          userId > 0 ? userId : 1,
+          dedupKey,
+          token,
+        );
+        return { suggestion };
+      } catch (err) {
+        console.error(
+          '[moodBoardOrganizerHandlers] get-suggestion failed:',
+          err,
+        );
+        return { suggestion: null, error: err?.message };
+      }
+    },
+  );
 
   ipcMain.handle(
     'moodboard-organizer-create-board',
-    (_event, payload) => {
+    async (_event, payload) => {
       try {
         const { bookId, domainType, token } = payload || {};
         if (!bookId || !domainType) {
@@ -67,17 +74,14 @@ function registerMoodBoardOrganizerHandlers(store) {
         if (userId < 0) {
           return { error: 'invalid session.' };
         }
-        return service.createBoardFromCluster(
+        return await service.createBoardFromCluster(
           userId,
           Number(bookId),
           domainType,
           token,
         );
       } catch (err) {
-        console.error(
-          '[moodBoardOrganizerHandlers] create-board failed:',
-          err,
-        );
+        console.error('[moodBoardOrganizerHandlers] create-board failed:', err);
         return { error: err?.message || 'create-board failed' };
       }
     },

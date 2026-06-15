@@ -58,6 +58,54 @@ jest.mock('../../main/db/dbManager', () => ({
   getNextId: jest.fn(),
 }));
 
+// Phase 8 services now read learning points via learningPointService.getAll
+// (graph backend) after the SQLite → graph migration. To keep this
+// integration test exercising the real learning_point schema, project
+// the seeded SQLite rows back into the graph-shape items the service
+// expects.
+jest.mock('../../main/utils/LearningPointService', () => ({
+  __esModule: true,
+  default: {
+    getAll: jest.fn(async () => {
+      if (!testDB) return { items: [] };
+      try {
+        const rows = testDB
+          .prepare(
+            `SELECT id, title, front, back, domain_type AS domainType,
+                    source_type AS sourceType, book_id AS bookId,
+                    mastery_level AS masteryLevel,
+                    review_count AS reviewCount,
+                    last_reviewed_at AS lastReviewedAt,
+                    created_at AS createdAt
+               FROM learning_point
+              WHERE user_id = 1 AND status = 'active'`,
+          )
+          .all();
+        const items = rows.map((r) => ({
+          ...r,
+          // Graph stores sourceId as a stringified bookId for book-sourced
+          // learning points; the service derives bookId from this.
+          sourceId: r.bookId != null ? String(r.bookId) : null,
+          // Graph adapter pre-parses JSON-stringified front/back.
+          back: typeof r.back === 'string' ? safeParse(r.back) : r.back,
+          front: r.front,
+        }));
+        return { items };
+      } catch (_) {
+        return { items: [] };
+      }
+    }),
+  },
+}));
+
+function safeParse(s) {
+  try {
+    return JSON.parse(s);
+  } catch (_) {
+    return s;
+  }
+}
+
 // Capture notifications instead of hitting the renderer IPC bus.
 const capturedNotifications = [];
 jest.mock('../../main/db/NotificationManager', () => {
@@ -243,7 +291,7 @@ describeIfDB('Phase 8 integration — spaced re-reading happy path', () => {
 });
 
 describeIfDB('Phase 8 integration — organize loop happy path', () => {
-  it('cluster of 6 learning points -> notification fires -> episode records', () => {
+  it('cluster of 6 learning points -> notification fires -> episode records', async () => {
     for (let i = 0; i < 6; i += 1) {
       seedLearningPoint({ domainType: 'vocabulary', bookId: 1 });
     }
@@ -254,7 +302,7 @@ describeIfDB('Phase 8 integration — organize loop happy path', () => {
       episodeCollector: collector,
     });
 
-    const result = service.suggestOrganize(USER_ID, SESSION_TOKEN);
+    const result = await service.suggestOrganize(USER_ID, SESSION_TOKEN);
 
     expect(result.created).toBe(1);
     expect(capturedNotifications).toHaveLength(1);
@@ -269,7 +317,7 @@ describeIfDB('Phase 8 integration — organize loop happy path', () => {
 });
 
 describeIfDB('Phase 8 integration — production loop happy path', () => {
-  it('high-mastery point -> prompt notification fires -> episode records', () => {
+  it('high-mastery point -> prompt notification fires -> episode records', async () => {
     seedLearningPoint({
       title: 'serendipity',
       masteryLevel: 80,
@@ -285,7 +333,7 @@ describeIfDB('Phase 8 integration — production loop happy path', () => {
       episodeCollector: collector,
     });
 
-    const result = service.schedulePrompt(USER_ID, SESSION_TOKEN);
+    const result = await service.schedulePrompt(USER_ID, SESSION_TOKEN);
 
     expect(result.created).toBe(1);
     expect(capturedNotifications).toHaveLength(1);

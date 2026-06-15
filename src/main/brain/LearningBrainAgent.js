@@ -124,7 +124,8 @@ class LearningBrainAgent {
    * @param {{ proposalId: string, source?: string | null, kind: 'accept' | 'dismiss' }} event
    */
   async recordProposalEvent({ proposalId, source, kind }) {
-    const safeSource = typeof source === 'string' && source ? source : 'unknown';
+    const safeSource =
+      typeof source === 'string' && source ? source : 'unknown';
     if (!this.store) {
       // eslint-disable-next-line no-console
       console.log('[LearningBrainAgent] proposal event (no store)', {
@@ -200,7 +201,8 @@ class LearningBrainAgent {
     const deterministicFallback = () => {
       if (activeQuests.length > 0) {
         const q = activeQuests[0];
-        const firstBook = q.bookIds && q.bookIds.length > 0 ? q.bookIds[0] : null;
+        const firstBook =
+          q.bookIds && q.bookIds.length > 0 ? q.bookIds[0] : null;
         return {
           title: `Continue your quest: ${q.name}`,
           body: q.goal,
@@ -757,7 +759,10 @@ Reply strictly as JSON with this shape:
           result: { skipped: 'no service' },
         };
       }
-      const result = this.productionPromptService.schedulePrompt(userId, token);
+      const result = await this.productionPromptService.schedulePrompt(
+        userId,
+        token,
+      );
       return { task: taskName, success: true, result };
     } catch (error) {
       console.error(

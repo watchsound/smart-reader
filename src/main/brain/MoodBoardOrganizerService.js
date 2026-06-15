@@ -25,6 +25,15 @@ const {
 const { createNote } = require('../db/NoteJsonManager');
 const { createMoodBoard } = require('../db/MoodBoardJsonManager');
 const { NoteType } = require('../../commons/model/Note');
+// Cluster detection used to read raw FROM learning_point in SQLite. After
+// the LearningPointService → graph migration, the SQLite table is no
+// longer written to in production. We now fetch via the service
+// (graph-backed) and group in JS. SQLite is still used for the SECONDARY
+// reads (book name lookup) and for the slice-3 note/board creation
+// transaction — those tables remain SQLite-owned.
+const learningPointService =
+  require('../utils/LearningPointService').default ||
+  require('../utils/LearningPointService');
 
 /**
  * The brain's heartbeat passes a synthetic token. NotificationManager
@@ -42,56 +51,89 @@ const DEFAULT_DAYS = 7;
 const DEFAULT_MIN_CLUSTER = 5;
 const MAX_TITLES_PREVIEW = 3;
 
+// When sourceType === 'book', the graph stores sourceId as the
+// stringified bookId.
+function deriveBookId(item) {
+  if (!item || item.sourceType !== 'book') return null;
+  const n = Number(item.sourceId);
+  return Number.isFinite(n) ? n : null;
+}
+
+function lookupBookTitle(bookId) {
+  if (!bookId) return null;
+  try {
+    const row = db.prepare(`SELECT name FROM book WHERE id = ?`).get(bookId);
+    return row ? row.name : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+async function fetchUserActivePoints(token) {
+  const result = await learningPointService.getAll(token, { pageSize: 5000 });
+  return Array.isArray(result?.items) ? result.items : [];
+}
+
 /**
  * Module-level so it can be stubbed in tests; doesn't need `this`.
  * Returns clusters matching the (book, domain, recency, size) criteria.
  */
-function queryClusters(userId, options = {}) {
+async function queryClusters(_userId, token, options = {}) {
   const days = options.days || DEFAULT_DAYS;
   const minClusterSize = options.minClusterSize || DEFAULT_MIN_CLUSTER;
-  const sinceIso = new Date(Date.now() - days * 86400000).toISOString();
+  const sinceMs = Date.now() - days * 86400000;
+  const sinceIso = new Date(sinceMs).toISOString();
 
-  const aggStmt = db.prepare(`
-    SELECT
-      lp.book_id          AS bookId,
-      lp.domain_type      AS domainType,
-      COUNT(*)            AS pointCount,
-      MIN(lp.created_at)  AS oldestAt,
-      MAX(lp.created_at)  AS newestAt
-    FROM learning_point lp
-    WHERE lp.user_id = ?
-      AND lp.book_id IS NOT NULL
-      AND lp.status = 'active'
-      AND lp.created_at >= ?
-    GROUP BY lp.book_id, lp.domain_type
-    HAVING COUNT(*) >= ?
-  `);
-  const aggRows = aggStmt.all(userId, sinceIso, minClusterSize);
-  if (aggRows.length === 0) return [];
+  const items = await fetchUserActivePoints(token);
 
-  const detailStmt = db.prepare(`
-    SELECT id, title
-    FROM learning_point
-    WHERE user_id = ? AND book_id = ? AND domain_type = ?
-      AND status = 'active' AND created_at >= ?
-    ORDER BY created_at DESC
-  `);
-  const bookStmt = db.prepare(`SELECT name FROM book WHERE id = ?`);
-
-  return aggRows.map((row) => {
-    const points = detailStmt.all(userId, row.bookId, row.domainType, sinceIso);
-    const bookRow = bookStmt.get(row.bookId);
-    return {
-      bookId: row.bookId,
-      bookTitle: bookRow ? bookRow.name : `Book #${row.bookId}`,
-      domainType: row.domainType || 'knowledge',
-      pointIds: points.map((p) => p.id),
-      conceptTitles: points.slice(0, MAX_TITLES_PREVIEW).map((p) => p.title),
-      pointCount: row.pointCount,
-      oldestAt: row.oldestAt,
-      newestAt: row.newestAt,
-    };
+  // Filter: has bookId (sourceType === 'book'), createdAt within window.
+  const inWindow = items.filter((it) => {
+    if (!it) return false;
+    const bid = deriveBookId(it);
+    if (!bid) return false;
+    const created = it.createdAt ? Date.parse(it.createdAt) : 0;
+    return created >= sinceMs;
   });
+
+  // Group by (bookId, domainType).
+  const groups = new Map(); // key → { bookId, domainType, points: [] }
+  inWindow.forEach((it) => {
+    const bid = deriveBookId(it);
+    const dom = it.domainType || 'knowledge';
+    const key = `${bid}::${dom}`;
+    if (!groups.has(key)) {
+      groups.set(key, { bookId: bid, domainType: dom, points: [] });
+    }
+    groups.get(key).points.push(it);
+  });
+
+  const clusters = [];
+  groups.forEach((g) => {
+    if (g.points.length < minClusterSize) return;
+    // Sort by createdAt DESC for preview titles.
+    g.points.sort(
+      (a, b) =>
+        (b.createdAt ? Date.parse(b.createdAt) : 0) -
+        (a.createdAt ? Date.parse(a.createdAt) : 0),
+    );
+    const dates = g.points.map((p) =>
+      p.createdAt ? Date.parse(p.createdAt) : 0,
+    );
+    clusters.push({
+      bookId: g.bookId,
+      bookTitle: lookupBookTitle(g.bookId) || `Book #${g.bookId}`,
+      domainType: g.domainType,
+      pointIds: g.points.map((p) => p.id),
+      conceptTitles: g.points.slice(0, MAX_TITLES_PREVIEW).map((p) => p.title),
+      pointCount: g.points.length,
+      oldestAt: new Date(Math.min(...dates)).toISOString(),
+      newestAt: new Date(Math.max(...dates)).toISOString(),
+      // sinceIso retained for backward compat with callers that logged it
+      _sinceIso: sinceIso,
+    });
+  });
+
+  return clusters;
 }
 
 class MoodBoardOrganizerService {
@@ -125,8 +167,8 @@ class MoodBoardOrganizerService {
    * @returns {Array}
    */
   // eslint-disable-next-line class-methods-use-this
-  detectClusters(userId, options = {}) {
-    return queryClusters(userId, options);
+  async detectClusters(userId, token, options = {}) {
+    return queryClusters(userId, token, options);
   }
 
   /**
@@ -139,7 +181,7 @@ class MoodBoardOrganizerService {
    * @param {Object} [options]
    * @returns {{ created: number, skipped: number, clusters: Array }}
    */
-  suggestOrganize(userId, token, options = {}) {
+  async suggestOrganize(userId, token, options = {}) {
     // Heartbeat token is synthetic — resolve the real session token so the
     // notification gets the correct user_id. If nobody is signed in, skip.
     const effectiveToken = getActiveSessionToken() || token;
@@ -147,7 +189,7 @@ class MoodBoardOrganizerService {
       return { created: 0, skipped: 0, clusters: [], reason: 'no session' };
     }
 
-    const clusters = this.detectClusters(userId, options);
+    const clusters = await this.detectClusters(userId, effectiveToken, options);
     if (clusters.length === 0) {
       return { created: 0, skipped: 0, clusters: [] };
     }
@@ -267,7 +309,7 @@ class MoodBoardOrganizerService {
    * @param {string} dedupKey  — "bookId:domainType"
    * @returns {Object|null}
    */
-  getSuggestion(userId, dedupKey) {
+  async getSuggestion(userId, dedupKey, token) {
     const suggestions = this.readSuggestions();
     const record = suggestions[String(userId)]?.[dedupKey];
     if (!record) return null;
@@ -276,21 +318,26 @@ class MoodBoardOrganizerService {
     const bookId = Number(bookIdStr);
     if (!bookId || !domainType) return null;
 
-    const titleStmt = db.prepare(`
-      SELECT id, title
-      FROM learning_point
-      WHERE user_id = ? AND book_id = ? AND domain_type = ? AND status = 'active'
-      ORDER BY created_at DESC
-    `);
-    const points = titleStmt.all(userId, bookId, domainType);
-    const bookRow = db
-      .prepare(`SELECT name FROM book WHERE id = ?`)
-      .get(bookId);
+    const effectiveToken = getActiveSessionToken() || token;
+    if (!effectiveToken) return null;
+
+    const items = await fetchUserActivePoints(effectiveToken);
+    const points = items
+      .filter(
+        (it) =>
+          deriveBookId(it) === bookId &&
+          (it.domainType || 'knowledge') === domainType,
+      )
+      .sort(
+        (a, b) =>
+          (b.createdAt ? Date.parse(b.createdAt) : 0) -
+          (a.createdAt ? Date.parse(a.createdAt) : 0),
+      );
 
     return {
       dedupKey,
       bookId,
-      bookTitle: bookRow ? bookRow.name : `Book #${bookId}`,
+      bookTitle: lookupBookTitle(bookId) || `Book #${bookId}`,
       domainType,
       pointIds: points.map((p) => p.id),
       conceptTitles: points.map((p) => p.title),
@@ -340,29 +387,31 @@ class MoodBoardOrganizerService {
    * @param {string} token  — real session token (NOT the heartbeat synthetic)
    * @returns {{ board: Object, noteIds: Array<number> } | { error: string }}
    */
-  createBoardFromCluster(userId, bookId, domainType, token) {
+  async createBoardFromCluster(userId, bookId, domainType, token) {
     if (!token) return { error: 'No session token.' };
 
-    // Re-query for fresh title/front/back — same logic as getSuggestion
-    // but we also need `back` for note content.
-    const points = db
-      .prepare(
-        `SELECT id, title, front, back, domain_type AS domainType
-           FROM learning_point
-          WHERE user_id = ? AND book_id = ? AND domain_type = ?
-            AND status = 'active'
-          ORDER BY created_at DESC`,
+    // Re-query for fresh title/front/back via the graph backend (the
+    // SQLite learning_point table is no longer populated). We still use
+    // SQLite for the note/board creation transaction below — those
+    // tables are SQLite-owned.
+    const items = await fetchUserActivePoints(token);
+    const points = items
+      .filter(
+        (it) =>
+          deriveBookId(it) === bookId &&
+          (it.domainType || 'knowledge') === domainType,
       )
-      .all(userId, bookId, domainType);
+      .sort(
+        (a, b) =>
+          (b.createdAt ? Date.parse(b.createdAt) : 0) -
+          (a.createdAt ? Date.parse(a.createdAt) : 0),
+      );
 
     if (points.length === 0) {
       return { error: 'No active learning points found for this cluster.' };
     }
 
-    const bookRow = db
-      .prepare(`SELECT name FROM book WHERE id = ?`)
-      .get(bookId);
-    const bookTitle = bookRow ? bookRow.name : `Book #${bookId}`;
+    const bookTitle = lookupBookTitle(bookId) || `Book #${bookId}`;
     const prettyDomain = domainType
       ? domainType.charAt(0).toUpperCase() + domainType.slice(1)
       : 'Knowledge';
@@ -453,23 +502,28 @@ class MoodBoardOrganizerService {
  * if it isn't valid JSON (older rows). Front is included as a question
  * line so the note is self-contained on the MoodBoard.
  */
-function buildNoteContent(lp) {
-  let backText = '';
-  try {
-    const parsed = JSON.parse(lp.back);
-    backText =
-      typeof parsed?.text === 'string' ? parsed.text : String(lp.back || '');
-  } catch (_) {
-    backText = String(lp.back || '');
+function extractText(field) {
+  if (!field) return '';
+  // SQLite path returned a JSON string; graph backend returns an
+  // already-parsed object (front/back are {text, html?, …}). Tolerate
+  // both.
+  if (typeof field === 'object') {
+    return typeof field.text === 'string' ? field.text : '';
   }
-  const front = (lp.front || '').trim();
+  if (typeof field !== 'string') return String(field);
+  try {
+    const parsed = JSON.parse(field);
+    return typeof parsed?.text === 'string' ? parsed.text : field;
+  } catch (_) {
+    return field;
+  }
+}
+
+function buildNoteContent(lp) {
+  const backText = extractText(lp.back);
+  const front = extractText(lp.front).trim();
   const title = (lp.title || '').trim();
-  return [
-    `# ${title}`,
-    front ? `*${front}*` : '',
-    '',
-    backText.trim(),
-  ]
+  return [`# ${title}`, front ? `*${front}*` : '', '', backText.trim()]
     .filter((s) => s !== '')
     .join('\n');
 }

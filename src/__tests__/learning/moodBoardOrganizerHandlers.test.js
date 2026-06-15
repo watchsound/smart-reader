@@ -54,13 +54,13 @@ describe('moodBoardOrganizerHandlers', () => {
   // ----------------------------------------------------------------------
 
   describe('moodboard-organizer-get-suggestion', () => {
-    it('returns suggestion:null when dedupKey is missing', () => {
-      const res = handlers['moodboard-organizer-get-suggestion']({}, {});
+    it('returns suggestion:null when dedupKey is missing', async () => {
+      const res = await handlers['moodboard-organizer-get-suggestion']({}, {});
       expect(res).toEqual({ suggestion: null });
       expect(mockGetSuggestion).not.toHaveBeenCalled();
     });
 
-    it('delegates to service and wraps the result', () => {
+    it('delegates to service and wraps the result', async () => {
       const fakeSuggestion = {
         dedupKey: '42:vocabulary',
         bookId: 42,
@@ -70,19 +70,21 @@ describe('moodBoardOrganizerHandlers', () => {
         conceptTitles: ['serendipity', 'ephemeral'],
         pointCount: 2,
       };
-      mockGetSuggestion.mockReturnValue(fakeSuggestion);
+      mockGetSuggestion.mockResolvedValue(fakeSuggestion);
 
-      const res = handlers['moodboard-organizer-get-suggestion'](
+      const res = await handlers['moodboard-organizer-get-suggestion'](
         {},
         { dedupKey: '42:vocabulary', token: 'tok' },
       );
-      expect(mockGetSuggestion).toHaveBeenCalledWith(1, '42:vocabulary');
+      // The handler now passes the token through so the service can fetch
+      // points from the graph backend.
+      expect(mockGetSuggestion).toHaveBeenCalledWith(1, '42:vocabulary', 'tok');
       expect(res).toEqual({ suggestion: fakeSuggestion });
     });
 
-    it('returns suggestion:null when service finds no record', () => {
-      mockGetSuggestion.mockReturnValue(null);
-      const res = handlers['moodboard-organizer-get-suggestion'](
+    it('returns suggestion:null when service finds no record', async () => {
+      mockGetSuggestion.mockResolvedValue(null);
+      const res = await handlers['moodboard-organizer-get-suggestion'](
         {},
         { dedupKey: 'missing', token: 'tok' },
       );
@@ -119,11 +121,7 @@ describe('moodBoardOrganizerHandlers', () => {
         {},
         { bookId: 42, domainType: 'vocabulary', token: 'tok' },
       );
-      expect(mockClearSuggestion).toHaveBeenCalledWith(
-        1,
-        42,
-        'vocabulary',
-      );
+      expect(mockClearSuggestion).toHaveBeenCalledWith(1, 42, 'vocabulary');
       expect(res).toEqual({ ok: true, cleared: true });
     });
 

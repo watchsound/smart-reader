@@ -27,12 +27,19 @@
  * `productionLoop.recentPrompts`.
  */
 
-const { default: db } = require('../db/dbManager');
 const {
   createNotification,
   NOTIFICATION_TYPES,
   NOTIFICATION_PRIORITIES,
 } = require('../db/NotificationManager');
+// Production candidate selection used to read raw FROM learning_point in
+// SQLite. After the LearningPointService → graph migration, the SQLite
+// table is no longer written to in production, so that path silently
+// returned 0 candidates for any post-migration user. Now we fetch via
+// the service (graph-backed) and filter in JS. N is small per user.
+const learningPointService =
+  require('../utils/LearningPointService').default ||
+  require('../utils/LearningPointService');
 
 const STORE_KEY = 'productionLoop.recentPrompts';
 const PRODUCTION_DEDUP_DAYS = 21;
@@ -46,6 +53,15 @@ function getActiveSessionToken() {
   return sessionInfo?.token || null;
 }
 
+// When sourceType === 'book', the graph stores sourceId as the
+// stringified bookId. Phase 8 services consume `bookId` directly, so
+// project it out here.
+function deriveBookId(item) {
+  if (!item || item.sourceType !== 'book') return null;
+  const n = Number(item.sourceId);
+  return Number.isFinite(n) ? n : null;
+}
+
 /**
  * Pick eligible learning points ordered so the BEST production candidate
  * comes first. Best = highest mastery (so we test passive-vs-active gap
@@ -57,22 +73,46 @@ function getActiveSessionToken() {
  * parse on the client side rather than in SQL so we don't depend on
  * SQLite JSON functions being available.
  */
-function queryCandidates(userId, limit = 5) {
-  const stmt = db.prepare(`
-    SELECT id, title, back, mastery_level AS masteryLevel,
-           review_count AS reviewCount, last_reviewed_at AS lastReviewedAt,
-           source_type AS sourceType, book_id AS bookId, domain_type AS domainType
-    FROM learning_point
-    WHERE user_id = ?
-      AND status = 'active'
-      AND mastery_level >= ?
-      AND review_count >= ?
-      AND source_type IN ('book','note','chat')
-      AND back IS NOT NULL AND back <> ''
-    ORDER BY mastery_level DESC, last_reviewed_at DESC
-    LIMIT ?
-  `);
-  return stmt.all(userId, MIN_MASTERY, MIN_REVIEWS, limit * 4);
+async function queryCandidates(_userId, token, limit = 5) {
+  // graphInterface.getAllLearningPoints filters to active (validTo IS NULL)
+  // already, scoped to the token's userId. We pull a big page and filter
+  // the rest in JS — a heartbeat user has at most a few hundred active
+  // points and the heartbeat runs minutes apart.
+  const result = await learningPointService.getAll(token, { pageSize: 5000 });
+  const items = Array.isArray(result?.items) ? result.items : [];
+  const eligible = items.filter(
+    (it) =>
+      it &&
+      typeof it.masteryLevel === 'number' &&
+      it.masteryLevel >= MIN_MASTERY &&
+      typeof it.reviewCount === 'number' &&
+      it.reviewCount >= MIN_REVIEWS &&
+      (it.sourceType === 'book' ||
+        it.sourceType === 'note' ||
+        it.sourceType === 'chat'),
+  );
+  // Same ORDER BY: mastery DESC, lastReviewedAt DESC.
+  eligible.sort((a, b) => {
+    if (b.masteryLevel !== a.masteryLevel) {
+      return b.masteryLevel - a.masteryLevel;
+    }
+    const aT = a.lastReviewedAt ? Date.parse(a.lastReviewedAt) : 0;
+    const bT = b.lastReviewedAt ? Date.parse(b.lastReviewedAt) : 0;
+    return bT - aT;
+  });
+  // Match the old `LIMIT ?*4` overscan — the dedup filter further down
+  // may drop entries, so we want a buffer.
+  return eligible.slice(0, limit * 4).map((it) => ({
+    id: it.id,
+    title: it.title,
+    back: it.back,
+    masteryLevel: it.masteryLevel,
+    reviewCount: it.reviewCount,
+    lastReviewedAt: it.lastReviewedAt,
+    sourceType: it.sourceType,
+    bookId: deriveBookId(it),
+    domainType: it.domainType,
+  }));
 }
 
 function backHasSubstantiveText(backJson) {
@@ -117,13 +157,13 @@ class ProductionPromptService {
    * @param {number} [limit]
    * @returns {Array}
    */
-  selectCandidates(userId, limit = MAX_PROMPTS_PER_HEARTBEAT) {
+  async selectCandidates(userId, token, limit = MAX_PROMPTS_PER_HEARTBEAT) {
     const dedup = this.readDedup();
     const userKey = String(userId);
     const userDedup = dedup[userKey] || {};
     const cutoff = Date.now() - PRODUCTION_DEDUP_DAYS * 86400000;
 
-    const rows = queryCandidates(userId, limit);
+    const rows = await queryCandidates(userId, token, limit);
     const eligible = [];
     rows.forEach((row) => {
       if (eligible.length >= limit) return;
@@ -144,13 +184,17 @@ class ProductionPromptService {
    * @param {string} token
    * @returns {{ created: number, skipped: number, candidates: Array, reason?: string }}
    */
-  schedulePrompt(userId, token) {
+  async schedulePrompt(userId, token) {
     const effectiveToken = getActiveSessionToken() || token;
     if (!effectiveToken) {
       return { created: 0, skipped: 0, candidates: [], reason: 'no session' };
     }
 
-    const candidates = this.selectCandidates(userId, MAX_PROMPTS_PER_HEARTBEAT);
+    const candidates = await this.selectCandidates(
+      userId,
+      effectiveToken,
+      MAX_PROMPTS_PER_HEARTBEAT,
+    );
     if (candidates.length === 0) {
       return {
         created: 0,
