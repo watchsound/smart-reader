@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Paper, Stack, Typography, Box, Chip, Button } from '@mui/material';
 import useBrainState from '../../brain/useBrainState';
 import triggerBus from '../../brain/triggerBus';
+import TriggerTelemetryPanel from './TriggerTelemetryPanel';
 
 /**
  * BrainDashboardPanel — additive panel for the existing `/` dashboard
@@ -175,6 +176,8 @@ export default function BrainDashboardPanel() {
             )}
           </Stack>
         )}
+
+        <TriggerTelemetryPanel />
       </Stack>
     </Paper>
   );

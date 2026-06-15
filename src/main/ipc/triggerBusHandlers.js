@@ -47,6 +47,13 @@ function registerTriggerBusHandlers(services = {}) {
     return null;
   });
 
+  ipcMain.handle('brain:trigger:telemetry', async () => {
+    if (brain?.getTriggerTelemetry) {
+      return brain.getTriggerTelemetry();
+    }
+    return { bySource: {} };
+  });
+
   ipcMain.handle('brain:trigger:queue-snapshot', async (_evt, snapshot) => {
     if (!store) return { ok: false };
     try {
