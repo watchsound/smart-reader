@@ -562,9 +562,10 @@ Reply strictly as JSON with this shape:
       }
 
       // Try the Neo4j adapter only if it actually exposes the method —
-      // GraphInterface/Neo4jAdapter don't (it lives on GraphLearningFeatures).
-      // The previous unconditional call threw TypeError and silently
-      // returned 0 weak concepts forever.
+      // GraphInterface doesn't (detectWeakConcepts lives on
+      // GraphLearningFeatures and operates on Concept nodes, not
+      // LearningPoint). The previous unconditional call threw TypeError
+      // and silently returned 0 weak concepts forever.
       if (
         this.services.neo4jAdapter &&
         typeof this.services.neo4jAdapter.detectWeakConcepts === 'function'
@@ -580,30 +581,47 @@ Reply strictly as JSON with this shape:
         };
       }
 
-      // SQLite fallback: a "weak concept" is an active learning_point the
-      // user has reviewed at least 3 times but where mastery is still <40.
-      // Doesn't require Neo4j; works on the same data the production loop
-      // uses for its selection.
+      // Default-deployment fallback: in production the brain is
+      // constructed with `learningGraphSkill: null` and
+      // `neo4jAdapter: graphInterface` (which lacks detectWeakConcepts),
+      // so both blocks above skip. We previously fell through to a raw
+      // SQL query on `learning_point`, but LearningPointService writes
+      // only to the graph backend since the migration — the SQLite
+      // table is empty for post-migration users and the query returned
+      // `[]` forever. Read via the service instead; filter in JS to
+      // match the original criteria.
       // eslint-disable-next-line global-require
-      const { default: db } = require('../db/dbManager');
-      const rows = db
-        .prepare(
-          `SELECT id, title, mastery_level AS masteryLevel,
-                  review_count AS reviewCount, domain_type AS domainType
-             FROM learning_point
-            WHERE user_id = ?
-              AND status = 'active'
-              AND review_count >= 3
-              AND mastery_level > 0
-              AND mastery_level < 40
-            ORDER BY mastery_level ASC
-            LIMIT 10`,
+      const learningPointService =
+        require('../utils/LearningPointService').default ||
+        require('../utils/LearningPointService');
+      const page = await learningPointService.getAll(token, {
+        pageSize: 5000,
+      });
+      const items = Array.isArray(page?.items) ? page.items : [];
+      const weakConcepts = items
+        .filter(
+          (it) =>
+            it &&
+            typeof it.reviewCount === 'number' &&
+            it.reviewCount >= 3 &&
+            typeof it.masteryLevel === 'number' &&
+            it.masteryLevel > 0 &&
+            it.masteryLevel < 40,
         )
-        .all(userId);
+        .sort((a, b) => a.masteryLevel - b.masteryLevel)
+        .slice(0, 10)
+        .map((it) => ({
+          id: it.id,
+          title: it.title,
+          name: it.title,
+          masteryLevel: it.masteryLevel,
+          reviewCount: it.reviewCount,
+          domainType: it.domainType,
+        }));
       return {
         task: taskName,
         success: true,
-        result: { weakConcepts: rows.map((r) => ({ ...r, name: r.title })) },
+        result: { weakConcepts },
       };
     } catch (error) {
       return { task: taskName, success: false, error: error.message };
