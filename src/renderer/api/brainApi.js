@@ -17,7 +17,20 @@
  *   });
  */
 
-const { ipcRenderer } = window.electron || {};
+// Lazy IPC lookup via Proxy — tests inject window.electron in beforeEach,
+// which can be AFTER module load time. Destructuring `const { ipcRenderer } =
+// window.electron || {}` at module load freezes a stale undefined reference.
+const ipcRenderer = new Proxy(
+  {},
+  {
+    get(_t, prop) {
+      const real = window.electron?.ipcRenderer;
+      if (!real) return undefined;
+      const v = real[prop];
+      return typeof v === 'function' ? v.bind(real) : v;
+    },
+  },
+);
 
 /**
  * Brain API methods
@@ -499,6 +512,51 @@ const brainApi = {
    */
   updateInsightsConfig(config) {
     return ipcRenderer?.sendSync('brain-update-insights-config', config);
+  },
+
+  // ==================== Trigger Bus (AI-driven shell) ====================
+
+  /**
+   * Subscribe to incoming Triggers from the main-process Brain.
+   * Used by the renderer-side TriggerBus to populate its Proposal Queue.
+   * @param {(trigger: import('../../commons/brain/triggerTypes').Trigger) => void} cb
+   * @returns {() => void} unsubscribe
+   */
+  subscribeTriggers(cb) {
+    const handler = (_evt, trigger) => cb(trigger);
+    ipcRenderer?.on('brain:trigger:push', handler);
+    return () => ipcRenderer?.removeListener?.('brain:trigger:push', handler);
+  },
+
+  /**
+   * Record renderer-side acceptance of a Proposal.
+   * @param {string} proposalId
+   */
+  async acceptProposal(proposalId) {
+    return ipcRenderer?.invoke('brain:trigger:accept', proposalId);
+  },
+
+  /**
+   * Record renderer-side dismissal of a Proposal.
+   * @param {string} proposalId
+   */
+  async dismissProposal(proposalId) {
+    return ipcRenderer?.invoke('brain:trigger:dismiss', proposalId);
+  },
+
+  /**
+   * Pull a synthesized "what's next?" proposal when the queue is empty.
+   */
+  async pullProposal() {
+    return ipcRenderer?.invoke('brain:trigger:pull');
+  },
+
+  /**
+   * Read per-source accept/dismiss tallies persisted by LearningBrainAgent.
+   * Returns { bySource: { <source>: { accepted, dismissed, lastEvent, lastEventKind } } }.
+   */
+  async getTriggerTelemetry() {
+    return ipcRenderer?.invoke('brain:trigger:telemetry');
   },
 };
 

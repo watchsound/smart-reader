@@ -85,21 +85,196 @@ class LearningBrainAgent {
 
     // Phase 8 organize loop: suggest MoodBoard organize sessions for
     // clusters of recently-added learning points (one nudge per cluster).
+    // triggerEmitter is forwarded so the service also emits an Orb chip
+    // alongside the existing in-app notification.
     this.moodBoardOrganizer = new MoodBoardOrganizerService({
       store: this.store,
       episodeCollector: this.episodeCollector,
+      triggerEmitter: services.triggerEmitter || null,
     });
 
     // Phase 8 production loop: pick one well-mastered learning point per
     // heartbeat and prompt the user to explain it in their own words.
+    // triggerEmitter is forwarded so the service also emits an Orb chip
+    // alongside the existing in-app notification.
     this.productionPromptService = new ProductionPromptService({
       store: this.store,
       episodeCollector: this.episodeCollector,
+      triggerEmitter: services.triggerEmitter || null,
     });
 
     // Cached insights from last heartbeat
     this.cachedInsights = null;
     this.lastAnalysisTime = null;
+
+    // Brain-driven shell: TriggerEmitter (Plan 1 of AI-driven shell skeleton).
+    // Set when present in services; Phase 4-8 services read it from the brain
+    // instance to push Triggers to the renderer.
+    this.triggerEmitter = services.triggerEmitter || null;
+  }
+
+  /**
+   * Record renderer-side acceptance or dismissal of a Proposal. Persists
+   * a per-source accept/dismiss tally to electron-store so trigger TTLs
+   * and gating thresholds can be tuned against observed engagement.
+   *
+   * Storage shape (under `brainShell.triggerTelemetry`):
+   *   { bySource: { <source>: { accepted, dismissed, lastEvent, lastEventKind } } }
+   *
+   * @param {{ proposalId: string, source?: string | null, kind: 'accept' | 'dismiss' }} event
+   */
+  async recordProposalEvent({ proposalId, source, kind }) {
+    const safeSource = typeof source === 'string' && source ? source : 'unknown';
+    if (!this.store) {
+      // eslint-disable-next-line no-console
+      console.log('[LearningBrainAgent] proposal event (no store)', {
+        proposalId,
+        source: safeSource,
+        kind,
+      });
+      return;
+    }
+    try {
+      const TELEMETRY_KEY = 'brainShell.triggerTelemetry';
+      const raw = this.store.get(TELEMETRY_KEY, { bySource: {} });
+      const telemetry =
+        raw && typeof raw === 'object' && raw.bySource ? raw : { bySource: {} };
+      const entry = telemetry.bySource[safeSource] || {
+        accepted: 0,
+        dismissed: 0,
+        lastEvent: null,
+        lastEventKind: null,
+      };
+      if (kind === 'accept') entry.accepted += 1;
+      else if (kind === 'dismiss') entry.dismissed += 1;
+      entry.lastEvent = new Date().toISOString();
+      entry.lastEventKind = kind;
+      telemetry.bySource[safeSource] = entry;
+      this.store.set(TELEMETRY_KEY, telemetry);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[LearningBrainAgent] recordProposalEvent persist failed:',
+        e?.message || e,
+      );
+    }
+  }
+
+  /**
+   * Read trigger telemetry — used by a future Brain dashboard panel or
+   * dev tooling to inspect per-source accept/dismiss rates.
+   *
+   * @returns {{ bySource: Record<string, { accepted: number, dismissed: number, lastEvent: string | null, lastEventKind: string | null }> }}
+   */
+  getTriggerTelemetry() {
+    if (!this.store) return { bySource: {} };
+    const raw = this.store.get('brainShell.triggerTelemetry', { bySource: {} });
+    return raw && raw.bySource ? raw : { bySource: {} };
+  }
+
+  /**
+   * Synthesize a "what's next?" suggestion when the user pulls and the
+   * queue is empty. Plan 3: LLM-backed when aiProvider is available,
+   * with a deterministic Quest-aware fallback.
+   *
+   * Returns: { title, body, navigate? } | null
+   *
+   * The result is consumed by the renderer-side triggerBus.pull() which
+   * passes it to BrainShell.onOrbClick; consumers can render it as a
+   * floating chip, narrate it, or enqueue it as a synthetic Proposal.
+   */
+  async synthesizePullSuggestion() {
+    // Gather lightweight context. Each source is best-effort — failures
+    // degrade gracefully to the deterministic fallback.
+    let activeQuests = [];
+    try {
+      // Lazy require to avoid circular import with main brain bootstrap.
+      const QuestService = require('../utils/QuestService');
+      const questSvc = new QuestService(this.store);
+      activeQuests = questSvc.list({ status: 'active' });
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn('[LearningBrainAgent] quest fetch failed:', e?.message || e);
+    }
+
+    const deterministicFallback = () => {
+      if (activeQuests.length > 0) {
+        const q = activeQuests[0];
+        const firstBook = q.bookIds && q.bookIds.length > 0 ? q.bookIds[0] : null;
+        return {
+          title: `Continue your quest: ${q.name}`,
+          body: q.goal,
+          navigate: firstBook ? `reading/${firstBook}` : null,
+          source: 'deterministic-fallback',
+        };
+      }
+      return {
+        title: "You're caught up",
+        body: 'No pending proposals and no active quests. Pick a book to keep going.',
+        navigate: 'bookshelf',
+        source: 'deterministic-fallback',
+      };
+    };
+
+    if (!this.aiProvider) return deterministicFallback();
+
+    // Compact context block — kept tight to control prompt cost.
+    const questBlock =
+      activeQuests.length === 0
+        ? '(no active quests)'
+        : activeQuests
+            .slice(0, 3)
+            .map(
+              (q, i) =>
+                `${i + 1}. "${q.name}" — ${q.goal} (${q.bookIds?.length || 0} books)`,
+            )
+            .join('\n');
+
+    const prompt = `You are the learner's coach. Suggest ONE specific next action.
+
+Active quests:
+${questBlock}
+
+Reply strictly as JSON with this shape:
+{
+  "title": "short imperative — what to do (max 50 chars)",
+  "body": "one sentence why (max 120 chars)",
+  "navigate": "route path (e.g. reading/3, vocabulary, knowledge) or null if no specific surface"
+}`;
+
+    try {
+      const raw = await this.aiProvider.generateContentWithJson(prompt, true);
+      const parsed =
+        typeof raw === 'string'
+          ? JSON.parse(raw)
+          : raw && typeof raw === 'object'
+            ? raw
+            : null;
+      if (
+        parsed &&
+        typeof parsed.title === 'string' &&
+        typeof parsed.body === 'string'
+      ) {
+        return {
+          title: String(parsed.title).slice(0, 80),
+          body: String(parsed.body).slice(0, 200),
+          navigate:
+            typeof parsed.navigate === 'string' && parsed.navigate.trim()
+              ? parsed.navigate.trim().replace(/^\/+/, '')
+              : null,
+          source: 'llm',
+        };
+      }
+      // Parsed but didn't match shape — fall through.
+      return deterministicFallback();
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[LearningBrainAgent] synthesizePullSuggestion LLM failed:',
+        e?.message || e,
+      );
+      return deterministicFallback();
+    }
   }
 
   /**
@@ -877,6 +1052,39 @@ class LearningBrainAgent {
         };
         out.created += 1;
         bumpType(nudge.type, 'created');
+
+        // Brain-driven shell: also emit an atomic-chip Trigger so the
+        // Orb surfaces this nudge alongside the in-app notification.
+        // Same daily dedup as the notification path (no double-emit).
+        if (this.triggerEmitter) {
+          const navigate = mapping.actionUrl
+            ? mapping.actionUrl.replace(/^\/+/, '')
+            : null;
+          this.triggerEmitter.emit({
+            id: `notif:${nudge.type}:${today}`,
+            source: `notification-${nudge.type}`,
+            unit: 'atomic-chip',
+            surfaceTarget: { kind: 'global' },
+            priority:
+              priority === NOTIFICATION_PRIORITIES.HIGH ? 'high' : 'normal',
+            freshness: 24 * 60 * 60 * 1000,
+            payload: {
+              title: nudge.title,
+              body: nudge.message,
+              actions: navigate
+                ? [
+                    {
+                      label: mapping.actionLabel || 'Open',
+                      navigate,
+                      primary: true,
+                    },
+                  ]
+                : [],
+              nudgeType: nudge.type,
+              notificationId: created?.id || null,
+            },
+          });
+        }
       } catch (err) {
         out.errors += 1;
         bumpType(nudge.type, 'errors');

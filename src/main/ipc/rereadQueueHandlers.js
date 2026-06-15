@@ -18,20 +18,25 @@ import RereadQueueService from '../utils/RereadQueueService';
 let registered = false;
 let queueService = null;
 
-function registerRereadQueueHandlers(store) {
+/**
+ * @param {object} store electron-store instance
+ * @param {{ triggerEmitter?: import('../brain/TriggerEmitter') }} [services]
+ */
+function registerRereadQueueHandlers(store, services = {}) {
   if (registered) {
     console.warn('[rereadQueueHandlers] already registered, skipping');
     return;
   }
   registered = true;
   queueService = new RereadQueueService(store);
+  const triggerEmitter = services.triggerEmitter || null;
 
   ipcMain.handle('reread-queue-schedule', (_event, payload) => {
     try {
       const { bookId, bookTitle, chapterId, chapterName, gaps, score, token } =
         payload || {};
       const userId = token ? getUserIdFromToken(token) : 1;
-      return queueService.schedule({
+      const item = queueService.schedule({
         bookId,
         bookTitle,
         chapterId,
@@ -40,6 +45,35 @@ function registerRereadQueueHandlers(store) {
         score: typeof score === 'number' ? score : 0,
         userId: userId > 0 ? userId : 1,
       });
+
+      // Brain-driven shell: a newly-scheduled re-read item emits an
+      // atomic-chip Trigger so the Orb can surface it cross-surface.
+      // The user navigates to the chapter via the chip's "Open" action.
+      if (item && !item.error && triggerEmitter && bookId) {
+        const gapList = Array.isArray(gaps) ? gaps : [];
+        triggerEmitter.emit({
+          id: `phase8a:${bookId}:${chapterId ?? 'no-chapter'}`,
+          source: 'phase-8a-reread',
+          unit: 'atomic-chip',
+          surfaceTarget: { kind: 'global' },
+          priority: 'normal',
+          freshness: 7 * 24 * 60 * 60 * 1000, // 7 days
+          payload: {
+            title: `Re-read: ${chapterName || 'chapter'} of ${bookTitle || `Book ${bookId}`}`,
+            body: gapList.length > 0
+              ? `Gaps: ${gapList.slice(0, 3).join('; ')}`
+              : `Comprehension score was low (${score ?? '?'}).`,
+            actions: [
+              { label: 'Open', navigate: `reading/${bookId}`, primary: true },
+            ],
+            bookId,
+            chapterId,
+            itemId: item.id,
+          },
+        });
+      }
+
+      return item;
     } catch (err) {
       console.error('[rereadQueueHandlers] schedule failed:', err);
       return { error: err?.message || 'schedule failed' };

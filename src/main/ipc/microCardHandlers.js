@@ -26,7 +26,15 @@ import { LIVE_WRITABLE_DOMAINS } from '../../commons/model/LearningPointDomains'
 
 let registered = false;
 
-function registerMicroCardHandlers() {
+/**
+ * Phase 4 deliberately does NOT emit Triggers — its in-paragraph
+ * MicroCardChip is the natural in-context surface. The Brain Orb is
+ * reserved for chapter-end / cluster / cross-book proposals (Phase 5–8)
+ * where there is no obvious in-context surface to attach to.
+ *
+ * @param {object} [services] reserved for future phase-specific deps
+ */
+function registerMicroCardHandlers(_services = {}) {
   if (registered) {
     console.warn('[microCardHandlers] already registered, skipping');
     return;

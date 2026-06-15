@@ -233,6 +233,17 @@ import { registerLearningPlanHandlers } from './ipc/learningPlanHandlers';
 import { registerStudyEnhancementHandlers } from './ipc/studyEnhancementHandlers';
 import { registerStudyAnalyticsHandlers } from './ipc/studyAnalyticsHandlers';
 import { registerBrainHandlers } from './ipc/brainHandlers';
+// Brain-driven shell (Plan 1): renderer trigger-bus IPC + main-process trigger emitter.
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { registerTriggerBusHandlers } = require('./ipc/triggerBusHandlers');
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const TriggerEmitter = require('./brain/TriggerEmitter');
+// Plan 2 fork #5 (Quest layer)
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { registerQuestHandlers } = require('./ipc/questHandlers');
+// Plan 4: re-emit a Phase 7 path from OrbQuestMenu
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { registerQuestWalkHandlers } = require('./ipc/questWalkHandlers');
 import { registerUnifiedLearningHandlers } from './ipc/unifiedLearningHandlers';
 import { registerLearningPointHandlers } from './ipc/learningPointHandlers';
 import { registerMicroCardHandlers } from './ipc/microCardHandlers';
@@ -2900,6 +2911,13 @@ app
     // Register graph database IPC handlers (works with both Kùzu and Neo4j)
     registerGraphHandlers(store);
 
+    // Brain-driven shell: TriggerEmitter ships Triggers to the renderer
+    // via mainWin.webContents. Phase 5-8 services receive it as a dep
+    // (Phase 4 stays in-paragraph and does not emit Triggers).
+    const triggerEmitter = new TriggerEmitter({
+      getWebContents: () => mainWin?.webContents ?? null,
+    });
+
     // Phase 3d + 4a: micro-card proposer and batch enrichment IPC handlers
     registerMicroCardHandlers();
     registerEnrichmentHandlers();
@@ -2907,10 +2925,25 @@ app
     registerBookDiagnosticHandlers();
     // Phase 6: chapter-end comprehension grading IPC handlers
     registerComprehensionHandlers();
-    // Phase 7: cross-book curriculum planner IPC handlers
-    registerLearningPathPlannerHandlers();
+    // Phase 7: cross-book curriculum planner IPC handlers.
+    // Receives `store` + `getWebContents` so it can auto-create a Quest
+    // when a path succeeds and broadcast `quest:changed` to the renderer.
+    registerLearningPathPlannerHandlers({
+      triggerEmitter,
+      store,
+      getWebContents: () => mainWin?.webContents ?? null,
+    });
     // Phase 8: spaced re-reading queue IPC handlers
-    registerRereadQueueHandlers(store);
+    registerRereadQueueHandlers(store, { triggerEmitter });
+    // Plan 2 fork #5: Quest layer + Plan 3 fork: Brain weighting hook.
+    // The handlers broadcast `quest:changed` after each mutation so the
+    // renderer triggerBus can re-hydrate its quest book IDs and re-sort
+    // the queue with quest-aligned items bubbled to the top.
+    registerQuestHandlers(store, {
+      getWebContents: () => mainWin?.webContents ?? null,
+    });
+    // Plan 4: quest-walk re-emits a Phase 7 path so OrbQuestMenu can resume.
+    registerQuestWalkHandlers(store, { triggerEmitter });
     // Phase 8: MoodBoard organize-suggestion IPC handlers (renderer side
     // of the brain heartbeat's `suggestOrganizeSessions` task).
     registerMoodBoardOrganizerHandlers(store);
@@ -2973,20 +3006,24 @@ app
       learnerProfileManager: require('./db/LearnerProfileManager'),
       learningPlanManager: require('./db/LearningPlanManager').default,
       sessionAnalyticsManager: require('./db/SessionAnalyticsManager').default,
+      triggerEmitter,
     })
       .then((brain) => {
         if (brain) {
           registerBrainHandlers({ brain, store });
+          registerTriggerBusHandlers({ brain, store });
           console.log('[main] Learning Brain initialized successfully');
         } else {
           // Brain disabled or failed - still register handlers for status queries
           registerBrainHandlers({ brain: null, store });
+          registerTriggerBusHandlers({ brain: null, store });
           console.log('[main] Learning Brain disabled or unavailable');
         }
       })
       .catch((err) => {
         console.error('[main] Learning Brain initialization failed:', err);
         registerBrainHandlers({ brain: null, store });
+        registerTriggerBusHandlers({ brain: null, store });
       });
 
     // copy resource / script ..

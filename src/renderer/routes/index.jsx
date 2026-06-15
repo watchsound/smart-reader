@@ -27,6 +27,7 @@ import LanguageIcon from '@mui/icons-material/Language';
 import BookmarksIcon from '@mui/icons-material/Bookmarks';
 
 import customStorage from '../store/customStorage';
+import BrainDashboardPanel from '../components/brainShell/BrainDashboardPanel';
 
 const StatCard = styled(Paper)(({ theme }) => ({
   padding: theme.spacing(2.5),
@@ -238,6 +239,9 @@ export default function Index() {
             </Grid>
           </Grid>
         </WelcomeSection>
+
+        {/* Brain-driven shell: Orb-narrated state + top 3 proposals */}
+        <BrainDashboardPanel />
 
         {/* Statistics Cards */}
         <Grid container spacing={2.5} sx={{ mb: 4 }}>

@@ -71,6 +71,9 @@ async function initializeLearningBrain(services = {}) {
     scheduler,
     episodeCollector,
     mode: schedulerResult.mode,
+    // Brain-driven shell: surface the emitter so Phase 4-8 services
+    // (MicroCardProposer et al.) can reach it from their main.ts wiring.
+    triggerEmitter: brainAgent.triggerEmitter,
 
     // High-level API
     async triggerHeartbeat() {
@@ -87,6 +90,19 @@ async function initializeLearningBrain(services = {}) {
 
     recordEpisode(event) {
       return episodeCollector.record(event);
+    },
+
+    // Brain-driven shell IPC surface (consumed by triggerBusHandlers.js).
+    async recordProposalEvent(event) {
+      return brainAgent.recordProposalEvent(event);
+    },
+
+    async synthesizePullSuggestion() {
+      return brainAgent.synthesizePullSuggestion();
+    },
+
+    getTriggerTelemetry() {
+      return brainAgent.getTriggerTelemetry();
     },
 
     async stop() {
