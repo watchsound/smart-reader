@@ -699,10 +699,9 @@ export function updateNote(noteId, field, value, token) {
   }
   try {
     console.log(`updatenote - noteId =  ${noteId}  field = ${  field  } value = ${  value}`)
-    // Assuming the field is at the root of the JSON object.
-    const sql = `UPDATE note SET data = json_set(data, '$.${field}', ?) WHERE id = ? and user_id = ?`;
+    const sql = `UPDATE note SET data = json_set(data, ?, ?) WHERE id = ? and user_id = ?`;
     const query = db.prepare(sql);
-    query.run( [value, noteId, userId]);
+    query.run([`$.${field}`, value, noteId, userId]);
     return 1;
   } catch (err) {
     console.error(err);

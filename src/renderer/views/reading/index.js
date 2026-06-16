@@ -308,13 +308,23 @@ function BookKnowledgePanel({ bookId, bookTitle }) {
     progress: 0,
   });
 
+  // Race guard: loadKnowledgeData is invoked from both the auto-load
+  // useEffect (when `bookId` changes) and from a manual reload button.
+  // Three serial graph queries inside; without this guard a slow earlier
+  // run can overwrite a faster later run's stats / concepts / path.
+  const loadGenRef = useRef(0);
   const loadKnowledgeData = useCallback(async () => {
+    const myGen = loadGenRef.current + 1;
+    loadGenRef.current = myGen;
+    const isStale = () => myGen !== loadGenRef.current;
+
     setLoading(true);
     try {
       // Load concepts related to this book
       const graphData = await graphApi.getKnowledgeGraphData({
         sourceKey: bookId,
       });
+      if (isStale()) return;
       if (graphData?.nodes) {
         const bookConcepts = graphData.nodes.slice(0, 6);
         setRelatedConcepts(bookConcepts);
@@ -340,19 +350,24 @@ function BookKnowledgePanel({ bookId, bookTitle }) {
 
       // Load weak concepts for this book
       const weakData = await graphApi.getWeakConcepts(3);
+      if (isStale()) return;
       if (weakData?.concepts) {
         setWeakConcepts(weakData.concepts.slice(0, 3));
       }
 
       // Load learning path
       const pathData = await graphApi.getLearningPath();
+      if (isStale()) return;
       if (pathData?.path) {
         setLearningPath(pathData);
       }
     } catch (error) {
+      if (isStale()) return;
       console.log('Knowledge data not available:', error.message);
     }
-    setLoading(false);
+    if (!isStale()) {
+      setLoading(false);
+    }
   }, [bookId]);
 
   useEffect(() => {

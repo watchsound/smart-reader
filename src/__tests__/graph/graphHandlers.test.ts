@@ -170,8 +170,18 @@ describe('Graph IPC Handlers', () => {
     registerGraphHandlers(mockStore);
   });
 
-  // Helper to simulate IPC call
+  // Some handlers were migrated from ipcMain.on to ipcMain.handle.
+  const isRegistered = (channel: string) =>
+    registeredHandlers.has(channel) || registeredInvokeHandlers.has(channel);
+
+  // Helper to simulate IPC call. Checks both maps so existing test bodies
+  // keep working regardless of whether the handler is on or handle.
   const callHandler = async (channel: string, ...args: any[]) => {
+    const invokeHandler = registeredInvokeHandlers.get(channel);
+    if (invokeHandler) {
+      const mockEvent = {};
+      return invokeHandler(mockEvent, ...args);
+    }
     const handler = registeredHandlers.get(channel);
     if (!handler) throw new Error(`Handler not registered: ${channel}`);
 
@@ -194,33 +204,33 @@ describe('Graph IPC Handlers', () => {
 
   describe('Handler Registration', () => {
     test('should register all connection handlers', () => {
-      expect(registeredHandlers.has('graph-connect')).toBe(true);
-      expect(registeredHandlers.has('graph-check-connection')).toBe(true);
-      expect(registeredHandlers.has('graph-disconnect')).toBe(true);
+      expect(isRegistered('graph-connect')).toBe(true);
+      expect(isRegistered('graph-check-connection')).toBe(true);
+      expect(isRegistered('graph-disconnect')).toBe(true);
     });
 
     test('should register all note handlers', () => {
-      expect(registeredHandlers.has('graph-create-note')).toBe(true);
-      expect(registeredHandlers.has('graph-get-note')).toBe(true);
-      expect(registeredHandlers.has('graph-get-notes-by-source')).toBe(true);
-      expect(registeredHandlers.has('graph-update-note')).toBe(true);
-      expect(registeredHandlers.has('graph-delete-note')).toBe(true);
-      expect(registeredHandlers.has('graph-search-notes')).toBe(true);
+      expect(isRegistered('graph-create-note')).toBe(true);
+      expect(isRegistered('graph-get-note')).toBe(true);
+      expect(isRegistered('graph-get-notes-by-source')).toBe(true);
+      expect(isRegistered('graph-update-note')).toBe(true);
+      expect(isRegistered('graph-delete-note')).toBe(true);
+      expect(isRegistered('graph-search-notes')).toBe(true);
     });
 
     test('should register all vocabulary handlers', () => {
-      expect(registeredHandlers.has('graph-create-vocabulary')).toBe(true);
-      expect(registeredHandlers.has('graph-get-vocabulary-by-word')).toBe(true);
+      expect(isRegistered('graph-create-vocabulary')).toBe(true);
+      expect(isRegistered('graph-get-vocabulary-by-word')).toBe(true);
     });
 
     test('should register all spaced repetition handlers', () => {
-      expect(registeredHandlers.has('graph-get-due-for-review')).toBe(true);
-      expect(registeredHandlers.has('graph-record-review')).toBe(true);
-      expect(registeredHandlers.has('graph-add-note-to-leitner')).toBe(true);
+      expect(isRegistered('graph-get-due-for-review')).toBe(true);
+      expect(isRegistered('graph-record-review')).toBe(true);
+      expect(isRegistered('graph-add-note-to-leitner')).toBe(true);
     });
 
     test('should register stats handler', () => {
-      expect(registeredHandlers.has('graph-get-stats')).toBe(true);
+      expect(isRegistered('graph-get-stats')).toBe(true);
     });
   });
 

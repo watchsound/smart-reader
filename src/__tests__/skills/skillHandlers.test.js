@@ -103,7 +103,7 @@ describe('Skill IPC Handlers', () => {
     });
 
     it('should register skill-list-available handler', () => {
-      expect(syncHandlers['skill-list-available']).toBeDefined();
+      expect(handlers['skill-list-available']).toBeDefined();
     });
 
     it('should register skill-execute handler', () => {

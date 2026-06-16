@@ -122,6 +122,24 @@ export function useEPUBAnimations(rendition) {
   }, []);
 
   /**
+   * Apply the personal lexical halo over the current chapter — a faint
+   * underglow on the first occurrence of each word in `words`. Safe to
+   * call repeatedly; the adapter dedups within a chapter.
+   */
+  const applyLexicalHalo = useCallback(async (words, options = {}) => {
+    if (!adapterRef.current) return { haloCount: 0 };
+    return adapterRef.current.applyLexicalHalo(words, options);
+  }, []);
+
+  /**
+   * Remove all lexical halos and reset the per-chapter dedup set.
+   */
+  const removeLexicalHalo = useCallback(async () => {
+    if (!adapterRef.current) return;
+    await adapterRef.current.removeLexicalHalo();
+  }, []);
+
+  /**
    * Remove vocabulary highlights
    */
   const removeHighlights = useCallback(async () => {
@@ -163,10 +181,12 @@ export function useEPUBAnimations(rendition) {
     highlightVocabulary,
     glowWords,
     smartSummary,
+    applyLexicalHalo,
 
     // Cleanup methods
     removeSummary,
     removeHighlights,
+    removeLexicalHalo,
     removeAllEffects,
 
     // Utility

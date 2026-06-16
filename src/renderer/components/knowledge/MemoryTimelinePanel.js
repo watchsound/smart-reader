@@ -8,7 +8,7 @@
  * Part of the Knowledge Dashboard visualization suite.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { useTheme, alpha, styled } from '@mui/material/styles';
 import Box from '@mui/material/Box';
@@ -264,12 +264,22 @@ function MemoryTimelinePanel({
     setSummarizationAvailable(available);
   }, []);
 
+  // Race guard: loadData is invoked from both the auto-load useEffect
+  // (when conceptId/gapDaysFilter/summarizationAvailable change) and from
+  // the manual refresh handler. Overlapping calls without this guard let a
+  // slow earlier Promise.all overwrite a faster later one's setStats/etc.
+  const loadGenRef = useRef(0);
+
   // Load data
   const loadData = useCallback(async () => {
     if (!summarizationAvailable) {
       setLoading(false);
       return;
     }
+
+    const myGen = loadGenRef.current + 1;
+    loadGenRef.current = myGen;
+    const isStale = () => myGen !== loadGenRef.current;
 
     setLoading(true);
     setError(null);
@@ -300,6 +310,7 @@ function MemoryTimelinePanel({
       }
 
       const results = await Promise.all(promises);
+      if (isStale()) return;
 
       // Process results
       setStats(results[0]?.data || results[0] || null);
@@ -315,10 +326,13 @@ function MemoryTimelinePanel({
         setGaps(Array.isArray(gapsData) ? gapsData : []);
       }
     } catch (err) {
+      if (isStale()) return;
       console.error('[MemoryTimelinePanel] Failed to load data:', err);
       setError(err.message || 'Failed to load memory data');
     } finally {
-      setLoading(false);
+      if (!isStale()) {
+        setLoading(false);
+      }
     }
   }, [conceptId, gapDaysFilter, summarizationAvailable]);
 

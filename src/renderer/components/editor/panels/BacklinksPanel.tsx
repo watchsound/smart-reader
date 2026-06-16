@@ -196,7 +196,7 @@ export default function BacklinksPanel({
 
     try {
       // @ts-ignore - window.electron is defined in preload
-      const results = window.electron?.ipcRenderer?.sendSync?.('get-backlinks', [targetId, targetType]);
+      const results = await window.electron?.ipcRenderer?.invoke?.('get-backlinks', [targetId, targetType]);
 
       if (Array.isArray(results)) {
         setBacklinks(results.map((r: any) => ({

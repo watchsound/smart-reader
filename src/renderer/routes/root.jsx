@@ -236,17 +236,22 @@ export default function Root() {
     // Validate session on app startup - sync renderer localStorage with main process session
     const localUserInfo = customStorage.getUserInfo();
     if (localUserInfo && localUserInfo.token) {
-      const sessionInfo = customStorage.validateSession();
-      if (sessionInfo) {
-        // Session is valid - update Redux state
-        dispatch(loginHandled(sessionInfo));
-      }
-      // If invalid, validateSession already cleared localStorage
+      customStorage.validateSession().then((sessionInfo) => {
+        if (sessionInfo) {
+          // Session is valid - update Redux state
+          dispatch(loginHandled(sessionInfo));
+        }
+        // If invalid, validateSession already cleared localStorage
+      });
     }
 
-    document.addEventListener('mycustomlink', (event) => {
+    const handleCustomLink = (event) => {
       console.log('Received in renderer view:', event.data);
-    });
+    };
+    document.addEventListener('mycustomlink', handleCustomLink);
+    return () => {
+      document.removeEventListener('mycustomlink', handleCustomLink);
+    };
   }, [dispatch]);
 
   const handleDrawerToggle = () => {

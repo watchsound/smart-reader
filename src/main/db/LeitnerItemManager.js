@@ -1,4 +1,15 @@
-import db from './dbManager';
+import db, { assertUpdateField } from './dbManager';
+
+const LEITNER_ITEM_UPDATABLE = new Set([
+  'type',
+  'box',
+  'skips',
+  'flips',
+  'next_review',
+  'fully_learned',
+  'set_id',
+  'score',
+]);
 
 /**
 CREATE TABLE "leitner_item" (
@@ -21,7 +32,7 @@ export const sqlStmt2LeitnerItem = (record) => {
     type: record.type || 0,
     box: record.box || 1,
     skips: record.skips || 0,
-    flips: record.skips || 0,
+    flips: record.flips || 0,
     nextReview: record.next_review || '',
     fullyLearned: record.fully_learned || 0,
     score: record.score || 0,
@@ -77,7 +88,7 @@ export const createLeitnerItem = (leitnerItem) => {
 
 export function updateLeitnerItem(id, field, value) {
   try {
-    // Assuming the field is at the root of the JSON object.
+    assertUpdateField('leitner_item', LEITNER_ITEM_UPDATABLE, field);
     const sql = `UPDATE leitner_item SET ${field} = ? WHERE id = ?  `;
     const query = db.prepare(sql);
     query.run([value, id]);
@@ -86,7 +97,7 @@ export function updateLeitnerItem(id, field, value) {
     console.error(err);
     return -1;
   }
-};
+}
 
 export function deleteLeitnerItemById(id) {
   try {

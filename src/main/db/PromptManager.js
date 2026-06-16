@@ -12,7 +12,11 @@
 
  *
  */
-import db, { getUserIdFromToken, addUserIdCreatedAt, escapeString } from './dbManager';
+import db, { getUserIdFromToken, addUserIdCreatedAt, assertUpdateField } from './dbManager';
+
+const PROMPT_UPDATABLE = new Set([
+  'title', 'content', 'source',
+]);
 
 /**
  *
@@ -58,17 +62,15 @@ export const createPrompt= (prompt, token) => {
   }
   addUserIdCreatedAt(prompt, userId);
   try {
-  const title = escapeString(prompt.title || '');
-  const content = escapeString(prompt.content || '');
-  const source = prompt.source || '';
-  const createdAt = prompt.createdAt || '';
-
+    const title = prompt.title || '';
+    const content = prompt.content || '';
+    const source = prompt.source || '';
+    const createdAt = prompt.createdAt || '';
 
     const stmt = db.prepare(
-      'INSERT INTO prompt (title, content, source, created_at, user_id)' +
-      ` VALUES ('${title}','${content}','${source}','${createdAt}', ${userId} ) `
+      'INSERT INTO prompt (title, content, source, created_at, user_id) VALUES (?, ?, ?, ?, ?)'
     );
-     const result = stmt.run();
+    const result = stmt.run(title, content, source, createdAt, userId);
     prompt.id = result.lastInsertRowid;
   } catch (err) {
     console.error(err);
@@ -136,7 +138,7 @@ export const getPromptsByQuery = (query, page, limit,  token) => {
     if ( query ){
       stmt = db.prepare(`SELECT * FROM  prompt  WHERE content LIKE ? AND user_id = ?   ORDER BY created_at DESC
           LIMIT ? OFFSET ?`);
-      stmt = stmt.iterate(`'%${query}%'`, userId, limit, offset);
+      stmt = stmt.iterate(`%${query}%`, userId, limit, offset);
     } else {
       stmt = db.prepare(`SELECT * FROM prompt WHERE  user_id = ?  ORDER BY created_at DESC
           LIMIT ? OFFSET ?`);
@@ -184,7 +186,7 @@ export function updatePrompt(id, field, value, token) {
     return -1;
   }
   try {
-    // Assuming the field is at the root of the JSON object.
+    assertUpdateField('prompt', PROMPT_UPDATABLE, field);
     const sql = `UPDATE prompt SET ${field} = ? WHERE id = ? AND user_id = ?`;
     const query = db.prepare(sql);
     query.run([value, id, userId]);

@@ -26,7 +26,11 @@ diagram {
  *
  */
 import JSON5 from 'json5';
-import db, { getUserIdFromToken, addUserIdCreatedAt } from './dbManager';
+import db, { getUserIdFromToken, addUserIdCreatedAt, assertUpdateField } from './dbManager';
+
+const MOOD_BOARD_UPDATABLE = new Set([
+  'name', 'description', 'react_grid_layout', 'react_diagram', 'pinned',
+]);
 
 const recordToObject = (record) => {
   return {
@@ -79,18 +83,17 @@ export const createMoodBoard= (board, token) => {
   addUserIdCreatedAt(board, userId);
 
   try {
-  const name =    board.name || '';
-  const description =  board.description || '';
-  const gridLayout =  JSON.stringify(board.gridLayout || '');
-  const diagram =  JSON.stringify(board.diagram || '');
-  const pinned =  board.pinned?1:0;
-  const {createdAt} = board ;
+    const name = board.name || '';
+    const description = board.description || '';
+    const gridLayout = JSON.stringify(board.gridLayout || '');
+    const diagram = JSON.stringify(board.diagram || '');
+    const pinned = board.pinned ? 1 : 0;
+    const { createdAt } = board;
 
     const stmt = db.prepare(
-      'INSERT INTO mood_board (name, description, react_grid_layout, react_diagram, pinned, created_at, user_id)' +
-      ` VALUES ('${name}','${description}','${gridLayout}','${diagram}',${pinned},'${createdAt}',${userId}) `
+      'INSERT INTO mood_board (name, description, react_grid_layout, react_diagram, pinned, created_at, user_id) VALUES (?, ?, ?, ?, ?, ?, ?)'
     );
-    const result = stmt.run();
+    const result = stmt.run(name, description, gridLayout, diagram, pinned, createdAt, userId);
 
     board.id = result.lastInsertRowid;
   } catch (err) {
@@ -164,7 +167,7 @@ export const getMoodBoardsByQuery = (query, page, limit, token) => {
       currentPage: page
     };
   }
-  const q = `'%${query}%'`;
+  const q = `%${query}%`;
   const offset = (page - 1) * limit;
   const totalRecordsQuery = db.prepare(`
     SELECT count(*)
@@ -221,7 +224,7 @@ export function updateMoodBoard(id, field, value, token) {
   }
   try {
     console.log(` updateMoodBoard: id = ${id} field = ${field} value = ${value} `);
-    // Assuming the field is at the root of the JSON object.
+    assertUpdateField('mood_board', MOOD_BOARD_UPDATABLE, field);
     const sql = `UPDATE mood_board SET ${field} = ? WHERE id = ? AND user_id = ?`;
     const query = db.prepare(sql);
     query.run( [value, id, userId]);

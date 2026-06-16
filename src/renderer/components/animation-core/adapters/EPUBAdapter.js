@@ -50,6 +50,11 @@ class EPUBAdapter {
     this.wordWrapper = null;
     this.animationEngine = new AnimationEngine();
 
+    // Lexical halo state — independent from wordWrapper so Smart Summary
+    // and the halo don't fight over the same DOM wraps. Reset per chapter.
+    this._haloedWords = new Set();
+    this._haloSpans = [];
+
     // Bind methods
     this._handleLocationChange = this._handleLocationChange.bind(this);
     this._handleContentsLoaded = this._handleContentsLoaded.bind(this);
@@ -193,6 +198,11 @@ class EPUBAdapter {
       this.animationCore.options.container = this.currentDocument.body;
       this._injectStyles();
     }
+    // New chapter DOM — previously-haloed spans are gone with the old iframe
+    // content, so the dedup set must reset or the next applyLexicalHalo call
+    // would skip every word as "already haloed."
+    this._haloedWords = new Set();
+    this._haloSpans = [];
   }
 
   /**
@@ -274,6 +284,25 @@ class EPUBAdapter {
       @keyframes spin {
         from { transform: rotate(0deg); }
         to { transform: rotate(360deg); }
+      }
+
+      @keyframes epub-ac-halo-pulse {
+        0%   { background-color: rgba(100, 180, 255, 0); }
+        30%  { background-color: rgba(100, 180, 255, 0.28); }
+        100% { background-color: transparent; }
+      }
+
+      .epub-ac-lexical-halo {
+        display: inline;
+        border-bottom: 1px dotted rgba(100, 180, 255, 0.65);
+        border-radius: 2px;
+        padding-bottom: 1px;
+        animation: epub-ac-halo-pulse 900ms ease-out 1 both;
+        cursor: help;
+        transition: background-color 200ms ease-out;
+      }
+      .epub-ac-lexical-halo:hover {
+        background-color: rgba(100, 180, 255, 0.18);
       }
     `;
 
@@ -360,6 +389,133 @@ class EPUBAdapter {
     }
 
     return result;
+  }
+
+  /**
+   * Apply a faint persistent underglow to the first occurrence of each
+   * given word in the current chapter. Subsequent occurrences in the same
+   * chapter stay silent. State resets on the next 'rendered' event.
+   *
+   * Self-contained: walks text nodes and wraps only matched words in a
+   * dedicated `epub-ac-lexical-halo` span. Does NOT touch the WordWrapper
+   * used by Smart Summary, so the two features coexist on the same page.
+   *
+   * @param {string[]} words - vocabulary words to halo
+   * @param {Object} [options]
+   * @param {string[]} [options.excludeTags] - extra tags to skip
+   * @returns {Promise<{ haloCount: number }>}
+   */
+  async applyLexicalHalo(words, options = {}) {
+    if (!this.isInitialized) {
+      const initialized = await this.initialize();
+      if (!initialized) return { haloCount: 0 };
+    }
+    if (!this.currentDocument || !Array.isArray(words) || words.length === 0) {
+      return { haloCount: 0 };
+    }
+
+    const normalize = (s) =>
+      String(s).toLowerCase().replace(/[.,!?;:'"()\[\]{}]/g, '').trim();
+
+    const targets = new Set();
+    words.forEach((w) => {
+      const n = normalize(w);
+      if (n.length >= 2) targets.add(n);
+    });
+    if (targets.size === 0) return { haloCount: 0 };
+
+    const doc = this.currentDocument;
+    const haloClass = 'epub-ac-lexical-halo';
+    const excludeTags = new Set([
+      'SCRIPT', 'STYLE', 'NOSCRIPT', 'SVG', 'CANVAS',
+      'VIDEO', 'AUDIO', 'IFRAME', 'CODE', 'PRE',
+      ...(options.excludeTags || []),
+    ]);
+
+    const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, {
+      acceptNode: (node) => {
+        if (!node.nodeValue || !node.nodeValue.trim()) {
+          return NodeFilter.FILTER_REJECT;
+        }
+        let parent = node.parentNode;
+        while (parent && parent !== doc.body) {
+          if (excludeTags.has(parent.tagName)) return NodeFilter.FILTER_REJECT;
+          if (parent.classList && parent.classList.contains(haloClass)) {
+            return NodeFilter.FILTER_REJECT;
+          }
+          parent = parent.parentNode;
+        }
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    });
+
+    const textNodes = [];
+    let n;
+    // eslint-disable-next-line no-cond-assign
+    while ((n = walker.nextNode())) textNodes.push(n);
+
+    let haloCount = 0;
+
+    for (const textNode of textNodes) {
+      const text = textNode.nodeValue;
+      const parts = text.split(/(\s+)/);
+      const haloIndices = [];
+
+      for (let i = 0; i < parts.length; i += 1) {
+        const part = parts[i];
+        if (!part.trim()) continue;
+        const norm = normalize(part);
+        if (norm && targets.has(norm) && !this._haloedWords.has(norm)) {
+          this._haloedWords.add(norm);
+          haloIndices.push(i);
+        }
+      }
+
+      if (haloIndices.length === 0) continue;
+
+      const fragment = doc.createDocumentFragment();
+      parts.forEach((part, i) => {
+        if (haloIndices.includes(i)) {
+          const span = doc.createElement('span');
+          span.className = haloClass;
+          span.textContent = part;
+          // Stagger the pulse so multiple haloed words on the same page
+          // emerge as a constellation rather than a synchronised flash.
+          span.style.animationDelay = `${Math.min(haloCount * 35, 600)}ms`;
+          fragment.appendChild(span);
+          this._haloSpans.push(span);
+          haloCount += 1;
+        } else {
+          fragment.appendChild(doc.createTextNode(part));
+        }
+      });
+
+      textNode.parentNode.replaceChild(fragment, textNode);
+    }
+
+    return { haloCount };
+  }
+
+  /**
+   * Remove all lexical halos and reset the per-chapter dedup set.
+   * Useful when the user toggles the feature off mid-read.
+   */
+  async removeLexicalHalo() {
+    if (!this._haloSpans || this._haloSpans.length === 0) {
+      this._haloedWords = new Set();
+      return;
+    }
+    this._haloSpans.forEach((span) => {
+      if (span && span.parentNode) {
+        const doc = span.ownerDocument || this.currentDocument;
+        span.parentNode.replaceChild(
+          doc.createTextNode(span.textContent),
+          span,
+        );
+      }
+    });
+    this._haloSpans = [];
+    this._haloedWords = new Set();
   }
 
   /**

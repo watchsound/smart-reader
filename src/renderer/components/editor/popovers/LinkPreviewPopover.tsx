@@ -128,7 +128,7 @@ export default function LinkPreviewPopover({
     const fetchPreview = async () => {
       try {
         // @ts-ignore - window.electron is defined in preload
-        const data = window.electron?.ipcRenderer?.sendSync?.('get-link-preview', [type, id]);
+        const data = await window.electron?.ipcRenderer?.invoke?.('get-link-preview', [type, id]);
 
         if (data) {
           setPreview(data);

@@ -57,7 +57,9 @@ export const getUserIdFromToken = (token) => {
   const userInfo = global.shared.store.get('session_info');
   // Debug: log token comparison
   console.log(`getUserIdFromToken - passed token: ${token}`);
-  console.log(`getUserIdFromToken - stored session: ${JSON.stringify(userInfo)}`);
+  console.log(
+    `getUserIdFromToken - stored session: ${JSON.stringify(userInfo)}`,
+  );
   if (userInfo && userInfo.token === token) return userInfo.id;
   console.log('session is invalid, userid not found');
   return -1;
@@ -74,13 +76,18 @@ export const addUserIdCreatedAt = (obj, userId) => {
   return obj;
 };
 export const escapeString = (value) => {
-  if (typeof value === 'string')  return value.replace(/'/g, "''");
-  if (typeof value === 'number')  return  value.toString();
-  return value || '';  // Replace each single quote with two single quotes
+  if (typeof value === 'string') return value.replace(/'/g, "''");
+  if (typeof value === 'number') return value.toString();
+  return value || ''; // Replace each single quote with two single quotes
 };
 
-export const getNextId = (tableName) => {
-  const stmt = db.prepare(`SELECT MAX(id) as maxId FROM ${tableName}`);
-  const row = stmt.get();
-  return row.maxId + 1;
+// Single-field UPDATE helpers across managers interpolate the column name
+// directly into SQL (the value is parameterized; the column name cannot be).
+// Each manager passes its writable-column allowlist here so an unknown field
+// throws before reaching SQL — turning silent SQL-syntax failures into a
+// clear rejection and closing the SQL-injection-shaped pattern.
+export const assertUpdateField = (table, allowed, field) => {
+  if (typeof field !== 'string' || !allowed.has(field)) {
+    throw new Error(`Invalid update field "${field}" for table "${table}"`);
+  }
 };

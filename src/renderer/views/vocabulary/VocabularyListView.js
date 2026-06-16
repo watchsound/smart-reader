@@ -1,5 +1,5 @@
 /* eslint-disable prettier/prettier */
-import { useMemo, useEffect, useState } from 'react';
+import { useMemo, useEffect, useRef, useState } from 'react';
 import Typography from '@mui/material/Typography';
 import { useSelector, useDispatch } from 'react-redux';
 import { styled } from '@mui/material/styles';
@@ -45,7 +45,15 @@ function VocabularyListView({isReviewDue}) {
   const dispatch = useDispatch();
 
 
+  // `t` is invoked both by the useEffect (when page/limit/isReviewDue change)
+  // and directly by `searchIt`, which itself triggers a state change that
+  // re-runs the useEffect. That pair fires overlapping requests; without a
+  // race guard the slower response wins and stale results land.
+  const queryGenRef = useRef(0);
+
   async function t() {
+      const myGen = queryGenRef.current + 1;
+      queryGenRef.current = myGen;
       const result = isReviewDue ? await customStorage.getVocabulariesByQuery({
         query: search || '',
         page,
@@ -55,6 +63,7 @@ function VocabularyListView({isReviewDue}) {
         page,
         limit,
       }) ;
+      if (myGen !== queryGenRef.current) return;
       if (!result) return;
       setVocabularies(result.data || []);
       setTotal(result.total);

@@ -36,7 +36,7 @@ DROP TABLE IF EXISTS "consolidated_memory";
 CREATE TABLE "user" (
   "id"  INTEGER PRIMARY KEY AUTOINCREMENT,
   "username"  TEXT,
-  "email"  TEXT,
+  "email"  TEXT UNIQUE,
   "password_hash" TEXT,
   "status"  INTEGER
 );

@@ -1,5 +1,5 @@
 /* eslint-disable no-use-before-define */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { Card, Grid, Typography, Pagination, Divider } from '@mui/material';
@@ -56,9 +56,18 @@ function NotesUI() {
     t();
   }, []);
 
+  // Bumped on every doQuery call. Each async branch checks myGen against
+  // the latest after every await and bails if it's been superseded — so a
+  // slow earlier request can't overwrite a faster later one's results.
+  const queryGenRef = useRef(0);
+
   const doQuery = async () => {
+    const myGen = queryGenRef.current + 1;
+    queryGenRef.current = myGen;
+    const isStale = () => myGen !== queryGenRef.current;
     if (filterKey && filterKey.trim().indexOf(' ') > 0) {
       const r = await customStorage.semanticQuery(filterKey, 10, undefined);
+      if (isStale()) return;
       if (r && r.ids && r.ids.length > 0) {
         const bmItems = [];
         const noteIds = [];
@@ -76,6 +85,7 @@ function NotesUI() {
         setBookmarkItems(bmItems);
         if (noteIds.length > 0) {
           const ns = await customStorage.getNotesByIds(noteIds);
+          if (isStale()) return;
           setNotes(ns);
         } else {
           setNotes([]);
@@ -89,6 +99,7 @@ function NotesUI() {
         page,
         limit,
       });
+      if (isStale()) return;
       setNotes(result.data || []);
       setTotal(result.total);
       dispatch(notesQueried(result.data));

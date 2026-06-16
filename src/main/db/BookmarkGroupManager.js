@@ -59,8 +59,8 @@ export const getBookmarkGroupByName= (name, token) => {
     return null;
   }
   try {
-    const stmt = db.prepare(`SELECT * FROM bookmark_group WHERE group_name LIKE '%${name}%' AND user_id = ${userId}`);
-    const group = stmt.get( );
+    const stmt = db.prepare('SELECT * FROM bookmark_group WHERE group_name = ? AND user_id = ?');
+    const group = stmt.get(name, userId);
     if (group) return {
       id : group.id,
       groupName:  group.group_name || '',
@@ -93,10 +93,9 @@ export const createBookmarkGroup= (parentGroupId, name, token) => {
   const createdAt =  group.createdAt || '';
   try {
     const stmt = db.prepare(
-      'INSERT INTO bookmark_group (group_name, parent_group_id, created_at, user_id) ' +
-      `VALUES ( '${name}', ${parentGroupId}, '${createdAt}', ${userId}) `
+      'INSERT INTO bookmark_group (group_name, parent_group_id, created_at, user_id) VALUES (?, ?, ?, ?)'
     );
-    const result = stmt.run();
+    const result = stmt.run(name, parentGroupId, createdAt, userId);
     group.id = result.lastInsertRowid;
   } catch (err) {
     console.error(err);

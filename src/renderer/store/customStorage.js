@@ -104,12 +104,13 @@ class customStorage {
     }
   }
 
-  // Validate that renderer's token matches main process session
-  // Returns session info if valid, null if invalid
-  static validateSession() {
+  // Validate that renderer's token matches main process session.
+  // Async since the underlying IPC was converted to ipcRenderer.invoke.
+  // Returns session info if valid, null if invalid.
+  static async validateSession() {
     const token = this.getSessionToken();
     if (!token) return null;
-    const sessionInfo = window.electron.ipcRenderer.validateSession(token);
+    const sessionInfo = await window.electron.ipcRenderer.validateSession(token);
     if (!sessionInfo) {
       // Session invalid - clear local storage
       this.setUserInfo({ user: '', email: '', token: '' });
@@ -117,7 +118,7 @@ class customStorage {
     return sessionInfo;
   }
 
-  static register(user, email, password) {
+  static async register(user, email, password) {
     return window.electron.ipcRenderer.register(user, email, password);
   }
 
@@ -1747,15 +1748,6 @@ class customStorage {
       query,
       fieldOne,
       fieldTwo,
-    );
-  }
-
-  static upSertCollectionInStore(name, keyName, keyValue, obj) {
-    return window.electron.ipcRenderer.upSertCollectionInStore(
-      name,
-      keyName,
-      keyValue,
-      obj,
     );
   }
 

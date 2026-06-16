@@ -20,7 +20,12 @@
 
  *
  */
-import db, { getUserIdFromToken, addUserIdCreatedAt, escapeString } from './dbManager';
+import db, { getUserIdFromToken, addUserIdCreatedAt, assertUpdateField } from './dbManager';
+
+const BOOKMARK_UPDATABLE = new Set([
+  'source_key', 'source_type', 'cfi', 'title', 'description',
+  'percentage', 'used_times', 'star', 'image', 'group_id',
+]);
 
 const constructBookmark = (aRowFromDB) => {
   return {
@@ -77,22 +82,37 @@ export const createBookmark= (bookmark, token) => {
     return bookmark;
   }
   addUserIdCreatedAt(bookmark, userId);
-  const sourceType =      bookmark.sourceType || '';
-  const sourceKey =    bookmark.sourceKey || '';
-  const cfi =    bookmark.cfi || '';
-  const title =  escapeString (bookmark.title || '' );
-  const percentage =    bookmark.percentage || 0;
+  const sourceType = bookmark.sourceType || '';
+  const sourceKey = bookmark.sourceKey || '';
+  const cfi = bookmark.cfi || '';
+  const title = bookmark.title || '';
+  const percentage = bookmark.percentage || 0;
   const usedTimes = bookmark.usedTimes || 0;
   const star = bookmark.star || 0;
   const image = bookmark.image || '';
-  const createdAt =  bookmark.createdAt || '';
+  const createdAt = bookmark.createdAt || '';
   const groupId = typeof bookmark.groupId === 'undefined' ? -1 : bookmark.groupId;
-  const description = escapeString( bookmark.description || '' );
+  const description = bookmark.description || '';
   try {
-    const stmt = db.prepare(
-      'INSERT INTO bookmark (source_type, source_key,cfi, title, description, percentage, used_times, star, image, created_at, user_id, group_id) ' +
-      `VALUES ('${sourceType}','${sourceKey}','${cfi}','${title}', '${description}',${percentage},${usedTimes}, ${star}, '${image}', '${createdAt}', ${userId}, ${groupId}) `
-    );
+    const stmt = db
+      .prepare(
+        'INSERT INTO bookmark (source_type, source_key, cfi, title, description, percentage, used_times, star, image, created_at, user_id, group_id) ' +
+          'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      )
+      .bind(
+        sourceType,
+        sourceKey,
+        cfi,
+        title,
+        description,
+        percentage,
+        usedTimes,
+        star,
+        image,
+        createdAt,
+        userId,
+        groupId,
+      );
     const result = stmt.run();
     bookmark.id = result.lastInsertRowid;
   } catch (err) {
@@ -109,10 +129,10 @@ export const getBookmarkByQuery= (query, token) => {
     return bookmarks;
   }
   try {
-    const sql = `SELECT * FROM bookmark WHERE ( title LIKE '%${query}%' OR description LIKE '%${query}%' ) AND user_id = ${userId}`;
-    console.log(sql);
+    const sql = 'SELECT * FROM bookmark WHERE ( title LIKE ? OR description LIKE ? ) AND user_id = ?';
     const stmt = db.prepare(sql);
-    for (const card of stmt.iterate()) {
+    const pattern = `%${query}%`;
+    for (const card of stmt.iterate(pattern, pattern, userId)) {
        bookmarks.push( constructBookmark(card) );
     }
     return bookmarks;
@@ -137,9 +157,9 @@ export const getBookmarksBySourceKey = (sourceKey, sourceType, token) => {
     return bookmarks;
   }
   try {
-    const sql = ` SELECT * FROM bookmark WHERE source_key = '${sourceKey}' and source_type = '${sourceType}' and user_id = ${userId}  ORDER BY created_at DESC`;
+    const sql = 'SELECT * FROM bookmark WHERE source_key = ? and source_type = ? and user_id = ? ORDER BY created_at DESC';
     const stmt = db.prepare(sql);
-    for (const card of stmt.iterate()) {
+    for (const card of stmt.iterate(sourceKey, sourceType, userId)) {
        bookmarks.push( constructBookmark(card) );
     }
     return bookmarks;
@@ -163,9 +183,9 @@ export const getBookmarksByGroupId = (groupId, token) => {
     return bookmarks;
   }
   try {
-    const sql = ` SELECT * FROM bookmark WHERE group_id =  ${groupId}  and  user_id = ${userId}  ORDER BY created_at DESC `;
+    const sql = 'SELECT * FROM bookmark WHERE group_id = ? and user_id = ? ORDER BY created_at DESC';
     const stmt = db.prepare(sql);
-    for (const card of stmt.iterate()) {
+    for (const card of stmt.iterate(groupId, userId)) {
        bookmarks.push( constructBookmark(card) );
     }
     return bookmarks;
@@ -193,7 +213,7 @@ export const getBookmarksRecursiveByGroupId = (groupId,  token) => {
         WITH RECURSIVE GroupHierarchy AS (
           SELECT id
           FROM bookmark_group
-          WHERE id = ${groupId}
+          WHERE id = ?
           UNION ALL
           SELECT g.id
           FROM bookmark_group g
@@ -201,11 +221,10 @@ export const getBookmarksRecursiveByGroupId = (groupId,  token) => {
           )
         SELECT b.id, b.source_key, b.source_type, b.cfi, b.title, b.description, b.percentage, b.used_times, b.star, b.image, b.created_at, b.user_id, b.group_id
         FROM Bookmark b
-        JOIN GroupHierarchy gh ON b.group_id = gh.id;
-
+        JOIN GroupHierarchy gh ON b.group_id = gh.id
     `;
     const stmt = db.prepare(sql);
-    for (const card of stmt.iterate()) {
+    for (const card of stmt.iterate(groupId)) {
        bookmarks.push( constructBookmark(card) );
     }
     return bookmarks;
@@ -230,7 +249,7 @@ export function updateBookmark(id, field, value, token) {
     return -1;
   }
   try {
-    // Assuming the field is at the root of the JSON object.
+    assertUpdateField('bookmark', BOOKMARK_UPDATABLE, field);
     const sql = `UPDATE bookmark SET ${field} = ? WHERE id = ? AND user_id = ?`;
     const query = db.prepare(sql);
     query.run( [value, id, userId]);

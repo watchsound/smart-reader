@@ -892,20 +892,23 @@ function LearnAboutDetailPanel({ chatId }) {
   }, []);
 
   useEffect(() => {
-    if (!chatId) return;
+    if (!chatId) return undefined;
+    // Race guard: switching chats rapidly fires overlapping fetches; the
+    // slow earlier chat's messages can overwrite the faster new chat's.
+    let cancelled = false;
     async function t() {
       const ms = await getMessagesByChatId(chatId);
+      if (cancelled) return;
       setMessages(ms);
-      const ms2 =
-        ms
-          ?.filter((message) => message.role === 'user')
-          .map((message) => message.content) || [];
-
       const ct = await getChatById(chatId);
+      if (cancelled) return;
       setLearnAbout(ct);
       dispatch(learnAboutHandled(ct));
     }
     t();
+    return () => {
+      cancelled = true;
+    };
   }, [chatId]);
 
   // Auto scroll to bottom when messages change

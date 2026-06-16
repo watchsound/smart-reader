@@ -184,7 +184,7 @@ export default function LinkSuggestionMenu({
 
       try {
         // @ts-ignore - window.electron is defined in preload
-        const results = window.electron?.ipcRenderer?.sendSync?.('get-link-suggestions', [query]);
+        const results = await window.electron?.ipcRenderer?.invoke?.('get-link-suggestions', [query]);
 
         if (Array.isArray(results)) {
           setItems(results.map((r: any) => ({

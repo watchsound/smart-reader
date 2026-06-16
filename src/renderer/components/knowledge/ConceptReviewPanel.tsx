@@ -1,6 +1,6 @@
 /* eslint-disable react/require-default-props */
 /* eslint-disable prettier/prettier */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -359,12 +359,23 @@ function ConceptReviewPanel({
   const [selectedEdges, setSelectedEdges] = useState<Set<string>>(new Set());
   const [autoSave, setAutoSave] = useState(false);
 
+  // Race guard: handleExtract is invoked from both the auto-extract
+  // useEffect (when `text` changes) and from an explicit extract button.
+  // A slow earlier AI extraction can land after a faster newer one and
+  // overwrite the newly-selected nodes/edges with stale results.
+  const extractGenRef = useRef(0);
+
   const handleExtract = useCallback(async () => {
     if (!text || text.length < 20) return;
+
+    const myGen = extractGenRef.current + 1;
+    extractGenRef.current = myGen;
+    const isStale = () => myGen !== extractGenRef.current;
 
     setLoading(true);
     try {
       const result = await graphApi.aiFullExtraction(text);
+      if (isStale()) return;
       setExtracted(result);
 
       // Select all nodes and edges by default
@@ -379,10 +390,13 @@ function ConceptReviewPanel({
         onExtracted(result);
       }
     } catch (error) {
+      if (isStale()) return;
       // eslint-disable-next-line no-console
       console.error('Concept extraction failed:', error);
     } finally {
-      setLoading(false);
+      if (!isStale()) {
+        setLoading(false);
+      }
     }
   }, [text, onExtracted]);
 

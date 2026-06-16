@@ -14,8 +14,13 @@ import db, {
   getUserIdFromToken,
   addUserIdCreatedAt,
   escapeString,
+  assertUpdateField,
 } from './dbManager';
 import { dateToSQLiteString } from '../../commons/utils/SqliteHelper';
+
+const VOCABULARY_SET_UPDATABLE = new Set([
+  'name', 'score', 'last_time_at',
+]);
 /**
  *
  * @param {*} id
@@ -188,7 +193,7 @@ export function updateVocabularySet(id, field, value, token) {
     return -1;
   }
   try {
-    // Assuming the field is at the root of the JSON object.
+    assertUpdateField('vocabulary_set', VOCABULARY_SET_UPDATABLE, field);
     const sql = `UPDATE vocabulary_set SET ${field} = ? WHERE id = ? AND user_id = ?`;
     const query = db.prepare(sql);
     query.run([value, id, userId]);

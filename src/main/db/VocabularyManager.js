@@ -13,13 +13,26 @@
  *
  */
 
-import db, { getUserIdFromToken, addUserIdCreatedAt } from './dbManager';
+import db, {
+  getUserIdFromToken,
+  addUserIdCreatedAt,
+  assertUpdateField,
+} from './dbManager';
 import { dateToSQLiteString } from '../../commons/utils/SqliteHelper';
 import {
   getLeitnerItemById,
   createLeitnerItem,
   deleteLeitnerItemById,
 } from './LeitnerItemManager';
+
+const VOCABULARY_UPDATABLE = new Set([
+  'word',
+  'definition',
+  'related_words',
+  'example',
+  'set_id',
+  'leitner_item_id',
+]);
 
 const stmt2obj = (record) => {
   return {
@@ -222,14 +235,14 @@ export const getVocabulariesByQuery = (query, page, limit, token) => {
     const totalRecordsQuery = db.prepare(
       'SELECT COUNT(*) AS total FROM vocabulary WHERE  word LIKE ? and user_id = ?',
     );
-    const totalRecords = totalRecordsQuery.get(`'%${query}%'`, userId).total;
+    const totalRecords = totalRecordsQuery.get(`%${query}%`, userId).total;
 
     let stmt = null;
     if (query) {
       stmt =
         db.prepare(`SELECT * FROM vocabulary WHERE  word LIKE ? and user_id = ?   ORDER BY created_at DESC
           LIMIT ? OFFSET ?`);
-      stmt = stmt.iterate(`'%${query}%'`, userId, limit, offset);
+      stmt = stmt.iterate(`%${query}%`, userId, limit, offset);
     } else {
       stmt =
         db.prepare(`SELECT * FROM vocabulary WHERE  user_id = ?   ORDER BY created_at DESC
@@ -345,7 +358,7 @@ export function updateVocabulary(id, field, value, token) {
     return -1;
   }
   try {
-    // Assuming the field is at the root of the JSON object.
+    assertUpdateField('vocabulary', VOCABULARY_UPDATABLE, field);
     const sql = `UPDATE vocabulary SET ${field} = ? WHERE id = ? AND user_id = ?`;
     const query = db.prepare(sql);
     query.run([value, id, userId]);

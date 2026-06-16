@@ -60,7 +60,7 @@ import {
 } from '../commons/model/DataTypes';
 
 import { getUserIdFromToken } from './db/dbManager';
-import { login, register } from './db/PersonManager';
+import { login, register, ensureUserSchema } from './db/PersonManager';
 import {
   createBook,
   getBookById,
@@ -225,7 +225,10 @@ import getBaiduAccessToken from './utils/baiduUtil';
 import markdownManager from './utils/MarkdownManager';
 import chromaManager from './utils/ChromaManager';
 import registerGraphHandlers from './ipc/graphHandlers';
-import { registerSkillHandlers, updateSkillServices } from './ipc/skillHandlers';
+import {
+  registerSkillHandlers,
+  updateSkillServices,
+} from './ipc/skillHandlers';
 import { registerLearningHandlers } from './ipc/learningHandlers';
 import { registerNotificationHandlers } from './ipc/notificationHandlers';
 import { registerSpacedRepetitionHandlers } from './ipc/spacedRepetitionHandlers';
@@ -233,17 +236,6 @@ import { registerLearningPlanHandlers } from './ipc/learningPlanHandlers';
 import { registerStudyEnhancementHandlers } from './ipc/studyEnhancementHandlers';
 import { registerStudyAnalyticsHandlers } from './ipc/studyAnalyticsHandlers';
 import { registerBrainHandlers } from './ipc/brainHandlers';
-// Brain-driven shell (Plan 1): renderer trigger-bus IPC + main-process trigger emitter.
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { registerTriggerBusHandlers } = require('./ipc/triggerBusHandlers');
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const TriggerEmitter = require('./brain/TriggerEmitter');
-// Plan 2 fork #5 (Quest layer)
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { registerQuestHandlers } = require('./ipc/questHandlers');
-// Plan 4: re-emit a Phase 7 path from OrbQuestMenu
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { registerQuestWalkHandlers } = require('./ipc/questWalkHandlers');
 import { registerUnifiedLearningHandlers } from './ipc/unifiedLearningHandlers';
 import { registerLearningPointHandlers } from './ipc/learningPointHandlers';
 import { registerMicroCardHandlers } from './ipc/microCardHandlers';
@@ -258,6 +250,17 @@ import graphInterface from './utils/GraphInterface';
 import { initializeLearningBrain, shutdownLearningBrain } from './brain';
 
 import { fetchPageHeadless } from './utils/webParserUtil';
+// Brain-driven shell (Plan 1): renderer trigger-bus IPC + main-process trigger emitter.
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { registerTriggerBusHandlers } = require('./ipc/triggerBusHandlers');
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const TriggerEmitter = require('./brain/TriggerEmitter');
+// Plan 2 fork #5 (Quest layer)
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { registerQuestHandlers } = require('./ipc/questHandlers');
+// Plan 4: re-emit a Phase 7 path from OrbQuestMenu
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { registerQuestWalkHandlers } = require('./ipc/questWalkHandlers');
 
 const options = {
   width: 1050,
@@ -383,7 +386,7 @@ async function setupThirdPartySetting(userId: number): Promise<void> {
 
   aiProviderManager.setup(false, userId, provider, key, model);
   await chromaManager.setupChroma(store);
-  chromaManager.setupVectorDB(store, userId);
+  await chromaManager.setupVectorDB(store, userId);
 }
 
 async function setupPathInfo() {
@@ -599,63 +602,6 @@ const createWindow = async () => {
     _.returnValue = true;
   });
 
-  ipcMain.on(
-    'upSertCollectionInStore',
-    async (_, name, keyName, keyValue, obj, token) => {
-      console.log(
-        `upSertCollectionInStore ${name} ${keyName} = ${keyValue} : ${obj}`,
-      );
-      const c = store.get(name) as Array<Record<string, unknown>> | undefined;
-      if (!c) {
-        if (name === 'note') {
-          // Add to ChromaDB vector store (existing behavior)
-          try {
-            await chromaManager.addNodeToVecterDB(store, obj, token);
-          } catch (e) {}
-          // Also add to graph database (new - parallel storage)
-          try {
-            if (graphInterface.isReady()) {
-              await graphInterface.createNote(obj, token);
-            }
-          } catch (e) {
-            console.error('Failed to add note to graph:', e);
-          }
-        }
-
-        store.set(name, [obj]);
-        console.log(' return 1');
-        _.returnValue = obj;
-      } else {
-        const found = c.find((item: Record<string, unknown>) => item[keyName] === keyValue);
-        if (!found) {
-          if (name === 'note') {
-            // Add to ChromaDB vector store (existing behavior)
-            try {
-              await chromaManager.addNodeToVecterDB(store, obj, token);
-            } catch (e) {}
-            // Also add to graph database (new - parallel storage)
-            try {
-              if (graphInterface.isReady()) {
-                await graphInterface.createNote(obj, token);
-              }
-            } catch (e) {
-              console.error('Failed to add note to graph:', e);
-            }
-          }
-          c.unshift(obj);
-          store.set(name, c);
-          console.log(' return 2');
-          _.returnValue = obj;
-        } else {
-          Object.assign(found, obj);
-          store.set(name, c);
-          console.log(' return 3');
-          _.returnValue = found;
-        }
-      }
-    },
-  );
-
   ipcMain.on('deleteCollectionInStore', (_, name, keyName, keyValue) => {
     console.log(`deleteCollectionInStore ${name} ${keyName} = ${keyValue} `);
     const c = store.get(name) as Array<Record<string, unknown>> | undefined;
@@ -663,7 +609,9 @@ const createWindow = async () => {
       _.returnValue = false;
       return;
     }
-    const index = c.findIndex((item: Record<string, unknown>) => item[keyName] === keyValue);
+    const index = c.findIndex(
+      (item: Record<string, unknown>) => item[keyName] === keyValue,
+    );
     if (index > -1) {
       c.splice(index, 1);
       store.set(name, c);
@@ -676,30 +624,31 @@ const createWindow = async () => {
   ipcMain.on('getByIdsInCollection', (_, name, keyName, keyList) => {
     const c = store.get(name) as Array<Record<string, unknown>> | undefined;
     if (!c) return null;
-    const found = c.find((item: Record<string, unknown>) => keyList.includes(item[keyName]));
+    const found = c.find((item: Record<string, unknown>) =>
+      keyList.includes(item[keyName]),
+    );
     _.returnValue = found;
   });
 
   ipcMain.on('getOneInCollection', (_, name, keyName, keyValue) => {
     const c = store.get(name) as Array<Record<string, unknown>> | undefined;
     if (!c) return null;
-    const found = c.find((item: Record<string, unknown>) => item[keyName] === keyValue);
+    const found = c.find(
+      (item: Record<string, unknown>) => item[keyName] === keyValue,
+    );
     _.returnValue = found;
   });
-  ipcMain.on('addToVocabulary', async (_, text, token) => {
+  ipcMain.handle('addToVocabulary', async (_event, text, token) => {
     const userId = getUserIdFromToken(token);
     if (userId < 0 || !text || text.length < 3) {
-      _.returnValue = false;
-      return;
+      return false;
     }
     const exists = await getVocabularyByName(text.trim());
     if (exists) {
-      _.returnValue = exists;
-      return;
+      return exists;
     }
     try {
       const level = store.get('reader_level');
-      // const model = store.get('chatgpt-model') || ChatGPTModel.GPT3_5;
       const json = await aiProviderManager.generateContentWithJson(
         createVocabularyPrompt(text.trim(), level),
         true,
@@ -715,11 +664,11 @@ const createWindow = async () => {
         },
         token,
       );
-      _.returnValue = newOne;
+      return newOne;
     } catch (e: unknown) {
       const err = e as { message?: string };
       console.log(err.message ? err.message : e);
-      _.returnValue = false;
+      return false;
     }
   });
   ipcMain.on('sentenceTokenizer', (_, paragraph) => {
@@ -851,9 +800,17 @@ const createWindow = async () => {
 
     try {
       const r = c.filter((item: Record<string, unknown>) => {
-        if (fieldOne && item[fieldOne] && (item[fieldOne] as string).indexOf(query) >= 0)
+        if (
+          fieldOne &&
+          item[fieldOne] &&
+          (item[fieldOne] as string).indexOf(query) >= 0
+        )
           return true;
-        if (fieldTwo && item[fieldTwo] && (item[fieldTwo] as string).indexOf(query) >= 0)
+        if (
+          fieldTwo &&
+          item[fieldTwo] &&
+          (item[fieldTwo] as string).indexOf(query) >= 0
+        )
           return true;
         return false;
       });
@@ -1222,24 +1179,18 @@ const createWindow = async () => {
     }
   });
 
-  ipcMain.on('getNoteBgImage', (_, token) => {
+  ipcMain.handle('getNoteBgImage', (_evt, token) => {
     const userId = getUserIdFromToken(token);
-    if (userId < 0) {
-      _.returnValue = -1;
-    } else {
-      const mode = store.get(`note-bg-image_${userId}`);
-      _.returnValue = mode || 0;
-    }
+    if (userId < 0) return -1;
+    const mode = store.get(`note-bg-image_${userId}`);
+    return mode || 0;
   });
 
-  ipcMain.on('setNoteBgImage', (_, { imageNum, token }) => {
+  ipcMain.handle('setNoteBgImage', (_evt, { imageNum, token }) => {
     const userId = getUserIdFromToken(token);
-    if (userId < 0) {
-      _.returnValue = false;
-    } else {
-      store.set(`note-bg-image_${userId}`, imageNum);
-      _.returnValue = true;
-    }
+    if (userId < 0) return false;
+    store.set(`note-bg-image_${userId}`, imageNum);
+    return true;
   });
   ipcMain.on('getFontFamily', (_, token) => {
     const userId = getUserIdFromToken(token);
@@ -1537,29 +1488,30 @@ const createWindow = async () => {
     }
   });
 
-  ipcMain.on('getBaiduAccessToken', async (_, token) => {
+  ipcMain.handle('getBaiduAccessToken', async (_event, token) => {
     const userId = getUserIdFromToken(token);
     if (userId < 0) {
-      _.returnValue = false;
-    } else {
-      const key = await getBaiduAccessToken(store, userId);
-      _.returnValue = key || false;
+      return false;
     }
+    const key = await getBaiduAccessToken(store, userId);
+    return key || false;
   });
 
   /** database related */
   /** user manage */
-  ipcMain.on('register', async (_, user, email, password) => {
+  // Run the UNIQUE(email) migration once before exposing register so
+  // duplicate-email submissions fail loudly even on legacy DBs that
+  // shipped with the pre-UNIQUE schema.
+  ensureUserSchema();
+  ipcMain.handle('register', async (_evt, user, email, password) => {
     try {
-      const v = register(user, email, password);
-
-      _.returnValue = v;
+      return register(user, email, password);
     } catch (e) {
       console.log(e.message ? e.message : e);
-      _.returnValue = false;
+      return { ok: false, code: 'db-error' };
     }
   });
-  ipcMain.on('login', async (_, email, password) => {
+  ipcMain.handle('login', async (_evt, email, password) => {
     try {
       const { id, username } = login(email, password);
       if (username) {
@@ -1573,57 +1525,54 @@ const createWindow = async () => {
         console.log(JSON.stringify(userInfo));
         initialDatabase(userInfo.token);
         setupThirdPartySetting(id);
-        _.returnValue = userInfo;
-      } else {
-        _.returnValue = { id, username, email, token: '' };
+        return userInfo;
       }
+      return { id, username, email, token: '' };
     } catch (e) {
       console.log(e.message ? e.message : e);
-      _.returnValue = { email, token: '' };
+      // Match the success/empty-username return shape so callers can
+      // safely destructure without conditional shape checks.
+      return { id: -1, username: '', email, token: '' };
     }
   });
-  ipcMain.on('logout', async (_, token) => {
+  ipcMain.handle('logout', async (_evt, token) => {
     try {
       const info = store.get('session_info');
-      console.log(`logout ${JSON.stringify(info)}`);
-      console.log(`token ${token}`);
+      // Don't log the token or the full session_info — they are short-lived
+      // secrets that should not end up in user-pasted bug-report logs.
       if (info && info.token === token) {
         store.set('session_info', '');
-        console.log(`logout ${true}`);
-        _.returnValue = true;
-      } else {
-        console.log(`logout ${false}`);
-        _.returnValue = false;
+        console.log('logout: success');
+        return true;
       }
+      console.log('logout: token mismatch');
+      return false;
     } catch (e) {
       console.log(e.message ? e.message : e);
-      _.returnValue = false;
+      return false;
     }
   });
   // Validate session - check if renderer's token matches main process session
-  ipcMain.on('validateSession', async (_, token) => {
+  ipcMain.handle('validateSession', async (_evt, token) => {
     try {
       const info = store.get('session_info');
       if (info && info.token && info.token === token) {
-        // Token matches, session is valid
-        _.returnValue = info;
-      } else {
-        // Token doesn't match or no session
-        _.returnValue = null;
+        return info;
       }
+      return null;
     } catch (e) {
       console.log(e.message ? e.message : e);
-      _.returnValue = null;
+      return null;
     }
   });
-  ipcMain.on('emojiData', async (_, { token }) => {
+  ipcMain.handle('emojiData', async () => {
     const module = await import('./utils/emoji-data');
-    _.returnValue = module;
+    return module;
   });
 
-  ipcMain.on('getPDF4URL', async (_, { id }) => {
+  ipcMain.on('getPDF4URL', (_, { id }) => {
     try {
-      const dataPath = await global.shared.store.get('storageLocation');
+      const dataPath = global.shared.store.get('storageLocation');
       if (fs.existsSync(path.join(dataPath, 'pdf4url'))) {
         const r = path.join(dataPath, 'pdf4url', id.toString());
         console.log(` getpdf4url = ${r} `);
@@ -1734,9 +1683,8 @@ const createWindow = async () => {
   ipcMain.on('getHistoryById', async (_, { id, token }) => {
     _.returnValue = getHistoryById(id, token);
   });
-  ipcMain.on('createHistory', async (_, { history, token }) => {
+  ipcMain.handle('createHistory', async (_event, { history, token }) => {
     if (history.sourceType === 'url') {
-      // const model = store.get('chatgpt-model') || ChatGPTModel.GPT3_5;
       const meta = await createUrlDescription(history.sourceKey);
       history.description = meta.description;
       console.log(` in createHistory, favicon = ${meta.favicon}`);
@@ -1745,7 +1693,7 @@ const createWindow = async () => {
         history.favicon = image.id;
       }
     }
-    _.returnValue = createHistory(history, token);
+    return createHistory(history, token);
   });
   ipcMain.on(
     'getHistoryByQuery',
@@ -1772,20 +1720,23 @@ const createWindow = async () => {
   ipcMain.on('updateHistory', async (_, { id, description, token }) => {
     _.returnValue = updateHistory(id, description, token);
   });
-  ipcMain.on('addContentToInMemoryVectorDB', async (_, { content }) => {
-    await chromaManager.addContentToInMemoryVectorDB(content);
-    _.returnValue = true;
-  });
-  ipcMain.on('queryInMemoryVectorDB', async (_, { content }) => {
+  ipcMain.handle(
+    'addContentToInMemoryVectorDB',
+    async (_event, { content }) => {
+      await chromaManager.addContentToInMemoryVectorDB(content);
+      return true;
+    },
+  );
+  ipcMain.handle('queryInMemoryVectorDB', async (_event, { content }) => {
     try {
       const r = await chromaManager.inMemoryVectorDB.query({
         nResults: 10,
         queryTexts: [content],
       });
 
-      _.returnValue = r && r.documents ? r.documents : [];
+      return r && r.documents ? r.documents : [];
     } catch (e) {
-      _.returnValue = [];
+      return [];
     }
   });
   ipcMain.on(
@@ -1837,7 +1788,7 @@ const createWindow = async () => {
   ipcMain.on('changeBookshelf', async (_, { bookId, newId, token }) => {
     _.returnValue = changeBookshelf(bookId, newId, token);
   });
-  ipcMain.on('getBooksByQuery', async (_, { query, token }) => {
+  ipcMain.handle('getBooksByQuery', async (_event, { query, token }) => {
     try {
       const books = getBooksByQuery(query, token);
       // Search ChromaDB for semantic matches (existing behavior)
@@ -1868,19 +1819,19 @@ const createWindow = async () => {
           },
         );
       }
-      _.returnValue = books;
+      return books;
     } catch (e) {
       console.log(e.message ? e.message : e);
-      _.returnValue = [];
+      return [];
     }
   });
-  ipcMain.on(
+  ipcMain.handle(
     'getBookContentByQuery',
-    async (_, { bookKey, bookType, query, token }) => {
+    async (_event, { bookKey, bookType, query, token }) => {
       console.log(
         ` bookKey = ${bookKey} bookType = ${bookType} query= ${query} token = ${token}`,
       );
-      _.returnValue = await chromaManager.getBookContentByQuery(
+      return chromaManager.getBookContentByQuery(
         store,
         bookKey,
         bookType,
@@ -1898,7 +1849,7 @@ const createWindow = async () => {
       _.returnValue = getBookmarksRecursiveByGroupId(groupId, token);
     },
   );
-  ipcMain.on('createBookmark', async (_, { url, token }) => {
+  ipcMain.handle('createBookmark', async (_event, { url, token }) => {
     const b = await createBookmarkUtils(url, token);
     if (b) {
       try {
@@ -1915,7 +1866,7 @@ const createWindow = async () => {
       }
       console.log(` main createbookmark = ${JSON.stringify(b)}`);
     }
-    _.returnValue = b ?? null;
+    return b ?? null;
   });
   ipcMain.on('getBookmarkById', async (_, { id, token }) => {
     _.returnValue = getBookmarkById(id, token);
@@ -1933,17 +1884,15 @@ const createWindow = async () => {
     _.returnValue = updateBookmark(noteId, field, value, token);
   });
 
-  ipcMain.on('createChat', async (_, { chat, token }) => {
+  ipcMain.on('createChat', (_, { chat, token }) => {
     const c = createChat(chat, token);
-    // Also add to graph database (new - parallel storage)
-    try {
-      if (graphInterface.isReady() && c && typeof c.id !== 'undefined') {
-        await graphInterface.createChat(chat, token);
-      }
-    } catch (graphError) {
-      console.error('Failed to add chat to graph:', graphError);
-    }
     _.returnValue = c;
+    // Best-effort graph sync, fire-and-forget so sync IPC returns immediately.
+    if (graphInterface.isReady() && c && typeof c.id !== 'undefined') {
+      graphInterface.createChat(chat, token).catch((graphError: unknown) => {
+        console.error('Failed to add chat to graph:', graphError);
+      });
+    }
   });
   ipcMain.on('getChatById', async (_, { id, token }) => {
     _.returnValue = getChatById(id, token);
@@ -1990,28 +1939,27 @@ const createWindow = async () => {
   ipcMain.on('getImage', async (_, { id }) => {
     _.returnValue = getImage(id);
   });
-  ipcMain.on('createMessage', async (_, { message, token }) => {
-    // console.log(`main message = ${JSON.stringify(message)}`);
+  ipcMain.on('createMessage', (_, { message, token }) => {
     const m = createMessage(message, token);
-    // Also add to graph database (new - parallel storage)
-    try {
-      if (
-        graphInterface.isReady() &&
-        m &&
-        typeof m.id !== 'undefined' &&
-        message.chatId
-      ) {
-        await graphInterface.addMessage(message, message.chatId, token);
-      }
-    } catch (graphError) {
-      console.error('Failed to add message to graph:', graphError);
-    }
     _.returnValue = m;
+    // Best-effort graph sync, fire-and-forget so sync IPC returns immediately.
+    if (
+      graphInterface.isReady() &&
+      m &&
+      typeof m.id !== 'undefined' &&
+      message.chatId
+    ) {
+      graphInterface
+        .addMessage(message, message.chatId, token)
+        .catch((graphError: unknown) => {
+          console.error('Failed to add message to graph:', graphError);
+        });
+    }
   });
   ipcMain.on('getMessageById', async (_, { id, token }) => {
     _.returnValue = getMessageById(id, token);
   });
-  ipcMain.on('getMessageByQuery', async (_, { query, token }) => {
+  ipcMain.handle('getMessageByQuery', async (_event, { query, token }) => {
     try {
       const messages = getMessageByQuery(query, token);
       // Search ChromaDB for semantic matches (existing behavior)
@@ -2032,10 +1980,10 @@ const createWindow = async () => {
           }
         });
       }
-      _.returnValue = messages;
+      return messages;
     } catch (e) {
       console.log(e.message ? e.message : e);
-      _.returnValue = false;
+      return false;
     }
   });
   ipcMain.on('getMessagesByChatId', async (_, { id, token }) => {
@@ -2044,21 +1992,20 @@ const createWindow = async () => {
   ipcMain.on('updateMessage', async (_, { id, field, value, token }) => {
     _.returnValue = updateMessage(id, field, value, token);
   });
-  ipcMain.on('createNote', async (_, { note, token }) => {
+  ipcMain.on('createNote', (_, { note, token }) => {
     const n = createNote(note, token);
-    try {
-      if (typeof n.id !== 'undefined') {
-        // Add to ChromaDB vector store (existing behavior)
-        await chromaManager.addNodeToVecterDB(store, note, token);
-        // Also add to graph database (new - parallel storage)
-        if (graphInterface.isReady()) {
-          await graphInterface.createNote(note, token);
-        }
-      }
-    } catch (e) {
-      console.error('Failed to add note to vector/graph store:', e);
-    }
     _.returnValue = n;
+    // Best-effort vector + graph sync, fire-and-forget so sync IPC returns immediately.
+    if (typeof n.id !== 'undefined') {
+      chromaManager.addNodeToVecterDB(store, note, token).catch((e: unknown) => {
+        console.error('Failed to add note to Chroma:', e);
+      });
+      if (graphInterface.isReady()) {
+        graphInterface.createNote(note, token).catch((e: unknown) => {
+          console.error('Failed to add note to graph:', e);
+        });
+      }
+    }
   });
   ipcMain.on('getNotesByIds', async (_, { ids, token }) => {
     _.returnValue = getNotesByIds(ids, token);
@@ -2082,9 +2029,9 @@ const createWindow = async () => {
       _.returnValue = getNotesByDueReview(dueTime, page, limit, token);
     },
   );
-  ipcMain.on(
+  ipcMain.handle(
     'getNotesByQuery',
-    async (_, { query, tag, star, page, limit, token }) => {
+    async (_event, { query, tag, star, page, limit, token }) => {
       const notes = getNotesByQuery(query, tag, star, page, limit, token);
       try {
         // Search ChromaDB for semantic matches (existing behavior)
@@ -2117,23 +2064,21 @@ const createWindow = async () => {
         console.log(e.message ? e.message : e);
       }
 
-      _.returnValue = notes;
+      return notes;
     },
   );
-  ipcMain.on('updateNote', async (_, { noteId, field, value, token }) => {
+  ipcMain.on('updateNote', (_, { noteId, field, value, token }) => {
     const result = updateNote(noteId, field, value, token);
-    // Sync to graph database if enabled
+    _.returnValue = result;
+    // Best-effort graph sync, fire-and-forget so sync IPC returns immediately.
     if (result && graphInterface.isReady()) {
-      try {
-        const note = getNoteById(noteId, token);
-        if (note) {
-          await graphInterface.syncNote(note, token);
-        }
-      } catch (e) {
-        console.error('Failed to sync note update to graph:', e);
+      const note = getNoteById(noteId, token);
+      if (note) {
+        graphInterface.syncNote(note, token).catch((e: unknown) => {
+          console.error('Failed to sync note update to graph:', e);
+        });
       }
     }
-    _.returnValue = result;
   });
 
   ipcMain.on('clearNotesBy', async (_, { sourceKey, sourceType, token }) => {
@@ -2143,34 +2088,30 @@ const createWindow = async () => {
       token,
     );
   });
-  ipcMain.on('replaceNote', async (_, { noteId, note, token }) => {
+  ipcMain.on('replaceNote', (_, { noteId, note, token }) => {
     const result = replaceNote(noteId, note, token);
-    // Sync to graph database if enabled
-    if (result && graphInterface.isReady()) {
-      try {
-        await graphInterface.syncNote(result, token);
-      } catch (e) {
-        console.error('Failed to sync note replacement to graph:', e);
-      }
-    }
     _.returnValue = result;
+    // Best-effort graph sync, fire-and-forget so sync IPC returns immediately.
+    if (result && graphInterface.isReady()) {
+      graphInterface.syncNote(result, token).catch((e: unknown) => {
+        console.error('Failed to sync note replacement to graph:', e);
+      });
+    }
   });
   ipcMain.on(
     'updateNoteCard',
-    async (_, { noteId, cardIndex, field, value, token }) => {
+    (_, { noteId, cardIndex, field, value, token }) => {
       const result = updateNoteCard(noteId, cardIndex, field, value, token);
-      // Sync to graph database if enabled
+      _.returnValue = result;
+      // Best-effort graph sync, fire-and-forget so sync IPC returns immediately.
       if (result && graphInterface.isReady()) {
-        try {
-          const note = getNoteById(noteId, token);
-          if (note) {
-            await graphInterface.syncNote(note, token);
-          }
-        } catch (e) {
-          console.error('Failed to sync note card update to graph:', e);
+        const note = getNoteById(noteId, token);
+        if (note) {
+          graphInterface.syncNote(note, token).catch((e: unknown) => {
+            console.error('Failed to sync note card update to graph:', e);
+          });
         }
       }
-      _.returnValue = result;
     },
   );
 
@@ -2312,47 +2253,44 @@ const createWindow = async () => {
     event.sender.send('ollama:stream:done');
   });
   /** delegate to ollama */
-  ipcMain.on('generateContent', async (_, { prompt }) => {
-    const r = await aiProviderManager.generateContent(prompt);
-    _.returnValue = r;
+  ipcMain.handle('generateContent', async (_event, { prompt }) => {
+    return aiProviderManager.generateContent(prompt);
   });
-  ipcMain.on('sendChatMessage', async (_, { history, message }) => {
+  ipcMain.handle('sendChatMessage', async (_event, { history, message }) => {
     const r = await aiProviderManager.sendChatMessage(history, message);
     console.log(`sendChatMessage ${JSON.stringify(r)}`);
-    _.returnValue = r;
+    return r;
   });
 
-  ipcMain.on('fetchPageHeadless', async (_, { url }) => {
-    const r = await fetchPageHeadless(url);
-    _.returnValue = r;
+  ipcMain.handle('fetchPageHeadless', async (_event, { url }) => {
+    return fetchPageHeadless(url);
   });
   /**  related to vector database  */
   // response = { ids:[] documents:[]}
-  ipcMain.on('semanticQuery', async (_, query, nResults, condition) => {
-    if (!chromaManager.collection) {
-      _.returnValue = [];
-      return;
-    }
-    try {
-      if (condition) {
-        const r = await chromaManager.collection.query({
-          nResults: nResults || 10,
-          where: condition,
-          queryTexts: [query],
-        });
-        _.returnValue = r;
-      } else {
-        const r = await chromaManager.collection.query({
-          nResults: nResults || 10,
-          queryTexts: [query],
-        });
-        _.returnValue = r;
+  ipcMain.handle(
+    'semanticQuery',
+    async (_event, query, nResults, condition) => {
+      if (!chromaManager.collection) {
+        return [];
       }
-    } catch (e) {
-      console.log(e.message ? e.message : e);
-      _.returnValue = { ids: [], documents: [] };
-    }
-  });
+      try {
+        if (condition) {
+          return await chromaManager.collection.query({
+            nResults: nResults || 10,
+            where: condition,
+            queryTexts: [query],
+          });
+        }
+        return await chromaManager.collection.query({
+          nResults: nResults || 10,
+          queryTexts: [query],
+        });
+      } catch (e) {
+        console.log(e.message ? e.message : e);
+        return { ids: [], documents: [] };
+      }
+    },
+  );
   ipcMain.handle('add-data-to-vectordb', (_, data) => {
     if (!chromaManager.collection) {
       return { ids: [], documents: [] };
@@ -2831,15 +2769,14 @@ const createWindow = async () => {
     }
   });
 
-  ipcMain.on('speak-text-by-say', async (_, { text }) => {
+  ipcMain.handle('speak-text-by-say', async (_event, { text }) => {
     console.log('enter speak-text-by-say');
 
     try {
-      const r = await ttsManager.speakTextBySayImp(text);
-      _.returnValue = r;
+      return await ttsManager.speakTextBySayImp(text);
     } catch (error) {
       console.error(error);
-      _.returnValue = false;
+      return false;
     }
   });
 
@@ -2889,7 +2826,10 @@ app
     // Initialize GraphInterface (Kùzu embedded by default, no external server required)
     try {
       // Default to Kùzu - embedded database, MIT license, no external server needed
-      const graphConfig = store.get('graph', { enabled: true, adapterType: 'kuzu' });
+      const graphConfig = store.get('graph', {
+        enabled: true,
+        adapterType: 'kuzu',
+      });
       if (graphConfig.enabled) {
         const adapterType = graphConfig.adapterType || 'kuzu';
         await graphInterface.initialize(adapterType, store);
@@ -2897,7 +2837,9 @@ app
         console.log(`[main] GraphInterface initialized with ${adapterType}:`, {
           connected: status.connected,
           dbPath: status.dbPath,
-          capabilities: Object.keys(status.capabilities).filter(k => status.capabilities[k]),
+          capabilities: Object.keys(status.capabilities).filter(
+            (k) => status.capabilities[k],
+          ),
         });
       } else {
         console.log('[main] GraphInterface disabled in settings');
@@ -2976,7 +2918,7 @@ app
         vocabularyManager: require('./db/VocabularyManager').default,
       },
       aiProvider: aiProviderManager,
-      graphInterface: graphInterface,
+      graphInterface,
     });
 
     // Register study session enhancement IPC handlers (hints, sounds, caching)

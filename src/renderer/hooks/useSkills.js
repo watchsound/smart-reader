@@ -33,9 +33,9 @@ export function useSkills(options = {}) {
   const [status, setStatus] = useState(null);
 
   // Load available skills
-  const loadSkills = useCallback(() => {
+  const loadSkills = useCallback(async () => {
     try {
-      const available = skillApi.getAvailableSkills();
+      const available = await skillApi.getAvailableSkills();
       setSkills(available);
       setError(null);
     } catch (e) {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useTheme, alpha, styled } from '@mui/material/styles';
 import {
   Box,
@@ -192,8 +192,15 @@ function MoodBoardView({ moodBoard }) {
     setCurMoodBoard(aMoodBoard);
   }, [aMoodBoard]);
 
+  // `loadMoodBoards` fires both from the useEffect (searchQuery/page deps)
+  // and from create/delete handlers; both paths can overlap. Without a
+  // race guard the slower response wins and stale boards appear.
+  const loadGenRef = useRef(0);
   const loadMoodBoards = async () => {
+    const myGen = loadGenRef.current + 1;
+    loadGenRef.current = myGen;
     const result = await getMoodBoardsByQuery(searchQuery, page, 10);
+    if (myGen !== loadGenRef.current) return;
     setMoodBoards(result.data || []);
     setTotal(result.total);
   };

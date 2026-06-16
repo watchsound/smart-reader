@@ -227,10 +227,9 @@ export function updateQuizProblem(id, field, value, token) {
     return -1;
   }
   try {
-    const sql = `UPDATE quiz_problem SET data = json_set(data, '$.${field}', ?) WHERE id = ? AND user_id = ?`;
-    console.log(sql)
+    const sql = `UPDATE quiz_problem SET data = json_set(data, ?, ?) WHERE id = ? AND user_id = ?`;
     const query = db.prepare(sql);
-    query.run( [value, id, userId]);
+    query.run([`$.${field}`, value, id, userId]);
     return 1;
   } catch (err) {
     console.error(err);

@@ -359,6 +359,14 @@ function TranslateMainPage() {
     setStepId(intervalId);
   };
 
+  // Clear the step interval on unmount so navigating away mid-translation
+  // doesn't leave the interval running against stale setState references.
+  useEffect(() => {
+    return () => {
+      if (stepId) clearInterval(stepId);
+    };
+  }, [stepId]);
+
   const submit = async () => {
     if (submitting) return;
     if (!content.trim()) {

@@ -73,7 +73,7 @@ class GraphApi {
    * @returns {Promise<{success: boolean, error?: string}>}
    */
   async connect() {
-    return this._sendSync('graph-connect');
+    return this._invoke('graph-connect');
   }
 
   /**
@@ -89,7 +89,7 @@ class GraphApi {
    * @returns {Promise<{success: boolean, error?: string}>}
    */
   async disconnect() {
-    return this._sendSync('graph-disconnect');
+    return this._invoke('graph-disconnect');
   }
 
   /**
@@ -142,7 +142,7 @@ class GraphApi {
    * @returns {Object|null} User node
    */
   async upsertUser(user) {
-    return this._sendSync('graph-upsert-user', user);
+    return this._invoke('graph-upsert-user', user);
   }
 
   // ===========================================================================
@@ -157,7 +157,7 @@ class GraphApi {
    */
   async createBook(book, token = null) {
     const t = token || customStorage.getSessionToken();
-    return this._sendSync('graph-create-book', book, t);
+    return this._invoke('graph-create-book', book, t);
   }
 
   /**
@@ -167,7 +167,7 @@ class GraphApi {
    */
   async getBooks(token = null) {
     const t = token || customStorage.getSessionToken();
-    return this._sendSync('graph-get-books', t);
+    return this._invoke('graph-get-books', t);
   }
 
   // ===========================================================================
@@ -182,7 +182,7 @@ class GraphApi {
    */
   async createNote(note, token = null) {
     const t = token || customStorage.getSessionToken();
-    return this._sendSync('graph-create-note', note, t);
+    return this._invoke('graph-create-note', note, t);
   }
 
   /**
@@ -193,7 +193,7 @@ class GraphApi {
    */
   async getNoteById(noteId, token = null) {
     const t = token || customStorage.getSessionToken();
-    return this._sendSync('graph-get-note', noteId, t);
+    return this._invoke('graph-get-note', noteId, t);
   }
 
   /**
@@ -205,7 +205,7 @@ class GraphApi {
    */
   async getNotesBySource(sourceKey, sourceType, token = null) {
     const t = token || customStorage.getSessionToken();
-    return this._sendSync(
+    return this._invoke(
       'graph-get-notes-by-source',
       sourceKey,
       sourceType,
@@ -223,7 +223,7 @@ class GraphApi {
    */
   async updateNote(noteId, field, value, token = null) {
     const t = token || customStorage.getSessionToken();
-    return this._sendSync(
+    return this._invoke(
       'graph-update-note',
       noteId,
       field,
@@ -240,7 +240,7 @@ class GraphApi {
    */
   async deleteNote(noteId, token = null) {
     const t = token || customStorage.getSessionToken();
-    return this._sendSync('graph-delete-note', noteId, t);
+    return this._invoke('graph-delete-note', noteId, t);
   }
 
   /**
@@ -251,7 +251,7 @@ class GraphApi {
    */
   async searchNotes(query, token = null) {
     const t = token || customStorage.getSessionToken();
-    return this._sendSync('graph-search-notes', query, t);
+    return this._invoke('graph-search-notes', query, t);
   }
 
   // ===========================================================================
@@ -266,7 +266,7 @@ class GraphApi {
    */
   async createVocabulary(vocab, token = null) {
     const t = token || customStorage.getSessionToken();
-    return this._sendSync(
+    return this._invoke(
       'graph-create-vocabulary',
       vocab,
       t,
@@ -281,7 +281,7 @@ class GraphApi {
    */
   async getVocabularyByWord(word, token = null) {
     const t = token || customStorage.getSessionToken();
-    return this._sendSync(
+    return this._invoke(
       'graph-get-vocabulary-by-word',
       word,
       t,
@@ -307,7 +307,7 @@ class GraphApi {
     token = null,
   ) {
     const t = token || customStorage.getSessionToken();
-    return this._sendSync(
+    return this._invoke(
       'graph-get-due-for-review',
       asOfDate.toISOString(),
       itemTypes,
@@ -333,7 +333,7 @@ class GraphApi {
     token = null,
   ) {
     const t = token || customStorage.getSessionToken();
-    return this._sendSync(
+    return this._invoke(
       'graph-record-review',
       itemId,
       itemType,
@@ -351,7 +351,7 @@ class GraphApi {
    */
   async addNoteToLeitnerStudy(noteId, token = null) {
     const t = token || customStorage.getSessionToken();
-    return this._sendSync(
+    return this._invoke(
       'graph-add-note-to-leitner',
       noteId,
       t,
@@ -370,7 +370,7 @@ class GraphApi {
    */
   async upsertConcept(concept, token = null) {
     const t = token || customStorage.getSessionToken();
-    return this._sendSync(
+    return this._invoke(
       'graph-upsert-concept',
       concept,
       t,
@@ -391,7 +391,7 @@ class GraphApi {
     frequency = 1,
     importance = 0.5,
   ) {
-    return this._sendSync(
+    return this._invoke(
       'graph-create-mentions',
       noteId,
       conceptId,
@@ -419,7 +419,7 @@ class GraphApi {
     token = null,
   ) {
     const t = token || customStorage.getSessionToken();
-    return this._sendSync(
+    return this._invoke(
       'graph-start-session',
       activityType,
       resourceType,
@@ -441,7 +441,7 @@ class GraphApi {
    */
   async endLearningSession(sessionId, stats, token = null) {
     const t = token || customStorage.getSessionToken();
-    return this._sendSync(
+    return this._invoke(
       'graph-end-session',
       sessionId,
       stats,
@@ -462,7 +462,7 @@ class GraphApi {
    * @returns {{success: boolean, error?: string}}
    */
   async storeEmbedding(nodeId, nodeType, embedding, model) {
-    return this._sendSync(
+    return this._invoke(
       'graph-store-embedding',
       nodeId,
       nodeType,
@@ -488,7 +488,7 @@ class GraphApi {
     token = null,
   ) {
     const t = token || customStorage.getSessionToken();
-    return this._sendSync(
+    return this._invoke(
       'graph-find-similar',
       queryEmbedding,
       nodeTypes,
@@ -511,7 +511,7 @@ class GraphApi {
    */
   async getLearningPath(targetConceptId, maxDepth = 5, token = null) {
     const t = token || customStorage.getSessionToken();
-    return this._sendSync(
+    return this._invoke(
       'graph-get-learning-path',
       targetConceptId,
       maxDepth,
@@ -527,7 +527,7 @@ class GraphApi {
    */
   async getKnowledgeAtTime(asOfDate, token = null) {
     const t = token || customStorage.getSessionToken();
-    return this._sendSync(
+    return this._invoke(
       'graph-get-knowledge-at-time',
       asOfDate.toISOString(),
       t,
@@ -546,7 +546,7 @@ class GraphApi {
    */
   async createChat(chat, token = null) {
     const t = token || customStorage.getSessionToken();
-    return this._sendSync('graph-create-chat', chat, t);
+    return this._invoke('graph-create-chat', chat, t);
   }
 
   /**
@@ -558,7 +558,7 @@ class GraphApi {
    */
   async addMessage(message, chatId, token = null) {
     const t = token || customStorage.getSessionToken();
-    return this._sendSync(
+    return this._invoke(
       'graph-add-message',
       message,
       chatId,
@@ -574,7 +574,7 @@ class GraphApi {
    */
   async searchMessages(query, token = null) {
     const t = token || customStorage.getSessionToken();
-    return this._sendSync(
+    return this._invoke(
       'graph-search-messages',
       query,
       t,
@@ -593,7 +593,7 @@ class GraphApi {
    */
   async createBookmark(bookmark, token = null) {
     const t = token || customStorage.getSessionToken();
-    return this._sendSync(
+    return this._invoke(
       'graph-create-bookmark',
       bookmark,
       t,
@@ -608,7 +608,7 @@ class GraphApi {
    */
   async getBookmarksBySource(sourceKey, token = null) {
     const t = token || customStorage.getSessionToken();
-    return this._sendSync(
+    return this._invoke(
       'graph-get-bookmarks-by-source',
       sourceKey,
       t,
@@ -623,7 +623,7 @@ class GraphApi {
    */
   async searchBookmarks(query, token = null) {
     const t = token || customStorage.getSessionToken();
-    return this._sendSync(
+    return this._invoke(
       'graph-search-bookmarks',
       query,
       t,
@@ -639,7 +639,7 @@ class GraphApi {
    * @returns {Object} Counts of nodes by type
    */
   getStats() {
-    return this._sendSync('graph-get-stats');
+    return this._invoke('graph-get-stats');
   }
 
   // ===========================================================================
@@ -655,7 +655,7 @@ class GraphApi {
    */
   async createConceptWithPrereqs(concept, prerequisiteIds = [], token = null) {
     const t = token || customStorage.getSessionToken();
-    return this._sendSync(
+    return this._invoke(
       'graph-create-concept-with-prereqs',
       concept,
       prerequisiteIds,
@@ -671,7 +671,7 @@ class GraphApi {
    */
   async getPersonalizedLearningPath(targetConceptId, token = null) {
     const t = token || customStorage.getSessionToken();
-    return this._sendSync(
+    return this._invoke(
       'graph-get-personalized-learning-path',
       targetConceptId,
       t,
@@ -686,7 +686,7 @@ class GraphApi {
    */
   async getDependentConcepts(conceptId, token = null) {
     const t = token || customStorage.getSessionToken();
-    return this._sendSync(
+    return this._invoke(
       'graph-get-dependent-concepts',
       conceptId,
       t,
@@ -705,7 +705,7 @@ class GraphApi {
    */
   async detectWeakConcepts(limit = 10, token = null) {
     const t = token || customStorage.getSessionToken();
-    return this._sendSync(
+    return this._invoke(
       'graph-detect-weak-concepts',
       t,
       limit,
@@ -720,7 +720,7 @@ class GraphApi {
    */
   async getErrorProneTopics(lookbackDays = 30, token = null) {
     const t = token || customStorage.getSessionToken();
-    return this._sendSync(
+    return this._invoke(
       'graph-get-error-prone-topics',
       t,
       lookbackDays,
@@ -738,7 +738,7 @@ class GraphApi {
    */
   async resolveRelatedConcepts(token = null) {
     const t = token || customStorage.getSessionToken();
-    return this._sendSync(
+    return this._invoke(
       'graph-resolve-related-concepts',
       t,
     );
@@ -758,7 +758,7 @@ class GraphApi {
     relationType = 'related',
     strength = 0.5,
   ) {
-    return this._sendSync(
+    return this._invoke(
       'graph-link-concepts',
       concept1Id,
       concept2Id,
@@ -775,7 +775,7 @@ class GraphApi {
    */
   async extractConceptsFromText(content, token = null) {
     const t = token || customStorage.getSessionToken();
-    return this._sendSync(
+    return this._invoke(
       'graph-extract-concepts-from-text',
       content,
       t,
@@ -789,7 +789,7 @@ class GraphApi {
    */
   async getConceptClusters(token = null) {
     const t = token || customStorage.getSessionToken();
-    return this._sendSync('graph-get-concept-clusters', t);
+    return this._invoke('graph-get-concept-clusters', t);
   }
 
   // ===========================================================================
@@ -805,7 +805,7 @@ class GraphApi {
    */
   async updateConceptMastery(conceptId, outcome, token = null) {
     const t = token || customStorage.getSessionToken();
-    return this._sendSync(
+    return this._invoke(
       'graph-update-concept-mastery',
       conceptId,
       outcome,
@@ -821,7 +821,7 @@ class GraphApi {
    */
   async getMasteryProgress(days = 30, token = null) {
     const t = token || customStorage.getSessionToken();
-    return this._sendSync(
+    return this._invoke(
       'graph-get-mastery-progress',
       t,
       days,
@@ -836,7 +836,7 @@ class GraphApi {
    */
   async getKnowledgeGraphData(centerConceptId = null, token = null) {
     const t = token || customStorage.getSessionToken();
-    return this._sendSync(
+    return this._invoke(
       'graph-get-knowledge-graph-data',
       t,
       centerConceptId,
@@ -855,7 +855,7 @@ class GraphApi {
    */
   async semanticSearchBooks(query, token = null) {
     const t = token || customStorage.getSessionToken();
-    return this._sendSync(
+    return this._invoke(
       'graph-semantic-search-books',
       query,
       t,
@@ -870,7 +870,7 @@ class GraphApi {
    */
   async semanticSearchNotes(query, token = null) {
     const t = token || customStorage.getSessionToken();
-    return this._sendSync(
+    return this._invoke(
       'graph-semantic-search-notes',
       query,
       t,
@@ -887,7 +887,7 @@ class GraphApi {
    */
   async getBookContentByQuery(bookKey, bookType, query, token = null) {
     const t = token || customStorage.getSessionToken();
-    return this._sendSync(
+    return this._invoke(
       'graph-get-book-content-by-query',
       bookKey,
       bookType,

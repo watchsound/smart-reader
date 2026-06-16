@@ -17,8 +17,8 @@ import { login } from '../../api/userAuthApi';
 import { loginHandled } from '../../store/reducers/userSlice';
 
 function Login() {
-  const [email, setEmail] = useState('abc@abc.com');
-  const [password, setPassword] = useState('1234');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [open, setOpen] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
@@ -35,24 +35,28 @@ function Login() {
   };
 
   const handleLogin = async () => {
-    if (email && password) {
-      setLoading(true);
-      try {
-        const userInfo = await login(email, password);
-        if (userInfo && userInfo.token) {
-          dispatch(loginHandled(userInfo));
-          showMessage('Login successful!', 'success');
-          navigate('/bookshelf');
-        } else {
-          showMessage('Login failed. Please check your credentials.', 'error');
-        }
-      } catch (error) {
-        showMessage('Login failed. Please try again.', 'error');
-      } finally {
-        setLoading(false);
-      }
-    } else {
+    // Guard against re-entry: Button is `disabled={loading}` but the
+    // Enter-key handler bypasses it, so two rapid Enter presses during
+    // the ~100 ms scrypt round-trip would fire two login() calls.
+    if (loading) return;
+    if (!email || !password) {
       showMessage('Please provide email and password.', 'warning');
+      return;
+    }
+    setLoading(true);
+    try {
+      const userInfo = await login(email, password);
+      if (userInfo && userInfo.token) {
+        dispatch(loginHandled(userInfo));
+        showMessage('Login successful!', 'success');
+        navigate('/bookshelf');
+      } else {
+        showMessage('Login failed. Please check your credentials.', 'error');
+      }
+    } catch (error) {
+      showMessage('Login failed. Please try again.', 'error');
+    } finally {
+      setLoading(false);
     }
   };
 

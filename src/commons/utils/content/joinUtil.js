@@ -6,11 +6,14 @@ export default function join(/* path segments */) {
   let parts = [];
   let i = 0;
   let l = 0;
-  try {
-    for (i = 0, l = arguments.length; i < l; i++) {
-      parts = parts.concat(arguments[i].split('/'));
+  for (i = 0, l = arguments.length; i < l; i++) {
+    if (typeof arguments[i] !== 'string') {
+      throw new TypeError(
+        `join: segment ${i} must be a string, got ${arguments[i] === null ? 'null' : typeof arguments[i]}`,
+      );
     }
-  } catch (e) {}
+    parts = parts.concat(arguments[i].split('/'));
+  }
 
   // Interpret the path commands to get the new resolved path.
   const newParts = [];

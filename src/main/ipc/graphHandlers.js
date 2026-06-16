@@ -32,14 +32,14 @@ export function registerGraphHandlers(store) {
    * Initialize and connect to graph database
    * Default adapter is 'kuzu' (embedded, no external server required)
    */
-  ipcMain.on('graph-connect', async (event) => {
+  ipcMain.handle('graph-connect', async () => {
     try {
       // Default to Kùzu - embedded database, MIT license
       const adapterType = store?.get('graph.adapterType') || 'kuzu';
       const result = await graphInterface.initialize(adapterType, store);
-      event.returnValue = { success: result, error: null };
+      return { success: result, error: null };
     } catch (error) {
-      event.returnValue = { success: false, error: error.message };
+      return { success: false, error: error.message };
     }
   });
 
@@ -72,12 +72,12 @@ export function registerGraphHandlers(store) {
   /**
    * Disconnect from graph database
    */
-  ipcMain.on('graph-disconnect', async (event) => {
+  ipcMain.handle('graph-disconnect', async () => {
     try {
       await graphInterface.disconnect();
-      event.returnValue = { success: true };
+      return { success: true };
     } catch (error) {
-      event.returnValue = { success: false, error: error.message };
+      return { success: false, error: error.message };
     }
   });
 
@@ -88,13 +88,12 @@ export function registerGraphHandlers(store) {
   /**
    * Create or update user
    */
-  ipcMain.on('graph-upsert-user', async (event, user) => {
+  ipcMain.handle('graph-upsert-user', async (_event, user) => {
     try {
-      const result = await graphInterface.upsertUser(user);
-      event.returnValue = result;
+      return await graphInterface.upsertUser(user);
     } catch (error) {
       console.error('graph-upsert-user error:', error);
-      event.returnValue = null;
+      return null;
     }
   });
 
@@ -105,26 +104,24 @@ export function registerGraphHandlers(store) {
   /**
    * Create a book
    */
-  ipcMain.on('graph-create-book', async (event, book, token) => {
+  ipcMain.handle('graph-create-book', async (_event, book, token) => {
     try {
-      const result = await graphInterface.createBook(book, token);
-      event.returnValue = result;
+      return await graphInterface.createBook(book, token);
     } catch (error) {
       console.error('graph-create-book error:', error);
-      event.returnValue = null;
+      return null;
     }
   });
 
   /**
    * Get books for current user
    */
-  ipcMain.on('graph-get-books', async (event, token) => {
+  ipcMain.handle('graph-get-books', async (_event, token) => {
     try {
-      const result = await graphInterface.getBooksByUser(token);
-      event.returnValue = result;
+      return await graphInterface.getBooksByUser(token);
     } catch (error) {
       console.error('graph-get-books error:', error);
-      event.returnValue = [];
+      return [];
     }
   });
 
@@ -135,45 +132,42 @@ export function registerGraphHandlers(store) {
   /**
    * Create a note
    */
-  ipcMain.on('graph-create-note', async (event, note, token) => {
+  ipcMain.handle('graph-create-note', async (_event, note, token) => {
     try {
-      const result = await graphInterface.createNote(note, token);
-      event.returnValue = result;
+      return await graphInterface.createNote(note, token);
     } catch (error) {
       console.error('graph-create-note error:', error);
-      event.returnValue = null;
+      return null;
     }
   });
 
   /**
    * Get note by ID
    */
-  ipcMain.on('graph-get-note', async (event, noteId, token) => {
+  ipcMain.handle('graph-get-note', async (_event, noteId, token) => {
     try {
-      const result = await graphInterface.getNoteById(noteId, token);
-      event.returnValue = result;
+      return await graphInterface.getNoteById(noteId, token);
     } catch (error) {
       console.error('graph-get-note error:', error);
-      event.returnValue = null;
+      return null;
     }
   });
 
   /**
    * Get notes by source (book, URL, etc.)
    */
-  ipcMain.on(
+  ipcMain.handle(
     'graph-get-notes-by-source',
-    async (event, sourceKey, sourceType, token) => {
+    async (_event, sourceKey, sourceType, token) => {
       try {
-        const result = await graphInterface.getNotesBySource(
+        return await graphInterface.getNotesBySource(
           sourceKey,
           sourceType,
           token,
         );
-        event.returnValue = result;
       } catch (error) {
         console.error('graph-get-notes-by-source error:', error);
-        event.returnValue = [];
+        return [];
       }
     },
   );
@@ -181,20 +175,14 @@ export function registerGraphHandlers(store) {
   /**
    * Update a note field
    */
-  ipcMain.on(
+  ipcMain.handle(
     'graph-update-note',
-    async (event, noteId, field, value, token) => {
+    async (_event, noteId, field, value, token) => {
       try {
-        const result = await graphInterface.updateNote(
-          noteId,
-          field,
-          value,
-          token,
-        );
-        event.returnValue = result;
+        return await graphInterface.updateNote(noteId, field, value, token);
       } catch (error) {
         console.error('graph-update-note error:', error);
-        event.returnValue = -1;
+        return -1;
       }
     },
   );
@@ -202,26 +190,24 @@ export function registerGraphHandlers(store) {
   /**
    * Delete a note
    */
-  ipcMain.on('graph-delete-note', async (event, noteId, token) => {
+  ipcMain.handle('graph-delete-note', async (_event, noteId, token) => {
     try {
-      const result = await graphInterface.deleteNote(noteId, token);
-      event.returnValue = result;
+      return await graphInterface.deleteNote(noteId, token);
     } catch (error) {
       console.error('graph-delete-note error:', error);
-      event.returnValue = -1;
+      return -1;
     }
   });
 
   /**
    * Search notes by text
    */
-  ipcMain.on('graph-search-notes', async (event, query, token) => {
+  ipcMain.handle('graph-search-notes', async (_event, query, token) => {
     try {
-      const result = await graphInterface.searchNotes(query, token);
-      event.returnValue = result;
+      return await graphInterface.searchNotes(query, token);
     } catch (error) {
       console.error('graph-search-notes error:', error);
-      event.returnValue = [];
+      return [];
     }
   });
 
@@ -232,26 +218,24 @@ export function registerGraphHandlers(store) {
   /**
    * Create vocabulary
    */
-  ipcMain.on('graph-create-vocabulary', async (event, vocab, token) => {
+  ipcMain.handle('graph-create-vocabulary', async (_event, vocab, token) => {
     try {
-      const result = await graphInterface.createVocabulary(vocab, token);
-      event.returnValue = result;
+      return await graphInterface.createVocabulary(vocab, token);
     } catch (error) {
       console.error('graph-create-vocabulary error:', error);
-      event.returnValue = null;
+      return null;
     }
   });
 
   /**
    * Get vocabulary by word
    */
-  ipcMain.on('graph-get-vocabulary-by-word', async (event, word, token) => {
+  ipcMain.handle('graph-get-vocabulary-by-word', async (_event, word, token) => {
     try {
-      const result = await graphInterface.getVocabularyByWord(word, token);
-      event.returnValue = result;
+      return await graphInterface.getVocabularyByWord(word, token);
     } catch (error) {
       console.error('graph-get-vocabulary-by-word error:', error);
-      event.returnValue = null;
+      return null;
     }
   });
 
@@ -262,21 +246,15 @@ export function registerGraphHandlers(store) {
   /**
    * Get items due for review
    */
-  ipcMain.on(
+  ipcMain.handle(
     'graph-get-due-for-review',
-    async (event, asOfDate, itemTypes, limit, token) => {
+    async (_event, asOfDate, itemTypes, limit, token) => {
       try {
         const date = new Date(asOfDate);
-        const result = await graphInterface.getDueForReview(
-          date,
-          itemTypes,
-          limit,
-          token,
-        );
-        event.returnValue = result;
+        return await graphInterface.getDueForReview(date, itemTypes, limit, token);
       } catch (error) {
         console.error('graph-get-due-for-review error:', error);
-        event.returnValue = [];
+        return [];
       }
     },
   );
@@ -284,21 +262,20 @@ export function registerGraphHandlers(store) {
   /**
    * Record a review outcome
    */
-  ipcMain.on(
+  ipcMain.handle(
     'graph-record-review',
-    async (event, itemId, itemType, outcome, leitnerSpeed, token) => {
+    async (_event, itemId, itemType, outcome, leitnerSpeed, token) => {
       try {
-        const result = await graphInterface.recordReview(
+        return await graphInterface.recordReview(
           itemId,
           itemType,
           outcome,
           leitnerSpeed,
           token,
         );
-        event.returnValue = result;
       } catch (error) {
         console.error('graph-record-review error:', error);
-        event.returnValue = null;
+        return null;
       }
     },
   );
@@ -306,13 +283,12 @@ export function registerGraphHandlers(store) {
   /**
    * Add note to Leitner study
    */
-  ipcMain.on('graph-add-note-to-leitner', async (event, noteId, token) => {
+  ipcMain.handle('graph-add-note-to-leitner', async (_event, noteId, token) => {
     try {
-      const result = await graphInterface.addNoteToLeitnerStudy(noteId, token);
-      event.returnValue = result;
+      return await graphInterface.addNoteToLeitnerStudy(noteId, token);
     } catch (error) {
       console.error('graph-add-note-to-leitner error:', error);
-      event.returnValue = null;
+      return null;
     }
   });
 
@@ -323,22 +299,21 @@ export function registerGraphHandlers(store) {
   /**
    * Create or update concept
    */
-  ipcMain.on('graph-upsert-concept', async (event, concept, token) => {
+  ipcMain.handle('graph-upsert-concept', async (_event, concept, token) => {
     try {
-      const result = await graphInterface.upsertConcept(concept, token);
-      event.returnValue = result;
+      return await graphInterface.upsertConcept(concept, token);
     } catch (error) {
       console.error('graph-upsert-concept error:', error);
-      event.returnValue = null;
+      return null;
     }
   });
 
   /**
    * Create MENTIONS_CONCEPT relationship
    */
-  ipcMain.on(
+  ipcMain.handle(
     'graph-create-mentions',
-    async (event, noteId, conceptId, frequency, importance) => {
+    async (_event, noteId, conceptId, frequency, importance) => {
       try {
         await graphInterface.createMentionsRelationship(
           noteId,
@@ -346,10 +321,10 @@ export function registerGraphHandlers(store) {
           frequency,
           importance,
         );
-        event.returnValue = { success: true };
+        return { success: true };
       } catch (error) {
         console.error('graph-create-mentions error:', error);
-        event.returnValue = { success: false, error: error.message };
+        return { success: false, error: error.message };
       }
     },
   );
@@ -361,20 +336,19 @@ export function registerGraphHandlers(store) {
   /**
    * Start a learning session
    */
-  ipcMain.on(
+  ipcMain.handle(
     'graph-start-session',
-    async (event, activityType, resourceType, resourceId, token) => {
+    async (_event, activityType, resourceType, resourceId, token) => {
       try {
-        const result = await graphInterface.startLearningSession(
+        return await graphInterface.startLearningSession(
           activityType,
           resourceType,
           resourceId,
           token,
         );
-        event.returnValue = result;
       } catch (error) {
         console.error('graph-start-session error:', error);
-        event.returnValue = null;
+        return null;
       }
     },
   );
@@ -382,17 +356,12 @@ export function registerGraphHandlers(store) {
   /**
    * End a learning session
    */
-  ipcMain.on('graph-end-session', async (event, sessionId, stats, token) => {
+  ipcMain.handle('graph-end-session', async (_event, sessionId, stats, token) => {
     try {
-      const result = await graphInterface.endLearningSession(
-        sessionId,
-        stats,
-        token,
-      );
-      event.returnValue = result;
+      return await graphInterface.endLearningSession(sessionId, stats, token);
     } catch (error) {
       console.error('graph-end-session error:', error);
-      event.returnValue = null;
+      return null;
     }
   });
 
@@ -403,15 +372,15 @@ export function registerGraphHandlers(store) {
   /**
    * Store embedding for a node
    */
-  ipcMain.on(
+  ipcMain.handle(
     'graph-store-embedding',
-    async (event, nodeId, nodeType, embedding, model) => {
+    async (_event, nodeId, nodeType, embedding, model) => {
       try {
         await graphInterface.storeEmbedding(nodeId, nodeType, embedding, model);
-        event.returnValue = { success: true };
+        return { success: true };
       } catch (error) {
         console.error('graph-store-embedding error:', error);
-        event.returnValue = { success: false, error: error.message };
+        return { success: false, error: error.message };
       }
     },
   );
@@ -419,21 +388,20 @@ export function registerGraphHandlers(store) {
   /**
    * Find similar nodes
    */
-  ipcMain.on(
+  ipcMain.handle(
     'graph-find-similar',
-    async (event, queryEmbedding, nodeTypes, limit, minSimilarity, token) => {
+    async (_event, queryEmbedding, nodeTypes, limit, minSimilarity, token) => {
       try {
-        const result = await graphInterface.findSimilar(
+        return await graphInterface.findSimilar(
           queryEmbedding,
           nodeTypes,
           limit,
           minSimilarity,
           token,
         );
-        event.returnValue = result;
       } catch (error) {
         console.error('graph-find-similar error:', error);
-        event.returnValue = [];
+        return [];
       }
     },
   );
@@ -445,19 +413,18 @@ export function registerGraphHandlers(store) {
   /**
    * Get learning path to a concept
    */
-  ipcMain.on(
+  ipcMain.handle(
     'graph-get-learning-path',
-    async (event, targetConceptId, maxDepth, token) => {
+    async (_event, targetConceptId, maxDepth, token) => {
       try {
-        const result = await graphInterface.getLearningPath(
+        return await graphInterface.getLearningPath(
           targetConceptId,
           maxDepth,
           token,
         );
-        event.returnValue = result;
       } catch (error) {
         console.error('graph-get-learning-path error:', error);
-        event.returnValue = null;
+        return null;
       }
     },
   );
@@ -465,14 +432,13 @@ export function registerGraphHandlers(store) {
   /**
    * Get knowledge state at a point in time
    */
-  ipcMain.on('graph-get-knowledge-at-time', async (event, asOfDate, token) => {
+  ipcMain.handle('graph-get-knowledge-at-time', async (_event, asOfDate, token) => {
     try {
       const date = new Date(asOfDate);
-      const result = await graphInterface.getKnowledgeAtTime(date, token);
-      event.returnValue = result;
+      return await graphInterface.getKnowledgeAtTime(date, token);
     } catch (error) {
       console.error('graph-get-knowledge-at-time error:', error);
-      event.returnValue = [];
+      return [];
     }
   });
 
@@ -483,39 +449,36 @@ export function registerGraphHandlers(store) {
   /**
    * Create a chat
    */
-  ipcMain.on('graph-create-chat', async (event, chat, token) => {
+  ipcMain.handle('graph-create-chat', async (_event, chat, token) => {
     try {
-      const result = await graphInterface.createChat(chat, token);
-      event.returnValue = result;
+      return await graphInterface.createChat(chat, token);
     } catch (error) {
       console.error('graph-create-chat error:', error);
-      event.returnValue = null;
+      return null;
     }
   });
 
   /**
    * Add message to chat
    */
-  ipcMain.on('graph-add-message', async (event, message, chatId, token) => {
+  ipcMain.handle('graph-add-message', async (_event, message, chatId, token) => {
     try {
-      const result = await graphInterface.addMessage(message, chatId, token);
-      event.returnValue = result;
+      return await graphInterface.addMessage(message, chatId, token);
     } catch (error) {
       console.error('graph-add-message error:', error);
-      event.returnValue = null;
+      return null;
     }
   });
 
   /**
    * Search messages by text
    */
-  ipcMain.on('graph-search-messages', async (event, query, token) => {
+  ipcMain.handle('graph-search-messages', async (_event, query, token) => {
     try {
-      const result = await graphInterface.searchMessages(query, token);
-      event.returnValue = result;
+      return await graphInterface.searchMessages(query, token);
     } catch (error) {
       console.error('graph-search-messages error:', error);
-      event.returnValue = [];
+      return [];
     }
   });
 
@@ -526,31 +489,26 @@ export function registerGraphHandlers(store) {
   /**
    * Create a bookmark
    */
-  ipcMain.on('graph-create-bookmark', async (event, bookmark, token) => {
+  ipcMain.handle('graph-create-bookmark', async (_event, bookmark, token) => {
     try {
-      const result = await graphInterface.createBookmark(bookmark, token);
-      event.returnValue = result;
+      return await graphInterface.createBookmark(bookmark, token);
     } catch (error) {
       console.error('graph-create-bookmark error:', error);
-      event.returnValue = null;
+      return null;
     }
   });
 
   /**
    * Get bookmarks by source
    */
-  ipcMain.on(
+  ipcMain.handle(
     'graph-get-bookmarks-by-source',
-    async (event, sourceKey, token) => {
+    async (_event, sourceKey, token) => {
       try {
-        const result = await graphInterface.getBookmarksBySource(
-          sourceKey,
-          token,
-        );
-        event.returnValue = result;
+        return await graphInterface.getBookmarksBySource(sourceKey, token);
       } catch (error) {
         console.error('graph-get-bookmarks-by-source error:', error);
-        event.returnValue = [];
+        return [];
       }
     },
   );
@@ -558,13 +516,12 @@ export function registerGraphHandlers(store) {
   /**
    * Search bookmarks by text
    */
-  ipcMain.on('graph-search-bookmarks', async (event, query, token) => {
+  ipcMain.handle('graph-search-bookmarks', async (_event, query, token) => {
     try {
-      const result = await graphInterface.searchBookmarks(query, token);
-      event.returnValue = result;
+      return await graphInterface.searchBookmarks(query, token);
     } catch (error) {
       console.error('graph-search-bookmarks error:', error);
-      event.returnValue = [];
+      return [];
     }
   });
 
@@ -575,13 +532,12 @@ export function registerGraphHandlers(store) {
   /**
    * Get graph database statistics
    */
-  ipcMain.on('graph-get-stats', async (event) => {
+  ipcMain.handle('graph-get-stats', async () => {
     try {
-      const result = await graphInterface.getStats();
-      event.returnValue = result;
+      return await graphInterface.getStats();
     } catch (error) {
       console.error('graph-get-stats error:', error);
-      event.returnValue = {};
+      return {};
     }
   });
 
@@ -592,19 +548,18 @@ export function registerGraphHandlers(store) {
   /**
    * Create concept with prerequisites
    */
-  ipcMain.on(
+  ipcMain.handle(
     'graph-create-concept-with-prereqs',
-    async (event, concept, prerequisiteIds, token) => {
+    async (_event, concept, prerequisiteIds, token) => {
       try {
-        const result = await graphLearningFeatures.createConceptWithPrereqs(
+        return await graphLearningFeatures.createConceptWithPrereqs(
           concept,
           prerequisiteIds,
           token,
         );
-        event.returnValue = result;
       } catch (error) {
         console.error('graph-create-concept-with-prereqs error:', error);
-        event.returnValue = null;
+        return null;
       }
     },
   );
@@ -612,18 +567,17 @@ export function registerGraphHandlers(store) {
   /**
    * Get personalized learning path
    */
-  ipcMain.on(
+  ipcMain.handle(
     'graph-get-personalized-learning-path',
-    async (event, targetConceptId, token) => {
+    async (_event, targetConceptId, token) => {
       try {
-        const result = await graphLearningFeatures.getPersonalizedLearningPath(
+        return await graphLearningFeatures.getPersonalizedLearningPath(
           targetConceptId,
           token,
         );
-        event.returnValue = result;
       } catch (error) {
         console.error('graph-get-personalized-learning-path error:', error);
-        event.returnValue = null;
+        return null;
       }
     },
   );
@@ -631,18 +585,17 @@ export function registerGraphHandlers(store) {
   /**
    * Get concepts that depend on a given concept
    */
-  ipcMain.on(
+  ipcMain.handle(
     'graph-get-dependent-concepts',
-    async (event, conceptId, token) => {
+    async (_event, conceptId, token) => {
       try {
-        const result = await graphLearningFeatures.getDependentConcepts(
+        return await graphLearningFeatures.getDependentConcepts(
           conceptId,
           token,
         );
-        event.returnValue = result;
       } catch (error) {
         console.error('graph-get-dependent-concepts error:', error);
-        event.returnValue = [];
+        return [];
       }
     },
   );
@@ -654,34 +607,29 @@ export function registerGraphHandlers(store) {
   /**
    * Detect weak concepts
    */
-  ipcMain.on('graph-detect-weak-concepts', async (event, token, limit) => {
+  ipcMain.handle('graph-detect-weak-concepts', async (_event, token, limit) => {
     try {
-      const result = await graphLearningFeatures.detectWeakConcepts(
-        token,
-        limit,
-      );
-      event.returnValue = result;
+      return await graphLearningFeatures.detectWeakConcepts(token, limit);
     } catch (error) {
       console.error('graph-detect-weak-concepts error:', error);
-      event.returnValue = [];
+      return [];
     }
   });
 
   /**
    * Get error-prone topics
    */
-  ipcMain.on(
+  ipcMain.handle(
     'graph-get-error-prone-topics',
-    async (event, token, lookbackDays) => {
+    async (_event, token, lookbackDays) => {
       try {
-        const result = await graphLearningFeatures.getErrorProneTopics(
+        return await graphLearningFeatures.getErrorProneTopics(
           token,
           lookbackDays,
         );
-        event.returnValue = result;
       } catch (error) {
         console.error('graph-get-error-prone-topics error:', error);
-        event.returnValue = [];
+        return [];
       }
     },
   );
@@ -693,33 +641,31 @@ export function registerGraphHandlers(store) {
   /**
    * Resolve related concepts
    */
-  ipcMain.on('graph-resolve-related-concepts', async (event, token) => {
+  ipcMain.handle('graph-resolve-related-concepts', async (_event, token) => {
     try {
-      const result = await graphLearningFeatures.resolveRelatedConcepts(token);
-      event.returnValue = result;
+      return await graphLearningFeatures.resolveRelatedConcepts(token);
     } catch (error) {
       console.error('graph-resolve-related-concepts error:', error);
-      event.returnValue = [];
+      return [];
     }
   });
 
   /**
    * Link two concepts
    */
-  ipcMain.on(
+  ipcMain.handle(
     'graph-link-concepts',
-    async (event, concept1Id, concept2Id, relationType, strength) => {
+    async (_event, concept1Id, concept2Id, relationType, strength) => {
       try {
-        const result = await graphLearningFeatures.linkConcepts(
+        return await graphLearningFeatures.linkConcepts(
           concept1Id,
           concept2Id,
           relationType,
           strength,
         );
-        event.returnValue = result;
       } catch (error) {
         console.error('graph-link-concepts error:', error);
-        event.returnValue = false;
+        return false;
       }
     },
   );
@@ -727,18 +673,17 @@ export function registerGraphHandlers(store) {
   /**
    * Extract concepts from text
    */
-  ipcMain.on(
+  ipcMain.handle(
     'graph-extract-concepts-from-text',
-    async (event, content, token) => {
+    async (_event, content, token) => {
       try {
-        const result = await graphLearningFeatures.extractConceptsFromText(
+        return await graphLearningFeatures.extractConceptsFromText(
           content,
           token,
         );
-        event.returnValue = result;
       } catch (error) {
         console.error('graph-extract-concepts-from-text error:', error);
-        event.returnValue = { existing: [], suggested: [] };
+        return { existing: [], suggested: [] };
       }
     },
   );
@@ -746,13 +691,12 @@ export function registerGraphHandlers(store) {
   /**
    * Get concept clusters
    */
-  ipcMain.on('graph-get-concept-clusters', async (event, token) => {
+  ipcMain.handle('graph-get-concept-clusters', async (_event, token) => {
     try {
-      const result = await graphLearningFeatures.getConceptClusters(token);
-      event.returnValue = result;
+      return await graphLearningFeatures.getConceptClusters(token);
     } catch (error) {
       console.error('graph-get-concept-clusters error:', error);
-      event.returnValue = [];
+      return [];
     }
   });
 
@@ -763,19 +707,18 @@ export function registerGraphHandlers(store) {
   /**
    * Update concept mastery
    */
-  ipcMain.on(
+  ipcMain.handle(
     'graph-update-concept-mastery',
-    async (event, conceptId, outcome, token) => {
+    async (_event, conceptId, outcome, token) => {
       try {
-        const result = await graphLearningFeatures.updateConceptMastery(
+        return await graphLearningFeatures.updateConceptMastery(
           conceptId,
           outcome,
           token,
         );
-        event.returnValue = result;
       } catch (error) {
         console.error('graph-update-concept-mastery error:', error);
-        event.returnValue = null;
+        return null;
       }
     },
   );
@@ -783,34 +726,29 @@ export function registerGraphHandlers(store) {
   /**
    * Get mastery progress over time
    */
-  ipcMain.on('graph-get-mastery-progress', async (event, token, days) => {
+  ipcMain.handle('graph-get-mastery-progress', async (_event, token, days) => {
     try {
-      const result = await graphLearningFeatures.getMasteryProgress(
-        token,
-        days,
-      );
-      event.returnValue = result;
+      return await graphLearningFeatures.getMasteryProgress(token, days);
     } catch (error) {
       console.error('graph-get-mastery-progress error:', error);
-      event.returnValue = [];
+      return [];
     }
   });
 
   /**
    * Get knowledge graph data for visualization
    */
-  ipcMain.on(
+  ipcMain.handle(
     'graph-get-knowledge-graph-data',
-    async (event, token, centerConceptId) => {
+    async (_event, token, centerConceptId) => {
       try {
-        const result = await graphLearningFeatures.getKnowledgeGraphData(
+        return await graphLearningFeatures.getKnowledgeGraphData(
           token,
           centerConceptId,
         );
-        event.returnValue = result;
       } catch (error) {
         console.error('graph-get-knowledge-graph-data error:', error);
-        event.returnValue = { nodes: [], edges: [] };
+        return { nodes: [], edges: [] };
       }
     },
   );
@@ -822,59 +760,56 @@ export function registerGraphHandlers(store) {
   /**
    * Initialize graph embedding manager
    */
-  ipcMain.on('graph-embedding-setup', async (event) => {
+  ipcMain.handle('graph-embedding-setup', async () => {
     try {
       await graphEmbeddingManager.setup(store);
-      event.returnValue = { success: true };
+      return { success: true };
     } catch (error) {
       console.error('graph-embedding-setup error:', error);
-      event.returnValue = { success: false, error: error.message };
+      return { success: false, error: error.message };
     }
   });
 
   /**
    * Semantic search for books
    */
-  ipcMain.on('graph-semantic-search-books', async (event, query, token) => {
+  ipcMain.handle('graph-semantic-search-books', async (_event, query, token) => {
     try {
-      const result = await graphEmbeddingManager.searchBooks(query, token);
-      event.returnValue = result;
+      return await graphEmbeddingManager.searchBooks(query, token);
     } catch (error) {
       console.error('graph-semantic-search-books error:', error);
-      event.returnValue = [];
+      return [];
     }
   });
 
   /**
    * Semantic search for notes
    */
-  ipcMain.on('graph-semantic-search-notes', async (event, query, token) => {
+  ipcMain.handle('graph-semantic-search-notes', async (_event, query, token) => {
     try {
-      const result = await graphEmbeddingManager.searchNotes(query, token);
-      event.returnValue = result;
+      return await graphEmbeddingManager.searchNotes(query, token);
     } catch (error) {
       console.error('graph-semantic-search-notes error:', error);
-      event.returnValue = [];
+      return [];
     }
   });
 
   /**
    * Get book content by semantic query
    */
-  ipcMain.on(
+  ipcMain.handle(
     'graph-get-book-content-by-query',
-    async (event, bookKey, bookType, query, token) => {
+    async (_event, bookKey, bookType, query, token) => {
       try {
-        const result = await graphEmbeddingManager.getBookContentByQuery(
+        return await graphEmbeddingManager.getBookContentByQuery(
           bookKey,
           bookType,
           query,
           token,
         );
-        event.returnValue = result;
       } catch (error) {
         console.error('graph-get-book-content-by-query error:', error);
-        event.returnValue = [];
+        return [];
       }
     },
   );
@@ -973,20 +908,16 @@ export function registerGraphHandlers(store) {
    * Get link suggestions for autocomplete (vocabulary, concepts, notes)
    * Used when user types [[ in the editor
    */
-  ipcMain.on('get-link-suggestions', async (event, args) => {
+  ipcMain.handle('get-link-suggestions', async (_event, args) => {
     try {
       const [query, token] = args || [];
-
       if (!graphInterface.isReady()) {
-        event.returnValue = [];
-        return;
+        return [];
       }
-
-      const results = await graphInterface.searchForLinking(query || '', token, 15);
-      event.returnValue = results;
+      return await graphInterface.searchForLinking(query || '', token, 15);
     } catch (error) {
       console.error('get-link-suggestions error:', error);
-      event.returnValue = [];
+      return [];
     }
   });
 
@@ -994,20 +925,16 @@ export function registerGraphHandlers(store) {
    * Get preview data for a linked item (vocabulary, concept, note)
    * Used for hover preview popover
    */
-  ipcMain.on('get-link-preview', async (event, args) => {
+  ipcMain.handle('get-link-preview', async (_event, args) => {
     try {
       const [type, id, token] = args || [];
-
       if (!graphInterface.isReady()) {
-        event.returnValue = null;
-        return;
+        return null;
       }
-
-      const preview = await graphInterface.getLinkPreview(type, id, token);
-      event.returnValue = preview;
+      return await graphInterface.getLinkPreview(type, id, token);
     } catch (error) {
       console.error('get-link-preview error:', error);
-      event.returnValue = null;
+      return null;
     }
   });
 
@@ -1015,20 +942,16 @@ export function registerGraphHandlers(store) {
    * Get backlinks for a note/vocabulary/concept
    * Returns all notes that link TO the target
    */
-  ipcMain.on('get-backlinks', async (event, args) => {
+  ipcMain.handle('get-backlinks', async (_event, args) => {
     try {
       const [targetId, targetType, token] = args || [];
-
       if (!graphInterface.isReady()) {
-        event.returnValue = [];
-        return;
+        return [];
       }
-
-      const backlinks = await graphInterface.getBacklinks(targetId, targetType, token);
-      event.returnValue = backlinks;
+      return await graphInterface.getBacklinks(targetId, targetType, token);
     } catch (error) {
       console.error('get-backlinks error:', error);
-      event.returnValue = [];
+      return [];
     }
   });
 
@@ -1056,70 +979,58 @@ export function registerGraphHandlers(store) {
    * Get outgoing links from a note
    * Returns all items that the note links TO
    */
-  ipcMain.on('get-outgoing-links', async (event, args) => {
+  ipcMain.handle('get-outgoing-links', async (_event, args) => {
     try {
       const [noteId, token] = args || [];
-
       if (!graphInterface.isReady()) {
-        event.returnValue = [];
-        return;
+        return [];
       }
-
-      const links = await graphInterface.getOutgoingLinks(noteId, token);
-      event.returnValue = links;
+      return await graphInterface.getOutgoingLinks(noteId, token);
     } catch (error) {
       console.error('get-outgoing-links error:', error);
-      event.returnValue = [];
+      return [];
     }
   });
 
   /**
    * Find notes with shared tags (for semantic auto-linking)
    */
-  ipcMain.on('find-notes-by-shared-tags', async (event, args) => {
+  ipcMain.handle('find-notes-by-shared-tags', async (_event, args) => {
     try {
       const [tags, excludeNoteId, token, minSharedTags] = args || [];
-
       if (!graphInterface.isReady()) {
-        event.returnValue = [];
-        return;
+        return [];
       }
-
-      const results = await graphInterface.findNotesBySharedTags(
+      return await graphInterface.findNotesBySharedTags(
         tags,
         excludeNoteId,
         token,
         minSharedTags || 2,
       );
-      event.returnValue = results;
     } catch (error) {
       console.error('find-notes-by-shared-tags error:', error);
-      event.returnValue = [];
+      return [];
     }
   });
 
   /**
    * Find semantically similar notes
    */
-  ipcMain.on('find-similar-notes', async (event, args) => {
+  ipcMain.handle('find-similar-notes', async (_event, args) => {
     try {
       const [noteId, embedding, threshold, token] = args || [];
-
       if (!graphInterface.isReady()) {
-        event.returnValue = [];
-        return;
+        return [];
       }
-
-      const results = await graphInterface.findSemanticallySimilarNotes(
+      return await graphInterface.findSemanticallySimilarNotes(
         noteId,
         embedding,
         threshold || 0.75,
         token,
       );
-      event.returnValue = results;
     } catch (error) {
       console.error('find-similar-notes error:', error);
-      event.returnValue = [];
+      return [];
     }
   });
 

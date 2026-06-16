@@ -55,7 +55,6 @@ jest.mock('../../main/db/dbManager', () => ({
     if (typeof v === 'number') return v.toString();
     return v || '';
   },
-  getNextId: jest.fn(),
 }));
 
 // Phase 8 services now read learning points via learningPointService.getAll

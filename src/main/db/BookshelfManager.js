@@ -14,7 +14,7 @@ CREATE TABLE "bookshelf" (
 
  *
  */
-import db, { getUserIdFromToken, addUserIdCreatedAt, escapeString } from './dbManager';
+import db, { getUserIdFromToken, addUserIdCreatedAt } from './dbManager';
 
 /**
  *
@@ -59,13 +59,11 @@ export const createBookshelf= (name, token) => {
   }
   addUserIdCreatedAt(bookshelf, userId);
   const createdAt =  bookshelf.createdAt || '';
-  const name2 = escapeString(name);
   try {
     const stmt = db.prepare(
-      'INSERT INTO bookshelf (name, created_at, user_id) ' +
-      `VALUES ( '${name2}','${createdAt}','${userId}') `
+      'INSERT INTO bookshelf (name, created_at, user_id) VALUES (?, ?, ?)'
     );
-    const result = stmt.run();
+    const result = stmt.run(name, createdAt, userId);
     bookshelf.id = result.lastInsertRowid;
   } catch (err) {
     console.error(err);
@@ -87,12 +85,9 @@ export function renameBookshelf(id, name, token) {
     return null;
   }
   try {
-    const name2 = escapeString(name);
-    // Assuming the field is at the root of the JSON object.
-    const sql = `UPDATE bookshelf SET name  = '${name2}' WHERE id = ${id} AND user_id = ${userId}`;
-    console.log(sql);
+    const sql = 'UPDATE bookshelf SET name = ? WHERE id = ? AND user_id = ?';
     const query = db.prepare(sql);
-    query.run();
+    query.run(name, id, userId);
     return getBookshelfById(id);
   } catch (err) {
     console.error(err);

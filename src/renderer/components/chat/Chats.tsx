@@ -117,6 +117,10 @@ function Chats({
   }, []);
 
   useEffect(() => {
+    // Rapid `search`/`page` changes fire overlapping queries; without a
+    // race guard, a slow earlier response can overwrite a faster later
+    // one in Redux, displaying stale results.
+    let cancelled = false;
     async function t() {
       if (isLearnAbout) {
         const result = await getLearnAboutByQuery({
@@ -124,6 +128,7 @@ function Chats({
           page,
           limit,
         });
+        if (cancelled) return;
         setTotal(result.total);
         dispatch(learnAboutQueried(result.data || []));
         return;
@@ -133,11 +138,14 @@ function Chats({
         page,
         limit,
       });
-      //  setChats(result.data || []);
+      if (cancelled) return;
       setTotal(result.total);
       dispatch(chatQueried(result.data || []));
     }
     t();
+    return () => {
+      cancelled = true;
+    };
   }, [search, page, limit]);
 
   // const pinnedChats = useMemo(

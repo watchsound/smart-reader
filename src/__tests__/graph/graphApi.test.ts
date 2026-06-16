@@ -14,9 +14,13 @@ jest.mock('../../renderer/store/customStorage', () => ({
   },
 }));
 
-// Mock window.electron.ipcRenderer
-const mockSendSync = jest.fn();
-const mockInvoke = jest.fn();
+// Mock window.electron.ipcRenderer. Many graphApi methods migrated from
+// sendSync to invoke as part of the sync-IPC-with-async-handler race fix;
+// alias both to a single jest.fn so existing assertions keep working
+// regardless of which path the method now uses.
+const mockIpc = jest.fn();
+const mockSendSync = mockIpc;
+const mockInvoke = mockIpc;
 
 // Set up window mock before any imports
 Object.defineProperty(global, 'window', {
@@ -822,13 +826,13 @@ describe('GraphApi', () => {
   // ===========================================================================
 
   describe('Stats Operations', () => {
-    test('getStats() should return stats synchronously', () => {
+    test('getStats() should return stats', async () => {
       const stats = { Note: 100, Book: 25, Vocabulary: 500, Concept: 50 };
-      mockSendSync.mockReturnValue(stats);
+      mockInvoke.mockResolvedValue(stats);
 
-      const result = graphApi.getStats();
+      const result = await graphApi.getStats();
 
-      expect(mockSendSync).toHaveBeenCalledWith('graph-get-stats');
+      expect(mockInvoke).toHaveBeenCalledWith('graph-get-stats');
       expect(result).toEqual(stats);
     });
   });

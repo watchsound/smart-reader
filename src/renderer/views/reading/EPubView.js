@@ -163,6 +163,74 @@ function EPubView({
     }
   }, [animations.isReady, onAnimationReady]);
 
+  // Personal Lexical Halo — words in the user's vocabulary list get a
+  // faint underglow on first appearance in each chapter. Vocabulary is
+  // re-fetched on every chapter render so words added mid-session (e.g.
+  // via "Add to Vocabulary") are picked up on the next chapter without
+  // needing to reopen the book.
+
+  // Pull the stable callbacks out of the animations object so the effect
+  // below depends on functions (stable across renders thanks to useCallback)
+  // rather than the parent object (a fresh literal every render).
+  const animationsReady = animations.isReady;
+  const { applyLexicalHalo } = animations;
+
+  useEffect(() => {
+    if (!rendition || !animationsReady || !applyLexicalHalo) return undefined;
+
+    let cancelled = false;
+
+    const applyHalo = async () => {
+      try {
+        // Refetch on every chapter render — 'rendered' fires only on
+        // chapter change (not page turn), so this is at most one IPC
+        // per chapter and keeps the halo set in sync with vocabulary
+        // the user just added.
+        const result = await customStorage.getVocabulariesByQuery({
+          query: '',
+          page: 1,
+          limit: 5000,
+        });
+        if (cancelled) return;
+        const items = result?.data || [];
+        const words = items
+          .map((v) => v?.word)
+          .filter((w) => typeof w === 'string' && w.trim().length >= 2);
+        if (words.length === 0) return;
+        // Defer a tick so the new chapter DOM is fully attached. Mirrors
+        // the 100ms delay the adapter uses for its own document re-setup.
+        setTimeout(() => {
+          if (cancelled) return;
+          applyLexicalHalo(words).catch((err) => {
+            console.warn(
+              '[EPubView] applyLexicalHalo failed:',
+              err?.message || err,
+            );
+          });
+        }, 150);
+      } catch (err) {
+        console.warn(
+          '[EPubView] lexical halo vocab fetch failed:',
+          err?.message || err,
+        );
+      }
+    };
+
+    rendition.on('rendered', applyHalo);
+    // Trigger once for the chapter that's already on screen when the hook
+    // first becomes ready (no 'rendered' event will fire for it).
+    applyHalo();
+
+    return () => {
+      cancelled = true;
+      try {
+        rendition.off('rendered', applyHalo);
+      } catch (_e) {
+        // rendition may already be torn down
+      }
+    };
+  }, [rendition, animationsReady, applyLexicalHalo]);
+
   const [openDialog, setOpenDialog] = useState(false);
   const [showImpressModal, setShowImpressModal] = useState(false);
   const [impressContent, setImpressContent] = useState(null);

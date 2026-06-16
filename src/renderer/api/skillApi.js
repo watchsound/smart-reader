@@ -8,7 +8,7 @@
  * import skillApi from '../api/skillApi';
  *
  * // Get available skills
- * const skills = skillApi.getAvailableSkills();
+ * const skills = await skillApi.getAvailableSkills();
  *
  * // Execute a skill
  * const result = await skillApi.executeSkill('summarize', { text: '...' });
@@ -40,10 +40,10 @@ class SkillApi {
    * @param {string} token - User token (optional)
    * @returns {Array<{name, description, category, parameters, requiredParams}>}
    */
-  getAvailableSkills(token = null) {
+  async getAvailableSkills(token = null) {
     const t = token || customStorage.getSessionToken();
     const userId = customStorage.getUserId();
-    return window.electron.ipcRenderer.sendSync('skill-list-available', t, userId);
+    return window.electron.ipcRenderer.invoke('skill-list-available', t, userId);
   }
 
   /**

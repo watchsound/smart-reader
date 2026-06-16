@@ -395,10 +395,7 @@ return getTextContentWithTags(document.body);
     const handleUpdate = () => {
       setUseCapture(true);
     };
-    window.electron.ipcRenderer.on('browser-use-area-selection', handleUpdate);
-    return () => {
-      window.electron.ipcRenderer.removeListener('browser-use-area-selection', handleUpdate);
-    };
+    return window.electron.ipcRenderer.on('browser-use-area-selection', handleUpdate);
   }, []);
 
   useEffect(() => {
@@ -978,16 +975,14 @@ return getTextContentWithTags(document.body);
     const handleContextMenu = ({ command, selectedText }) => {
       handleContextMenuCommand(command, selectedText, '');
     };
-    window.electron.ipcRenderer.on('context-menu-command', handleContextMenu);
-    return () => {
-      window.electron.ipcRenderer.removeListener('context-menu-command', handleContextMenu);
-    };
+    return window.electron.ipcRenderer.on('context-menu-command', handleContextMenu);
   }, []);
 
   useEffect(() => {
-    window.electron.ipcRenderer.on('open-url', (url) => {
+    const handleOpenUrl = (url) => {
       document.querySelector('webview').src = url;
-    });
+    };
+    return window.electron.ipcRenderer.on('open-url', handleOpenUrl);
   }, []);
 
   // URL path change

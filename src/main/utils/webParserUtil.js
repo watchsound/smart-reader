@@ -5,15 +5,6 @@ import { Buffer } from 'buffer';
 import puppeteer from 'puppeteer-core';
 import findChrome from 'chrome-finder';
 
-export function cleanString(str) {
-  if (!str) return str;
-  // Replace newlines with nothing (remove them)
-  let result = str.replace(/[\r\n]+/g, '');
-  // Replace consecutive whitespace with a single space
-  result = result.replace(/\s{2,}/g, ' ');
-  return result;
-}
-
 export async function fetchPageHeadless(url) {
   const chromePath = findChrome();
   console.log(` chrompath = ${chromePath}`);

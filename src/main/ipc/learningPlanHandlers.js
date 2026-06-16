@@ -10,10 +10,45 @@
 const { ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 
 // Import services - these export singleton instances as default
 const LearningPlanGeneratorModule = require('../utils/LearningPlanGenerator');
 const LearningPointImporterModule = require('../utils/LearningPointImporter');
+
+// Defense-in-depth gate for the file-import IPC.
+//
+// `filePath` arrives from the renderer (Electron's File.path off
+// `<input type="file">`). A compromised renderer could pass any path
+// the main process has access to — system files, credentials, other
+// users' data. The legitimate file-picker flow always lands under the
+// user's home directory, so we require the same.
+//
+// Reject sensitive subpaths a legitimate import would never use, and
+// require the extension to match the declared fileType so a caller
+// can't say "csv" while pointing at a credentials blob.
+const FILE_TYPE_EXTENSIONS = {
+  csv: ['.csv'],
+  json: ['.json'],
+  txt: ['.txt'],
+  xlsx: ['.xlsx'],
+  xls: ['.xls'],
+};
+const SENSITIVE_SEGMENTS = ['.ssh', '.aws', '.gnupg', '.config'];
+
+const isImportPathSafe = (filePath, fileType) => {
+  if (typeof filePath !== 'string' || !filePath) return false;
+  const allowedExts = FILE_TYPE_EXTENSIONS[fileType];
+  if (!allowedExts) return false;
+  const ext = path.extname(filePath).toLowerCase();
+  if (!allowedExts.includes(ext)) return false;
+  const resolved = path.resolve(filePath);
+  const homeDir = path.resolve(os.homedir());
+  if (resolved !== homeDir && !resolved.startsWith(homeDir + path.sep)) return false;
+  const segments = resolved.split(path.sep);
+  if (segments.some((seg) => SENSITIVE_SEGMENTS.includes(seg))) return false;
+  return true;
+};
 
 // Get the default export (singleton instance) from ES modules
 const planGenerator = LearningPlanGeneratorModule.default || LearningPlanGeneratorModule;
@@ -167,6 +202,13 @@ function registerLearningPlanHandlers(store, services) {
   ipcMain.handle('learning-point-import-file', async (event, params) => {
     try {
       const { filePath, fileType, domain, columnMapping } = params;
+
+      if (!isImportPathSafe(filePath, fileType)) {
+        return {
+          success: false,
+          error: 'Import path is not permitted. Pick a file from your home directory with a supported extension (csv, json, txt, xlsx, xls).',
+        };
+      }
 
       // Read file content
       const content = fs.readFileSync(filePath, 'utf-8');

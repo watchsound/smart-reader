@@ -33,23 +33,38 @@ function Register() {
   };
 
   const handleRegister = async () => {
-    if (name && email && password) {
-      setLoading(true);
-      try {
-        const userInfo = await register(name, email, password);
-        if (userInfo < 0) {
-          showMessage('Registration failed. Please try again.', 'error');
-        } else {
-          showMessage('Registration successful!', 'success');
-          navigate('/login');
-        }
-      } catch (error) {
-        showMessage('Registration failed. Please try again.', 'error');
-      } finally {
-        setLoading(false);
-      }
-    } else {
+    // Guard against re-entry: Button is `disabled={loading}` but the
+    // Enter-key handler bypasses it, so two rapid Enter presses during
+    // the ~100 ms scrypt round-trip would fire two register() calls.
+    if (loading) return;
+    if (!name || !email || !password) {
       showMessage('Please provide name, email and password.', 'warning');
+      return;
+    }
+    setLoading(true);
+    try {
+      const result = await register(name, email, password);
+      if (result && result.ok) {
+        showMessage('Registration successful!', 'success');
+        navigate('/login');
+        return;
+      }
+      const code = result && result.code;
+      if (code === 'duplicate-email') {
+        showMessage('That email is already registered. Try signing in.', 'error');
+      } else if (code === 'invalid-email') {
+        showMessage('Please enter a valid email address.', 'error');
+      } else if (code === 'weak-password') {
+        showMessage('Password must be at least 8 characters.', 'error');
+      } else if (code === 'invalid-input') {
+        showMessage('Name, email and password are all required.', 'warning');
+      } else {
+        showMessage('Registration failed. Please try again.', 'error');
+      }
+    } catch (error) {
+      showMessage('Registration failed. Please try again.', 'error');
+    } finally {
+      setLoading(false);
     }
   };
 

@@ -192,9 +192,12 @@ export default function PerformanceTrendsChart({
 
   // Load trends
   useEffect(() => {
+    if (!token) return undefined;
+    // Race guard: rapid period/topicId changes (user clicks period
+    // selector, parent nav switches topic) fire overlapping fetches; the
+    // slower one can land last and overwrite the newer's setTrends.
+    let cancelled = false;
     const loadTrends = async () => {
-      if (!token) return;
-
       setIsLoading(true);
       try {
         const result = await studyAnalyticsApi.getPerformanceTrends(
@@ -202,15 +205,19 @@ export default function PerformanceTrendsChart({
           period,
           topicId,
         );
+        if (cancelled) return;
         if (result.success) {
           setTrends(result.trends);
         }
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     };
 
     loadTrends();
+    return () => {
+      cancelled = true;
+    };
   }, [token, period, topicId]);
 
   // Calculate summary stats

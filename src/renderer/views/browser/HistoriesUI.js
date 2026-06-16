@@ -168,6 +168,10 @@ function HistoriesUI({ filterKey, historyCallback }) {
   const [histories, setHistories] = useState([]);
 
   useEffect(() => {
+    // Race guard: rapid filterKey/page changes fire overlapping requests.
+    // Without this, a slow earlier fetch can resolve after a faster later
+    // fetch and overwrite the displayed (correct) results with stale ones.
+    let cancelled = false;
     async function fetchHistories() {
       const result = await customStorage.getHistoryByQuery(
         'url',
@@ -175,9 +179,9 @@ function HistoriesUI({ filterKey, historyCallback }) {
         page,
         limit,
       );
+      if (cancelled) return;
 
       if (result.data && result.data.length > 0) {
-        // Group by date
         const groupedByDate = {};
 
         result.data.forEach((item) => {
@@ -188,7 +192,6 @@ function HistoriesUI({ filterKey, historyCallback }) {
           groupedByDate[dateKey].push(item);
         });
 
-        // Convert to array of groups
         const groups = Object.entries(groupedByDate).map(([date, items]) => ({
           date,
           items,
@@ -203,6 +206,9 @@ function HistoriesUI({ filterKey, historyCallback }) {
     }
 
     fetchHistories();
+    return () => {
+      cancelled = true;
+    };
   }, [filterKey, page, limit]);
 
   const handlePageChange = (event, value) => {

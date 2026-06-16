@@ -25,7 +25,14 @@
 
  *
  */
-import db, { getUserIdFromToken, addUserIdCreatedAt, escapeString } from './dbManager';
+import db, { getUserIdFromToken, addUserIdCreatedAt, assertUpdateField } from './dbManager';
+
+const BOOK_UPDATABLE = new Set([
+  'name', 'subtitle', 'author', 'description', 'cover', 'format',
+  'publisher', 'category', 'from_library', 'size', 'path', 'charset',
+  'favorite', 'bookshelf_id', 'key_in_storage', 'id_from_server',
+  'first_opened_at', 'diagnostic_data',
+]);
 
 // Phase 5: pre-book diagnostic columns. Added at runtime via idempotent
 // ALTER TABLE — the project ships a baseline sqlite_tables.db and has no
@@ -143,31 +150,33 @@ export const createBook = (book, token) => {
   }
   addUserIdCreatedAt(book, userId);
   try {
-    const name =     escapeString( book.name || '' );
+    const name = book.name || '';
     const keyInStorage = book.keyInStorage || '';
     const idFromServer = book.idFromServer || -1;
-    const subtitle =   escapeString(  book.subtitle || '');
-    const author =    escapeString(  book.author || '');
-    const  description =   escapeString(  book.description || '');
-    const  cover =    escapeString( book.cover || '');
-    const  format =    escapeString( book.format || '');
-    const  publisher =   escapeString(  book.publisher || '');
-    const  category =  escapeString(  book.category || '');
-    const  fromLibrary = book.fromLibrary ? 1 : 0;
-    const  size =   book.size || '';
-    const  path =   book.path || '';
-    const  charset =   book.charset || '';
-    const  favorite =   book.favorite || 0;
-    const  bookshelfId =  typeof book.bookshelfId === 'undefined' ? -1 : book.bookshelfId;
-    const  createdAt =   book.createdAt || '';
-
-
+    const subtitle = book.subtitle || '';
+    const author = book.author || '';
+    const description = book.description || '';
+    const cover = book.cover || '';
+    const format = book.format || '';
+    const publisher = book.publisher || '';
+    const category = book.category || '';
+    const fromLibrary = book.fromLibrary ? 1 : 0;
+    const size = book.size || '';
+    const path = book.path || '';
+    const charset = book.charset || '';
+    const favorite = book.favorite || 0;
+    const bookshelfId = typeof book.bookshelfId === 'undefined' ? -1 : book.bookshelfId;
+    const createdAt = book.createdAt || '';
 
     const stmt = db.prepare(
-      'INSERT INTO book (name, key_in_storage, id_from_server, subtitle, author,description,cover,format,publisher,category,from_library,size,path,charset,favorite, bookshelf_id, created_at,user_id) ' +
-      `VALUES ('${name}', '${keyInStorage}', ${idFromServer}, '${subtitle}','${author}','${description}','${cover}','${format}','${publisher}','${category}', ${fromLibrary},${size},'${path}','${charset}', ${favorite}, ${bookshelfId},  '${createdAt}',${userId}) `
+      'INSERT INTO book (name, key_in_storage, id_from_server, subtitle, author, description, cover, format, publisher, category, from_library, size, path, charset, favorite, bookshelf_id, created_at, user_id) ' +
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
-    const result = stmt.run();
+    const result = stmt.run(
+      name, keyInStorage, idFromServer, subtitle, author, description,
+      cover, format, publisher, category, fromLibrary, size, path,
+      charset, favorite, bookshelfId, createdAt, userId,
+    );
     book.id = result.lastInsertRowid;
     return getBookById(book.id, token);
   } catch (err) {
@@ -248,8 +257,9 @@ export const getBooksByQuery = (query, token) => {
   }
   if (!query) return getAllBooks(token);
   try {
-    const stmt = db.prepare('SELECT * FROM book WHERE name LIKE ? or subtitle LIKE ? or description LIKE ?  ORDER BY created_at DESC').bind(`'%${query}%'`, `'%${query}%'`, `'%${query}%'`);
-    for (const card of stmt.iterate()) {
+    const stmt = db.prepare('SELECT * FROM book WHERE name LIKE ? or subtitle LIKE ? or description LIKE ?  ORDER BY created_at DESC');
+    const pattern = `%${query}%`;
+    for (const card of stmt.iterate(pattern, pattern, pattern)) {
       if (card.user_id === userId) {
         books.push(dbRowToBook(card));
       }
@@ -306,7 +316,7 @@ export function updateBook(id, field, value, token) {
   }
   console.log(` updatebook = ${  id  } field = ${  field  } value = ${  value}`)
   try {
-    // Assuming the field is at the root of the JSON object.
+    assertUpdateField('book', BOOK_UPDATABLE, field);
     const sql = `UPDATE book SET ${field} = ? WHERE id = ? AND user_id = ?`;
     const query = db.prepare(sql);
     query.run( [value, id, userId]);

@@ -18,10 +18,13 @@ const electronHandler = {
       const subscription = (_event: IpcRendererEvent, ...args: unknown[]) =>
         func(...args);
       ipcRenderer.on(channel, subscription);
-
-      // return () => {
-      //   ipcRenderer.removeListener(channel, subscription);
-      // };
+      // Return an unsubscribe so React effects can clean up. Callers that
+      // pass `func` to removeListener can't — the wrapper is what was
+      // actually registered, so the user-visible handler reference is
+      // never the right key. Using this return is the only way to unhook.
+      return () => {
+        ipcRenderer.removeListener(channel, subscription);
+      };
     },
     once(channel: string, func: (...args: unknown[]) => void) {
       ipcRenderer.once(channel, (_event, ...args) => func(...args));
@@ -53,7 +56,7 @@ const electronHandler = {
     },
 
     /**   related to ollama code  */
-    startStream: ( history, message ) => {
+    startStream: (history, message) => {
       ipcRenderer.invoke('ollama:stream', { history, message });
     },
     onStreamData: (callback) => {
@@ -63,10 +66,9 @@ const electronHandler = {
       ipcRenderer.on('ollama:stream:done', () => callback());
     },
 
-
     /** **************************************************** */
     emojiData: () => {
-      return ipcRenderer.sendSync('emojiData', {});
+      return ipcRenderer.invoke('emojiData');
     },
 
     savePDF4URL: (id: number, url: string) => {
@@ -193,7 +195,7 @@ const electronHandler = {
       return ipcRenderer.sendSync('getHistoryById', { id, token });
     },
     createHistory: (history: any, token: string) => {
-      return ipcRenderer.sendSync('createHistory', { history, token });
+      return ipcRenderer.invoke('createHistory', { history, token });
     },
     getHistoryByQuery: (
       sourceType: string,
@@ -231,10 +233,10 @@ const electronHandler = {
       return ipcRenderer.sendSync('updateHistory', { id, description, token });
     },
     addContentToInMemoryVectorDB: (content: string) => {
-      return ipcRenderer.sendSync('addContentToInMemoryVectorDB', { content });
+      return ipcRenderer.invoke('addContentToInMemoryVectorDB', { content });
     },
     queryInMemoryVectorDB: (content: string) => {
-      return ipcRenderer.sendSync('queryInMemoryVectorDB', { content });
+      return ipcRenderer.invoke('queryInMemoryVectorDB', { content });
     },
     createBookshelf: (name: string, token: string) => {
       return ipcRenderer.sendSync('createBookshelf', { name, token });
@@ -287,7 +289,7 @@ const electronHandler = {
     },
 
     getBooksByQuery: (query: string, token: string) => {
-      return ipcRenderer.sendSync('getBooksByQuery', { query, token });
+      return ipcRenderer.invoke('getBooksByQuery', { query, token });
     },
 
     getBooks: (token: string) => {
@@ -319,8 +321,7 @@ const electronHandler = {
     },
 
     createBookmark: (url: string, token: string) => {
-      //  console.log(` preload createbookmark = ${JSON.stringify(url)}`);
-      return ipcRenderer.sendSync('createBookmark', { url, token });
+      return ipcRenderer.invoke('createBookmark', { url, token });
     },
 
     getBookmarkByQuery: (query: string, token: string) => {
@@ -449,15 +450,15 @@ const electronHandler = {
     },
 
     generateContent: (prompt: string) => {
-      return ipcRenderer.sendSync('generateContent', { prompt });
+      return ipcRenderer.invoke('generateContent', { prompt });
     },
 
     fetchPageHeadless: (url: string) => {
-      return ipcRenderer.sendSync('fetchPageHeadless', { url });
+      return ipcRenderer.invoke('fetchPageHeadless', { url });
     },
 
-    sendChatMessage: (history: [], prompt: string) => {
-      return ipcRenderer.sendSync('sendChatMessage', { history, prompt });
+    sendChatMessage: (history: [], message: string) => {
+      return ipcRenderer.invoke('sendChatMessage', { history, message });
     },
 
     createMessage: (message: any, token: string) => {
@@ -474,7 +475,7 @@ const electronHandler = {
     },
 
     getMessageByQuery: (query: string, token: string) => {
-      return ipcRenderer.sendSync('getMessageByQuery', { query, token });
+      return ipcRenderer.invoke('getMessageByQuery', { query, token });
     },
 
     updateMessage: (
@@ -523,7 +524,7 @@ const electronHandler = {
       limit: number,
       token: string,
     ) => {
-      return ipcRenderer.sendSync('getNotesByQuery', {
+      return ipcRenderer.invoke('getNotesByQuery', {
         query,
         tag,
         star,
@@ -802,7 +803,7 @@ const electronHandler = {
       query: string,
       token: string,
     ) => {
-      return ipcRenderer.sendSync('getBookContentByQuery', {
+      return ipcRenderer.invoke('getBookContentByQuery', {
         bookKey,
         bookType,
         query,
@@ -813,21 +814,6 @@ const electronHandler = {
     /**  save/query operations  related to store */
     setStoreValue: (key: string, value: any) => {
       return ipcRenderer.sendSync('setStoreValue', key, value);
-    },
-
-    upSertCollectionInStore: (
-      name: string,
-      keyName: string,
-      keyValue: any,
-      obj: object,
-    ) => {
-      return ipcRenderer.sendSync(
-        'upSertCollectionInStore',
-        name,
-        keyName,
-        keyValue,
-        obj,
-      );
     },
 
     deleteCollectionInStore: (name: string, keyName: string, keyValue: any) => {
@@ -847,13 +833,7 @@ const electronHandler = {
      * @returns responseObject = { ids:[] documents:[]}
      */
     semanticQuery(query: string, nResults: number, condition: object) {
-      const resp = ipcRenderer.sendSync(
-        'semanticQuery',
-        query,
-        nResults,
-        condition,
-      );
-      return resp;
+      return ipcRenderer.invoke('semanticQuery', query, nResults, condition);
     },
     getOneInCollection(name: string, keyName: string, keyValue: any) {
       const resp = ipcRenderer.sendSync(
@@ -900,28 +880,22 @@ const electronHandler = {
     /** **************************************************** */
 
     login(email: string, password: string) {
-      const resp = ipcRenderer.sendSync('login', email, password);
-      return resp;
+      return ipcRenderer.invoke('login', email, password);
     },
     register(user: string, email: string, password: string) {
-      const resp = ipcRenderer.sendSync('register', user, email, password);
-      return resp;
+      return ipcRenderer.invoke('register', user, email, password);
     },
     logout(token: string) {
-      const resp = ipcRenderer.sendSync('logout', token);
-      return resp;
+      return ipcRenderer.invoke('logout', token);
     },
     validateSession(token: string) {
-      const resp = ipcRenderer.sendSync('validateSession', token);
-      return resp;
+      return ipcRenderer.invoke('validateSession', token);
     },
     getNoteBgImage(token: string) {
-      const resp = ipcRenderer.sendSync('getNoteBgImage', token);
-      return resp;
+      return ipcRenderer.invoke('getNoteBgImage', token);
     },
     setNoteBgImage(imageNum: number, token: string) {
-      const resp = ipcRenderer.sendSync('setNoteBgImage', { imageNum, token });
-      return resp;
+      return ipcRenderer.invoke('setNoteBgImage', { imageNum, token });
     },
     getFontFamily(token: string) {
       const resp = ipcRenderer.sendSync('getFontFamily', token);
@@ -955,7 +929,10 @@ const electronHandler = {
       return resp;
     },
     setClaudeAdvancedModel(mode: string, token: string) {
-      const resp = ipcRenderer.sendSync('setClaudeAdvancedModel', { mode, token });
+      const resp = ipcRenderer.sendSync('setClaudeAdvancedModel', {
+        mode,
+        token,
+      });
       return resp;
     },
     getBaiduModel(token: string) {
@@ -971,7 +948,10 @@ const electronHandler = {
       return resp;
     },
     setBaiduAdvancedModel(mode: string, token: string) {
-      const resp = ipcRenderer.sendSync('setBaiduAdvancedModel', { mode, token });
+      const resp = ipcRenderer.sendSync('setBaiduAdvancedModel', {
+        mode,
+        token,
+      });
       return resp;
     },
     getKimiModel(token: string) {
@@ -987,7 +967,10 @@ const electronHandler = {
       return resp;
     },
     setKimiAdvancedModel(mode: string, token: string) {
-      const resp = ipcRenderer.sendSync('setKimiAdvancedModel', { mode, token });
+      const resp = ipcRenderer.sendSync('setKimiAdvancedModel', {
+        mode,
+        token,
+      });
       return resp;
     },
     getDoubaoModel(token: string) {
@@ -1003,7 +986,10 @@ const electronHandler = {
       return resp;
     },
     setDoubaoAdvancedModel(mode: string, token: string) {
-      const resp = ipcRenderer.sendSync('setDoubaoAdvancedModel', { mode, token });
+      const resp = ipcRenderer.sendSync('setDoubaoAdvancedModel', {
+        mode,
+        token,
+      });
       return resp;
     },
     getQwenModel(token: string) {
@@ -1019,7 +1005,10 @@ const electronHandler = {
       return resp;
     },
     setQwenAdvancedModel(mode: string, token: string) {
-      const resp = ipcRenderer.sendSync('setQwenAdvancedModel', { mode, token });
+      const resp = ipcRenderer.sendSync('setQwenAdvancedModel', {
+        mode,
+        token,
+      });
       return resp;
     },
     getOllamaModel(token: string) {
@@ -1035,7 +1024,10 @@ const electronHandler = {
       return resp;
     },
     setOllamaAdvancedModel(mode: string, token: string) {
-      const resp = ipcRenderer.sendSync('setOllamaAdvancedModel', { mode, token });
+      const resp = ipcRenderer.sendSync('setOllamaAdvancedModel', {
+        mode,
+        token,
+      });
       return resp;
     },
     getGeminiModel(token: string) {
@@ -1051,7 +1043,10 @@ const electronHandler = {
       return resp;
     },
     setGeminiAdvancedModel(mode: string, token: string) {
-      const resp = ipcRenderer.sendSync('setGeminiAdvancedModel', { mode, token });
+      const resp = ipcRenderer.sendSync('setGeminiAdvancedModel', {
+        mode,
+        token,
+      });
       return resp;
     },
     getChatGPTModel(token: string) {
@@ -1067,7 +1062,10 @@ const electronHandler = {
       return resp;
     },
     setChatGPTAdvancedModel(mode: string, token: string) {
-      const resp = ipcRenderer.sendSync('setChatGPTAdvancedModel', { mode, token });
+      const resp = ipcRenderer.sendSync('setChatGPTAdvancedModel', {
+        mode,
+        token,
+      });
       return resp;
     },
     getLeitnerSpeed(token: string) {
@@ -1159,8 +1157,7 @@ const electronHandler = {
       return resp;
     },
     getBaiduAccessToken(token: string) {
-      const resp = ipcRenderer.sendSync('getBaiduAccessToken', token);
-      return resp;
+      return ipcRenderer.invoke('getBaiduAccessToken', token);
     },
     getKimiKey(token: string) {
       const resp = ipcRenderer.sendSync('getKimiKey', token);
@@ -1212,8 +1209,7 @@ const electronHandler = {
       return resp;
     },
     addToVocabulary(text: string, token: string) {
-      const resp = ipcRenderer.sendSync('addToVocabulary', text, token);
-      return resp;
+      return ipcRenderer.invoke('addToVocabulary', text, token);
     },
     addToKeyWordList(mode: string, keyword: any, token: string) {
       const resp = ipcRenderer.sendSync(
@@ -1344,8 +1340,7 @@ const electronHandler = {
     },
 
     speakTextBySay: (text: string) => {
-      // console.log(' enter speakTextBySay in reload');
-      return ipcRenderer.sendSync('speak-text-by-say', { text });
+      return ipcRenderer.invoke('speak-text-by-say', { text });
     },
 
     parse_markdown: (data: any) => {

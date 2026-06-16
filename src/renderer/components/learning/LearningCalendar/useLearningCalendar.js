@@ -9,7 +9,7 @@
  * - Streak calculations
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import spacedRepetitionApi from '../../../api/spacedRepetitionApi';
 
 /**
@@ -194,11 +194,22 @@ export default function useLearningCalendar(token, options = {}) {
     streaks: { current: 0, longest: 0, thisWeek: 0, thisMonth: 0 },
   });
 
+  // Race guard: fetchData re-fires both on dep changes (token/forecastDays/
+  // historyDays) AND on the auto-refresh setInterval. Without this, an
+  // earlier slow Promise.all can overwrite a faster newer one's setData
+  // (or the auto-refresh tick can land after a manual fetch with stale
+  // forecast/statistics/etc).
+  const fetchGenRef = useRef(0);
+
   const fetchData = useCallback(async () => {
     if (!token) {
       setLoading(false);
       return;
     }
+
+    const myGen = fetchGenRef.current + 1;
+    fetchGenRef.current = myGen;
+    const isStale = () => myGen !== fetchGenRef.current;
 
     try {
       setLoading(true);
@@ -211,6 +222,7 @@ export default function useLearningCalendar(token, options = {}) {
         spacedRepetitionApi.getReviewHistory(token, { days: historyDays }),
         spacedRepetitionApi.getDailyReviewData(token, { days: historyDays }),
       ]);
+      if (isStale()) return;
 
       // Merge daily review data with forecast
       const dailyData = aggregateDailyData(reviewHistory, forecast);
@@ -241,10 +253,13 @@ export default function useLearningCalendar(token, options = {}) {
         streaks,
       });
     } catch (err) {
+      if (isStale()) return;
       console.error('useLearningCalendar error:', err);
       setError(err.message);
     } finally {
-      setLoading(false);
+      if (!isStale()) {
+        setLoading(false);
+      }
     }
   }, [token, forecastDays, historyDays]);
 

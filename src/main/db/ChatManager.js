@@ -13,7 +13,11 @@ CREATE TABLE "chat" (
 );
  *
  */
-import db, { getUserIdFromToken, addUserIdCreatedAt, escapeString } from './dbManager';
+import db, { getUserIdFromToken, addUserIdCreatedAt, escapeString, assertUpdateField } from './dbManager';
+
+const CHAT_UPDATABLE = new Set([
+  'description', 'total_tokens', 'learn_about', 'pinned', 'auto_delete',
+]);
 
 /**
  *
@@ -211,6 +215,7 @@ export function updateChat(id, field, value, token) {
     return -1;
   }
   try {
+    assertUpdateField('chat', CHAT_UPDATABLE, field);
     const sql = `UPDATE chat SET ${field} = ? WHERE id = ? AND user_id = ?`;
     console.log( `sql`);
     console.log(`value = ${value} id = ${id} userId = ${userId}`)

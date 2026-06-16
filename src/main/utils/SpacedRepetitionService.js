@@ -647,7 +647,8 @@ function getDueItems(userId, options = {}) {
  * @returns {Object} Statistics
  */
 function getReviewStatistics(userId, options = {}) {
-  const { topicId = null, days = 30 } = options;
+  const { topicId = null, days: rawDays = 30 } = options;
+  const days = Math.min(Math.max(1, Math.floor(Number(rawDays) || 30)), 365);
 
   try {
     let baseCondition = 'user_id = ?';
@@ -717,9 +718,9 @@ function getReviewStatistics(userId, options = {}) {
         AVG(CASE WHEN rating >= 3 THEN interval ELSE NULL END) as avg_interval
       FROM sr_review_history
       WHERE ${historyCondition}
-        AND reviewed_at >= datetime('now', '-${days} days')
+        AND reviewed_at >= datetime('now', ?)
     `);
-    const historyRow = historyStmt.get(...historyParams);
+    const historyRow = historyStmt.get(...historyParams, `-${days} days`);
 
     const retentionRate =
       historyRow?.total_reviews > 0
@@ -746,18 +747,19 @@ function getReviewStatistics(userId, options = {}) {
  * @param {number} days - Number of days to forecast
  * @returns {Array} Daily review counts
  */
-function getReviewForecast(userId, days = 14) {
+function getReviewForecast(userId, rawDays = 14) {
+  const days = Math.min(Math.max(1, Math.floor(Number(rawDays) || 14)), 365);
   try {
     const forecast = [];
+    const stmt = db.prepare(`
+      SELECT COUNT(*) as count
+      FROM sr_item
+      WHERE user_id = ?
+        AND date(next_review) = date('now', ?)
+    `);
 
     for (let i = 0; i < days; i++) {
-      const stmt = db.prepare(`
-        SELECT COUNT(*) as count
-        FROM sr_item
-        WHERE user_id = ?
-          AND date(next_review) = date('now', '+${i} days')
-      `);
-      const row = stmt.get(userId);
+      const row = stmt.get(userId, `+${i} days`);
       forecast.push({
         date: new Date(Date.now() + i * 24 * 60 * 60 * 1000),
         dueCount: row?.count || 0,

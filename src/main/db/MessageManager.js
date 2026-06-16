@@ -14,7 +14,11 @@ CREATE TABLE "message" (
 
  *
  */
-import db, { getUserIdFromToken, addUserIdCreatedAt, escapeString } from './dbManager';
+import db, { getUserIdFromToken, addUserIdCreatedAt, escapeString, assertUpdateField } from './dbManager';
+
+const MESSAGE_UPDATABLE = new Set([
+  'chat_id', 'type', 'role', 'content',
+]);
 
 /**
  *
@@ -125,8 +129,8 @@ export const getMessageByQuery = (query, token) => {
     return prompts;
   }
   try {
-    const stmt = db.prepare('SELECT * FROM message WHERE content LIKE ? and user_id = ?  ORDER BY created_at DESC').bind(`'%${query}%'`, userId);
-    for (const card of stmt.iterate()) {
+    const stmt = db.prepare('SELECT * FROM message WHERE content LIKE ? and user_id = ?  ORDER BY created_at DESC');
+    for (const card of stmt.iterate(`%${query}%`, userId)) {
        prompts.push({
          id: card.id,
          title: card.title || '',
@@ -159,6 +163,7 @@ export function updateMessage(id, field, value, token) {
     return -1;
   }
   try {
+    assertUpdateField('message', MESSAGE_UPDATABLE, field);
     const sql = `UPDATE message SET ${field} = ? WHERE id = ? AND user_id = ?`;
     console.log(`sql  :: id =${id} value=${value} user_id = ${userId}  `);
     const query = db.prepare(sql);

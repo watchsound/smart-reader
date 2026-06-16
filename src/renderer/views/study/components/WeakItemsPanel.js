@@ -5,7 +5,7 @@
  * Shows accuracy, mastery level, and weakness reasons.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -246,9 +246,19 @@ export default function WeakItemsPanel({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Race guard: loadWeakItems re-fires when topicId/limit/token deps
+  // change. Rapid topic-switching (e.g. arrow-key nav through a topic
+  // list) lets a slow earlier response overwrite a faster newer one's
+  // weakItems with stale results.
+  const loadGenRef = useRef(0);
+
   // Load weak items
   const loadWeakItems = useCallback(async () => {
     if (!token) return;
+
+    const myGen = loadGenRef.current + 1;
+    loadGenRef.current = myGen;
+    const isStale = () => myGen !== loadGenRef.current;
 
     setIsLoading(true);
     setError(null);
@@ -258,15 +268,19 @@ export default function WeakItemsPanel({
         topicId,
         limit,
       );
+      if (isStale()) return;
       if (result.success) {
         setWeakItems(result.weakItems);
       } else {
         setError(result.error);
       }
     } catch (err) {
+      if (isStale()) return;
       setError(err.message);
     } finally {
-      setIsLoading(false);
+      if (!isStale()) {
+        setIsLoading(false);
+      }
     }
   }, [token, topicId, limit]);
 

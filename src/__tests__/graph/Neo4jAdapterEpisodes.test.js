@@ -24,9 +24,12 @@ describe('Neo4jAdapter.batchCreateEpisodes', () => {
   let mockDriver;
   let mockSession;
 
-  beforeAll(async () => {
-    // Dynamically import after mocks are set
-    const module = await import('../../main/utils/Neo4jAdapter.js');
+  beforeAll(() => {
+    // jest.mock above is hoisted, so the require here picks up the mocks.
+    // Using require instead of dynamic import avoids needing
+    // --experimental-vm-modules in the Jest config.
+    // eslint-disable-next-line global-require
+    const module = require('../../main/utils/Neo4jAdapter.js');
     adapter = module.default; // This is the singleton instance
   });
 

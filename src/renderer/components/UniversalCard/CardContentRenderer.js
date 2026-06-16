@@ -20,13 +20,21 @@ import {
 const loadMathJax = () => {
   if (window.MathJax) return Promise.resolve();
 
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     if (document.querySelector('script[src*="mathjax"]')) {
-      // Already loading
+      // Already loading. Bound the poll so a failed/blocked CDN load
+      // doesn't leave setInterval running forever — 10s should be plenty
+      // for MathJax to call startup.ready or for the request to give up.
+      let attempts = 0;
+      const maxAttempts = 100; // 100 * 100ms = 10s
       const checkLoaded = setInterval(() => {
+        attempts += 1;
         if (window.MathJax) {
           clearInterval(checkLoaded);
           resolve();
+        } else if (attempts >= maxAttempts) {
+          clearInterval(checkLoaded);
+          reject(new Error('MathJax failed to load within 10s'));
         }
       }, 100);
       return;
@@ -56,7 +64,12 @@ const loadMathJax = () => {
  * Render MathJax in a container
  */
 const renderMathJax = async (containerRef) => {
-  await loadMathJax();
+  try {
+    await loadMathJax();
+  } catch (err) {
+    console.warn('MathJax load failed; skipping math render:', err.message);
+    return;
+  }
   if (window.MathJax?.typesetPromise && containerRef?.current) {
     try {
       await window.MathJax.typesetPromise([containerRef.current]);

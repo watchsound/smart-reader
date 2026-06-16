@@ -92,14 +92,14 @@ export function registerSkillHandlers(store, services = {}) {
   /**
    * Get available skills for current context
    */
-  ipcMain.on('skill-list-available', async (event, token, userId) => {
+  ipcMain.handle('skill-list-available', async (_event, token, userId) => {
     try {
       const context = await contextManager.getFullContext(
         userId,
         token,
         skillExecutor.services,
       );
-      const skills = registry.getAvailable(context).map((Skill) => ({
+      return registry.getAvailable(context).map((Skill) => ({
         name: Skill.name,
         description: Skill.description,
         category: Skill.category,
@@ -108,10 +108,9 @@ export function registerSkillHandlers(store, services = {}) {
         isFileBased: Skill.isFileBased || false,
         source: registry.getSource(Skill.name) || 'code',
       }));
-      event.returnValue = skills;
     } catch (error) {
       console.error('skill-list-available error:', error);
-      event.returnValue = [];
+      return [];
     }
   });
 

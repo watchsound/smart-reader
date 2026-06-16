@@ -78,19 +78,23 @@ describe('Graph System Integration Tests', () => {
   let registeredHandlers: Map<string, Function>;
   let registeredInvokeHandlers: Map<string, Function>;
 
-  beforeEach(async () => {
+  beforeEach(() => {
     jest.clearAllMocks();
     jest.resetModules();
 
-    // Reset singleton by re-importing
-    const GraphInterfaceModule = await import('../../main/utils/GraphInterface');
+    // Reset singleton by re-requiring (jest.mock is hoisted, so require
+    // picks up the mocks). Using require instead of dynamic import avoids
+    // needing --experimental-vm-modules in the Jest config.
+    // eslint-disable-next-line global-require
+    const GraphInterfaceModule = require('../../main/utils/GraphInterface');
     graphInterface = GraphInterfaceModule.default;
     // Reset the singleton instance
     (graphInterface as any).adapter = null;
     (graphInterface as any).isInitialized = false;
     (graphInterface as any).adapterType = null;
 
-    const Neo4jAdapterModule = await import('../../main/utils/Neo4jAdapter');
+    // eslint-disable-next-line global-require
+    const Neo4jAdapterModule = require('../../main/utils/Neo4jAdapter');
     neo4jAdapter = Neo4jAdapterModule.default;
     // Reset adapter state
     (neo4jAdapter as any).driver = null;

@@ -83,15 +83,23 @@ const brainApi = {
   // ==================== Episode Collection ====================
 
   /**
-   * Record a learning episode
+   * Record a learning episode. Fire-and-forget telemetry — failures
+   * (e.g. graph backend down) must never break the caller's UI flow,
+   * so backend errors are swallowed with a console.warn instead of
+   * propagating as an unhandled rejection.
    * @param {Object} episode
    * @param {string} episode.eventType - Event type
    * @param {Object} episode.payload - Event data
    * @param {Object} episode.sourceContext - Context info
-   * @returns {Promise<Object>}
+   * @returns {Promise<Object|null>}
    */
   async recordEpisode(episode) {
-    return ipcRenderer?.invoke('brain-record-episode', episode);
+    try {
+      return await ipcRenderer?.invoke('brain-record-episode', episode);
+    } catch (err) {
+      console.warn('brainApi.recordEpisode failed:', err?.message || err);
+      return null;
+    }
   },
 
   /**

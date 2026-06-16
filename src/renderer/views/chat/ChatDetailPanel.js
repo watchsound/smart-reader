@@ -527,7 +527,7 @@ function ChatDetailPanel({ chatId }) {
           setSkillMode(true);
         }
         // Get available skills
-        const skills = skillApi.getAvailableSkills();
+        const skills = await skillApi.getAvailableSkills();
         setAvailableSkills(skills || []);
       } catch (err) {
         console.warn('Failed to initialize skill system:', err);
@@ -537,10 +537,14 @@ function ChatDetailPanel({ chatId }) {
   }, []);
 
   useEffect(() => {
-    if (!chatId) return;
+    if (!chatId) return undefined;
+    // Race guard: switching chats rapidly fires overlapping fetches; the
+    // slow earlier chat's messages can overwrite the faster new chat's
+    // both in Redux (messageQueried/chatHandled) and in local state.
+    let cancelled = false;
     async function t() {
       const ms = await getMessagesByChatId(chatId);
-      // setMessages(ms);
+      if (cancelled) return;
       dispatch(messageQueried(ms));
       const ms2 =
         ms
@@ -548,10 +552,14 @@ function ChatDetailPanel({ chatId }) {
           .map((message) => message.content) || [];
       setUserMessages(ms2);
       const ct = await getChatById(chatId);
+      if (cancelled) return;
       setChat(ct);
       dispatch(chatHandled(ct));
     }
     t();
+    return () => {
+      cancelled = true;
+    };
   }, [chatId]);
 
   const showMessage = (message, severity = 'info') => {

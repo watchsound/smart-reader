@@ -75,9 +75,9 @@ export const createImage = ( image ) => {
     }
    //  const id = uuid();
     const stmt2 = db.prepare(
-      `INSERT INTO image ( data, hashcode) VALUES ('${image}', '${hashcode}') `
+      'INSERT INTO image ( data, hashcode) VALUES (?, ?) '
     );
-    const result = stmt2.run();
+    const result = stmt2.run(image, hashcode);
     const id = result.lastInsertRowid;
 
     return {

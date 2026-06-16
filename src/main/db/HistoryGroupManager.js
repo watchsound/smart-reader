@@ -54,8 +54,8 @@ export const getHistoryGroupByName= (name, token) => {
     return null;
   }
   try {
-    const stmt = db.prepare(`SELECT * FROM history_group WHERE group_name LIKE '%${name}%' AND user_id = ${userId}`);
-    const group = stmt.get( );
+    const stmt = db.prepare('SELECT * FROM history_group WHERE group_name = ? AND user_id = ?');
+    const group = stmt.get(name, userId);
     if (group) return {
       id : group.id,
       groupName:  group.group_name || '',
@@ -86,10 +86,9 @@ export const createHistoryGroup= ( name, token) => {
   const createdAt =  group.createdAt || '';
   try {
     const stmt = db.prepare(
-      'INSERT INTO history_group (group_name,  created_at, user_id) ' +
-      `VALUES ( '${name}',   '${createdAt}', ${userId}) `
+      'INSERT INTO history_group (group_name,  created_at, user_id) VALUES (?, ?, ?)'
     );
-    const result = stmt.run();
+    const result = stmt.run(name, createdAt, userId);
     group.id = result.lastInsertRowid;
   } catch (err) {
     console.error(err);
