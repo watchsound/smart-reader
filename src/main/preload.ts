@@ -726,15 +726,6 @@ const electronHandler = {
       );
       return resp;
     },
-    getByIdsInCollection(name: string, keyName: string, keyList: string[]) {
-      const resp = ipcRenderer.sendSync(
-        'getByIdsInCollection',
-        name,
-        keyName,
-        keyList,
-      );
-      return resp;
-    },
 
     queryCollection(
       name: string,

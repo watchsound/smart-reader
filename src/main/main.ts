@@ -574,15 +574,6 @@ const createWindow = async () => {
     }
   });
 
-  ipcMain.on('getByIdsInCollection', (_, name, keyName, keyList) => {
-    const c = store.get(name) as Array<Record<string, unknown>> | undefined;
-    if (!c) return null;
-    const found = c.find((item: Record<string, unknown>) =>
-      keyList.includes(item[keyName]),
-    );
-    _.returnValue = found;
-  });
-
   ipcMain.on('getOneInCollection', (_, name, keyName, keyValue) => {
     const c = store.get(name) as Array<Record<string, unknown>> | undefined;
     if (!c) return null;

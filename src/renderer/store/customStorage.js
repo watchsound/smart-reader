@@ -1523,14 +1523,6 @@ class customStorage {
     );
   }
 
-  static getByIdsInCollection(name, keyName, keyList) {
-    return window.electron.ipcRenderer.getByIdsInCollection(
-      name,
-      keyName,
-      keyList,
-    );
-  }
-
   static semanticQuery(query, nResults, condition) {
     return window.electron.ipcRenderer.semanticQuery(
       query,
