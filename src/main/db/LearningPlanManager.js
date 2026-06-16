@@ -44,8 +44,12 @@ const ensureTableExists = () => {
       )
     `);
     // Create indexes if they don't exist
-    db.exec(`CREATE INDEX IF NOT EXISTS "idx_learning_plan_topic" ON "learning_plan"("topic_id")`);
-    db.exec(`CREATE INDEX IF NOT EXISTS "idx_learning_plan_user_status" ON "learning_plan"("user_id", "status")`);
+    db.exec(
+      `CREATE INDEX IF NOT EXISTS "idx_learning_plan_topic" ON "learning_plan"("topic_id")`,
+    );
+    db.exec(
+      `CREATE INDEX IF NOT EXISTS "idx_learning_plan_user_status" ON "learning_plan"("user_id", "status")`,
+    );
   } catch (err) {
     console.error('Error ensuring learning_plan table exists:', err);
   }
@@ -79,7 +83,7 @@ const rowToPlan = (row) => {
 
   // Normalize learningPoints if they exist
   if (planData && planData.learningPoints) {
-    planData.learningPoints = planData.learningPoints.map(point => ({
+    planData.learningPoints = planData.learningPoints.map((point) => ({
       ...point,
       front: typeof point.front === 'object' ? point.front?.text : point.front,
       back: typeof point.back === 'object' ? point.back?.text : point.back,
@@ -616,6 +620,10 @@ export const getPlan = (id) => {
     try {
       planData = row.plan_data ? JSON.parse(row.plan_data) : {};
     } catch (e) {
+      console.warn(
+        `[LearningPlanManager] Corrupt plan_data JSON for plan ${id}:`,
+        e?.message,
+      );
       planData = {};
     }
 
@@ -661,6 +669,10 @@ export const getPlans = (options = {}) => {
       try {
         planData = row.plan_data ? JSON.parse(row.plan_data) : {};
       } catch (e) {
+        console.warn(
+          `[LearningPlanManager] Corrupt plan_data JSON for plan ${row.id}:`,
+          e?.message,
+        );
         planData = {};
       }
       return {
@@ -696,6 +708,10 @@ export const addLearningPoint = (planId, point) => {
     try {
       planData = row.plan_data ? JSON.parse(row.plan_data) : {};
     } catch (e) {
+      console.warn(
+        `[LearningPlanManager] Corrupt plan_data JSON for plan ${planId}:`,
+        e?.message,
+      );
       planData = {};
     }
 
@@ -706,14 +722,22 @@ export const addLearningPoint = (planId, point) => {
 
     // Add the point with an ID
     const pointWithId = {
-      id: point.id || `point_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+      id:
+        point.id ||
+        `point_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
       ...point,
     };
     planData.learningPoints.push(pointWithId);
 
     // Update plan
-    const updateStmt = db.prepare('UPDATE learning_plan SET plan_data = ?, updated_at = ? WHERE id = ?');
-    updateStmt.run(JSON.stringify(planData), dateToSQLiteString(new Date()), planId);
+    const updateStmt = db.prepare(
+      'UPDATE learning_plan SET plan_data = ?, updated_at = ? WHERE id = ?',
+    );
+    updateStmt.run(
+      JSON.stringify(planData),
+      dateToSQLiteString(new Date()),
+      planId,
+    );
 
     return { success: true, point: pointWithId };
   } catch (err) {
@@ -737,12 +761,16 @@ export const getLearningPoints = (planId) => {
     try {
       planData = row.plan_data ? JSON.parse(row.plan_data) : {};
     } catch (e) {
+      console.warn(
+        `[LearningPlanManager] Corrupt plan_data JSON for plan ${planId}:`,
+        e?.message,
+      );
       planData = {};
     }
 
     // Normalize front/back to strings (handle both object and string formats)
     const points = planData.learningPoints || [];
-    return points.map(point => ({
+    return points.map((point) => ({
       ...point,
       front: typeof point.front === 'object' ? point.front?.text : point.front,
       back: typeof point.back === 'object' ? point.back?.text : point.back,
@@ -780,6 +808,10 @@ export const getDueItems = (planId = null, limit = 20) => {
       try {
         planData = plan.plan_data ? JSON.parse(plan.plan_data) : {};
       } catch (e) {
+        console.warn(
+          `[LearningPlanManager] Corrupt plan_data JSON for plan ${plan.id}:`,
+          e?.message,
+        );
         planData = {};
       }
 
@@ -790,8 +822,10 @@ export const getDueItems = (planId = null, limit = 20) => {
           // Normalize front/back to strings (handle both object and string formats)
           const normalizedPoint = {
             ...point,
-            front: typeof point.front === 'object' ? point.front?.text : point.front,
-            back: typeof point.back === 'object' ? point.back?.text : point.back,
+            front:
+              typeof point.front === 'object' ? point.front?.text : point.front,
+            back:
+              typeof point.back === 'object' ? point.back?.text : point.back,
             planId: plan.id,
             planName: planData.name,
           };
@@ -821,7 +855,12 @@ export const getDueItems = (planId = null, limit = 20) => {
  * @param {Object} options.reconciler - ScheduleReconciliationAgent instance
  * @returns {Promise<Object>} Due items with reconciliation data
  */
-export const getDueItemsReconciled = async (planId = null, limit = 20, token = null, options = {}) => {
+export const getDueItemsReconciled = async (
+  planId = null,
+  limit = 20,
+  token = null,
+  options = {},
+) => {
   const { useReconciliation = true, reconciler = null } = options;
 
   // Get basic due items first
@@ -838,10 +877,17 @@ export const getDueItemsReconciled = async (planId = null, limit = 20, token = n
 
   try {
     // Use the reconciler to get prioritized items
-    const reconcileResult = await reconciler.getDueItemsReconciled(planId, token, limit);
+    const reconcileResult = await reconciler.getDueItemsReconciled(
+      planId,
+      token,
+      limit,
+    );
 
     if (reconcileResult.error) {
-      console.warn('Reconciliation failed, falling back to basic items:', reconcileResult.error);
+      console.warn(
+        'Reconciliation failed, falling back to basic items:',
+        reconcileResult.error,
+      );
       return {
         items: basicDueItems.slice(0, limit),
         reconciled: false,
@@ -942,6 +988,10 @@ export const updateLearningPoint = (pointId, updates) => {
       try {
         planData = plan.plan_data ? JSON.parse(plan.plan_data) : {};
       } catch (e) {
+        console.warn(
+          `[LearningPlanManager] Skipping plan ${plan.id}: corrupt plan_data JSON`,
+          e?.message,
+        );
         continue;
       }
 
@@ -954,8 +1004,14 @@ export const updateLearningPoint = (pointId, updates) => {
         planData.learningPoints = points;
 
         // Save
-        const updateStmt = db.prepare('UPDATE learning_plan SET plan_data = ?, updated_at = ? WHERE id = ?');
-        updateStmt.run(JSON.stringify(planData), dateToSQLiteString(new Date()), plan.id);
+        const updateStmt = db.prepare(
+          'UPDATE learning_plan SET plan_data = ?, updated_at = ? WHERE id = ?',
+        );
+        updateStmt.run(
+          JSON.stringify(planData),
+          dateToSQLiteString(new Date()),
+          plan.id,
+        );
 
         return { success: true, point: points[pointIndex] };
       }
@@ -998,13 +1054,23 @@ export const updatePlanProgress = (planId) => {
     try {
       planData = row.plan_data ? JSON.parse(row.plan_data) : {};
     } catch (e) {
+      console.warn(
+        `[LearningPlanManager] Corrupt plan_data JSON for plan ${planId}:`,
+        e?.message,
+      );
       planData = {};
     }
 
     planData.progress = progress;
 
-    const updateStmt = db.prepare('UPDATE learning_plan SET plan_data = ?, updated_at = ? WHERE id = ?');
-    updateStmt.run(JSON.stringify(planData), dateToSQLiteString(new Date()), planId);
+    const updateStmt = db.prepare(
+      'UPDATE learning_plan SET plan_data = ?, updated_at = ? WHERE id = ?',
+    );
+    updateStmt.run(
+      JSON.stringify(planData),
+      dateToSQLiteString(new Date()),
+      planId,
+    );
 
     return { success: true, progress };
   } catch (err) {
@@ -1021,7 +1087,9 @@ export const updatePlanProgress = (planId) => {
  */
 export const updatePlanStatus = (planId, status) => {
   try {
-    const stmt = db.prepare('UPDATE learning_plan SET status = ?, updated_at = ? WHERE id = ?');
+    const stmt = db.prepare(
+      'UPDATE learning_plan SET status = ?, updated_at = ? WHERE id = ?',
+    );
     stmt.run(status, dateToSQLiteString(new Date()), planId);
     return { success: true };
   } catch (err) {
