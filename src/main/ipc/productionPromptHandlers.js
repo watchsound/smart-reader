@@ -20,11 +20,52 @@
 
 import { ipcMain } from 'electron';
 import db, { getUserIdFromToken } from '../db/dbManager';
-import {
-  getLearningPointById,
-  applyProductionGrade,
-} from '../db/LearningPointManager';
+import { learningPointService } from '../utils/LearningPointService';
 import comprehensionGradingService from '../utils/ComprehensionGradingService';
+
+// Phase 8c production grade math — ported from the SQLite-bound
+// applyProductionGrade so the IPC handler can drive it against the
+// graph store via learningPointService.updateLearningPoint. Contract
+// preserved bit-for-bit with the old SQLite path; only the storage
+// destination changed.
+function computeProductionGradeDelta(current, productionScore) {
+  const score = Math.max(0, Math.min(100, Math.round(productionScore || 0)));
+  let nextMastery = current.masteryLevel;
+  let nextBox = current.box;
+  let demoted = false;
+  let nextReview = null;
+
+  if (score >= 75) {
+    nextMastery = Math.max(current.masteryLevel || 0, score);
+  } else if (score >= 50) {
+    nextMastery = score;
+  } else {
+    nextMastery = score;
+    nextBox = Math.max(1, (current.box || 1) - 1);
+    demoted = nextBox !== current.box;
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    nextReview = tomorrow.toISOString();
+  }
+
+  const updates = { masteryLevel: nextMastery, box: nextBox };
+  if (nextReview) {
+    updates.nextReview = nextReview;
+    updates.correctStreak = 0;
+  }
+
+  return {
+    updates,
+    summary: {
+      beforeMastery: current.masteryLevel,
+      afterMastery: nextMastery,
+      beforeBox: current.box,
+      afterBox: nextBox,
+      demoted,
+      changed: nextMastery !== current.masteryLevel || nextBox !== current.box,
+    },
+  };
+}
 
 const ProductionPromptService = require('../brain/ProductionPromptService');
 
@@ -60,11 +101,11 @@ function registerProductionPromptHandlers(store) {
   registered = true;
   service = new ProductionPromptService({ store });
 
-  ipcMain.handle('production-get-prompt', (_event, payload) => {
+  ipcMain.handle('production-get-prompt', async (_event, payload) => {
     try {
       const { id, token } = payload || {};
       if (!id) return { learningPoint: null };
-      const point = getLearningPointById(id, token);
+      const point = await learningPointService.getLearningPointById(id, token);
       if (!point) return { learningPoint: null };
       const bookTitle = getBookTitle(point.bookId);
       const backText = extractBackText(point);
@@ -89,7 +130,7 @@ function registerProductionPromptHandlers(store) {
     try {
       const { id, answer = '', token } = payload || {};
       if (!id || !answer.trim()) return { error: 'Empty answer.' };
-      const point = getLearningPointById(id, token);
+      const point = await learningPointService.getLearningPointById(id, token);
       if (!point) return { error: 'Learning point not found.' };
       const bookTitle = getBookTitle(point.bookId);
       const backText = extractBackText(point);
@@ -105,8 +146,14 @@ function registerProductionPromptHandlers(store) {
       // Submitting IS the commitment — write the SRS delta now so the
       // panel can display "mastery 80 → 35" in the result state. The
       // `Done` button after this is acknowledgement, not commitment.
-      const update = applyProductionGrade(id, grading.score, token);
-      return { ...grading, update };
+      // Writes via service.updateLearningPoint so the change lands in
+      // Kùzu (where lp-get-all reads from), not the dead SQLite mirror.
+      const { updates, summary } = computeProductionGradeDelta(
+        point,
+        grading.score,
+      );
+      await learningPointService.updateLearningPoint(id, updates, token);
+      return { ...grading, update: summary };
     } catch (err) {
       console.error('[productionPromptHandlers] grade-answer failed:', err);
       return { error: err?.message || 'grading failed' };

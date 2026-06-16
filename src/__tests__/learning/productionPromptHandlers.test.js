@@ -19,9 +19,18 @@ jest.mock('../../main/db/dbManager', () => ({
   getUserIdFromToken: jest.fn(() => 1),
 }));
 
-jest.mock('../../main/db/LearningPointManager', () => ({
+// Phase 8c reads/writes go through learningPointService (Kùzu graph) —
+// SQLite LearningPointManager is no longer the production data path.
+// See project_dual_vocab_stores memory: writes via LearningPointManager
+// are invisible to lp-get-all reads, which is exactly the source of the
+// silent Phase 8c break that this refactor fixes.
+const mockLPS = {
   getLearningPointById: jest.fn(),
-  applyProductionGrade: jest.fn(),
+  updateLearningPoint: jest.fn(),
+};
+jest.mock('../../main/utils/LearningPointService', () => ({
+  __esModule: true,
+  learningPointService: mockLPS,
 }));
 
 jest.mock('../../main/utils/ComprehensionGradingService', () => ({
@@ -42,14 +51,13 @@ jest.mock('../../main/brain/ProductionPromptService', () => {
 });
 
 const { ipcMain } = require('electron');
-const {
-  getLearningPointById,
-  applyProductionGrade,
-} = require('../../main/db/LearningPointManager');
-const comprehensionGradingService = require('../../main/utils/ComprehensionGradingService').default;
+const comprehensionGradingService =
+  require('../../main/utils/ComprehensionGradingService').default;
 const {
   registerProductionPromptHandlers,
 } = require('../../main/ipc/productionPromptHandlers');
+
+const { getLearningPointById, updateLearningPoint } = mockLPS;
 
 describe('productionPromptHandlers', () => {
   const handlers = {};
@@ -79,7 +87,7 @@ describe('productionPromptHandlers', () => {
     });
 
     it('returns null when the learning point does not exist', async () => {
-      getLearningPointById.mockReturnValue(null);
+      getLearningPointById.mockResolvedValue(null);
       const res = await handlers['production-get-prompt'](
         {},
         { id: 'lp_x', token: 'tok' },
@@ -88,7 +96,7 @@ describe('productionPromptHandlers', () => {
     });
 
     it('flattens point + book title + parsed back text', async () => {
-      getLearningPointById.mockReturnValue({
+      getLearningPointById.mockResolvedValue({
         id: 'lp_1',
         title: 'gradient descent',
         bookId: 42,
@@ -114,7 +122,7 @@ describe('productionPromptHandlers', () => {
     });
 
     it('falls back to empty string for malformed back JSON', async () => {
-      getLearningPointById.mockReturnValue({
+      getLearningPointById.mockResolvedValue({
         id: 'lp_1',
         title: 't',
         back: 'not valid json',
@@ -143,7 +151,7 @@ describe('productionPromptHandlers', () => {
     });
 
     it('rejects missing learning point', async () => {
-      getLearningPointById.mockReturnValue(null);
+      getLearningPointById.mockResolvedValue(null);
       const res = await handlers['production-grade-answer'](
         {},
         { id: 'lp_x', answer: 'my explanation', token: 'tok' },
@@ -152,10 +160,12 @@ describe('productionPromptHandlers', () => {
     });
 
     it('grades + applies SRS write-back + returns merged shape', async () => {
-      getLearningPointById.mockReturnValue({
+      getLearningPointById.mockResolvedValue({
         id: 'lp_1',
         title: 'gradient descent',
         bookId: 42,
+        masteryLevel: 80,
+        box: 4,
         back: JSON.stringify({ text: 'reference text' }),
       });
       mockBookStmt.get.mockReturnValue({ name: 'Deep Learning' });
@@ -165,13 +175,7 @@ describe('productionPromptHandlers', () => {
         gaps: ['edge case'],
         feedback: 'Solid grasp.',
       });
-      applyProductionGrade.mockReturnValue({
-        beforeMastery: 80,
-        afterMastery: 65,
-        beforeBox: 4,
-        afterBox: 4,
-        demoted: false,
-      });
+      updateLearningPoint.mockResolvedValue({ ok: true });
 
       const res = await handlers['production-grade-answer'](
         {},
@@ -187,9 +191,16 @@ describe('productionPromptHandlers', () => {
         question: 'Explain "gradient descent" in your own words.',
         answer: 'my explanation',
       });
-      // SRS write-back called with score from the grader.
-      expect(applyProductionGrade).toHaveBeenCalledWith('lp_1', 65, 'tok');
-      // Response merges grading + SRS delta.
+      // SRS write-back: score 65 (50-75 band) sets masteryLevel = score,
+      // keeps box unchanged. Goes through service.updateLearningPoint so it
+      // lands in Kùzu (where lp-get-all reads from), not SQLite (dead store).
+      expect(updateLearningPoint).toHaveBeenCalledWith(
+        'lp_1',
+        expect.objectContaining({ masteryLevel: 65 }),
+        'tok',
+      );
+      // Response merges grading + computed SRS delta. Contract preserved
+      // bit-for-bit so the panel that consumes this doesn't regress.
       expect(res).toEqual({
         score: 65,
         strengths: ['core idea'],
@@ -201,12 +212,13 @@ describe('productionPromptHandlers', () => {
           beforeBox: 4,
           afterBox: 4,
           demoted: false,
+          changed: true,
         },
       });
     });
 
     it('returns grading error without calling SRS write-back', async () => {
-      getLearningPointById.mockReturnValue({
+      getLearningPointById.mockResolvedValue({
         id: 'lp_1',
         title: 't',
         back: JSON.stringify({ text: 'ref' }),
@@ -220,7 +232,7 @@ describe('productionPromptHandlers', () => {
         { id: 'lp_1', answer: 'something', token: 'tok' },
       );
       expect(res.error).toBe('No AI provider configured.');
-      expect(applyProductionGrade).not.toHaveBeenCalled();
+      expect(updateLearningPoint).not.toHaveBeenCalled();
     });
   });
 
