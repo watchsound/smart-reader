@@ -224,6 +224,23 @@ export const getAllLearningPoints = async (token, options = {}) => {
   return ipcRenderer?.invoke('lp-get-all', token, options);
 };
 
+/**
+ * One-shot backfill of legacy vocabulary rows into learning_point mirrors.
+ * Idempotent: subsequent calls in the same session no-op.
+ * @param {string} token
+ * @returns {Promise<{ scanned, created, skipped, errors, cached? }>}
+ */
+export const ensureVocabBackfilled = async (token) => {
+  return (
+    ipcRenderer?.invoke('vocab-ensure-backfilled', token) ?? {
+      scanned: 0,
+      created: 0,
+      skipped: 0,
+      errors: 0,
+    }
+  );
+};
+
 // =============================================================================
 // SPACED REPETITION OPERATIONS
 // =============================================================================
@@ -454,6 +471,7 @@ const learningPointApi = {
   getByPlan,
   searchLearningPoints,
   getAllLearningPoints,
+  ensureVocabBackfilled,
 
   // SR
   processReview,

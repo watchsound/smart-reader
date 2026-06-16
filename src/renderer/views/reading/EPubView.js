@@ -66,6 +66,11 @@ import customStorage from '../../store/customStorage';
 import { useEPUBAnimations } from '../../components/animation-core/adapters/useEPUBAnimations';
 import brainApi, { recordEvent, EPISODE_TYPES } from '../../api/brainApi';
 import { hashParagraph } from '../../../commons/brain/paragraphHash';
+import {
+  getAllLearningPoints,
+  ensureVocabBackfilled,
+} from '../../api/learningPointApi';
+import { classify } from '../../utils/srsHaloClassifier';
 
 const cardWidth = 360;
 
@@ -163,54 +168,68 @@ function EPubView({
     }
   }, [animations.isReady, onAnimationReady]);
 
-  // Personal Lexical Halo — words in the user's vocabulary list get a
-  // faint underglow on first appearance in each chapter. Vocabulary is
-  // re-fetched on every chapter render so words added mid-session (e.g.
-  // via "Add to Vocabulary") are picked up on the next chapter without
-  // needing to reopen the book.
-
-  // Pull the stable callbacks out of the animations object so the effect
-  // below depends on functions (stable across renders thanks to useCallback)
-  // rather than the parent object (a fresh literal every render).
+  // SRS Halo (Personal Lexical Halo + Forgetting Fog + Knowledge Accretion).
+  // Reads from learning_point — every saved vocab word is mirrored there by
+  // VocabularyManager's dual-write, and pre-dual-write rows are caught by
+  // the one-shot per-session backfill (vocab-ensure-backfilled IPC).
+  //
+  // Classifier maps each row to one of three states:
+  //   - mastered  → gold ✦ badge
+  //   - foggy     → opacity decreases with overdue ratio
+  //   - learning  → v1 blue dotted underline (default for in-vocab, not-due)
+  //
+  // Re-fetched on every chapter render so just-mastered + just-overdue
+  // states reflect within one chapter turn, no book reopen needed.
   const animationsReady = animations.isReady;
-  const { applyLexicalHalo } = animations;
+  const { applySrsHalo } = animations;
 
   useEffect(() => {
-    if (!rendition || !animationsReady || !applyLexicalHalo) return undefined;
+    if (!rendition || !animationsReady || !applySrsHalo) return undefined;
 
     let cancelled = false;
 
     const applyHalo = async () => {
       try {
-        // Refetch on every chapter render — 'rendered' fires only on
-        // chapter change (not page turn), so this is at most one IPC
-        // per chapter and keeps the halo set in sync with vocabulary
-        // the user just added.
-        const result = await customStorage.getVocabulariesByQuery({
-          query: '',
-          page: 1,
-          limit: 5000,
+        const token = customStorage.getToken();
+        if (!token) return;
+        // First call per session triggers a one-shot backfill — idempotent
+        // and cached by the main-process handler, so subsequent chapter
+        // renders pay only the cache-hit price.
+        await ensureVocabBackfilled(token);
+        if (cancelled) return;
+        const result = await getAllLearningPoints(token, {
+          domainType: 'vocabulary',
+          pageSize: 5000,
         });
         if (cancelled) return;
-        const items = result?.data || [];
-        const words = items
-          .map((v) => v?.word)
-          .filter((w) => typeof w === 'string' && w.trim().length >= 2);
-        if (words.length === 0) return;
+        const rows = (result?.items || [])
+          .map((r) => ({
+            title: r.title,
+            fullyLearned: r.fully_learned ?? r.fullyLearned ?? 0,
+            box: r.box ?? 1,
+            nextReview: r.next_review ?? r.nextReview ?? '',
+            intervalDays: r.interval_days ?? r.intervalDays ?? 1,
+          }))
+          .filter(
+            (r) => typeof r.title === 'string' && r.title.trim().length >= 2,
+          );
+        if (rows.length === 0) return;
+        const now = Date.now();
+        const items = rows.map((r) => classify(r, now));
         // Defer a tick so the new chapter DOM is fully attached. Mirrors
         // the 100ms delay the adapter uses for its own document re-setup.
         setTimeout(() => {
           if (cancelled) return;
-          applyLexicalHalo(words).catch((err) => {
+          applySrsHalo(items).catch((err) => {
             console.warn(
-              '[EPubView] applyLexicalHalo failed:',
+              '[EPubView] applySrsHalo failed:',
               err?.message || err,
             );
           });
         }, 150);
       } catch (err) {
         console.warn(
-          '[EPubView] lexical halo vocab fetch failed:',
+          '[EPubView] srs halo vocab fetch failed:',
           err?.message || err,
         );
       }
@@ -229,7 +248,7 @@ function EPubView({
         // rendition may already be torn down
       }
     };
-  }, [rendition, animationsReady, applyLexicalHalo]);
+  }, [rendition, animationsReady, applySrsHalo]);
 
   const [openDialog, setOpenDialog] = useState(false);
   const [showImpressModal, setShowImpressModal] = useState(false);

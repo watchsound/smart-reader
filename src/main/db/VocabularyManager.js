@@ -23,6 +23,52 @@ import {
   getLeitnerItemById,
   createLeitnerItem,
 } from './LeitnerItemManager';
+// Service layer routes to graphInterface → Kùzu (the read store for
+// lp-get-all). Writing to LearningPointManager (SQLite) directly would
+// be invisible to the renderer. Imported lazily-ish via require so unit
+// tests that mock '../utils/LearningPointService' resolve correctly.
+// eslint-disable-next-line global-require
+const { learningPointService } = require('../utils/LearningPointService');
+
+const buildMirrorPayload = (vocab) => ({
+  title: String(vocab.word),
+  front: { text: String(vocab.word) },
+  back: { text: String(vocab.definition || '') },
+  itemType: 'word',
+  domainType: 'vocabulary',
+  sourceType: 'vocabulary',
+  sourceId: String(vocab.id),
+  extras: {
+    relatedWords: vocab.relatedWords || '',
+    example: vocab.example || '',
+  },
+});
+
+// Non-transactional + fire-and-forget: createVocabulary is synchronous,
+// the mirror is async. A learning_point write failure (or pending promise
+// at the moment vocab returns) must NOT block the user-facing action; the
+// next backfill catches misses.
+const mirrorVocabToLearningPoint = (vocab, token) => {
+  try {
+    const result = learningPointService.createLearningPoint(
+      buildMirrorPayload(vocab),
+      token,
+    );
+    if (result && typeof result.catch === 'function') {
+      result.catch((err) => {
+        console.warn(
+          '[VocabularyManager] learning_point mirror promise rejected:',
+          err && err.message ? err.message : err,
+        );
+      });
+    }
+  } catch (err) {
+    console.warn(
+      '[VocabularyManager] learning_point mirror failed:',
+      err && err.message ? err.message : err,
+    );
+  }
+};
 
 const VOCABULARY_UPDATABLE = new Set([
   'word',
@@ -179,11 +225,67 @@ export const createVocabulary = (vocabulary, token) => {
     if (leitnerItemId) {
       v.leitnerItem = getLeitnerItemById(leitnerItemId);
     }
+    // Pass the input vocabulary, not the post-fetch v: stmt2obj renames
+    // `definition` → `detail`, so reading the mirror's back text off `v`
+    // would silently produce empty back content.
+    mirrorVocabToLearningPoint(vocabulary, token);
     return v;
   } catch (err) {
     console.error(err);
     return null;
   }
+};
+
+export const backfillVocabularyToLearningPoints = async (token) => {
+  const result = { scanned: 0, created: 0, skipped: 0, errors: 0 };
+  const userId = getUserIdFromToken(token);
+  if (userId < 0) return result;
+  const rows = db
+    .prepare(
+      'SELECT id, word, definition, related_words, example FROM vocabulary WHERE user_id = ?',
+    )
+    .all(userId);
+  // Sequential awaits keep error-attribution straightforward and avoid
+  // hammering the graph backend with N parallel writes on cold start.
+  /* eslint-disable no-restricted-syntax, no-await-in-loop */
+  for (const row of rows) {
+    result.scanned += 1;
+    const existing = await learningPointService.getBySource(
+      'vocabulary',
+      String(row.id),
+      token,
+    );
+    if (existing && existing.length > 0) {
+      result.skipped += 1;
+    } else {
+      try {
+        const created = await learningPointService.createLearningPoint(
+          buildMirrorPayload({
+            id: row.id,
+            word: row.word,
+            definition: row.definition,
+            relatedWords: row.related_words,
+            example: row.example,
+          }),
+          token,
+        );
+        if (created && created.error) {
+          result.errors += 1;
+        } else {
+          result.created += 1;
+        }
+      } catch (err) {
+        console.warn(
+          '[backfillVocabularyToLearningPoints] mirror failed for id',
+          row.id,
+          err && err.message ? err.message : err,
+        );
+        result.errors += 1;
+      }
+    }
+  }
+  /* eslint-enable no-restricted-syntax, no-await-in-loop */
+  return result;
 };
 
 /**

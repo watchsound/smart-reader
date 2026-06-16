@@ -122,9 +122,16 @@ export function useEPUBAnimations(rendition) {
   }, []);
 
   /**
-   * Apply the personal lexical halo over the current chapter — a faint
-   * underglow on the first occurrence of each word in `words`. Safe to
-   * call repeatedly; the adapter dedups within a chapter.
+   * Apply the SRS-aware halo for the current chapter. Each item is a
+   * classifier output { word, state, intensity } — see srsHaloClassifier.
+   */
+  const applySrsHalo = useCallback(async (items, options = {}) => {
+    if (!adapterRef.current) return { haloCount: 0 };
+    return adapterRef.current.applySrsHalo(items, options);
+  }, []);
+
+  /**
+   * v1 backwards-compat: takes plain word strings, all rendered as 'learning'.
    */
   const applyLexicalHalo = useCallback(async (words, options = {}) => {
     if (!adapterRef.current) return { haloCount: 0 };
@@ -182,6 +189,7 @@ export function useEPUBAnimations(rendition) {
     glowWords,
     smartSummary,
     applyLexicalHalo,
+    applySrsHalo,
 
     // Cleanup methods
     removeSummary,

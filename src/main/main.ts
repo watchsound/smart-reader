@@ -209,6 +209,7 @@ import { registerUnifiedLearningHandlers } from './ipc/unifiedLearningHandlers';
 import { registerLearningPointHandlers } from './ipc/learningPointHandlers';
 import { registerMicroCardHandlers } from './ipc/microCardHandlers';
 import { registerEnrichmentHandlers } from './ipc/enrichmentHandlers';
+import { registerVocabMirrorHandlers } from './ipc/vocabMirrorHandlers';
 import { registerBookDiagnosticHandlers } from './ipc/bookDiagnosticHandlers';
 import { registerComprehensionHandlers } from './ipc/comprehensionHandlers';
 import { registerRereadQueueHandlers } from './ipc/rereadQueueHandlers';
@@ -2485,6 +2486,9 @@ app
     // Phase 3d + 4a: micro-card proposer and batch enrichment IPC handlers
     registerMicroCardHandlers();
     registerEnrichmentHandlers();
+    // Vocabulary → learning_point lazy backfill (legacy vocab rows gain
+    // a learning_point mirror on first SRS-halo fetch per user-per-session).
+    registerVocabMirrorHandlers(ipcMain);
     // Phase 5: pre-book diagnostic IPC handlers
     registerBookDiagnosticHandlers();
     // Phase 6: chapter-end comprehension grading IPC handlers

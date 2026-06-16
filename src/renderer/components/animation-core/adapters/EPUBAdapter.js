@@ -34,6 +34,7 @@
 import AnimationCore from '../AnimationCore';
 import WordWrapper from '../WordWrapper';
 import AnimationEngine from '../AnimationEngine';
+import { wrapMatchesInDocument } from './srsHaloWalker';
 
 class EPUBAdapter {
   constructor(rendition) {
@@ -304,6 +305,31 @@ class EPUBAdapter {
       .epub-ac-lexical-halo:hover {
         background-color: rgba(100, 180, 255, 0.18);
       }
+
+      .epub-ac-srs-foggy {
+        display: inline;
+        cursor: help;
+        transition: opacity 250ms ease-out;
+      }
+      .epub-ac-srs-foggy:hover {
+        opacity: 1 !important;
+      }
+
+      @keyframes epub-ac-mastered-emerge {
+        from { opacity: 0; transform: scale(0.5); }
+        to   { opacity: 1; transform: scale(1); }
+      }
+      .epub-ac-srs-mastered {
+        display: inline;
+        position: relative;
+      }
+      .epub-ac-srs-mastered::after {
+        content: ' ✦';
+        color: #d4b86a;
+        font-size: 0.7em;
+        opacity: 0;
+        animation: epub-ac-mastered-emerge 600ms ease-out forwards;
+      }
     `;
 
     this.currentDocument.head.appendChild(style);
@@ -392,108 +418,66 @@ class EPUBAdapter {
   }
 
   /**
-   * Apply a faint persistent underglow to the first occurrence of each
-   * given word in the current chapter. Subsequent occurrences in the same
-   * chapter stay silent. State resets on the next 'rendered' event.
+   * Apply the SRS-aware halo for the current chapter. Each item is an
+   * already-classified vocab entry `{ word, state, intensity }` (see
+   * `renderer/utils/srsHaloClassifier.js`). The walker wraps first
+   * occurrences with state-specific CSS classes:
+   *   - 'learning' → .epub-ac-lexical-halo (v1 blue dotted underline)
+   *   - 'foggy'    → .epub-ac-srs-foggy + inline opacity by intensity
+   *   - 'mastered' → .epub-ac-srs-mastered (✦ pseudo-element)
    *
-   * Self-contained: walks text nodes and wraps only matched words in a
-   * dedicated `epub-ac-lexical-halo` span. Does NOT touch the WordWrapper
-   * used by Smart Summary, so the two features coexist on the same page.
+   * Per-chapter dedup is threaded via `this._haloedWords`; state resets
+   * in `_handleContentsLoaded` when a new chapter renders.
    *
-   * @param {string[]} words - vocabulary words to halo
+   * @param {Array<{word: string, state: string, intensity: number}>} items
    * @param {Object} [options]
-   * @param {string[]} [options.excludeTags] - extra tags to skip
    * @returns {Promise<{ haloCount: number }>}
    */
-  async applyLexicalHalo(words, options = {}) {
+  async applySrsHalo(items, options = {}) {
     if (!this.isInitialized) {
       const initialized = await this.initialize();
       if (!initialized) return { haloCount: 0 };
     }
-    if (!this.currentDocument || !Array.isArray(words) || words.length === 0) {
+    if (!this.currentDocument || !Array.isArray(items) || items.length === 0) {
       return { haloCount: 0 };
     }
-
-    const normalize = (s) =>
-      String(s).toLowerCase().replace(/[.,!?;:'"()\[\]{}]/g, '').trim();
-
-    const targets = new Set();
-    words.forEach((w) => {
-      const n = normalize(w);
-      if (n.length >= 2) targets.add(n);
-    });
-    if (targets.size === 0) return { haloCount: 0 };
-
-    const doc = this.currentDocument;
-    const haloClass = 'epub-ac-lexical-halo';
-    const excludeTags = new Set([
-      'SCRIPT', 'STYLE', 'NOSCRIPT', 'SVG', 'CANVAS',
-      'VIDEO', 'AUDIO', 'IFRAME', 'CODE', 'PRE',
-      ...(options.excludeTags || []),
-    ]);
-
-    const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, {
-      acceptNode: (node) => {
-        if (!node.nodeValue || !node.nodeValue.trim()) {
-          return NodeFilter.FILTER_REJECT;
-        }
-        let parent = node.parentNode;
-        while (parent && parent !== doc.body) {
-          if (excludeTags.has(parent.tagName)) return NodeFilter.FILTER_REJECT;
-          if (parent.classList && parent.classList.contains(haloClass)) {
-            return NodeFilter.FILTER_REJECT;
-          }
-          parent = parent.parentNode;
-        }
-        return NodeFilter.FILTER_ACCEPT;
+    const { spans } = wrapMatchesInDocument(
+      this.currentDocument,
+      this.currentDocument.body,
+      items,
+      {
+        seenWords: this._haloedWords,
+        excludeTags: options.excludeTags,
       },
+    );
+    spans.forEach((span, i) => {
+      // Stagger the pulse so multiple haloed words on the same page
+      // emerge as a constellation rather than a synchronised flash.
+      span.style.animationDelay = `${Math.min(i * 35, 600)}ms`;
+      this._haloSpans.push(span);
     });
+    return { haloCount: spans.length };
+  }
 
-    const textNodes = [];
-    let n;
-    // eslint-disable-next-line no-cond-assign
-    while ((n = walker.nextNode())) textNodes.push(n);
-
-    let haloCount = 0;
-
-    for (const textNode of textNodes) {
-      const text = textNode.nodeValue;
-      const parts = text.split(/(\s+)/);
-      const haloIndices = [];
-
-      for (let i = 0; i < parts.length; i += 1) {
-        const part = parts[i];
-        if (!part.trim()) continue;
-        const norm = normalize(part);
-        if (norm && targets.has(norm) && !this._haloedWords.has(norm)) {
-          this._haloedWords.add(norm);
-          haloIndices.push(i);
-        }
-      }
-
-      if (haloIndices.length === 0) continue;
-
-      const fragment = doc.createDocumentFragment();
-      parts.forEach((part, i) => {
-        if (haloIndices.includes(i)) {
-          const span = doc.createElement('span');
-          span.className = haloClass;
-          span.textContent = part;
-          // Stagger the pulse so multiple haloed words on the same page
-          // emerge as a constellation rather than a synchronised flash.
-          span.style.animationDelay = `${Math.min(haloCount * 35, 600)}ms`;
-          fragment.appendChild(span);
-          this._haloSpans.push(span);
-          haloCount += 1;
-        } else {
-          fragment.appendChild(doc.createTextNode(part));
-        }
-      });
-
-      textNode.parentNode.replaceChild(fragment, textNode);
+  /**
+   * v1 backwards-compat shim. Maps plain word strings to 'learning' items
+   * and delegates to applySrsHalo. EPubView callers still using the v1
+   * signature see the same blue dotted underline they always did.
+   *
+   * @param {string[]} words
+   * @param {Object} [options]
+   * @returns {Promise<{ haloCount: number }>}
+   */
+  async applyLexicalHalo(words, options = {}) {
+    if (!Array.isArray(words) || words.length === 0) {
+      return { haloCount: 0 };
     }
-
-    return { haloCount };
+    const items = words.map((w) => ({
+      word: w,
+      state: 'learning',
+      intensity: 0,
+    }));
+    return this.applySrsHalo(items, options);
   }
 
   /**
