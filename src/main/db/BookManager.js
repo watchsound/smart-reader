@@ -89,7 +89,7 @@ const dbRowToBook = (card) => {
 export const getBookById = (id, token) => {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return null;
   }
   try {
@@ -105,7 +105,7 @@ export const getBookById = (id, token) => {
 export const getBookByIdFromServer = (idFromServer, token) => {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return null;
   }
   try {
@@ -122,7 +122,7 @@ export const getBookByIdFromServer = (idFromServer, token) => {
 export const getBookByKeyInStorage = (keyInStorage, token) => {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return null;
   }
   try {
@@ -145,7 +145,7 @@ export const getBookByKeyInStorage = (keyInStorage, token) => {
 export const createBook = (book, token) => {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return book;
   }
   addUserIdCreatedAt(book, userId);
@@ -201,7 +201,7 @@ export const getBooksByCategory = (category, token) => {
   const books = [];
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return books;
   }
   try {
@@ -225,7 +225,7 @@ export const getAllBooks = (token) => {
   const books = [];
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return books;
   }
   try {
@@ -252,7 +252,7 @@ export const getBooksByQuery = (query, token) => {
   const books = [];
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return books;
   }
   if (!query) return getAllBooks(token);
@@ -283,7 +283,7 @@ export const getBooksByBookshelfId = (bookshelfId, token) => {
   const books = [];
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return books;
   }
   try {
@@ -311,7 +311,7 @@ export const getBooksByBookshelfId = (bookshelfId, token) => {
 export function updateBook(id, field, value, token) {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return -1;
   }
   console.log(` updatebook = ${  id  } field = ${  field  } value = ${  value}`)
@@ -337,7 +337,7 @@ export function updateBook(id, field, value, token) {
 export function changeBookshelf(bookId, newId, token) {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return -1;
   }
   try {
@@ -356,7 +356,7 @@ export function changeBookshelf(bookId, newId, token) {
 export function deleteBookshelf(bookshelfId, token) {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return -1;
   }
   try {
@@ -365,31 +365,6 @@ export function deleteBookshelf(bookshelfId, token) {
     console.log(sql);
     const query = db.prepare(sql);
     query.run();
-    return 1;
-  } catch (err) {
-    console.error(err);
-    return -1;
-  }
-}
-/**
- *
- * @param {*} id
- * @param {*} token
- * @returns  1 or -1
- */
-export function deleteBookById(id, token) {
-  const userId = getUserIdFromToken(token);
-  if( userId < 0) {
-    console.log('session is invalid, userid not found')
-    return -1;
-  }
-  try {
-    const sql = `
-        DELETE FROM book
-        WHERE id = ? AND user_id = ?
-    `;
-    const query = db.prepare(sql);
-    query.run( [id, userId] );
     return 1;
   } catch (err) {
     console.error(err);
@@ -461,22 +436,3 @@ export function setBookDiagnostic(id, data, token) {
   }
 }
 
-export function deleteAllBook(token) {
-  const userId = getUserIdFromToken(token);
-  if( userId < 0) {
-    console.log('session is invalid, userid not found')
-    return -1;
-  }
-  try {
-    const sql = `
-        DELETE FROM book
-        WHERE  user_id = ?
-    `;
-    const query = db.prepare(sql);
-    query.run( [userId] );
-    return 1;
-  } catch (err) {
-    console.error(err);
-    return -1;
-  }
-}

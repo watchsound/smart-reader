@@ -27,7 +27,7 @@ const PROMPT_UPDATABLE = new Set([
 export const getPromptById = (id, token) => {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return null;
   }
   try {
@@ -57,7 +57,7 @@ export const getPromptById = (id, token) => {
 export const createPrompt= (prompt, token) => {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return prompt;
   }
   addUserIdCreatedAt(prompt, userId);
@@ -88,7 +88,7 @@ export const getPromptsBySource = (source, token) => {
   const prompts = [];
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return prompts;
   }
   try {
@@ -120,7 +120,7 @@ export const getPromptsByQuery = (query, page, limit,  token) => {
   const prompts = [];
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return {
       data: [],
       total: 0,
@@ -182,7 +182,7 @@ export const getPromptsByQuery = (query, page, limit,  token) => {
 export function updatePrompt(id, field, value, token) {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return -1;
   }
   try {
@@ -197,53 +197,3 @@ export function updatePrompt(id, field, value, token) {
   }
 }
 
-/**
- *
- * @param {*} id
- * @param {*} token
- * @returns 1 or -1
- */
-export function deletePromptById(id, token) {
-  const userId = getUserIdFromToken(token);
-  if( userId < 0) {
-    console.log('session is invalid, userid not found')
-    return -1;
-  }
-  try {
-    const sql = `
-        DELETE FROM prompt
-        WHERE id = ? AND user_id = ?
-    `;
-    const query = db.prepare(sql);
-    query.run( [id, userId] );
-    return 1;
-  } catch (err) {
-    console.error(err);
-    return null;
-  }
-}
-
-/**
- *
- * @param {*} token
- * @returns 1 or -1
- */
-export function deleteAllPrompt(token) {
-  const userId = getUserIdFromToken(token);
-  if( userId < 0) {
-    console.log('session is invalid, userid not found')
-    return -1;
-  }
-  try {
-    const sql = `
-        DELETE FROM prompt
-        WHERE  user_id = ?
-    `;
-    const query = db.prepare(sql);
-    query.run( [userId] );
-    return 1;
-  } catch (err) {
-    console.error(err);
-    return -1;
-  }
-}

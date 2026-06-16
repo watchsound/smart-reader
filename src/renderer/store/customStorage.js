@@ -157,13 +157,6 @@ class customStorage {
     return window.electron.ipcRenderer.getPDF4URL(id);
   }
 
-  static deleteBookById(id) {
-    if (!this.isLoggedIn()) return null;
-    return window.electron.ipcRenderer.deleteBookById(
-      id,
-      this.getSessionToken(),
-    );
-  }
 
   static deleteBookmarkById(id) {
     if (!this.isLoggedIn()) return null;
@@ -181,21 +174,6 @@ class customStorage {
     );
   }
 
-  static deleteMessageById(id) {
-    if (!this.isLoggedIn()) return null;
-    return window.electron.ipcRenderer.deleteMessageById(
-      id,
-      this.getSessionToken(),
-    );
-  }
-
-  static deletePromptById(id) {
-    if (!this.isLoggedIn()) return null;
-    return window.electron.ipcRenderer.deletePromptById(
-      id,
-      this.getSessionToken(),
-    );
-  }
 
   static deleteNoteById(id) {
     if (!this.isLoggedIn()) return null;
@@ -221,36 +199,14 @@ class customStorage {
     );
   }
 
-  static deleteAllBook() {
-    if (!this.isLoggedIn()) return null;
-    return window.electron.ipcRenderer.deleteAllBook(this.getSessionToken());
-  }
-
-  static deleteAllBookmark() {
-    if (!this.isLoggedIn()) return null;
-    return window.electron.ipcRenderer.deleteAllBookmark(
-      this.getSessionToken(),
-    );
-  }
-
   static deleteAllChat() {
     if (!this.isLoggedIn()) return null;
     return window.electron.ipcRenderer.deleteAllChat(this.getSessionToken());
   }
 
-  static deleteAllMessage() {
-    if (!this.isLoggedIn()) return null;
-    return window.electron.ipcRenderer.deleteAllMessage(this.getSessionToken());
-  }
-
   static deleteAllNote() {
     if (!this.isLoggedIn()) return null;
     return window.electron.ipcRenderer.deleteAllNote(this.getSessionToken());
-  }
-
-  static deleteAllPrompt() {
-    if (!this.isLoggedIn()) return null;
-    return window.electron.ipcRenderer.deleteAllPrompt(this.getSessionToken());
   }
 
   static deleteAllQuizProblem() {
@@ -292,49 +248,11 @@ class customStorage {
     );
   }
 
-  static getBookmarkGroupById(id) {
-    if (!this.isLoggedIn()) return null;
-    return window.electron.ipcRenderer.getBookmarkGroupById(
-      id,
-      this.getSessionToken(),
-    );
-  }
-
-  static getTopBookmarkGroup() {
-    if (!this.isLoggedIn()) return null;
-    return window.electron.ipcRenderer.getTopBookmarkGroup(
-      this.getSessionToken(),
-    );
-  }
-
   static renameBookmarkGroup(id, name) {
     if (!this.isLoggedIn()) return null;
     return window.electron.ipcRenderer.renameBookmarkGroup(
       id,
       name,
-      this.getSessionToken(),
-    );
-  }
-
-  static deleteAllBookmarkGroups() {
-    if (!this.isLoggedIn()) return null;
-    return window.electron.ipcRenderer.deleteAllBookmarkGroups(
-      this.getSessionToken(),
-    );
-  }
-
-  static getHistoryGroupById(id) {
-    if (!this.isLoggedIn()) return null;
-    return window.electron.ipcRenderer.getHistoryGroupById(
-      id,
-      this.getSessionToken(),
-    );
-  }
-
-  static getHistoryGroupByName(groupName) {
-    if (!this.isLoggedIn()) return null;
-    return window.electron.ipcRenderer.getHistoryGroupByName(
-      groupName,
       this.getSessionToken(),
     );
   }
@@ -347,27 +265,12 @@ class customStorage {
     );
   }
 
-  static deleteAllHistoryGroups() {
-    if (!this.isLoggedIn()) return null;
-    return window.electron.ipcRenderer.deleteAllHistoryGroups(
-      this.getSessionToken(),
-    );
-  }
-
   static getHistoryGroupByQuery(query, page, limit) {
     if (!this.isLoggedIn()) return null;
     return window.electron.ipcRenderer.getHistoryGroupByQuery(
       query,
       page,
       limit,
-      this.getSessionToken(),
-    );
-  }
-
-  static getHistoryById(id) {
-    if (!this.isLoggedIn()) return null;
-    return window.electron.ipcRenderer.getHistoryById(
-      id,
       this.getSessionToken(),
     );
   }
@@ -393,13 +296,6 @@ class customStorage {
     if (!this.isLoggedIn()) return null;
     return window.electron.ipcRenderer.getHistoriesByGroupId(
       groupId,
-      this.getSessionToken(),
-    );
-  }
-
-  static deleteAllHistories() {
-    if (!this.isLoggedIn()) return null;
-    return window.electron.ipcRenderer.deleteAllHistories(
       this.getSessionToken(),
     );
   }
@@ -594,14 +490,6 @@ class customStorage {
     if (!this.isLoggedIn()) return null;
     return window.electron.ipcRenderer.getBookmarkByQuery(
       query,
-      this.getSessionToken(),
-    );
-  }
-
-  static getBookmarkById(bookmarkId) {
-    if (!this.isLoggedIn()) return null;
-    return window.electron.ipcRenderer.getBookmarkById(
-      bookmarkId,
       this.getSessionToken(),
     );
   }
@@ -891,43 +779,7 @@ class customStorage {
     );
   }
 
-  static getVocabularyById(id) {
-    if (!this.isLoggedIn()) return null;
-    return window.electron.ipcRenderer.getVocabularyById(
-      id,
-      this.getSessionToken(),
-    );
-  }
-
-  static getLeitnerItemById(id) {
-    if (!this.isLoggedIn()) return null;
-    return window.electron.ipcRenderer.getLeitnerItemById(id);
-  }
-
-  static createLeitnerItem(leitnerItem) {
-    if (!this.isLoggedIn()) return null;
-    return window.electron.ipcRenderer.createLeitnerItem(leitnerItem);
-  }
-
-  static deleteLeitnerItemById(id) {
-    if (!this.isLoggedIn()) return null;
-    return window.electron.ipcRenderer.deleteLeitnerItemById(id);
-  }
-
-  static updateLeitnerItem({ id, field, value }) {
-    if (!this.isLoggedIn()) return null;
-    return window.electron.ipcRenderer.updateLeitnerItem(id, field, value);
-  }
-
   // vocabulary
-  static getVocabularyById(id) {
-    if (!this.isLoggedIn()) return null;
-    return window.electron.ipcRenderer.getVocabularyById(
-      id,
-      this.getSessionToken(),
-    );
-  }
-
   static getVocabularyByName(name) {
     if (!this.isLoggedIn()) return null;
     return window.electron.ipcRenderer.getVocabularyByName(
@@ -982,20 +834,6 @@ class customStorage {
     );
   }
 
-  static deleteVocabularyById(id) {
-    if (!this.isLoggedIn()) return null;
-    return window.electron.ipcRenderer.deleteVocabularyById(
-      id,
-      this.getSessionToken(),
-    );
-  }
-
-  static deleteAllVocabulary() {
-    if (!this.isLoggedIn()) return null;
-    return window.electron.ipcRenderer.deleteAllVocabulary(
-      this.getSessionToken(),
-    );
-  }
 
   static addVocabularyToSet({ id, setId }) {
     if (!this.isLoggedIn()) return null;
@@ -1007,14 +845,6 @@ class customStorage {
   }
 
   // vocabulary set
-  static getVocabularySetById(id) {
-    if (!this.isLoggedIn()) return null;
-    return window.electron.ipcRenderer.getVocabularySetById(
-      id,
-      this.getSessionToken(),
-    );
-  }
-
   static createVocabularySet(vocabularySet) {
     if (!this.isLoggedIn()) return null;
     return window.electron.ipcRenderer.createVocabularySet(
@@ -1029,39 +859,6 @@ class customStorage {
       query,
       page,
       limit,
-      this.getSessionToken(),
-    );
-  }
-
-  static updateVocabularySet({ id, field, value }) {
-    if (!this.isLoggedIn()) return null;
-    return window.electron.ipcRenderer.updateVocabularySet(
-      id,
-      field,
-      value,
-      this.getSessionToken(),
-    );
-  }
-
-  static updateVocabularySetByTime(id) {
-    if (!this.isLoggedIn()) return null;
-    return window.electron.ipcRenderer.updateVocabularySetByTime(
-      id,
-      this.getSessionToken(),
-    );
-  }
-
-  static deleteVocabularySetById(id) {
-    if (!this.isLoggedIn()) return null;
-    return window.electron.ipcRenderer.deleteVocabularySetById(
-      id,
-      this.getSessionToken(),
-    );
-  }
-
-  static deleteAllVocabularySet() {
-    if (!this.isLoggedIn()) return null;
-    return window.electron.ipcRenderer.deleteAllVocabularySet(
       this.getSessionToken(),
     );
   }

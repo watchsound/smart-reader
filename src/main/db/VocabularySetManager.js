@@ -14,43 +14,7 @@ import db, {
   getUserIdFromToken,
   addUserIdCreatedAt,
   escapeString,
-  assertUpdateField,
 } from './dbManager';
-import { dateToSQLiteString } from '../../commons/utils/SqliteHelper';
-
-const VOCABULARY_SET_UPDATABLE = new Set([
-  'name', 'score', 'last_time_at',
-]);
-/**
- *
- * @param {*} id
- * @param {*} token
- * @returns null if failed
- */
-export const getVocabularySetById = (id, token) => {
-  const userId = getUserIdFromToken(token);
-  if (userId < 0) {
-    console.log('session is invalid, userid not found');
-    return null;
-  }
-  try {
-    const stmt = db.prepare('SELECT * FROM vocabulary_set WHERE id = ? and user_id = ?  ORDER BY created_at DESC');
-    const vs = stmt.get(id, userId);
-    if (vs)
-      return {
-        id: vs.id,
-        name: vs.name || '',
-        score: vs.score || 0,
-        lastTimeAt: vs.last_time_at || '',
-        createdAt: vs.created_at || '',
-        userId: vs.user_id || -1,
-      };
-    return null;
-  } catch (err) {
-    console.error(err);
-    return null;
-  }
-};
 
 /**
  *
@@ -61,7 +25,7 @@ export const getVocabularySetById = (id, token) => {
 export const createVocabularySet = (vocabularySet, token) => {
   const userId = getUserIdFromToken(token);
   if (userId < 0) {
-    console.log('session is invalid, userid not found');
+    console.warn('session is invalid, userid not found');
     return vocabularySet;
   }
   addUserIdCreatedAt(vocabularySet, userId);
@@ -103,7 +67,7 @@ export const getVocabularySetByQuery = (query, page, limit, token) => {
   const vs = [];
   const userId = getUserIdFromToken(token);
   if (userId < 0) {
-    console.log('session is invalid, userid not found');
+    console.warn('session is invalid, userid not found');
     return {
       data: [],
       total: 0,
@@ -160,96 +124,3 @@ export const getVocabularySetByQuery = (query, page, limit, token) => {
 };
 
 
-export function updateVocabularySetByTime(id, token) {
-  const userId = getUserIdFromToken(token);
-  if (userId < 0) {
-    console.log('session is invalid, userid not found');
-    return -1;
-  }
-  try {
-    // Assuming the field is at the root of the JSON object.
-    const sql = `UPDATE vocabulary_set SET last_time_at = ? WHERE id = ? AND user_id = ?`;
-    const value =  dateToSQLiteString(new Date());
-    const query = db.prepare(sql);
-    query.run([value, id, userId]);
-    return 1;
-  } catch (err) {
-    console.error(err);
-    return -1;
-  }
-}
-/**
- *
- * @param {*} id
- * @param {*} field
- * @param {*} value
- * @param {*} token
- * @returns 1 or -1
- */
-export function updateVocabularySet(id, field, value, token) {
-  const userId = getUserIdFromToken(token);
-  if (userId < 0) {
-    console.log('session is invalid, userid not found');
-    return -1;
-  }
-  try {
-    assertUpdateField('vocabulary_set', VOCABULARY_SET_UPDATABLE, field);
-    const sql = `UPDATE vocabulary_set SET ${field} = ? WHERE id = ? AND user_id = ?`;
-    const query = db.prepare(sql);
-    query.run([value, id, userId]);
-    return 1;
-  } catch (err) {
-    console.error(err);
-    return -1;
-  }
-}
-
-/**
- *
- * @param {*} id
- * @param {*} token
- * @returns 1 or -1
- */
-export function deleteVocabularySetById(id, token) {
-  const userId = getUserIdFromToken(token);
-  if (userId < 0) {
-    console.log('session is invalid, userid not found');
-    return -1;
-  }
-  try {
-    const sql = `
-        DELETE FROM vocabulary_set
-        WHERE id = ? AND user_id = ?
-    `;
-    const query = db.prepare(sql);
-    query.run([id, userId]);
-    return 1;
-  } catch (err) {
-    console.error(err);
-    return -1;
-  }
-}
-
-/**
- * @param {*} token
- * @returns 1 or -1
- */
-export function deleteAllVocabularySet(token) {
-  const userId = getUserIdFromToken(token);
-  if (userId < 0) {
-    console.log('session is invalid, userid not found');
-    return -1;
-  }
-  try {
-    const sql = `
-        DELETE FROM vocabulary_set
-        WHERE  user_id = ?
-    `;
-    const query = db.prepare(sql);
-    query.run([userId]);
-    return 1;
-  } catch (err) {
-    console.error(err);
-    return -1;
-  }
-}

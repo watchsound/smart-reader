@@ -9,7 +9,7 @@ import { ipcMain } from 'electron';
 import { getUserIdFromToken } from '../db/dbManager';
 import SpacedRepetitionService from '../utils/SpacedRepetitionService';
 
-const { Rating, State } = SpacedRepetitionService;
+const { Rating } = SpacedRepetitionService;
 
 /**
  * Register all spaced repetition IPC handlers
@@ -210,20 +210,6 @@ export function registerSpacedRepetitionHandlers() {
   // =========================================================================
   // SYNC HANDLERS (for quick access)
   // =========================================================================
-
-  /**
-   * Get rating constants
-   */
-  ipcMain.on('sr-get-ratings', (event) => {
-    event.returnValue = Rating;
-  });
-
-  /**
-   * Get state constants
-   */
-  ipcMain.on('sr-get-states', (event) => {
-    event.returnValue = State;
-  });
 
   /**
    * Calculate retrievability (sync for quick UI updates)

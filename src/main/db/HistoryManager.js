@@ -28,28 +28,6 @@ const constructHistory =   (aRowFromDB) => {
           groupId: aRowFromDB.group_id
        }
 };
-/**
- *
- * @param {*} id
- * @param {*} token
- * @returns null if failed
- */
-export const getHistoryById = (id, token) => {
-  const userId = getUserIdFromToken(token);
-  if( userId < 0) {
-    console.log('session is invalid, userid not found')
-    return null;
-  }
-  try {
-    const stmt = db.prepare('SELECT * FROM history WHERE id = ? AND user_id = ?');
-    const history = stmt.get(id, userId);
-    if (history) return constructHistory(history);
-    return null;
-  } catch (err) {
-    console.error(err);
-    return null;
-  }
-};
 
 
 
@@ -62,7 +40,7 @@ export const getHistoryById = (id, token) => {
 export const createHistory= (history, token) => {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return history;
   }
   addUserIdCreatedAt(history, userId);
@@ -89,7 +67,7 @@ export const getHistoryByQuery= (sourceType, query, page, limit, token) => {
   const histories = [];
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return {
       data: [],
       total: 0,
@@ -160,7 +138,7 @@ export const getHistoriesByGroupId = (groupId, token) => {
   const histories = [];
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return histories;
   }
   try {
@@ -180,7 +158,7 @@ export const getHistoryByGroupIdAndSourceKey = (groupId, sourceKey, token) => {
   const histories = [];
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return null;
   }
   try {
@@ -196,35 +174,10 @@ export const getHistoryByGroupIdAndSourceKey = (groupId, sourceKey, token) => {
   }
 };
 
-/**
- *
- * @param {*} token
- * @returns 1 or -1
- */
-export function deleteAllHistories(token) {
-  const userId = getUserIdFromToken(token);
-  if( userId < 0) {
-    console.log('session is invalid, userid not found')
-    return -1;
-  }
-  try {
-    const sql = `
-        DELETE FROM history
-        WHERE  user_id = ?
-    `;
-    const query = db.prepare(sql);
-    query.run( [userId] );
-    return 1;
-  } catch (err) {
-    console.error(err);
-    return -1;
-  }
-}
-
 export function updateHistory(id, description, token) {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return -1;
   }
   try {

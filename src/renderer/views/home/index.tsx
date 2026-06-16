@@ -14,7 +14,6 @@ import {
   Chip,
   Avatar,
   Paper,
-  Skeleton,
 } from '@mui/material';
 import LibraryBooksIcon from '@mui/icons-material/LibraryBooks';
 import ChatIcon from '@mui/icons-material/Chat';
@@ -30,6 +29,7 @@ import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
 
 import customStorage from '../../store/customStorage';
+import learningApi from '../../api/learningApi';
 import BookListInServer from './BookListInServer';
 
 const GradientCard = styled(Card)(({ gradient }) => ({
@@ -42,17 +42,6 @@ const GradientCard = styled(Card)(({ gradient }) => ({
   '&:hover': {
     transform: 'translateY(-4px)',
     boxShadow: '0 20px 60px rgba(0, 0, 0, 0.2)',
-  },
-}));
-
-const StatCard = styled(Paper)(({ theme }) => ({
-  padding: theme.spacing(3),
-  borderRadius: '16px',
-  background: '#fff',
-  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
-  transition: 'transform 0.2s ease',
-  '&:hover': {
-    transform: 'translateY(-2px)',
   },
 }));
 
@@ -156,42 +145,32 @@ const quickActions = [
 
 export default function HomePage() {
   const navigate = useNavigate();
-  const [stats, setStats] = useState({
-    books: 0,
-    notes: 0,
-    vocabulary: 0,
-    streak: 0,
-  });
+  // Books / Notes / Vocabulary counts have no renderer-side IPC pipeline
+  // — `getAllBooks` / `getAllNotes` / `getAllVocabulary` don't exist on
+  // customStorage. The Statistics Cards grid below is hidden until those
+  // getters land. Streak IS wired up via learningApi.getGlobalProfile.
+  const [streak, setStreak] = useState(0);
   const [serverUrl, setServerUrl] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [recentBooks, setRecentBooks] = useState([]);
 
   useEffect(() => {
+    let cancelled = false;
     async function loadData() {
       try {
-        const url = await customStorage.getServerUrl();
+        const [url, profile] = await Promise.all([
+          customStorage.getServerUrl(),
+          learningApi.getGlobalProfile().catch(() => null),
+        ]);
+        if (cancelled) return;
         setServerUrl(url || '');
-
-        // Load statistics
-        const books = await customStorage.getAllBooks?.() || [];
-        const notes = await customStorage.getAllNotes?.() || [];
-        const vocab = await customStorage.getAllVocabulary?.() || [];
-
-        setStats({
-          books: books.length || 0,
-          notes: notes.length || 0,
-          vocabulary: vocab.length || 0,
-          streak: 7, // Placeholder for streak calculation
-        });
-
-        setRecentBooks(books.slice(0, 4));
+        setStreak(profile?.globalProfile?.streakRecord || 0);
       } catch (error) {
-        console.error('Error loading home data:', error);
-      } finally {
-        setLoading(false);
+        if (!cancelled) console.error('Error loading home data:', error);
       }
     }
     loadData();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const getGreeting = () => {
@@ -222,7 +201,7 @@ export default function HomePage() {
               <Box sx={{ mt: 3, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                 <Chip
                   icon={<LocalFireDepartmentIcon />}
-                  label={`${stats.streak} Day Streak`}
+                  label={`${streak} Day Streak`}
                   sx={{
                     bgcolor: 'rgba(255,255,255,0.2)',
                     color: '#fff',
@@ -248,77 +227,9 @@ export default function HomePage() {
           </Grid>
         </WelcomeSection>
 
-        {/* Statistics Cards */}
-        <Grid container spacing={3} sx={{ mb: 4 }}>
-          <Grid item xs={6} sm={3}>
-            <StatCard>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <IconWrapper bgcolor={gradients.purple} className="action-icon">
-                  <LibraryBooksIcon sx={{ color: '#fff', fontSize: 28 }} />
-                </IconWrapper>
-                <Box>
-                  <Typography variant="h4" fontWeight={700} color="primary">
-                    {loading ? <Skeleton width={40} /> : stats.books}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Books
-                  </Typography>
-                </Box>
-              </Box>
-            </StatCard>
-          </Grid>
-          <Grid item xs={6} sm={3}>
-            <StatCard>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <IconWrapper bgcolor={gradients.blue} className="action-icon">
-                  <TextSnippetIcon sx={{ color: '#fff', fontSize: 28 }} />
-                </IconWrapper>
-                <Box>
-                  <Typography variant="h4" fontWeight={700} color="primary">
-                    {loading ? <Skeleton width={40} /> : stats.notes}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Notes
-                  </Typography>
-                </Box>
-              </Box>
-            </StatCard>
-          </Grid>
-          <Grid item xs={6} sm={3}>
-            <StatCard>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <IconWrapper bgcolor={gradients.green} className="action-icon">
-                  <SchoolIcon sx={{ color: '#fff', fontSize: 28 }} />
-                </IconWrapper>
-                <Box>
-                  <Typography variant="h4" fontWeight={700} color="primary">
-                    {loading ? <Skeleton width={40} /> : stats.vocabulary}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Vocabulary
-                  </Typography>
-                </Box>
-              </Box>
-            </StatCard>
-          </Grid>
-          <Grid item xs={6} sm={3}>
-            <StatCard>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <IconWrapper bgcolor={gradients.orange} className="action-icon">
-                  <LocalFireDepartmentIcon sx={{ color: '#fff', fontSize: 28 }} />
-                </IconWrapper>
-                <Box>
-                  <Typography variant="h4" fontWeight={700} color="primary">
-                    {loading ? <Skeleton width={40} /> : stats.streak}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Day Streak
-                  </Typography>
-                </Box>
-              </Box>
-            </StatCard>
-          </Grid>
-        </Grid>
+        {/* Statistics Cards — hidden until the renderer-side count IPC
+            pipelines (getAllBooks / getAllNotes / getAllVocabulary) exist.
+            The previous code rendered four zero values for everyone. */}
 
         {/* Quick Actions */}
         <Typography variant="h5" fontWeight={600} sx={{ mb: 2 }}>

@@ -61,7 +61,7 @@ export const getUserIdFromToken = (token) => {
     `getUserIdFromToken - stored session: ${JSON.stringify(userInfo)}`,
   );
   if (userInfo && userInfo.token === token) return userInfo.id;
-  console.log('session is invalid, userid not found');
+  console.warn('session is invalid, userid not found');
   return -1;
 };
 

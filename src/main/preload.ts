@@ -55,17 +55,6 @@ const electronHandler = {
       ipcRenderer.removeListener(channel, listener);
     },
 
-    /**   related to ollama code  */
-    startStream: (history, message) => {
-      ipcRenderer.invoke('ollama:stream', { history, message });
-    },
-    onStreamData: (callback) => {
-      ipcRenderer.on('ollama:stream:data', (event, data) => callback(data));
-    },
-    onStreamDone: (callback) => {
-      ipcRenderer.on('ollama:stream:done', () => callback());
-    },
-
     /** **************************************************** */
     emojiData: () => {
       return ipcRenderer.invoke('emojiData');
@@ -79,9 +68,6 @@ const electronHandler = {
     },
     // sql related
 
-    deleteBookById: (id: number, token: string) => {
-      return ipcRenderer.sendSync('deleteBookById', { id, token });
-    },
     deleteBookmarkById: (id: number, token: string) => {
       return ipcRenderer.sendSync('deleteBookmarkById', { id, token });
     },
@@ -94,30 +80,12 @@ const electronHandler = {
     addNoteToLeitnerStudy: (id: number, token: string) => {
       return ipcRenderer.sendSync('addNoteToLeitnerStudy', { id, token });
     },
-    deletePromptById: (id: number, token: string) => {
-      return ipcRenderer.sendSync('deletePromptById', { id, token });
-    },
     deleteQuizProblemById: (id: number, token: string) => {
       return ipcRenderer.sendSync('deleteQuizProblemById', { id, token });
     },
-    deleteMessageById: (id: number, token: string) => {
-      return ipcRenderer.sendSync('deleteMessageById', { id, token });
-    },
 
-    deleteAllBook: (token: string) => {
-      return ipcRenderer.sendSync('deleteAllBook', { token });
-    },
-    deleteAllBookmark: (token: string) => {
-      return ipcRenderer.sendSync('deleteAllBookmark', { token });
-    },
     deleteAllChat: (token: string) => {
       return ipcRenderer.sendSync('deleteAllChat', { token });
-    },
-    deleteAllMessage: (token: string) => {
-      return ipcRenderer.sendSync('deleteAllMessage', { token });
-    },
-    deleteAllPrompt: (token: string) => {
-      return ipcRenderer.sendSync('deleteAllPrompt', { token });
     },
     deleteAllQuizProblem: (token: string) => {
       return ipcRenderer.sendSync('deleteAllQuizProblem', { token });
@@ -149,25 +117,10 @@ const electronHandler = {
     getBookmarkGroupByName: (name: string, token: string) => {
       return ipcRenderer.sendSync('getBookmarkGroupByName', { name, token });
     },
-    getBookmarkGroupById: (id: number, token: string) => {
-      return ipcRenderer.sendSync('getBookmarkGroupById', { id, token });
-    },
-    getTopBookmarkGroup: (token: string) => {
-      return ipcRenderer.sendSync('getTopBookmarkGroup', { token });
-    },
     renameBookmarkGroup: (id: number, name: string, token: string) => {
       return ipcRenderer.sendSync('renameBookmarkGroup', { id, name, token });
     },
-    deleteAllBookmarkGroups: (token: string) => {
-      return ipcRenderer.sendSync('deleteAllBookmarkGroups', { token });
-    },
 
-    getHistoryGroupById: (id: number, token: string) => {
-      return ipcRenderer.sendSync('getHistoryGroupById', { id, token });
-    },
-    getHistoryGroupByName: (name: string, token: string) => {
-      return ipcRenderer.sendSync('getHistoryGroupByName', { name, token });
-    },
     createHistoryGroup: (name: string, token: string) => {
       return ipcRenderer.sendSync('createHistoryGroup', {
         name,
@@ -187,13 +140,7 @@ const electronHandler = {
         token,
       });
     },
-    deleteAllHistoryGroups: (token: string) => {
-      return ipcRenderer.sendSync('deleteAllHistoryGroups', { token });
-    },
 
-    getHistoryById: (id: number, token: string) => {
-      return ipcRenderer.sendSync('getHistoryById', { id, token });
-    },
     createHistory: (history: any, token: string) => {
       return ipcRenderer.invoke('createHistory', { history, token });
     },
@@ -225,9 +172,6 @@ const electronHandler = {
     },
     getHistoriesByGroupId: (id: number, token: string) => {
       return ipcRenderer.sendSync('getHistoriesByGroupId', { id, token });
-    },
-    deleteAllHistories: (token: string) => {
-      return ipcRenderer.sendSync('deleteAllHistories', { token });
     },
     updateHistory: (id: number, description: string, token: string) => {
       return ipcRenderer.sendSync('updateHistory', { id, description, token });
@@ -326,10 +270,6 @@ const electronHandler = {
 
     getBookmarkByQuery: (query: string, token: string) => {
       return ipcRenderer.sendSync('getBookmarkByQuery', { query, token });
-    },
-
-    getBookmarkById: (id: number, token: string) => {
-      return ipcRenderer.sendSync('getBookmarkById', { id, token });
     },
 
     getBookmarksBySourceKey: (
@@ -449,16 +389,8 @@ const electronHandler = {
       });
     },
 
-    generateContent: (prompt: string) => {
-      return ipcRenderer.invoke('generateContent', { prompt });
-    },
-
     fetchPageHeadless: (url: string) => {
       return ipcRenderer.invoke('fetchPageHeadless', { url });
-    },
-
-    sendChatMessage: (history: [], message: string) => {
-      return ipcRenderer.invoke('sendChatMessage', { history, message });
     },
 
     createMessage: (message: any, token: string) => {
@@ -675,23 +607,7 @@ const electronHandler = {
       });
     },
 
-    getLeitnerItemById: (id: number) => {
-      return ipcRenderer.sendSync('getLeitnerItemById', { id });
-    },
-    createLeitnerItem: (leitnerItem: any) => {
-      return ipcRenderer.sendSync('createLeitnerItem', { leitnerItem });
-    },
-    updateLeitnerItem: (id: number, field: string, value: any) => {
-      return ipcRenderer.sendSync('updateLeitnerItem', { id, field, value });
-    },
-    deleteLeitnerItemById: (id: number) => {
-      return ipcRenderer.sendSync('deleteLeitnerItemById', { id });
-    },
-
     //
-    getVocabularyById: (id: number, token: string) => {
-      return ipcRenderer.sendSync('getVocabularyById', { id, token });
-    },
     getVocabularyByName: (name: string, token: string) => {
       return ipcRenderer.sendSync('getVocabularyByName', { name, token });
     },
@@ -740,19 +656,10 @@ const electronHandler = {
         token,
       });
     },
-    deleteVocabularyById: (id: number, token: string) => {
-      return ipcRenderer.sendSync('deleteVocabularyById', { id, token });
-    },
-    deleteAllVocabulary: (token: string) => {
-      return ipcRenderer.sendSync('deleteAllVocabulary', { token });
-    },
     addVocabularyToSet: (id: number, setId: number, token: string) => {
       return ipcRenderer.sendSync('addVocabularyToSet', { id, setId, token });
     },
     //
-    getVocabularySetById: (id: number, token: string) => {
-      return ipcRenderer.sendSync('getVocabularySetById', { id, token });
-    },
     createVocabularySet: (vocabularySet: any, token: string) => {
       return ipcRenderer.sendSync('createVocabularySet', {
         vocabularySet,
@@ -771,31 +678,6 @@ const electronHandler = {
         limit,
         token,
       });
-    },
-    updateVocabularySetByTime: (id: number, token: string) => {
-      return ipcRenderer.sendSync('updateVocabularySetByTime', {
-        id,
-        token,
-      });
-    },
-    updateVocabularySet: (
-      id: number,
-      field: string,
-      value: any,
-      token: string,
-    ) => {
-      return ipcRenderer.sendSync('updateVocabularySet', {
-        id,
-        field,
-        value,
-        token,
-      });
-    },
-    deleteVocabularySetById: (id: number, token: string) => {
-      return ipcRenderer.sendSync('deleteVocabularySetById', { id, token });
-    },
-    deleteAllVocabularySet: (token: string) => {
-      return ipcRenderer.sendSync('deleteAllVocabularySet', { token });
     },
     getBookContentByQuery: (
       bookKey: string,
@@ -1229,21 +1111,6 @@ const electronHandler = {
       );
       return resp;
     },
-    getSelectedText() {
-      const resp = ipcRenderer.sendSync('get-selected-text');
-      return resp;
-    },
-    addDataToVectorDB: (id, source, doc) => {
-      return ipcRenderer.sendSync('add-data-to-vectordb', { id, source, doc });
-    },
-
-    queryVectorDB: (query, nResults, condition) => {
-      return ipcRenderer.sendSync('query-vectordb', {
-        query,
-        nResults,
-        condition,
-      });
-    },
     createImage: (image) => {
       return ipcRenderer.sendSync('createImage', { image });
     },
@@ -1255,16 +1122,7 @@ const electronHandler = {
     system_color: (data) => {
       return ipcRenderer.invoke('system-color', data);
     },
-    get_file_data: (data) => {
-      return ipcRenderer.invoke('get-file-data', data);
-    },
-    setup_file_dir: (data) => {
-      return ipcRenderer.invoke('setup-file-dir', data);
-    },
 
-    captureWebview: (webviewWebContentsId) => {
-      return ipcRenderer.invoke('capture-webview', { webviewWebContentsId });
-    },
     capturePage: () => {
       return ipcRenderer.invoke('capture-page', {});
     },
@@ -1343,18 +1201,12 @@ const electronHandler = {
       return ipcRenderer.invoke('speak-text-by-say', { text });
     },
 
-    parse_markdown: (data: any) => {
+    parseMarkdown: (data: any) => {
       return ipcRenderer.invoke('parse-markdown', data);
     },
 
     getAssetRootPath: () => {
       return ipcRenderer.sendSync('getAssetRootPath', {});
-    },
-    /** **************************************************** */
-    // used in koodoo only //
-
-    fetchBook: (id, isArrayBuffer = false, bookPath = '') => {
-      return ipcRenderer.invoke('fetch-book', { id, isArrayBuffer, bookPath });
     },
   },
 };

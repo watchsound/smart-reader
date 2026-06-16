@@ -46,31 +46,6 @@ const constructBookmark = (aRowFromDB) => {
 };
 /**
  *
- * @param {*} id
- * @param {*} token
- * @returns null if failed
- */
-export const getBookmarkById = (id, token) => {
-  const userId = getUserIdFromToken(token);
-  if( userId < 0) {
-    console.log('session is invalid, userid not found')
-    return null;
-  }
-  try {
-    const stmt = db.prepare('SELECT * FROM bookmark WHERE id = ? AND user_id = ?');
-    const bookmark = stmt.get(id, userId);
-    if (bookmark) return constructBookmark(bookmark);
-    return null;
-  } catch (err) {
-    console.error(err);
-    return null;
-  }
-};
-
-
-
-/**
- *
  * @param {*} bookmark
  * @param {*} token
  * @returns bookmark. if success, add id field
@@ -78,7 +53,7 @@ export const getBookmarkById = (id, token) => {
 export const createBookmark= (bookmark, token) => {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return bookmark;
   }
   addUserIdCreatedAt(bookmark, userId);
@@ -125,7 +100,7 @@ export const getBookmarkByQuery= (query, token) => {
   const bookmarks = [];
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return bookmarks;
   }
   try {
@@ -153,7 +128,7 @@ export const getBookmarksBySourceKey = (sourceKey, sourceType, token) => {
   const bookmarks = [];
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return bookmarks;
   }
   try {
@@ -179,7 +154,7 @@ export const getBookmarksByGroupId = (groupId, token) => {
   const bookmarks = [];
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return bookmarks;
   }
   try {
@@ -205,7 +180,7 @@ export const getBookmarksRecursiveByGroupId = (groupId,  token) => {
   const bookmarks = [];
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return bookmarks;
   }
    try {
@@ -245,7 +220,7 @@ export const getBookmarksRecursiveByGroupId = (groupId,  token) => {
 export function updateBookmark(id, field, value, token) {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return -1;
   }
   try {
@@ -269,7 +244,7 @@ export function updateBookmark(id, field, value, token) {
 export function deleteBookmarkById(id, token) {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return -1;
   }
   try {
@@ -286,27 +261,3 @@ export function deleteBookmarkById(id, token) {
   }
 }
 
-/**
- *
- * @param {*} token
- * @returns 1 or -1
- */
-export function deleteAllBookmark(token) {
-  const userId = getUserIdFromToken(token);
-  if( userId < 0) {
-    console.log('session is invalid, userid not found')
-    return -1;
-  }
-  try {
-    const sql = `
-        DELETE FROM bookmark
-        WHERE  user_id = ?
-    `;
-    const query = db.prepare(sql);
-    query.run( [userId] );
-    return 1;
-  } catch (err) {
-    console.error(err);
-    return -1;
-  }
-}

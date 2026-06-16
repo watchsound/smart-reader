@@ -39,7 +39,7 @@ import db, { getUserIdFromToken, addUserIdCreatedAt } from './dbManager';
 export function createQuizProblem(quiz, token) {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return null;
   }
   addUserIdCreatedAt(quiz, userId);
@@ -68,7 +68,7 @@ export function createQuizProblem(quiz, token) {
 export const getQuizProblemById = (id, token) => {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return null;
   }
   try {
@@ -96,7 +96,7 @@ export const getQuizProblemById = (id, token) => {
 export function getQuizProblemBySourceKeyAndSourceType(sourceKey, sourceType, token) {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return [];
   }
   const quizProblems = [];
@@ -132,7 +132,7 @@ export function getQuizProblemBySourceKeyAndSourceType(sourceKey, sourceType, to
 export function getQuizProblemByQuery(query, page, limit, token) {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
    return {
       data: [],
       total: 0,
@@ -196,7 +196,7 @@ export function getQuizProblemByQuery(query, page, limit, token) {
 export function replaceQuizProblem(id, note, token) {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return -1;
   }
   try {
@@ -223,7 +223,7 @@ export function replaceQuizProblem(id, note, token) {
 export function updateQuizProblem(id, field, value, token) {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return -1;
   }
   try {
@@ -247,7 +247,7 @@ export function updateQuizProblem(id, field, value, token) {
 export function deleteQuizProblemBySourceKeyAndSourceType(sourceKey, sourceType, token) {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return -1;
   }
   try {
@@ -275,7 +275,7 @@ export function deleteQuizProblemBySourceKeyAndSourceType(sourceKey, sourceType,
 export function deleteQuizProblemById(id, token) {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return -1;
   }
   try {
@@ -300,7 +300,7 @@ export function deleteQuizProblemById(id, token) {
 export function deleteAllQuizProblem(token) {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return -1;
   }
   try {

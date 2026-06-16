@@ -28,7 +28,7 @@ const CHAT_UPDATABLE = new Set([
 export const getChatById = (id, token) => {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return null;
   }
   try {
@@ -60,7 +60,7 @@ export const getChatById = (id, token) => {
 export const createChat= (chat, token) => {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return chat;
   }
   addUserIdCreatedAt(chat, userId);
@@ -96,7 +96,7 @@ const getChatsOrLearnAboutByQuery = (isChart, query, page, limit, token) => {
   const chats = [];
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return {
       data: [],
       total: 0,
@@ -165,7 +165,7 @@ const getPinnedChatsOrLearnAbout = (isChart, token) => {
   const chats = [];
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return chats;
   }
  try {
@@ -211,7 +211,7 @@ export const getPinnedLearnAbout = (token) => {
 export function updateChat(id, field, value, token) {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return -1;
   }
   try {
@@ -237,7 +237,7 @@ export function updateChat(id, field, value, token) {
 export function deleteChatById(id, token) {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return -1;
   }
   try {
@@ -261,7 +261,7 @@ export function deleteChatById(id, token) {
 export function deleteAllChat(token) {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return -1;
   }
   try {

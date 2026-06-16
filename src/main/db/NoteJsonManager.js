@@ -96,7 +96,7 @@ import { dateToSQLiteString } from '../../commons/utils/SqliteHelper';
 export function createNote(note, token) {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return note;
   }
   addUserIdCreatedAt(note, userId);
@@ -125,7 +125,7 @@ export function createNote(note, token) {
 export const getNoteById = (id, token) => {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return null;
   }
   try {
@@ -155,7 +155,7 @@ export const getNotesByIds = (ids, token) => {
   const notes = [];
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return notes;
   }
   try {
@@ -187,7 +187,7 @@ export const getNotesByIds = (ids, token) => {
 export function queryNoteBySourceKeyAndSourceType(sourceKey, sourceType, token) {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return [];
   }
   const notes = [];
@@ -218,64 +218,6 @@ export function queryNoteBySourceKeyAndSourceType(sourceKey, sourceType, token) 
   }
 }
 
-/**
- *
- * @param {*} token
- * @returns []
- */
-// export function getAllNotes(page, limit, token) {
-//   const notes = [];
-//   const userId = getUserIdFromToken(token);
-//   if( userId < 0) {
-//     console.log('session is invalid, userid not found')
-//     return {
-//       data: [],
-//       total: 0,
-//       totalPages: Math.ceil(0 / limit),
-//       currentPage: page
-//     };
-//   }
-//   console.log(` getAllNotes user-id = ${  userId}`);
-//   try {
-//      const offset = (page - 1) * limit;
-//       // Query to get the total number of records
-//       const totalRecordsQuery = db.prepare('SELECT COUNT(*) AS total FROM note WHERE user_id = ?');
-//       const totalRecords = totalRecordsQuery.get(userId).total;
-
-//       console.log(`limit = ${limit} offset = ${offset}`)
-
-//     const sql = `
-//           SELECT *
-//           FROM note
-//           WHERE user_id = ?
-//           ORDER BY created_at DESC
-//           LIMIT ? OFFSET ?
-//       `;
-
-//     const stmt = db.prepare(sql) ;
-//     for (const card of stmt.iterate(userId, limit, offset)) {
-//       const data = JSON5.parse(card.data);
-//       data.id = card.id;
-//       data.leitnerItemId = card.leitner_item_id;
-//       notes.push(data);
-//     }
-//     return {
-//       data: notes,
-//       total: totalRecords,
-//       totalPages: Math.ceil(totalRecords / limit),
-//       currentPage: page
-//     };
-//   } catch (err) {
-//     console.error(err);
-//     return {
-//       data: [],
-//       total: 0,
-//       totalPages: Math.ceil(0 / limit),
-//       currentPage: page
-//     };
-//   }
-// }
-
 const stmt2objWithLeitnerItem = (row) => {
   const data = JSON5.parse(row.data);
   return {
@@ -299,11 +241,11 @@ export const getNotesByDueReview = (aTime, page, limit, token) => {
   const vs = [];
   const userId = getUserIdFromToken(token);
   if (userId < 0) {
-    console.log('session is invalid, userid not found');
+    console.warn('session is invalid, userid not found');
     return {
       data: [],
       total: 0,
-      totalPages: Math.ceil(0 / limit),
+      totalPages: 0,
       currentPage: page,
     };
   }
@@ -360,7 +302,7 @@ export const getNotesByDueReview = (aTime, page, limit, token) => {
     return {
       data: [],
       total: 0,
-      totalPages: Math.ceil(0 / limit),
+      totalPages: 0,
       currentPage: page,
     };
   }
@@ -371,11 +313,11 @@ export const getNotesByDueReview = (aTime, page, limit, token) => {
 
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return {
       data: [],
       total: 0,
-      totalPages: Math.ceil(0 / limit),
+      totalPages: 0,
       currentPage: page
     };
   }
@@ -477,7 +419,7 @@ export const getNotesByDueReview = (aTime, page, limit, token) => {
   return {
     total: totalCount,
     data: notes,
-    totalPages: Math.ceil(0 / limit),
+    totalPages: Math.ceil(totalCount / limit),
     currentPage: page
   };
 }
@@ -486,80 +428,18 @@ export function getNotesByQuery(queryString, tag, star, page, limit, token) {
   try {
     return getNotesByQueryImpl(queryString, tag, star, page, limit, token);
   } catch (e) {
-    console.log(e);
+    // Intentional fallback-to-empty so search-as-you-type degrades gracefully
+    // on transient DB / JSON5-parse errors. Log at error level so genuine
+    // failures still surface in diagnostics rather than hiding in info logs.
+    console.error('[NoteJsonManager.getNotesByQuery]', e);
   }
   return {
     data: [],
     total: 0,
-    totalPages: Math.ceil(0 / limit),
+    totalPages: 0,
     currentPage: page
   };
 }
-
-/**
- *
- * @param {*} queryString
- * @param {*} token
- * @returns
- */
-// export function getNotesByQuery(queryString , page, limit, token) {
-//   if (!queryString) return getAllNotes(page, limit, token);
-//   const notes = [];
-//   const userId = getUserIdFromToken(token);
-//   if( userId < 0) {
-//     console.log('session is invalid, userid not found')
-//     return {
-//       data: [],
-//       total: 0,
-//       totalPages: Math.ceil(0 / limit),
-//       currentPage: page
-//     };
-//   }
-//   console.log(` getNotesByQuery user-id = ${  userId   }
-//      query = ${  queryString} star = ${star} tag = ${tag}`);
-
-//   const query = `'%${queryString}%'`;
-//   const offset = (page - 1) * limit;
-
-//   const totalRecordsQuery = db.prepare(
-//     ` SELECT count(*)
-//       FROM note, json_each(note.data, '$.cards')
-//       WHERE  json_extract(json_each.value, '$.text') LIKE ? AND note.user_id = ?
-//     `
-//   );
-//   const totalRecords = totalRecordsQuery.get(query, userId).total;
-//   try {
-//     const sql = `
-//           SELECT *
-//           FROM note, json_each(note.data, '$.cards')
-//           WHERE json_extract(json_each.value, '$.text') LIKE ? AND note.user_id = ?
-//           ORDER BY created_at DESC
-//           LIMIT ? OFFSET ?
-//       `;
-//     const stmt = db.prepare(sql);
-
-//     for (const card of stmt.iterate(query, userId, limit, offset)) {
-//       const data = JSON5.parse(card.data);
-//       data.id = card.id;
-//       data.leitnerItemId = card.leitner_item_id;
-//       notes.push(data);
-//     }
-//     return {
-//       data: notes,
-//       total: totalRecords,
-//       totalPages: Math.ceil(totalRecords / limit),
-//       currentPage: page
-//     };
-//   } catch (err) {
-//     console.error(err);
-//     return {
-//       data: [],
-//       total: 0,
-//       totalPages: Math.ceil(0 / limit),
-//       currentPage: page
-//     };
-//   }
-// }
 
 /**
  *
@@ -571,7 +451,7 @@ export function getNotesByQuery(queryString, tag, star, page, limit, token) {
 export function replaceNote(noteId, note, token) {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return -1;
   }
   try {
@@ -597,7 +477,7 @@ export function replaceNote(noteId, note, token) {
 export function deleteNoteBySourceKeyAndSourceType(sourceKey, sourceType, token) {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return -1;
   }
   try {
@@ -624,7 +504,7 @@ export function deleteNoteBySourceKeyAndSourceType(sourceKey, sourceType, token)
 export function deleteNoteById(id, token) {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return -1;
   }
   // console.log(typeof id); // should output 'number'
@@ -646,7 +526,7 @@ export function deleteNoteById(id, token) {
 export function addNoteToLeitnerStudy(id, token) {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return -1;
   }
   const obj = getNoteById(id, token);
@@ -664,11 +544,20 @@ export function addNoteToLeitnerStudy(id, token) {
       fullyLearned: 0,
       score: 0,
     });
+    if (!vc) {
+      // createLeitnerItem returns null only on DB error — surface a clear
+      // diagnostic instead of letting `vc.id` throw a misleading TypeError.
+      console.error(
+        '[NoteJsonManager.addNoteToLeitnerStudy] createLeitnerItem returned null',
+      );
+      return -1;
+    }
     const sql = `UPDATE note SET leitner_item_id = ? WHERE id = ? and user_id = ?`;
     const query = db.prepare(sql);
     query.run([vc.id, id, userId]);
     return vc;
   } catch (e) {
+    console.error('[NoteJsonManager.addNoteToLeitnerStudy]', e);
     return -1;
   }
 }
@@ -683,7 +572,7 @@ export function addNoteToLeitnerStudy(id, token) {
 export function updateNote(noteId, field, value, token) {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return -1;
   }
   if (field === 'leitner_item_id') {
@@ -721,7 +610,7 @@ export function updateNote(noteId, field, value, token) {
 export function updateNoteCard(noteId, cardIndex, field, value, token) {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return -1;
   }
   try {
@@ -749,7 +638,7 @@ export function updateNoteCard(noteId, cardIndex, field, value, token) {
 export function deleteAllNote(token) {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return -1;
   }
   try {

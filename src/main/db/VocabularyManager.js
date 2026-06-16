@@ -22,7 +22,6 @@ import { dateToSQLiteString } from '../../commons/utils/SqliteHelper';
 import {
   getLeitnerItemById,
   createLeitnerItem,
-  deleteLeitnerItemById,
 } from './LeitnerItemManager';
 
 const VOCABULARY_UPDATABLE = new Set([
@@ -78,7 +77,7 @@ const stmt2objWithLeitnerItem = (row) => {
 export const getVocabularyById = (id, token) => {
   const userId = getUserIdFromToken(token);
   if (userId < 0) {
-    console.log('session is invalid, userid not found');
+    console.warn('session is invalid, userid not found');
     return null;
   }
   try {
@@ -99,7 +98,7 @@ export const getVocabularyById = (id, token) => {
 export const getVocabularyByName = (name, token) => {
   const userId = getUserIdFromToken(token);
   if (userId < 0) {
-    console.log('session is invalid, userid not found');
+    console.warn('session is invalid, userid not found');
     return null;
   }
   try {
@@ -126,7 +125,7 @@ export const getVocabularyByName = (name, token) => {
 export const createVocabulary = (vocabulary, token) => {
   const userId = getUserIdFromToken(token);
   if (userId < 0) {
-    console.log('session is invalid, userid not found');
+    console.warn('session is invalid, userid not found');
     return vocabulary;
   }
   addUserIdCreatedAt(vocabulary, userId);
@@ -138,21 +137,26 @@ export const createVocabulary = (vocabulary, token) => {
     const example = vocabulary.example || '';
     const createdAt = vocabulary.createdAt || '';
     let leitnerItemId = 0;
-    if (vocabulary.leitnerItem) {
-      const vc = createLeitnerItem({ ...vocabulary.leitnerItem, type: 0 });
-      leitnerItemId = vc.id;
-    } else {
-      const vc = createLeitnerItem({
-        box: 1,
-        type: 0,
-        skips: 0,
-        flips: 0,
-        nextReview: '',
-        fullyLearned: 0,
-        score: 0,
-      });
-      leitnerItemId = vc.id;
+    const leitnerSeed = vocabulary.leitnerItem
+      ? { ...vocabulary.leitnerItem, type: 0 }
+      : {
+          box: 1,
+          type: 0,
+          skips: 0,
+          flips: 0,
+          nextReview: '',
+          fullyLearned: 0,
+          score: 0,
+        };
+    const vc = createLeitnerItem(leitnerSeed);
+    if (!vc) {
+      // createLeitnerItem returns null only on DB error — surface a clear
+      // diagnostic instead of letting `vc.id` throw a misleading TypeError
+      // that the outer catch would then re-log as the wrong root cause.
+      console.error('[createVocabulary] createLeitnerItem returned null');
+      return null;
     }
+    leitnerItemId = vc.id;
 
     const stmt = db
       .prepare(
@@ -192,7 +196,7 @@ export const getVocabulariesBySetId = (vocabularySetId, token) => {
   const vs = [];
   const userId = getUserIdFromToken(token);
   if (userId < 0) {
-    console.log('session is invalid, userid not found');
+    console.warn('session is invalid, userid not found');
     return vs;
   }
   try {
@@ -221,7 +225,7 @@ export const getVocabulariesByQuery = (query, page, limit, token) => {
   const vs = [];
   const userId = getUserIdFromToken(token);
   if (userId < 0) {
-    console.log('session is invalid, userid not found');
+    console.warn('session is invalid, userid not found');
     return {
       data: [],
       total: 0,
@@ -275,7 +279,7 @@ export const getVocabulariesByDueReview = (aTime, page, limit, token) => {
   const vs = [];
   const userId = getUserIdFromToken(token);
   if (userId < 0) {
-    console.log('session is invalid, userid not found');
+    console.warn('session is invalid, userid not found');
     return {
       data: [],
       total: 0,
@@ -354,7 +358,7 @@ export const getVocabulariesByDueReview = (aTime, page, limit, token) => {
 export function updateVocabulary(id, field, value, token) {
   const userId = getUserIdFromToken(token);
   if (userId < 0) {
-    console.log('session is invalid, userid not found');
+    console.warn('session is invalid, userid not found');
     return -1;
   }
   try {
@@ -372,7 +376,7 @@ export function updateVocabulary(id, field, value, token) {
 export function addVocabularyToSet(id, setId, token) {
   const userId = getUserIdFromToken(token);
   if (userId < 0) {
-    console.log('session is invalid, userid not found');
+    console.warn('session is invalid, userid not found');
     return -1;
   }
   try {
@@ -387,58 +391,3 @@ export function addVocabularyToSet(id, setId, token) {
   }
 }
 
-/**
- *
- * @param {*} id
- * @param {*} token
- * @returns
- */
-export function deleteVocabularyById(id, token) {
-  const userId = getUserIdFromToken(token);
-  if (userId < 0) {
-    console.log('session is invalid, userid not found');
-    return -1;
-  }
-  try {
-    const obj = getVocabularyById(id);
-    if (!obj) return -1;
-
-    const sql = `
-        DELETE FROM vocabulary
-        WHERE id = ? AND user_id = ?
-    `;
-    const query = db.prepare(sql);
-    query.run([id, userId]);
-
-    deleteLeitnerItemById(obj.leitnerItemId);
-    return 1;
-  } catch (err) {
-    console.error(err);
-    return -1;
-  }
-}
-
-/**
- *
- * @param {*} token
- * @returns 1 or -1
- */
-export function deleteAllVocabulary(token) {
-  const userId = getUserIdFromToken(token);
-  if (userId < 0) {
-    console.log('session is invalid, userid not found');
-    return -1;
-  }
-  try {
-    const sql = `
-        DELETE FROM vocabulary
-        WHERE  user_id = ?
-    `;
-    const query = db.prepare(sql);
-    query.run([userId]);
-    return 1;
-  } catch (err) {
-    console.error(err);
-    return -1;
-  }
-}

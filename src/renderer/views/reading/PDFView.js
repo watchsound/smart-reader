@@ -57,8 +57,6 @@ import brainApi, { recordEvent, EPISODE_TYPES } from '../../api/brainApi';
 // Width for book cover thumbnail
 const cardWidth = 360;
 
-const getNextId = () => parseInt(String(Math.random()).slice(2).substring(0,8));
-
 const parseIdFromHash = () => {
   return parseInt(document.location.hash.slice("#highlight-".length));
 };

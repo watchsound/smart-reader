@@ -54,7 +54,7 @@ const recordToObject = (record) => {
 export const getMoodBoardById = (id, token) => {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return null;
   }
   try {
@@ -77,7 +77,7 @@ export const getMoodBoardById = (id, token) => {
 export const createMoodBoard= (board, token) => {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return board;
   }
   addUserIdCreatedAt(board, userId);
@@ -106,7 +106,7 @@ const getAllMoodBoards = (page, limit, token) => {
   const boards = [];
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return {
       data: [],
       total: 0,
@@ -159,7 +159,7 @@ export const getMoodBoardsByQuery = (query, page, limit, token) => {
   const boards = [];
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return {
       data: [],
       total: 0,
@@ -219,7 +219,7 @@ export const getMoodBoardsByQuery = (query, page, limit, token) => {
 export function updateMoodBoard(id, field, value, token) {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return null;
   }
   try {
@@ -238,7 +238,7 @@ export function updateMoodBoard(id, field, value, token) {
 // export function updateMoodBoard2(id, description, configuration, layout, ids, pinned, token) {
 //   const userId = getUserIdFromToken(token);
 //   if( userId < 0) {
-//     console.log('session is invalid, userid not found')
+//     console.warn('session is invalid, userid not found')
 //     return -1;
 //   }
 //   // Assuming the field is at the root of the JSON object.
@@ -256,7 +256,7 @@ export function updateMoodBoard(id, field, value, token) {
 export function deleteMoodBoardById(id, token) {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return -1;
   }
   try {
@@ -281,7 +281,7 @@ export function deleteMoodBoardById(id, token) {
 export function deleteAllMoodBoards(token) {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return -1;
   }
   try {

@@ -25,7 +25,7 @@ import db, { getUserIdFromToken, addUserIdCreatedAt } from './dbManager';
 export const getBookshelfById = (id, token) => {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return null;
   }
   try {
@@ -54,7 +54,7 @@ export const createBookshelf= (name, token) => {
   const bookshelf = { name };
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return bookshelf;
   }
   addUserIdCreatedAt(bookshelf, userId);
@@ -81,7 +81,7 @@ export const createBookshelf= (name, token) => {
 export function renameBookshelf(id, name, token) {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return null;
   }
   try {
@@ -103,7 +103,7 @@ export const getAllBookshelf = (token) => {
   const bookshelfs = [];
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return bookshelfs;
   }
   try {
@@ -134,7 +134,7 @@ export const getAllBookshelf = (token) => {
 export function deleteBookshelfById(id, token) {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return -1;
   }
   try {
@@ -159,7 +159,7 @@ export function deleteBookshelfById(id, token) {
 export function deleteAllBookshelf(token) {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return -1;
   }
   try {

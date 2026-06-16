@@ -33,7 +33,6 @@ import JSON5 from 'json5';
 
 import natural from 'natural';
 
-import { Ollama } from 'ollama';
 
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
@@ -70,8 +69,6 @@ import {
   getBooksByBookshelfId,
   getBooksByCategory,
   updateBook,
-  deleteAllBook,
-  deleteBookById,
   changeBookshelf,
 } from './db/BookManager';
 import {
@@ -100,8 +97,6 @@ import {
   getMessageByQuery,
   getMessagesByChatId,
   updateMessage,
-  deleteAllMessage,
-  deleteMessageById,
   deleteMessageByChatId,
 } from './db/MessageManager';
 import {
@@ -110,8 +105,6 @@ import {
   getPromptsByQuery,
   getPromptsBySource,
   updatePrompt,
-  deleteAllPrompt,
-  deletePromptById,
 } from './db/PromptManager';
 import {
   createQuizProblem,
@@ -149,68 +142,44 @@ import {
 } from './db/MoodBoardJsonManager';
 import {
   createBookmarkGroup,
-  getBookmarkGroupById,
   getBookmarkGroupByName,
   printBookmarkGroupStructure,
   jsonBookmarkGroupStructure,
-  getTopBookmarkGroup,
   renameBookmarkGroup,
-  deleteAllBookmarkGroups,
 } from './db/BookmarkGroupManager';
 import {
   updateBookmark,
-  deleteAllBookmark,
   deleteBookmarkById,
-  getBookmarkById,
   getBookmarksBySourceKey,
   getBookmarkByQuery,
   getBookmarksByGroupId,
   getBookmarksRecursiveByGroupId,
 } from './db/BookmarkManager';
 import {
-  getVocabularyById,
   getVocabularyByName,
   createVocabulary,
   getVocabulariesBySetId,
   getVocabulariesByQuery,
   getVocabulariesByDueReview,
   updateVocabulary,
-  deleteVocabularyById,
-  deleteAllVocabulary,
   addVocabularyToSet,
 } from './db/VocabularyManager';
 import {
-  getVocabularySetById,
   createVocabularySet,
   getVocabularySetByQuery,
-  updateVocabularySet,
-  updateVocabularySetByTime,
-  deleteVocabularySetById,
-  deleteAllVocabularySet,
 } from './db/VocabularySetManager';
 import {
-  getHistoryGroupById,
-  getHistoryGroupByName,
   createHistoryGroup,
   getHistoryGroupByQuery,
-  deleteAllHistoryGroups,
 } from './db/HistoryGroupManager';
 import {
-  getHistoryById,
   createHistory,
   getHistoryByQuery,
   getHistoriesByGroupId,
   getHistoryByGroupIdAndSourceKey,
-  deleteAllHistories,
   updateHistory,
 } from './db/HistoryManager';
 
-import {
-  getLeitnerItemById,
-  createLeitnerItem,
-  updateLeitnerItem,
-  deleteLeitnerItemById,
-} from './db/LeitnerItemManager';
 
 import createBookmarkUtils, {
   createUrlDescription,
@@ -324,15 +293,6 @@ if (isDevelopment) {
     executablePath = path.join(executablePath, 'Contents', 'MacOS', 'Electron');
   }
 }
-
-let filePath: string | null = null;
-if (process.platform !== 'darwin' && process.argv.length >= 2) {
-  // filePath = process.argv[1];
-  console.log(`filePath0 = ${process.argv[0]}`);
-  console.log(`filePath0 = ${process.argv[1]}`);
-  console.log(`filePath0 = ${process.argv[2]}`);
-}
-console.log(`filePath0 = ${filePath}`);
 
 const configDir = app.getPath('userData');
 
@@ -488,13 +448,6 @@ async function openBook(config: {
 // Single Instance Lock
 if (!singleInstance) {
   app.quit();
-  if (filePath) {
-    fs.writeFileSync(
-      path.join(global.shared.storageLocation, 'log.json'),
-      JSON.stringify({ filePath }),
-      'utf-8',
-    );
-  }
 } else {
   app.on('second-instance', (event, argv, workingDir) => {
     if (mainWin) {
@@ -829,14 +782,6 @@ const createWindow = async () => {
   ipcMain.on('getStoreValue', (_, key) => {
     const value = store.get(key);
     // console.log(`getStore ${key} = ${value}`);
-    _.returnValue = value || '';
-  });
-  ipcMain.on('selected-text', (event, selectedText) => {
-    console.log('Selected text:', selectedText);
-    store.set('selected-text', selectedText);
-  });
-  ipcMain.on('get-selected-text', (_) => {
-    const value = store.get('selected-text');
     _.returnValue = value || '';
   });
   ipcMain.on('getGeminiModel', (_, token) => {
@@ -1586,9 +1531,6 @@ const createWindow = async () => {
     }
   });
 
-  ipcMain.on('deleteBookById', async (_, { id, token }) => {
-    _.returnValue = deleteBookById(id, token);
-  });
   ipcMain.on('deleteBookmarkById', async (_, { id, token }) => {
     _.returnValue = deleteBookmarkById(id, token);
   });
@@ -1609,33 +1551,11 @@ const createWindow = async () => {
   ipcMain.on('deleteNoteById', async (_, { id, token }) => {
     _.returnValue = deleteNoteById(id, token);
   });
-  ipcMain.on('deleteMessageById', async (_, { id, token }) => {
-    _.returnValue = deleteMessageById(id, token);
-  });
-  ipcMain.on('deletePromptById', async (_, { id, token }) => {
-    _.returnValue = deletePromptById(id, token);
-  });
-  ipcMain.on('deleteQuizProblem', async (_, { id, token }) => {
-    _.returnValue = deleteQuizProblemById(id, token);
-  });
-
-  ipcMain.on('deleteAllBook', async (_, { token }) => {
-    _.returnValue = deleteAllBook(token);
-  });
-  ipcMain.on('deleteAllBookmark', async (_, { token }) => {
-    _.returnValue = deleteAllBookmark(token);
-  });
   ipcMain.on('deleteAllChat', async (_, { token }) => {
     _.returnValue = deleteAllChat(token);
   });
   ipcMain.on('deleteAllNote', async (_, { token }) => {
     _.returnValue = deleteAllNote(token);
-  });
-  ipcMain.on('deleteAllMessage', async (_, { token }) => {
-    _.returnValue = deleteAllMessage(token);
-  });
-  ipcMain.on('deleteAllPrompt', async (_, { token }) => {
-    _.returnValue = deleteAllPrompt(token);
   });
   ipcMain.on('deleteAllQuizProblem', async (_, { token }) => {
     _.returnValue = deleteAllQuizProblem(token);
@@ -1661,12 +1581,6 @@ const createWindow = async () => {
   ipcMain.on('getBooksByBookshelfId', async (_, { bookshelfId, token }) => {
     _.returnValue = getBooksByBookshelfId(bookshelfId, token);
   });
-  ipcMain.on('getHistoryGroupById', async (_, { id, token }) => {
-    _.returnValue = getHistoryGroupById(id, token);
-  });
-  ipcMain.on('getHistoryGroupByName', async (_, { name, token }) => {
-    _.returnValue = getHistoryGroupByName(name, token);
-  });
   ipcMain.on('createHistoryGroup', async (_, { name, token }) => {
     _.returnValue = createHistoryGroup(name, token);
   });
@@ -1676,13 +1590,6 @@ const createWindow = async () => {
       _.returnValue = getHistoryGroupByQuery(query, page, limit, token);
     },
   );
-  ipcMain.on('deleteAllHistoryGroups', async (_, { token }) => {
-    _.returnValue = deleteAllHistoryGroups(token);
-  });
-
-  ipcMain.on('getHistoryById', async (_, { id, token }) => {
-    _.returnValue = getHistoryById(id, token);
-  });
   ipcMain.handle('createHistory', async (_event, { history, token }) => {
     if (history.sourceType === 'url') {
       const meta = await createUrlDescription(history.sourceKey);
@@ -1714,9 +1621,6 @@ const createWindow = async () => {
       );
     },
   );
-  ipcMain.on('deleteAllHistories', async (_, { token }) => {
-    _.returnValue = deleteAllHistories(token);
-  });
   ipcMain.on('updateHistory', async (_, { id, description, token }) => {
     _.returnValue = updateHistory(id, description, token);
   });
@@ -1754,17 +1658,8 @@ const createWindow = async () => {
   ipcMain.on('getBookmarkGroupByName', async (_, { name, token }) => {
     _.returnValue = getBookmarkGroupByName(name, token);
   });
-  ipcMain.on('getBookmarkGroupById', async (_, { id, token }) => {
-    _.returnValue = getBookmarkGroupById(id, token);
-  });
-  ipcMain.on('getTopBookmarkGroup', async (_, { token }) => {
-    _.returnValue = getTopBookmarkGroup(token);
-  });
   ipcMain.on('renameBookmarkGroup', async (_, { id, name, token }) => {
     _.returnValue = renameBookmarkGroup(id, name, token);
-  });
-  ipcMain.on('deleteAllBookmarkGroups', async (_, { token }) => {
-    _.returnValue = deleteAllBookmarkGroups(token);
   });
   ipcMain.on('createBookshelf', async (_, { name, token }) => {
     _.returnValue = createBookshelf(name, token);
@@ -1867,9 +1762,6 @@ const createWindow = async () => {
       console.log(` main createbookmark = ${JSON.stringify(b)}`);
     }
     return b ?? null;
-  });
-  ipcMain.on('getBookmarkById', async (_, { id, token }) => {
-    _.returnValue = getBookmarkById(id, token);
   });
   ipcMain.on('getBookmarkByQuery', async (_, { query, token }) => {
     _.returnValue = getBookmarkByQuery(query, token);
@@ -2156,23 +2048,7 @@ const createWindow = async () => {
     _.returnValue = updateQuizProblem(id, field, value, token);
   });
 
-  ipcMain.on('getLeitnerItemById', async (_, { id }) => {
-    _.returnValue = getLeitnerItemById(id);
-  });
-  ipcMain.on('createLeitnerItem', async (_, { leitnerItem }) => {
-    _.returnValue = createLeitnerItem(leitnerItem);
-  });
-  ipcMain.on('updateLeitnerItem', async (_, { id, field, value }) => {
-    _.returnValue = updateLeitnerItem(id, field, value);
-  });
-  ipcMain.on('deleteLeitnerItemById', async (_, { id }) => {
-    _.returnValue = deleteLeitnerItemById(id);
-  });
-
   /// //////// vocabulary and vocabulary_set ////////////////
-  ipcMain.on('getVocabularyById', async (_, { id, token }) => {
-    _.returnValue = getVocabularyById(id, token);
-  });
   ipcMain.on('getVocabularyByName', async (_, { name, token }) => {
     _.returnValue = getVocabularyByName(name, token);
   });
@@ -2197,19 +2073,10 @@ const createWindow = async () => {
   ipcMain.on('updateVocabulary', async (_, { id, field, value, token }) => {
     _.returnValue = updateVocabulary(id, field, value, token);
   });
-  ipcMain.on('deleteVocabularyById', async (_, { id, token }) => {
-    _.returnValue = deleteVocabularyById(id, token);
-  });
-  ipcMain.on('deleteAllVocabulary', async (_, { token }) => {
-    _.returnValue = deleteAllVocabulary(token);
-  });
   ipcMain.on('addVocabularyToSet', async (_, { id, setId, token }) => {
     _.returnValue = addVocabularyToSet(id, setId, token);
   });
   /// ///  vocabulary set
-  ipcMain.on('getVocabularySetById', async (_, { id, token }) => {
-    _.returnValue = getVocabularySetById(id, token);
-  });
   ipcMain.on('createVocabularySet', async (_, { vocabularySet, token }) => {
     _.returnValue = createVocabularySet(vocabularySet, token);
   });
@@ -2219,48 +2086,6 @@ const createWindow = async () => {
       _.returnValue = getVocabularySetByQuery(query, page, limit, token);
     },
   );
-  ipcMain.on('updateVocabularySetByTime', async (_, { id, token }) => {
-    _.returnValue = updateVocabularySetByTime(id, token);
-  });
-  ipcMain.on('updateVocabularySet', async (_, { id, field, value, token }) => {
-    _.returnValue = updateVocabularySet(id, field, value, token);
-  });
-  ipcMain.on('deleteVocabularySetById', async (_, { id, token }) => {
-    _.returnValue = deleteVocabularySetById(id, token);
-  });
-  ipcMain.on('deleteAllVocabularySet', async (_, { token }) => {
-    _.returnValue = deleteAllVocabularySet(token);
-  });
-
-  ipcMain.handle('ollama:stream', async (event, { history, message }) => {
-    const ollama = new Ollama({ host: 'http://127.0.0.1:11434' });
-    const messages = history || [];
-
-    if (message) messages.push(message);
-    console.log(`ollama:stream ${JSON.stringify(messages)}`);
-
-    const model = aiProviderManager.getCurrentModel() || OllamaModel.LLAMA_3_8b;
-    const response = await ollama.chat({
-      model,
-      messages,
-      stream: true,
-    });
-    for await (const part of response) {
-      console.log(part.message.content);
-      event.sender.send('ollama:stream:data', part.message.content);
-    }
-    // Indicate the stream is finished
-    event.sender.send('ollama:stream:done');
-  });
-  /** delegate to ollama */
-  ipcMain.handle('generateContent', async (_event, { prompt }) => {
-    return aiProviderManager.generateContent(prompt);
-  });
-  ipcMain.handle('sendChatMessage', async (_event, { history, message }) => {
-    const r = await aiProviderManager.sendChatMessage(history, message);
-    console.log(`sendChatMessage ${JSON.stringify(r)}`);
-    return r;
-  });
 
   ipcMain.handle('fetchPageHeadless', async (_event, { url }) => {
     return fetchPageHeadless(url);
@@ -2291,43 +2116,6 @@ const createWindow = async () => {
       }
     },
   );
-  ipcMain.handle('add-data-to-vectordb', (_, data) => {
-    if (!chromaManager.collection) {
-      return { ids: [], documents: [] };
-    }
-    try {
-      const { id, source, doc } = data;
-      return chromaManager.collection.add({
-        ids: [id.toString()],
-        metadatas: [{ source: String(source) }],
-        documents: [doc],
-      });
-    } catch (e) {
-      console.log(e.message ? e.message : e);
-      return { ids: [], documents: [] };
-    }
-  });
-  ipcMain.handle('query-vectordb', (_, data) => {
-    if (!chromaManager.collection) {
-      return { ids: [], documents: [] };
-    }
-    try {
-      const { query, nResults, condition } = data;
-      if (condition)
-        return chromaManager.collection.query({
-          nResults,
-          where: condition, // where
-          queryTexts: [query], // query_text
-        });
-      return chromaManager.collection.query({
-        nResults,
-        queryTexts: [query], // query_text
-      });
-    } catch (e) {
-      console.log(e.message ? e.message : e);
-      return { ids: [], documents: [] };
-    }
-  });
 
   /** helper function */
   /** file system related */
@@ -2388,88 +2176,7 @@ const createWindow = async () => {
     _.returnValue = true;
   });
 
-  ipcMain.on('storage-location', (event, arg) => {
-    event.returnValue = global.shared.storageLocation;
-  });
-
-  ipcMain.handle('get-file-data', (event, arg) => {
-    try {
-      const { storageLocation } = global.shared;
-      console.log(storageLocation);
-      // console.log(`filePath1 = ${filePath}`);
-      if (fs.existsSync(path.join(storageLocation, 'log.json'))) {
-        const pdata = JSON5.parse(
-          fs.readFileSync(path.join(storageLocation, 'log.json'), 'utf-8') ||
-            '{}',
-        );
-        if (pdata && pdata.filePath) {
-          filePath = pdata.filePath;
-          fs.writeFileSync(path.join(storageLocation, 'log.json'), '', 'utf-8');
-        }
-      }
-      console.log(`filePath2 = ${filePath}`);
-      const returnValue = filePath;
-      filePath = null;
-      return returnValue;
-    } catch (e) {
-      console.log(e.message ? e.message : e);
-      return false;
-    }
-  });
-
-  //
-
-  ipcMain.handle('setup-file-dir', (event, data) => {
-    const dirPath = global.shared.storageLocation; // ipcRenderer.sendSync('user-data', 'ping');
-    if (!fs.existsSync(dirPath)) {
-      fs.mkdirSync(dirPath, { recursive: true });
-      // fs.mkdirSync(path.join(dirPath, 'data'));
-      fs.mkdirSync(path.join(dirPath, 'book'));
-      console.log('文件夹创建成功');
-    } else {
-      console.log('文件夹已存在');
-    }
-    return new Promise((resolve, reject) => {
-      async function storageLoc() {
-        // Check for data update
-        const { storageLocation } = global.shared;
-        // v || window.electron.ipcRenderer.sendSync('storage-location', 'ping');
-        const sourcePath = path.join(
-          storageLocation,
-          'config',
-          'readerConfig.json',
-        );
-        // Detect data modification
-        fs.readFile(sourcePath, 'utf8', async (err, data) => {
-          if (err) {
-            console.log(err);
-            resolve(false);
-            return;
-          }
-          const readerConfig = JSON5.parse(data);
-          const st1 = store.get('lastSyncTime') as string;
-          if (st1 && parseInt(readerConfig.lastSyncTime) > parseInt(st1)) {
-            resolve(true); // setIsdataChange(  true  );
-          } else {
-            resolve(false);
-          }
-        });
-      }
-      storageLoc();
-    });
-  });
-
   /**  export & import  */
-
-  ipcMain.handle('fetch-book', (event, data) => {
-    try {
-      const { id, isArrayBuffer, bookPath } = data;
-      return BookUtil.fetchBook(id, isArrayBuffer, bookPath);
-    } catch (e) {
-      console.log(e.message ? e.message : e);
-      return false;
-    }
-  });
 
   ipcMain.handle('import-keywords-from-file', async (event, data) => {
     try {
@@ -2580,29 +2287,6 @@ const createWindow = async () => {
     },
   );
 
-  ipcMain.handle('capture-webview', (event, data) => {
-    try {
-      const { webviewWebContentsId } = data;
-      const webviewWebContents = webContents.fromId(webviewWebContentsId);
-      async function t() {
-        if (!webviewWebContents) {
-          console.log('not found webview webcontent');
-          return null;
-        }
-        const image = await webviewWebContents.capturePage();
-        console.log('image loaded');
-        console.log(image.toDataURL());
-        const r = await createImage(image.toDataURL());
-        // store.set(`_img_${imageId}`, image.toDataURL());
-        return r === null ? -1 : r.id;
-      }
-      return t();
-    } catch (e) {
-      console.log(e.message ? e.message : e);
-      return false;
-    }
-  });
-
   /**
    * return image id.
    */
@@ -2643,24 +2327,6 @@ const createWindow = async () => {
       console.log(e.message ? e.message : e);
       return false;
     }
-  });
-  ipcMain.on('show-context-menu-from-word', (event, { selectedText, x, y }) => {
-    const win = BrowserWindow.fromWebContents(event.sender);
-    const menu = new Menu();
-    menu.append(
-      new MenuItem({
-        label: 'Save for Study',
-        icon: noteIcon,
-        click: () => {
-          // Send a message back to the renderer process
-          win?.webContents.send('context-menu-command', {
-            command: 'addToWordList',
-            selectedText,
-          });
-        },
-      }),
-    );
-    menu.popup({ window: win, x, y });
   });
   ipcMain.on(
     'show-context-menu-from-selection',
@@ -2723,41 +2389,6 @@ const createWindow = async () => {
     },
   );
 
-  ipcMain.on('show-context-menu-regular', (event, { content, x, y }) => {
-    const win = BrowserWindow.fromWebContents(event.sender);
-    const menu = new Menu();
-    menu.append(
-      new MenuItem({
-        icon: reactIcon,
-        label: 'Screenshot',
-        click: () => {
-          // Send a message back to the renderer process
-          win?.webContents.send('browser-use-area-selection', {
-            command: 'Screenshot',
-            content,
-          });
-        },
-      }),
-    );
-    menu.popup({ window: win, x, y });
-  });
-
-  ipcMain.on('show-image-context-menu', (event, { imageUrl, x, y }) => {
-    const menu = new Menu();
-    menu.append(
-      new MenuItem({
-        icon: reactIcon,
-        label: 'Custom Action for Image',
-        click: () => {
-          console.log('Image action clicked', imageUrl);
-          // Perform any action here, such as opening the image in a default browser, saving it, etc.
-        },
-      }),
-    );
-
-    const win = BrowserWindow.fromWebContents(event.sender);
-    menu.popup({ window: win, x, y });
-  });
 
   ipcMain.handle('open-book', (event, config) => {
     try {
@@ -2993,9 +2624,6 @@ app
       // On macOS it's common to re-create a window in the app when the
       // dock icon is clicked and there are no other windows open.
       if (mainWin === null) createWindow();
-    });
-    app.on('open-file', (e, pathToFile) => {
-      filePath = pathToFile;
     });
   })
   .catch(console.log);

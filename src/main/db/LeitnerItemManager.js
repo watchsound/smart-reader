@@ -1,15 +1,4 @@
-import db, { assertUpdateField } from './dbManager';
-
-const LEITNER_ITEM_UPDATABLE = new Set([
-  'type',
-  'box',
-  'skips',
-  'flips',
-  'next_review',
-  'fully_learned',
-  'set_id',
-  'score',
-]);
+import db from './dbManager';
 
 /**
 CREATE TABLE "leitner_item" (
@@ -59,8 +48,7 @@ export const getLeitnerItemById = (id) => {
 /**
  *
  * @param {*} leitnerItem
- * @param {*} token
- * @returns message. if success,  id field is added
+ * @returns the inserted leitner_item row (with id), or null on failure
  */
 export const createLeitnerItem = (leitnerItem) => {
   try {
@@ -78,37 +66,10 @@ export const createLeitnerItem = (leitnerItem) => {
       )
       .bind(box, type, skips, flips, nextReview, fullyLearned, score);
     const result = stmt.run();
-    leitnerItem.id = result.lastInsertRowid;
-    return getLeitnerItemById(leitnerItem.id);
+    return getLeitnerItemById(result.lastInsertRowid);
   } catch (err) {
     console.error(err);
     return null;
   }
 };
 
-export function updateLeitnerItem(id, field, value) {
-  try {
-    assertUpdateField('leitner_item', LEITNER_ITEM_UPDATABLE, field);
-    const sql = `UPDATE leitner_item SET ${field} = ? WHERE id = ?  `;
-    const query = db.prepare(sql);
-    query.run([value, id]);
-    return 1;
-  } catch (err) {
-    console.error(err);
-    return -1;
-  }
-}
-
-export function deleteLeitnerItemById(id) {
-  try {
-    const sql = `
-        DELETE FROM leitner_item WHERE id = ?
-    `;
-    const query = db.prepare(sql);
-    query.run([id]);
-    return 1;
-  } catch (err) {
-    console.error(err);
-    return -1;
-  }
-}

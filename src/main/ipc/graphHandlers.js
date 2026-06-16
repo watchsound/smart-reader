@@ -758,19 +758,6 @@ export function registerGraphHandlers(store) {
   // ===========================================================================
 
   /**
-   * Initialize graph embedding manager
-   */
-  ipcMain.handle('graph-embedding-setup', async () => {
-    try {
-      await graphEmbeddingManager.setup(store);
-      return { success: true };
-    } catch (error) {
-      console.error('graph-embedding-setup error:', error);
-      return { success: false, error: error.message };
-    }
-  });
-
-  /**
    * Semantic search for books
    */
   ipcMain.handle('graph-semantic-search-books', async (_event, query, token) => {
@@ -972,65 +959,6 @@ export function registerGraphHandlers(store) {
     } catch (error) {
       console.error('sync-note-links error:', error);
       return { success: false, error: error.message };
-    }
-  });
-
-  /**
-   * Get outgoing links from a note
-   * Returns all items that the note links TO
-   */
-  ipcMain.handle('get-outgoing-links', async (_event, args) => {
-    try {
-      const [noteId, token] = args || [];
-      if (!graphInterface.isReady()) {
-        return [];
-      }
-      return await graphInterface.getOutgoingLinks(noteId, token);
-    } catch (error) {
-      console.error('get-outgoing-links error:', error);
-      return [];
-    }
-  });
-
-  /**
-   * Find notes with shared tags (for semantic auto-linking)
-   */
-  ipcMain.handle('find-notes-by-shared-tags', async (_event, args) => {
-    try {
-      const [tags, excludeNoteId, token, minSharedTags] = args || [];
-      if (!graphInterface.isReady()) {
-        return [];
-      }
-      return await graphInterface.findNotesBySharedTags(
-        tags,
-        excludeNoteId,
-        token,
-        minSharedTags || 2,
-      );
-    } catch (error) {
-      console.error('find-notes-by-shared-tags error:', error);
-      return [];
-    }
-  });
-
-  /**
-   * Find semantically similar notes
-   */
-  ipcMain.handle('find-similar-notes', async (_event, args) => {
-    try {
-      const [noteId, embedding, threshold, token] = args || [];
-      if (!graphInterface.isReady()) {
-        return [];
-      }
-      return await graphInterface.findSemanticallySimilarNotes(
-        noteId,
-        embedding,
-        threshold || 0.75,
-        token,
-      );
-    } catch (error) {
-      console.error('find-similar-notes error:', error);
-      return [];
     }
   });
 

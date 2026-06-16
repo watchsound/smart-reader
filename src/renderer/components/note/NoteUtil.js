@@ -1,7 +1,7 @@
 /* eslint-disable no-restricted-syntax */
 /* eslint-disable promise/no-callback-in-promise */
 export default function parseMarkdownToHtml(markdown, callback) {
-  const t = window.electron.ipcRenderer.parse_markdown(markdown);
+  const t = window.electron.ipcRenderer.parseMarkdown(markdown);
   // eslint-disable-next-line promise/catch-or-return, promise/always-return
   t.then((result) => {
     setTimeout(() => {
@@ -11,7 +11,7 @@ export default function parseMarkdownToHtml(markdown, callback) {
 }
 
 export function parseMarkdownToHtmlNoCallback(markdown) {
-  return window.electron.ipcRenderer.parse_markdown(markdown);
+  return window.electron.ipcRenderer.parseMarkdown(markdown);
 }
 
 function areAllNullOrUndefined(obj) {

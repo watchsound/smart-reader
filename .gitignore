@@ -27,3 +27,8 @@ npm-debug.log.*
 *.css.d.ts
 *.sass.d.ts
 *.scss.d.ts
+
+# Local tooling caches and per-developer config
+.claude/
+.codegraph/
+.history/

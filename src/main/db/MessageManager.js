@@ -29,7 +29,7 @@ const MESSAGE_UPDATABLE = new Set([
 export const getMessageById = (id, token) => {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return null;
   }
   try {
@@ -59,7 +59,7 @@ export const getMessageById = (id, token) => {
 export const createMessage= (message, token) => {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return message;
   }
   console.log('in createMessage of db');
@@ -93,7 +93,7 @@ export const getMessagesByChatId = (chatId, token) => {
   const messages = [];
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return messages;
   }
   try {
@@ -125,7 +125,7 @@ export const getMessageByQuery = (query, token) => {
   const prompts = [];
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return prompts;
   }
   try {
@@ -159,7 +159,7 @@ export const getMessageByQuery = (query, token) => {
 export function updateMessage(id, field, value, token) {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return -1;
   }
   try {
@@ -175,36 +175,10 @@ export function updateMessage(id, field, value, token) {
   }
 }
 
-/**
- *
- * @param {*} id
- * @param {*} token
- * @returns
- */
-export function deleteMessageById(id, token) {
-  const userId = getUserIdFromToken(token);
-  if( userId < 0) {
-    console.log('session is invalid, userid not found')
-    return -1;
-  }
-  try {
-    const sql = `
-        DELETE FROM message
-        WHERE id = ? AND user_id = ?
-    `;
-    const query = db.prepare(sql);
-    query.run( [id, userId] );
-    return 1;
-  } catch (err) {
-    console.error(err);
-    return -1;
-  }
-}
-
 export function deleteMessageByChatId(chatId, token) {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return -1;
   }
   try {
@@ -221,27 +195,3 @@ export function deleteMessageByChatId(chatId, token) {
   }
 }
 
-/**
- *
- * @param {*} token
- * @returns 1 or -1
- */
-export function deleteAllMessage(token) {
-  const userId = getUserIdFromToken(token);
-  if( userId < 0) {
-    console.log('session is invalid, userid not found')
-    return -1;
-  }
-  try {
-    const sql = `
-        DELETE FROM message
-        WHERE  user_id = ?
-    `;
-    const query = db.prepare(sql);
-    query.run( [userId] );
-    return 1;
-  } catch (err) {
-    console.error(err);
-    return -1;
-  }
-}

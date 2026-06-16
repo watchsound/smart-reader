@@ -19,35 +19,6 @@ import db, { getUserIdFromToken, addUserIdCreatedAt , } from './dbManager';
 
 /**
  *
- * @param {*} id
- * @param {*} token
- * @returns null if failed
- */
-export const getBookmarkGroupById = (id, token) => {
-  const userId = getUserIdFromToken(token);
-  if( userId < 0) {
-    console.log('session is invalid, userid not found')
-    return null;
-  }
-  try {
-    const stmt = db.prepare('SELECT * FROM bookmark_group WHERE id = ? AND user_id = ?');
-    const group = stmt.get(id, userId);
-    if (group) return {
-      id : group.id,
-      groupName:  group.group_name || '',
-      parentGroupId: group.parent_group_id,
-      createdAt : group.created_at,
-      userId: group.user_id,
-    };
-    return null;
-  } catch (err) {
-    console.error(err);
-    return null;
-  }
-};
-
-/**
- *
  * @param {*} name
  * @param {*} token
  * @returns  if failed null.
@@ -55,7 +26,7 @@ export const getBookmarkGroupById = (id, token) => {
 export const getBookmarkGroupByName= (name, token) => {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return null;
   }
   try {
@@ -86,7 +57,7 @@ export const createBookmarkGroup= (parentGroupId, name, token) => {
   const group = { groupName: name, parentGroupId };
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return group;
   }
   addUserIdCreatedAt(group, userId);
@@ -112,7 +83,7 @@ export const getTopBookmarkGroup = (token) => {
   const bookmarkGroups = [];
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return bookmarkGroups;
   }
   try {
@@ -144,7 +115,7 @@ export const getTopBookmarkGroup = (token) => {
 export function renameBookmarkGroup(id, name, token) {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return -1;
   }
   try {
@@ -154,31 +125,6 @@ export function renameBookmarkGroup(id, name, token) {
     `;
     const query = db.prepare(sql);
     query.run();
-    return 1;
-  } catch (err) {
-    console.error(err);
-    return -1;
-  }
-}
-
-/**
- *
- * @param {*} token
- * @returns 1 or -1
- */
-export function deleteAllBookmarkGroups(token) {
-  const userId = getUserIdFromToken(token);
-  if( userId < 0) {
-    console.log('session is invalid, userid not found')
-    return -1;
-  }
-  try {
-    const sql = `
-        DELETE FROM bookmark_group
-        WHERE  user_id = ?
-    `;
-    const query = db.prepare(sql);
-    query.run( [userId] );
     return 1;
   } catch (err) {
     console.error(err);
@@ -208,7 +154,7 @@ const recursiveDepthQuery = `
 export const printBookmarkGroupStructure = (gapChar, token) => {
   const userId = getUserIdFromToken(token);
   if( userId < 0) {
-    console.log('session is invalid, userid not found')
+    console.warn('session is invalid, userid not found')
     return '';
   }
    try {
@@ -248,7 +194,7 @@ export const printBookmarkGroupStructure = (gapChar, token) => {
 // export const jsonBookmarkGroupStructure = ( token) => {
 //   const userId = getUserIdFromToken(token);
 //   if( userId < 0) {
-//     console.log('session is invalid, userid not found')
+//     console.warn('session is invalid, userid not found')
 //     return null;
 //   }
 //    try {
@@ -313,7 +259,7 @@ const recursiveJsonQueryWithCount = `
 export const jsonBookmarkGroupStructure = (token) => {
   const userId = getUserIdFromToken(token);
   if (userId < 0) {
-    console.log('session is invalid, userid not found');
+    console.warn('session is invalid, userid not found');
     return null;
   }
   try {
