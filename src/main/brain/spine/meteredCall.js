@@ -15,6 +15,9 @@ function summarize(out) {
 }
 
 async function meteredCall(provider, prompt, options = {}) {
+  if (!provider) {
+    throw new Error('[meteredCall] no provider passed — caller must check aiProviderManager.currentProvider');
+  }
   const label = options.legacyLabel || 'unknown';
   const t0 = Date.now();
   const output = await provider.generateContent(prompt);

@@ -66,7 +66,11 @@ async function brainCall(intent, input, options = {}) {
     );
   }
 
-  // Cache lookup
+  // Cache lookup.
+  // Only 'content-hash' policy is implemented in Phase 9a. The 'session' and
+  // 'none' policies both fall through to uncached behavior (every call is fresh).
+  // Session-scoped caching is reserved for Phase 10 Director Mode when call
+  // sequences within an LLM-driven session need shared output cache.
   let cacheKey = null;
   if (profile.cachePolicy === 'content-hash') {
     cacheKey = hashContent(prompt);
@@ -81,6 +85,9 @@ async function brainCall(intent, input, options = {}) {
 
   // Live dispatch — schema from options overrides profile.schema
   const provider = aiProviderManager.currentProvider;
+  if (!provider) {
+    throw new Error('[brainCall] no AI provider configured — set one in Settings');
+  }
   const dispatchSchema = options.schema || profile.schema;
   const t0 = Date.now();
   const output = dispatchSchema

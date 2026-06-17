@@ -87,4 +87,35 @@ describe('brainCall', () => {
     const row = testDb.prepare('SELECT trigger_id FROM brain_call_ledger WHERE id = ?').get(callId);
     expect(row.trigger_id).toBe('trig_test_1');
   });
+
+  test('session cachePolicy intents do not hit cache (Phase 9a behavior)', async () => {
+    // Register a session-policy test intent
+    try {
+      intents.register('test-session-intent', {
+        label: 'Test session',
+        contextSlices: ['simpleSlice'],
+        costCeilingTokens: 2000,
+        cachePolicy: 'session',
+      });
+    } catch (_e) { /* already registered */ }
+
+    await brainCall('test-session-intent', 'same input', { userId: 1 });
+    const second = await brainCall('test-session-intent', 'same input', { userId: 1 });
+    expect(second.cacheHit).toBe(false); // session policy is uncached in Phase 9a
+  });
+
+  test('none cachePolicy intents do not hit cache', async () => {
+    try {
+      intents.register('test-none-intent', {
+        label: 'Test none',
+        contextSlices: ['simpleSlice'],
+        costCeilingTokens: 2000,
+        cachePolicy: 'none',
+      });
+    } catch (_e) { /* already registered */ }
+
+    await brainCall('test-none-intent', 'same input', { userId: 1 });
+    const second = await brainCall('test-none-intent', 'same input', { userId: 1 });
+    expect(second.cacheHit).toBe(false);
+  });
 });
