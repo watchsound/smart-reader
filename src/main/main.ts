@@ -235,6 +235,9 @@ const { registerQuestWalkHandlers } = require('./ipc/questWalkHandlers');
 // Plan 9a (Brain Spine): Call Ledger IPC — Rationale Card + Economics Panel
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { registerCallLedgerHandlers } = require('./ipc/callLedgerHandlers');
+// Plan 9d (Brain Spine): Renderer-direct LLM calls bridge — meteredCallJson IPC
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const spineHandlers = require('./ipc/spineHandlers');
 
 const options = {
   width: 1050,
@@ -2521,6 +2524,9 @@ app
     // Plan 9a (Brain Spine): Call Ledger — Rationale Card + Economics Panel.
     // No store arg needed; the DAO accesses DBManager directly.
     registerCallLedgerHandlers();
+    // Plan 9d (Brain Spine): Renderer-direct LLM calls bridge.
+    // Polymorphic IPC channel for both text (meteredCall) and JSON (meteredCallJson).
+    spineHandlers.register();
     // Phase 8: MoodBoard organize-suggestion IPC handlers (renderer side
     // of the brain heartbeat's `suggestOrganizeSessions` task).
     registerMoodBoardOrganizerHandlers(store);

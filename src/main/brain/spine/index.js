@@ -5,6 +5,7 @@
 module.exports = {
   brainCall: require('./brainCall'),
   meteredCall: require('./meteredCall'),
+  meteredCallJson: require('./meteredCallJson'),
   intents: require('./intents'),
   tools: require('./tools'),
   BrainContext: require('./BrainContext'),
