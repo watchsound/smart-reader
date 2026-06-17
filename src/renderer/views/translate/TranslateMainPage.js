@@ -54,7 +54,7 @@ import StepTwoVerbCard from './StepTwoVerbCard';
 import StepThreeSentenceStructureCard from './StepThreeSentenceStructureCard';
 import StepFourSentenceScaffoldCard from './StepFourSentenceScaffoldCard';
 import StepFiveFinalCard from './StepFiveFinalCard';
-import { instanceInRender as aiProviderManager } from '../../../commons/service/AIProviderManager';
+import spineApi from '../../api/spineApi';
 
 // Styled components matching Bookmark view
 const SearchContainer = styled(Box)(({ theme }) => ({
@@ -326,10 +326,10 @@ function TranslateMainPage() {
 
   const annotateSentence = async (input, isOriginal) => {
     const prompt = getNLPAnnotationPrompt(input.trim());
-    const jsonData = await aiProviderManager.generateContentWithJson(
+    const jsonData = await spineApi.generateContentWithJson(
       prompt,
-      true,
-      'sentence',
+      null,
+      { label: 'translate-main' },
     );
     if (!jsonData) return false;
     if (isOriginal) {
@@ -389,10 +389,10 @@ function TranslateMainPage() {
       const success = await annotateSentence(content.trim(), true);
       if (success) {
         const prompt2 = getTranslatePrompt(content.trim(), languageModel);
-        const jsonData2 = await aiProviderManager.generateContentWithJson(
+        const jsonData2 = await spineApi.generateContentWithJson(
           prompt2,
-          true,
-          'input-sentence',
+          null,
+          { label: 'translate-main' },
         );
         if (jsonData2) {
           setTranslateProcess(jsonData2);
