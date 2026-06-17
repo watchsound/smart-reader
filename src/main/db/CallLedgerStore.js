@@ -208,6 +208,16 @@ function prune({ maxAgeMs, maxRows }) {
   return dropped;
 }
 
+/** Update the trigger_id of an existing call row. Used for post-emit backfill. */
+function bindTriggerId(callId, triggerId) {
+  const db = DBManager.getDb();
+  const info = db.prepare(
+    'UPDATE brain_call_ledger SET trigger_id = ? WHERE id = ?',
+  ).run(triggerId, callId);
+  if (info.changes === 0) throw new Error(`unknown callId: ${callId}`);
+  return info.changes;
+}
+
 module.exports = {
   record,
   recordCacheHit,
@@ -217,4 +227,5 @@ module.exports = {
   aggregateByProvider,
   cacheHitRateByIntent,
   prune,
+  bindTriggerId,
 };

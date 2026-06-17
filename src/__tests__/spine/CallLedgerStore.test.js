@@ -193,3 +193,19 @@ describe('CallLedgerStore aggregations', () => {
     expect(row.output_summary).toBe('second');
   });
 });
+
+describe('CallLedgerStore.bindTriggerId', () => {
+  test('updates the trigger_id of the given call row', () => {
+    const id = CallLedgerStore.record({
+      intent: 'x', provider: 'p', ts: 100, cache_hit: false, output_summary: 'o',
+    });
+    CallLedgerStore.bindTriggerId(id, 'trig_42');
+    const row = testDb.prepare('SELECT trigger_id FROM brain_call_ledger WHERE id = ?').get(id);
+    expect(row.trigger_id).toBe('trig_42');
+  });
+
+  test('throws on unknown callId', () => {
+    expect(() => CallLedgerStore.bindTriggerId(99999, 't'))
+      .toThrow(/unknown callId/);
+  });
+});
