@@ -1,5 +1,5 @@
 /**
- * synthesizePullSuggestion tests — Plan 9c migrated to brainCall / spine.
+ * synthesizePullSuggestion tests — Plan 13 migrated to Director.
  */
 
 jest.mock('electron', () => ({
@@ -32,10 +32,10 @@ jest.mock('../../main/brain/ProductionPromptService', () =>
   jest.fn().mockImplementation(() => ({})),
 );
 
-// Spine mock — replaced per test via brainCallMock.mockResolvedValue(...)
-const brainCallMock = jest.fn();
-jest.mock('../../main/brain/spine', () => ({
-  brainCall: (...args) => brainCallMock(...args),
+// Director mock — used for the aiProvider-present path.
+const directorRunMock = jest.fn();
+jest.mock('../../main/brain/director/Director', () => ({
+  run: (...args) => directorRunMock(...args),
 }));
 
 const LearningBrainAgent = require('../../main/brain/LearningBrainAgent');
@@ -51,12 +51,12 @@ function makeStore(quests = []) {
 }
 
 // Stub aiProvider so the `if (!this.aiProvider)` guard doesn't short-circuit
-// LLM-path tests. The actual call now goes through brainCall/spine.
+// LLM-path tests. The actual call now goes through Director.
 const stubProvider = {};
 
 describe('LearningBrainAgent.synthesizePullSuggestion', () => {
   beforeEach(() => {
-    brainCallMock.mockReset();
+    directorRunMock.mockReset();
   });
 
   test('deterministic fallback when no aiProvider — uses top active quest', async () => {
@@ -85,11 +85,12 @@ describe('LearningBrainAgent.synthesizePullSuggestion', () => {
     expect(result.navigate).toBe('bookshelf');
   });
 
-  test('LLM path — uses brainCall when aiProvider present and accepts well-shaped output', async () => {
-    brainCallMock.mockResolvedValue({
+  test('LLM path — uses Director when aiProvider present and accepts well-shaped output', async () => {
+    directorRunMock.mockResolvedValue({
       output: { title: 'Drill 5 German verbs', body: 'You have 5 conjugation cards due today.', navigate: 'vocabulary' },
-      callId: 1,
-      cacheHit: false,
+      traceId: 'tr_test',
+      callIds: [1],
+      usedFallback: false,
     });
     const agent = new LearningBrainAgent({
       store: makeStore([
@@ -105,22 +106,18 @@ describe('LearningBrainAgent.synthesizePullSuggestion', () => {
       aiProvider: stubProvider,
     });
     const result = await agent.synthesizePullSuggestion();
-    expect(brainCallMock).toHaveBeenCalledTimes(1);
-    expect(brainCallMock).toHaveBeenCalledWith(
-      'synthesize-pull-suggestion',
-      expect.any(String),
-      expect.objectContaining({ userId: 1, schema: expect.any(Object) }),
-    );
+    expect(directorRunMock).toHaveBeenCalledTimes(1);
     expect(result.title).toBe('Drill 5 German verbs');
     expect(result.navigate).toBe('vocabulary');
     expect(result.source).toBe('llm');
   });
 
-  test('LLM path — falls back when brainCall returns malformed output (missing title/body)', async () => {
-    brainCallMock.mockResolvedValue({
-      output: { unexpected: 'shape' },
-      callId: 2,
-      cacheHit: false,
+  test('LLM path — falls back when Director returns usedFallback=true', async () => {
+    directorRunMock.mockResolvedValue({
+      output: { title: 'Continue your quest: X', body: 'g', navigate: 'reading/7', source: 'deterministic-fallback' },
+      traceId: 'tr_test',
+      callIds: [],
+      usedFallback: true,
     });
     const agent = new LearningBrainAgent({
       store: makeStore([
@@ -137,11 +134,10 @@ describe('LearningBrainAgent.synthesizePullSuggestion', () => {
     });
     const result = await agent.synthesizePullSuggestion();
     expect(result.source).toBe('deterministic-fallback');
-    expect(result.navigate).toBe('reading/7');
   });
 
-  test('LLM path — falls back when brainCall throws', async () => {
-    brainCallMock.mockRejectedValue(new Error('provider down'));
+  test('LLM path — falls back when Director throws', async () => {
+    directorRunMock.mockRejectedValue(new Error('provider down'));
     const agent = new LearningBrainAgent({
       store: makeStore([]),
       aiProvider: stubProvider,
@@ -151,11 +147,12 @@ describe('LearningBrainAgent.synthesizePullSuggestion', () => {
     expect(result.title).toMatch(/caught up/i);
   });
 
-  test('LLM path — strips leading slashes from navigate', async () => {
-    brainCallMock.mockResolvedValue({
-      output: { title: 'do thing', body: 'because', navigate: '/notes' },
-      callId: 3,
-      cacheHit: false,
+  test('LLM path — source is llm when Director succeeds', async () => {
+    directorRunMock.mockResolvedValue({
+      output: { title: 'do thing', body: 'because', navigate: 'notes' },
+      traceId: 'tr_test',
+      callIds: [3],
+      usedFallback: false,
     });
     const agent = new LearningBrainAgent({
       store: makeStore([]),
@@ -163,5 +160,6 @@ describe('LearningBrainAgent.synthesizePullSuggestion', () => {
     });
     const result = await agent.synthesizePullSuggestion();
     expect(result.navigate).toBe('notes');
+    expect(result.source).toBe('llm');
   });
 });

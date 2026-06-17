@@ -23,16 +23,6 @@ const {
 
 const NOTIF_DEDUP_KEY = 'learningBrain.notifDedup';
 
-const SUGGESTION_SCHEMA = {
-  type: 'object',
-  properties: {
-    title:    { type: 'string' },
-    body:     { type: 'string' },
-    navigate: { type: 'string' },
-  },
-  required: ['title', 'body'],
-};
-
 // Map the brain's internal nudge `type` to NotificationManager fields.
 // Anything not listed falls back to SYSTEM/NORMAL with no actionUrl.
 const NUDGE_TYPE_MAP = {
@@ -185,107 +175,45 @@ class LearningBrainAgent {
 
   /**
    * Synthesize a "what's next?" suggestion when the user pulls and the
-   * queue is empty. Plan 3: LLM-backed when aiProvider is available,
-   * with a deterministic Quest-aware fallback.
+   * queue is empty. Plan 13: routes through the Director ReAct loop when
+   * aiProvider is available; falls back to the Quest-aware deterministic
+   * fallback otherwise.
    *
-   * Returns: { title, body, navigate? } | null
-   *
-   * The result is consumed by the renderer-side triggerBus.pull() which
-   * passes it to BrainShell.onOrbClick; consumers can render it as a
-   * floating chip, narrate it, or enqueue it as a synthetic Proposal.
+   * Returns: { title, body, navigate?, source } | null
    */
   async synthesizePullSuggestion() {
-    // Gather lightweight context. Each source is best-effort — failures
-    // degrade gracefully to the deterministic fallback.
-    let activeQuests = [];
-    try {
-      // Lazy require to avoid circular import with main brain bootstrap.
-      const QuestService = require('../utils/QuestService');
-      const questSvc = new QuestService(this.store);
-      activeQuests = questSvc.list({ status: 'active' });
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.warn('[LearningBrainAgent] quest fetch failed:', e?.message || e);
+    const deterministicFallbackFn = require('./director/configs/deterministicPullFallback');
+
+    if (!this.aiProvider) {
+      // Gather active quests for the Quest-aware branch of the fallback.
+      let activeQuests = [];
+      try {
+        const QuestService = require('../utils/QuestService');
+        const questSvc = new QuestService(this.store);
+        activeQuests = questSvc.list({ status: 'active' });
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn('[LearningBrainAgent] quest fetch failed:', e?.message || e);
+      }
+      return deterministicFallbackFn({ activeQuests });
     }
 
-    const deterministicFallback = () => {
-      if (activeQuests.length > 0) {
-        const q = activeQuests[0];
-        const firstBook =
-          q.bookIds && q.bookIds.length > 0 ? q.bookIds[0] : null;
-        return {
-          title: `Continue your quest: ${q.name}`,
-          body: q.goal,
-          navigate: firstBook ? `reading/${firstBook}` : null,
-          source: 'deterministic-fallback',
-        };
-      }
-      return {
-        title: "You're caught up",
-        body: 'No pending proposals and no active quests. Pick a book to keep going.',
-        navigate: 'bookshelf',
-        source: 'deterministic-fallback',
-      };
-    };
-
-    if (!this.aiProvider) return deterministicFallback();
-
-    // Compact context block — kept tight to control prompt cost.
-    const questBlock =
-      activeQuests.length === 0
-        ? '(no active quests)'
-        : activeQuests
-            .slice(0, 3)
-            .map(
-              (q, i) =>
-                `${i + 1}. "${q.name}" — ${q.goal} (${q.bookIds?.length || 0} books)`,
-            )
-            .join('\n');
-
-    const prompt = `You are the learner's coach. Suggest ONE specific next action.
-
-Active quests:
-${questBlock}
-
-Reply strictly as JSON with this shape:
-{
-  "title": "short imperative — what to do (max 50 chars)",
-  "body": "one sentence why (max 120 chars)",
-  "navigate": "route path (e.g. reading/3, vocabulary, knowledge) or null if no specific surface"
-}`;
-
+    const Director = require('./director/Director');
+    const pullConfig = require('./director/configs/pullSuggestion');
     try {
-      const { brainCall } = require('./spine');
-      const result = await brainCall(
-        'synthesize-pull-suggestion',
-        prompt,
-        { userId: 1, schema: SUGGESTION_SCHEMA },
-      );
-      const parsed = result.output;
-      if (
-        parsed &&
-        typeof parsed.title === 'string' &&
-        typeof parsed.body === 'string'
-      ) {
-        return {
-          title: String(parsed.title).slice(0, 80),
-          body: String(parsed.body).slice(0, 200),
-          navigate:
-            typeof parsed.navigate === 'string' && parsed.navigate.trim()
-              ? parsed.navigate.trim().replace(/^\/+/, '')
-              : null,
-          source: 'llm',
-        };
-      }
-      // Parsed but didn't match shape — fall through.
-      return deterministicFallback();
+      const result = await Director.run({
+        config: pullConfig,
+        input: 'Decide one concrete next action for the learner.',
+        userId: 1,
+      });
+      return {
+        ...result.output,
+        source: result.usedFallback ? 'deterministic-fallback' : 'llm',
+      };
     } catch (e) {
       // eslint-disable-next-line no-console
-      console.warn(
-        '[LearningBrainAgent] synthesizePullSuggestion LLM failed:',
-        e?.message || e,
-      );
-      return deterministicFallback();
+      console.warn('[LearningBrainAgent] Director crash, deterministic fallback:', e?.message || e);
+      return deterministicFallbackFn();
     }
   }
 
