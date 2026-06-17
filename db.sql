@@ -618,6 +618,7 @@ CREATE TABLE IF NOT EXISTS "brain_call_ledger" (
   "cache_key" TEXT,
   "duration_ms" INTEGER,
   "trigger_id" TEXT,
+  "trace_id" TEXT,
   "output_summary" TEXT,
   "output_json" TEXT  -- full structured output JSON; consumed by Rationale Card and Phase 10 Director Mode
 );
@@ -625,3 +626,4 @@ CREATE INDEX IF NOT EXISTS "idx_brain_call_ledger_ts" ON "brain_call_ledger"("ts
 CREATE INDEX IF NOT EXISTS "idx_brain_call_ledger_intent_ts" ON "brain_call_ledger"("intent", "ts");
 CREATE INDEX IF NOT EXISTS "idx_brain_call_ledger_trigger" ON "brain_call_ledger"("trigger_id");
 CREATE INDEX IF NOT EXISTS "idx_brain_call_ledger_cache" ON "brain_call_ledger"("intent", "cache_key");
+CREATE INDEX IF NOT EXISTS "idx_brain_call_ledger_trace" ON brain_call_ledger("trace_id");
