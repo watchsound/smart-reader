@@ -241,6 +241,9 @@ const spineHandlers = require('./ipc/spineHandlers');
 // Phase 10b-1 (Study-Session Director): session lifecycle IPC
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const sessionHandlers = require('./ipc/sessionHandlers');
+// Phase 10b-3: wire rereadQueueSingleton for Director's scheduleReread tool
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const rereadQueueSingleton = require('./utils/rereadQueueSingleton');
 
 const options = {
   width: 1050,
@@ -2516,7 +2519,9 @@ app
       store,
       getWebContents: () => mainWin?.webContents ?? null,
     });
-    // Phase 8: spaced re-reading queue IPC handlers
+    // Phase 8/10b-3: spaced re-reading queue IPC handlers + singleton init
+    // Init the singleton so Director's scheduleReread tool can access it
+    rereadQueueSingleton.init(store);
     registerRereadQueueHandlers(store, { triggerEmitter });
     // Plan 2 fork #5: Quest layer + Plan 3 fork: Brain weighting hook.
     // The handlers broadcast `quest:changed` after each mutation so the
