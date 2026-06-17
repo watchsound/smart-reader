@@ -32,6 +32,7 @@ DROP TABLE IF EXISTS "ai_cache";
 DROP TABLE IF EXISTS "session_analytics";
 DROP TABLE IF EXISTS "learning_velocity";
 DROP TABLE IF EXISTS "consolidated_memory";
+DROP TABLE IF EXISTS "brain_call_ledger";
 
 CREATE TABLE "user" (
   "id"  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -605,22 +606,22 @@ CREATE INDEX "idx_consolidated_memory_type"
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS "brain_call_ledger" (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  intent TEXT NOT NULL,
-  ts INTEGER NOT NULL,
-  provider TEXT NOT NULL,
-  context_keys TEXT,
-  prompt_tokens INTEGER,
-  completion_tokens INTEGER,
-  cost_usd REAL,
-  cache_hit INTEGER NOT NULL DEFAULT 0,
-  cache_key TEXT,
-  duration_ms INTEGER,
-  trigger_id TEXT,
-  output_summary TEXT,
-  output_json TEXT
+  "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+  "intent" TEXT NOT NULL,
+  "ts" INTEGER NOT NULL,
+  "provider" TEXT NOT NULL,
+  "context_keys" TEXT,
+  "prompt_tokens" INTEGER,
+  "completion_tokens" INTEGER,
+  "cost_usd" REAL,
+  "cache_hit" INTEGER NOT NULL DEFAULT 0,
+  "cache_key" TEXT,
+  "duration_ms" INTEGER,
+  "trigger_id" TEXT,
+  "output_summary" TEXT,
+  "output_json" TEXT  -- full structured output JSON; consumed by Rationale Card and Phase 10 Director Mode
 );
-CREATE INDEX IF NOT EXISTS idx_brain_call_ledger_ts ON brain_call_ledger(ts);
-CREATE INDEX IF NOT EXISTS idx_brain_call_ledger_intent_ts ON brain_call_ledger(intent, ts);
-CREATE INDEX IF NOT EXISTS idx_brain_call_ledger_trigger ON brain_call_ledger(trigger_id);
-CREATE INDEX IF NOT EXISTS idx_brain_call_ledger_cache ON brain_call_ledger(intent, cache_key);
+CREATE INDEX IF NOT EXISTS "idx_brain_call_ledger_ts" ON "brain_call_ledger"("ts");
+CREATE INDEX IF NOT EXISTS "idx_brain_call_ledger_intent_ts" ON "brain_call_ledger"("intent", "ts");
+CREATE INDEX IF NOT EXISTS "idx_brain_call_ledger_trigger" ON "brain_call_ledger"("trigger_id");
+CREATE INDEX IF NOT EXISTS "idx_brain_call_ledger_cache" ON "brain_call_ledger"("intent", "cache_key");
