@@ -18,4 +18,17 @@ describe('costEstimator', () => {
     expect(t).toBeGreaterThan(80);  // ~4 chars per token
     expect(t).toBeLessThan(150);
   });
+
+  test('coarse provider name "claude" resolves to a non-default price', () => {
+    const claude = costEstimator.estimate('claude', { prompt_tokens: 1000, completion_tokens: 1000 });
+    const deepseek = costEstimator.estimate('deepseek-v3', { prompt_tokens: 1000, completion_tokens: 1000 });
+    // Claude must be priced higher than DeepSeek (the default fallback)
+    expect(claude).toBeGreaterThan(deepseek);
+  });
+
+  test('coarse provider name is case-insensitive (chatGPT → chatgpt)', () => {
+    const chatGPTcost = costEstimator.estimate('chatGPT', { prompt_tokens: 1000, completion_tokens: 1000 });
+    const expectedGpt4o = (1000 * 2.50 + 1000 * 10.00) / 1e6;
+    expect(chatGPTcost).toBeCloseTo(expectedGpt4o, 6);
+  });
 });
