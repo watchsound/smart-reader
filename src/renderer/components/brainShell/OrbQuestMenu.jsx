@@ -21,6 +21,7 @@ import ArchiveIcon from '@mui/icons-material/Archive';
 import FlagIcon from '@mui/icons-material/Flag';
 import AddIcon from '@mui/icons-material/Add';
 import RouteIcon from '@mui/icons-material/Route';
+import SchoolIcon from '@mui/icons-material/School';
 import questApi from '../../api/questApi';
 import NewQuestDialog from './NewQuestDialog';
 
@@ -36,8 +37,9 @@ import NewQuestDialog from './NewQuestDialog';
  * @param {object} props
  * @param {HTMLElement | null} props.anchorEl
  * @param {() => void} props.onClose
+ * @param {() => void} [props.onStartSession] - called when the user clicks "Start AI Session"
  */
-export default function OrbQuestMenu({ anchorEl, onClose }) {
+export default function OrbQuestMenu({ anchorEl, onClose, onStartSession }) {
   const [quests, setQuests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -133,6 +135,18 @@ export default function OrbQuestMenu({ anchorEl, onClose }) {
             <AddIcon fontSize="small" />
           </IconButton>
         </Box>
+        <Divider />
+        <MenuItem
+          onClick={() => {
+            onStartSession?.();
+            onClose?.();
+          }}
+        >
+          <ListItemIcon>
+            <SchoolIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText primary="Start AI Session" />
+        </MenuItem>
         <Divider />
         {loading && (
           <MenuItem disabled>
