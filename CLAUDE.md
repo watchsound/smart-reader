@@ -182,12 +182,14 @@ There is no dedicated technical doc per loop yet — code is the source of truth
 | Phase 8a — Spaced re-reading | Low comprehension score | `RereadQueueService` (electron-store backed) | `RereadQueuePanel` in Knowledge Dashboard |
 | Phase 8b — Organize loop | Cluster of ≥5 same-domain learning points in same book | `MoodBoardOrganizerService` (SQL cluster detection + dedup + Slice 3 `createBoardFromCluster`) | organize banner in `MoodBoardView` |
 | Phase 8c — Production loop | High-mastery learning point | `ProductionPromptService.schedulePrompt` (mastery ≥ 60, ≥3 reviews, substantive back) | `ProductionPromptPanel` |
+| Phase 9 — Brain Spine | every LLM call site | `brain/spine/brainCall` + `meteredCall` (BrainContext + Intent Registry + Tool Registry + Call Ledger) | `RationaleCard` + `EconomicsPanel` in `BrainDashboardPanel`; TriggerTelemetryPanel intent column |
 
 Cross-loop plumbing:
 - Episode types defined in `EpisodeCollector.EVENT_TYPES` (mirrored on the renderer as `EPISODE_TYPES` in `renderer/api/brainApi.js`)
 - All brain-driven notifications go through `persistBrainNotifications` in `LearningBrainAgent` with per-day per-type dedup
 - SRS write-back from production grading lives in `LearningPointManager.applyProductionGrade`
 - Streak chain: `completeLearningSession` → `updateStreakAfterSession` → `LearnerProfileManager.updateGlobalProfile`
+- Phase 9 Spine: all Phase 0–8 LLM-using services route through `brainCall(intent, input, options)`; the resulting Call Ledger row backs the `RationaleCard` and the `EconomicsPanel` (per-intent and per-provider cost telemetry). Three deterministic Phase 8 services (RereadQueue 8a, MoodBoardOrganizer 8b, ProductionPrompt 8c) emit Triggers without LLM calls and therefore have no ledger rows. Renderer-direct LLM call sites (translate/grammar/writing/chat/browser) bypass the ledger; see `docs/technical/phase-9c-economics-coverage.md` for the remaining gap.
 
 Integration tests under `src/__tests__/integration/` exercise the Phase 4–8 loops end-to-end. Phase 8 uses real `:memory:` SQLite; run via `npm run test:integration` (rebuilds `better-sqlite3` for Node, runs, restores for Electron).
 
