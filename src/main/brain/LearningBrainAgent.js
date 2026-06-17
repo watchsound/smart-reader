@@ -370,6 +370,23 @@ Reply strictly as JSON with this shape:
         results.checklistResults.push(consolidation);
       }
 
+      // Phase 9 Spine: prune the Call Ledger nightly (idempotent if no rows due).
+      try {
+        const lastPrune = this._lastSpinePruneTs || 0;
+        const oneDay = 24 * 3600 * 1000;
+        if (Date.now() - lastPrune > oneDay) {
+          const CallLedgerStore = require('../db/CallLedgerStore');
+          const dropped = CallLedgerStore.prune({
+            maxAgeMs: 90 * oneDay,
+            maxRows: 10000,
+          });
+          this._lastSpinePruneTs = Date.now();
+          if (dropped > 0) console.log(`[spine] pruned ${dropped} ledger rows`);
+        }
+      } catch (e) {
+        console.warn('[spine] prune failed:', e.message);
+      }
+
       results.duration = Date.now() - startTime;
       console.log(
         '[LearningBrainAgent] Heartbeat completed in',
