@@ -154,19 +154,27 @@ function run() {
   // process. Passing APP_ENTRY directly puts Electron in node-script
   // mode where `require('electron')` returns a string path instead of
   // the API object.
+  //
+  // CRITICAL: explicitly delete ELECTRON_RUN_AS_NODE from the env. If
+  // it is set (some shells / global configs set =1), Electron runs as
+  // a plain Node binary — `require('electron')` returns the binary
+  // path string, so `import { app } from 'electron'` gives undefined
+  // and main.ts crashes at the first `app.isPackaged` access.
+  const childEnv = {
+    ...process.env,
+    // dev mode so resolveHtmlPath uses localhost:1212; renderer
+    // window may show ECONNREFUSED if the dev server isn't up,
+    // but main-process boot is what we care about here.
+    NODE_ENV: 'development',
+    TS_NODE_TRANSPILE_ONLY: 'true',
+  };
+  delete childEnv.ELECTRON_RUN_AS_NODE;
   const proc = spawn(
     ELECTRON_BIN,
     ['-r', 'ts-node/register/transpile-only', PROJECT_ROOT],
     {
       cwd: PROJECT_ROOT,
-      env: {
-        ...process.env,
-        // dev mode so resolveHtmlPath uses localhost:1212; renderer
-        // window may show ECONNREFUSED if the dev server isn't up,
-        // but main-process boot is what we care about here.
-        NODE_ENV: 'development',
-        TS_NODE_TRANSPILE_ONLY: 'true',
-      },
+      env: childEnv,
     },
   );
 
