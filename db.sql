@@ -33,6 +33,8 @@ DROP TABLE IF EXISTS "session_analytics";
 DROP TABLE IF EXISTS "learning_velocity";
 DROP TABLE IF EXISTS "consolidated_memory";
 DROP TABLE IF EXISTS "brain_call_ledger";
+DROP TABLE IF EXISTS "ai_session_trace";
+DROP TABLE IF EXISTS "ai_sessions";
 
 CREATE TABLE "user" (
   "id"  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -627,3 +629,34 @@ CREATE INDEX IF NOT EXISTS "idx_brain_call_ledger_intent_ts" ON "brain_call_ledg
 CREATE INDEX IF NOT EXISTS "idx_brain_call_ledger_trigger" ON "brain_call_ledger"("trigger_id");
 CREATE INDEX IF NOT EXISTS "idx_brain_call_ledger_cache" ON "brain_call_ledger"("intent", "cache_key");
 CREATE INDEX IF NOT EXISTS "idx_brain_call_ledger_trace" ON brain_call_ledger("trace_id");
+
+-- ============================================
+-- Phase 10b Study-Session Director — AI Sessions
+-- ============================================
+
+CREATE TABLE "ai_sessions" (
+  "id" TEXT PRIMARY KEY NOT NULL,
+  "user_id" INTEGER NOT NULL,
+  "quest_id" INTEGER,
+  "goal" TEXT NOT NULL,
+  "trace_id" TEXT NOT NULL,
+  "status" TEXT NOT NULL,
+  "iteration" INTEGER NOT NULL DEFAULT 0,
+  "budget" INTEGER NOT NULL DEFAULT 12,
+  "started_at" INTEGER NOT NULL,
+  "ended_at" INTEGER,
+  "error_reason" TEXT
+);
+CREATE INDEX "idx_ai_sessions_user_id" ON "ai_sessions" ("user_id", "started_at" DESC);
+CREATE INDEX "idx_ai_sessions_trace_id" ON "ai_sessions" ("trace_id");
+
+CREATE TABLE "ai_session_trace" (
+  "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+  "session_id" TEXT NOT NULL,
+  "iteration" INTEGER NOT NULL,
+  "kind" TEXT NOT NULL,
+  "payload_json" TEXT NOT NULL,
+  "ts" INTEGER NOT NULL,
+  FOREIGN KEY ("session_id") REFERENCES "ai_sessions" ("id")
+);
+CREATE INDEX "idx_ai_session_trace_session_id" ON "ai_session_trace" ("session_id", "ts" ASC);
