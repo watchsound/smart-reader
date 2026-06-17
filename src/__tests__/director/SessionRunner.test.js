@@ -39,6 +39,46 @@ const stubStore = () => {
   };
 };
 
+test('unknown tool: counted as error; 3 consecutive end session', async () => {
+  jest.spyOn(Director, 'step').mockResolvedValue({ tool: 'doesNotExist', args: {}, reasoning: 'oops' });
+  const store = stubStore();
+  const broadcast = jest.fn();
+  const runner = new SessionRunner({ store, director: Director, broadcast });
+  const { sessionId } = await runner.start({ userId: 1, goal: 'g' });
+  await runner.waitForCompletion(sessionId);
+  const final = store.persistCompleted.mock.calls[0][0];
+  expect(final.status).toBe('errored');
+  expect(final.errorReason).toMatch(/unknown tool/);
+});
+
+test('budget exhausted forces endSession', async () => {
+  let i = 0;
+  jest.spyOn(Director, 'step').mockImplementation(async () => ({
+    tool: 'readA', args: {}, reasoning: `iter ${i++}`,
+  }));
+  const store = stubStore();
+  const runner = new SessionRunner({ store, director: Director, broadcast: jest.fn() });
+  const { sessionId } = await runner.start({ userId: 1, goal: 'g' });
+  await runner.waitForCompletion(sessionId);
+  const final = store.persistCompleted.mock.calls[0][0];
+  expect(final.iteration).toBe(12);
+  expect(final.status).toBe('completed');
+  expect(final.trace.at(-1).kind).toBe('end');
+  expect(final.trace.at(-1).payload.reason).toBe('budget-exhausted');
+});
+
+test('user cancel resolves pending surface and ends session', async () => {
+  const decisions = [{ tool: 'surfaceA', args: {}, reasoning: 'show' }];
+  jest.spyOn(Director, 'step').mockImplementation(async () => decisions.shift() || { tool: 'endSession', args: { reason: 'done' }, reasoning: '' });
+  const store = stubStore();
+  const runner = new SessionRunner({ store, director: Director, broadcast: jest.fn() });
+  const { sessionId } = await runner.start({ userId: 1, goal: 'g' });
+  setTimeout(() => runner.cancel(sessionId), 30);
+  await runner.waitForCompletion(sessionId);
+  const final = store.persistCompleted.mock.calls[0][0];
+  expect(final.status).toBe('completed');
+});
+
 test('happy path: read → surface → soft-write → endSession', async () => {
   const decisions = [
     { tool: 'readA', args: {}, reasoning: 'gather' },

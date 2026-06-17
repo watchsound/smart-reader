@@ -167,7 +167,9 @@ class SessionRunner {
           traceId: state.traceId,
           userId: state.userId,
         });
-        state.consecutiveErrors = 0;
+        // Note: consecutiveErrors is NOT reset here. It is reset only after a
+        // fully successful dispatch (tool found + handler succeeds), so that an
+        // unknown-tool or handler error also counts toward the consecutive limit.
       } catch (e) {
         state.lastError = e.message;
         state.consecutiveErrors++;
@@ -270,6 +272,10 @@ class SessionRunner {
           });
         }
 
+        // Reset consecutive-error counter only after a fully successful dispatch.
+        // Placing it here (not after director.step) ensures unknown-tool decisions
+        // also count toward the consecutive limit.
+        state.consecutiveErrors = 0;
         state.iteration++;
         await this.store.saveActive(state);
 
