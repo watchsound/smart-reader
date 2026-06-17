@@ -166,6 +166,35 @@ testFn('getConcept returns null meta for unknown id', async () => {
   expect(r.meta).toBeNull();
 });
 
+testFn('getConcept boxOverTime returns array of {ts, box, mastery} after events', async () => {
+  const db = freshDb();
+  db.prepare(`INSERT OR IGNORE INTO user (id, username) VALUES (1, 'test')`).run();
+  db.prepare(`INSERT INTO learning_point (id, user_id, domain_type, title, front, back, source_type, box, mastery_level, created_at, updated_at)
+              VALUES ('lp-X', 1, 'vocabulary', 't', '{}', '{}', 'book', 1, 25, datetime('now'), datetime('now'))`).run();
+  const MasteryEventStore = require('../../main/db/MasteryEventStore');
+  MasteryEventStore.record({ learningPointId: 'lp-X', userId: 1, ts: 1000, eventType: 'imported', newBox: 1, newMastery: 25, source: 'backfill' });
+  MasteryEventStore.record({ learningPointId: 'lp-X', userId: 1, ts: 2000, eventType: 'mastery_change', newMastery: 40, source: 'production-grade' });
+  const r = await BrainVisibilityService.getConcept({ learningPointId: 'lp-X', userId: 1 });
+  expect(Array.isArray(r.boxOverTime)).toBe(true);
+  expect(r.boxOverTime).toHaveLength(2);
+  expect(r.boxOverTime[0].ts).toBe(1000);
+  expect(r.boxOverTime[1].mastery).toBe(40);
+});
+
+testFn('getDashboard includes masteryTrajectory slice', async () => {
+  const db = freshDb();
+  db.prepare(`INSERT OR IGNORE INTO user (id, username) VALUES (1, 'test')`).run();
+  db.prepare(`INSERT INTO learning_point (id, user_id, domain_type, title, front, back, source_type, box, mastery_level, created_at, updated_at)
+              VALUES ('lp-X', 1, 'vocabulary', 't', '{}', '{}', 'book', 1, 25, datetime('now'), datetime('now'))`).run();
+  const MasteryEventStore = require('../../main/db/MasteryEventStore');
+  const now = Date.now();
+  MasteryEventStore.record({ learningPointId: 'lp-X', userId: 1, ts: now, eventType: 'mastery_change', newMastery: 50, source: 'user-review' });
+  const r = await BrainVisibilityService.getDashboard({ window: '7d', userId: 1 });
+  expect(Array.isArray(r.masteryTrajectory)).toBe(true);
+  expect(r.masteryTrajectory.length).toBeGreaterThan(0);
+  expect(r.masteryTrajectory[0].domain).toBe('vocabulary');
+});
+
 testFn('window filters: 7d excludes a session from 30d ago', async () => {
   freshDb();
 

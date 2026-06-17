@@ -117,12 +117,12 @@ function topTouchedConcepts(db, userId, since, limit) {
 }
 
 /**
- * Return the 4 Brain Visibility data slices for the given window and user.
+ * Return the 5 Brain Visibility data slices for the given window and user.
  *
  * @param {Object} opts
  * @param {'7d'|'30d'|'90d'} [opts.window='30d']
  * @param {number} [opts.userId=1]
- * @returns {Promise<{ mastery, timeline, sessions, topConcepts }>}
+ * @returns {Promise<{ mastery, timeline, sessions, topConcepts, masteryTrajectory }>}
  */
 async function getDashboard({ window = '30d', userId = 1 } = {}) {
   const db = dbManager.getDb();
@@ -180,7 +180,11 @@ async function getDashboard({ window = '30d', userId = 1 } = {}) {
   // 4. Top-touched concepts derived from ai_session_trace payload JSON scan.
   const topConcepts = topTouchedConcepts(db, userId, since, 20);
 
-  return { mastery, timeline, sessions, topConcepts };
+  // 5. Mastery trajectory — per-day, per-domain average mastery from mastery_event.
+  const MasteryEventStore = require('../db/MasteryEventStore');
+  const masteryTrajectory = MasteryEventStore.queryDomainAverages({ userId, since });
+
+  return { mastery, timeline, sessions, topConcepts, masteryTrajectory };
 }
 
 /**
@@ -202,7 +206,8 @@ function parseTimestamp(s) {
  * those sessions, so the cost attribution is "what did the Brain spend when it
  * was working on sessions that touched this concept?"
  *
- * boxOverTime is null for v1 (no box-change event history yet).
+ * boxOverTime is an array of {ts, box, mastery, eventType, source} entries
+ * sourced from mastery_event, oldest first.
  *
  * @param {Object} opts
  * @param {string} opts.learningPointId
@@ -271,11 +276,22 @@ async function getConcept({ learningPointId, userId = 1 }) {
     ...decisions,
   ].sort((a, b) => b.ts - a.ts);
 
+  // Build boxOverTime from mastery_event history for this concept.
+  const MasteryEventStore = require('../db/MasteryEventStore');
+  const events = MasteryEventStore.queryByConcept(learningPointId);
+  const boxOverTime = events.map(e => ({
+    ts: e.ts,
+    box: e.newBox ?? null,
+    mastery: e.newMastery ?? null,
+    eventType: e.eventType,
+    source: e.source,
+  }));
+
   return {
     meta: lp,
     lineage,
     costToDate,
-    boxOverTime: null,
+    boxOverTime,
   };
 }
 
