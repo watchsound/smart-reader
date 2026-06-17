@@ -210,6 +210,7 @@ import { registerLearningPointHandlers } from './ipc/learningPointHandlers';
 import { registerMicroCardHandlers } from './ipc/microCardHandlers';
 import { registerEnrichmentHandlers } from './ipc/enrichmentHandlers';
 import { registerVocabMirrorHandlers } from './ipc/vocabMirrorHandlers';
+import { registerArgumentXrayHandlers } from './ipc/argumentXrayHandlers';
 import { registerBookDiagnosticHandlers } from './ipc/bookDiagnosticHandlers';
 import { registerComprehensionHandlers } from './ipc/comprehensionHandlers';
 import { registerRereadQueueHandlers } from './ipc/rereadQueueHandlers';
@@ -231,6 +232,9 @@ const { registerQuestHandlers } = require('./ipc/questHandlers');
 // Plan 4: re-emit a Phase 7 path from OrbQuestMenu
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { registerQuestWalkHandlers } = require('./ipc/questWalkHandlers');
+// Plan 9a (Brain Spine): Call Ledger IPC — Rationale Card + Economics Panel
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { registerCallLedgerHandlers } = require('./ipc/callLedgerHandlers');
 
 const options = {
   width: 1050,
@@ -2489,6 +2493,8 @@ app
     // Vocabulary → learning_point lazy backfill (legacy vocab rows gain
     // a learning_point mirror on first SRS-halo fetch per user-per-session).
     registerVocabMirrorHandlers(ipcMain);
+    // Feature #13: Argument Skeleton X-ray — paragraph LLM analysis.
+    registerArgumentXrayHandlers(ipcMain);
     // Phase 5: pre-book diagnostic IPC handlers
     registerBookDiagnosticHandlers();
     // Phase 6: chapter-end comprehension grading IPC handlers
@@ -2512,6 +2518,9 @@ app
     });
     // Plan 4: quest-walk re-emits a Phase 7 path so OrbQuestMenu can resume.
     registerQuestWalkHandlers(store, { triggerEmitter });
+    // Plan 9a (Brain Spine): Call Ledger — Rationale Card + Economics Panel.
+    // No store arg needed; the DAO accesses DBManager directly.
+    registerCallLedgerHandlers();
     // Phase 8: MoodBoard organize-suggestion IPC handlers (renderer side
     // of the brain heartbeat's `suggestOrganizeSessions` task).
     registerMoodBoardOrganizerHandlers(store);
