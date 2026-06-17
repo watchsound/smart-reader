@@ -30,8 +30,8 @@ afterEach(() => {
 });
 
 describe('CallLedgerStore.record', () => {
-  test('inserts a row and returns its id', async () => {
-    const id = await CallLedgerStore.record({
+  test('inserts a row and returns its id', () => {
+    const id = CallLedgerStore.record({
       intent: 'propose-microcard',
       ts: 1718600000000,
       provider: 'deepseek-v3',
@@ -52,5 +52,38 @@ describe('CallLedgerStore.record', () => {
     expect(row.intent).toBe('propose-microcard');
     expect(JSON.parse(row.context_keys)).toEqual(['currentBook', 'mastery']);
     expect(JSON.parse(row.output_json)).toEqual({ proposed: 'bond duration' });
+  });
+
+  test('missing optional numeric fields are stored as NULL', () => {
+    const id = CallLedgerStore.record({
+      intent: 'extract-learning-points',
+      ts: 1718600000000,
+      provider: 'deepseek-v3',
+      // prompt_tokens, completion_tokens, cost_usd, duration_ms all omitted
+      cache_hit: false,
+    });
+    const row = testDb.prepare('SELECT * FROM brain_call_ledger WHERE id = ?').get(id);
+    expect(row.prompt_tokens).toBeNull();
+    expect(row.completion_tokens).toBeNull();
+    expect(row.cost_usd).toBeNull();
+    expect(row.duration_ms).toBeNull();
+  });
+
+  test('null output_json is stored as NULL (not the string "null")', () => {
+    const id = CallLedgerStore.record({
+      intent: 'x', ts: 1, provider: 'p', cache_hit: false,
+      output_json: null,
+    });
+    const row = testDb.prepare('SELECT output_json FROM brain_call_ledger WHERE id = ?').get(id);
+    expect(row.output_json).toBeNull();
+  });
+
+  test('missing context_keys defaults to "[]"', () => {
+    const id = CallLedgerStore.record({
+      intent: 'x', ts: 1, provider: 'p', cache_hit: false,
+      // context_keys omitted
+    });
+    const row = testDb.prepare('SELECT context_keys FROM brain_call_ledger WHERE id = ?').get(id);
+    expect(JSON.parse(row.context_keys)).toEqual([]);
   });
 });
