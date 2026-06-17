@@ -35,6 +35,7 @@ DROP TABLE IF EXISTS "consolidated_memory";
 DROP TABLE IF EXISTS "brain_call_ledger";
 DROP TABLE IF EXISTS "ai_session_trace";
 DROP TABLE IF EXISTS "ai_sessions";
+DROP TABLE IF EXISTS "mastery_event";
 
 CREATE TABLE "user" (
   "id"  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -660,3 +661,30 @@ CREATE TABLE "ai_session_trace" (
   FOREIGN KEY ("session_id") REFERENCES "ai_sessions" ("id")
 );
 CREATE INDEX "idx_ai_session_trace_session_id" ON "ai_session_trace" ("session_id", "ts" ASC);
+
+-- ============================================
+-- Phase 12 Historical Mastery Trajectory
+-- ============================================
+
+-- Mastery Event Log (append-only event log for mastery state changes)
+CREATE TABLE "mastery_event" (
+  "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+  "learning_point_id" TEXT NOT NULL,
+  "user_id" INTEGER NOT NULL,
+  "ts" INTEGER NOT NULL,
+  "event_type" TEXT NOT NULL,
+  "prev_box" INTEGER,
+  "new_box" INTEGER,
+  "prev_mastery" REAL,
+  "new_mastery" REAL,
+  "rating" TEXT,
+  "source" TEXT NOT NULL,
+  "source_ref" TEXT,
+  "notes" TEXT,
+  FOREIGN KEY ("learning_point_id") REFERENCES "learning_point" ("id") ON DELETE CASCADE
+);
+CREATE INDEX "idx_mastery_event_lp_ts" ON "mastery_event" ("learning_point_id", "ts");
+CREATE INDEX "idx_mastery_event_user_ts" ON "mastery_event" ("user_id", "ts");
+CREATE UNIQUE INDEX "idx_mastery_event_dedup" ON "mastery_event" (
+  "learning_point_id", "ts", "event_type", COALESCE("source_ref", '')
+);
