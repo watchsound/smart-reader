@@ -30,7 +30,6 @@
 
 import { instanceInMain as aiProviderManager } from '../../commons/service/AIProviderManager';
 import { createBookDiagnosticPrompt } from '../../commons/utils/AIPrompts';
-import { getStructured } from '../../commons/service/polyfills/structuredOutput';
 
 const DIAGNOSTIC_SCHEMA = {
   type: 'object',
@@ -156,11 +155,20 @@ class BookDiagnosticService {
     });
 
     let raw;
+    let diagnosticCallId = null;
     try {
-      raw = await getStructured(provider, prompt, DIAGNOSTIC_SCHEMA, {
-        schemaName: 'bookDiagnostic',
-        maxRetries: 1,
-      });
+      // eslint-disable-next-line global-require
+      const { brainCall } = require('../brain/spine');
+      const result = await brainCall(
+        'diagnose-book',
+        prompt,
+        {
+          userId: input.userId || 1,
+          schema: DIAGNOSTIC_SCHEMA,
+        },
+      );
+      raw = result.output;
+      diagnosticCallId = result.callId;
     } catch (err) {
       return { error: err?.message || 'AI diagnostic call failed' };
     }
@@ -168,11 +176,12 @@ class BookDiagnosticService {
       return { error: 'AI returned empty diagnostic.' };
     }
 
-    return this.annotate(raw, knownConcepts, {
+    const annotated = this.annotate(raw, knownConcepts, {
       bookTitle,
       bookAuthor,
       bookCategory,
     });
+    return { ...annotated, callId: diagnosticCallId };
   }
 
   /**

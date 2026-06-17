@@ -17,42 +17,46 @@ jest.mock('../../commons/service/AIProviderManager', () => ({
   instanceInMain: { currentProvider: mockProvider },
 }));
 
-const mockGetStructured = jest.fn();
-jest.mock('../../commons/service/polyfills/structuredOutput', () => ({
-  getStructured: (...args) => mockGetStructured(...args),
+const mockBrainCall = jest.fn();
+jest.mock('../../main/brain/spine', () => ({
+  brainCall: (...args) => mockBrainCall(...args),
 }));
 
 const { BookDiagnosticService } = require('../../main/utils/BookDiagnosticService');
 
 describe('Phase 5 integration — pre-book diagnostic happy path', () => {
   beforeEach(() => {
-    mockGetStructured.mockReset();
+    mockBrainCall.mockReset();
   });
 
   it('TOC + known concepts -> annotated chapters with readiness score', async () => {
-    mockGetStructured.mockResolvedValue({
-      bookSummary: 'An introduction to functional programming.',
-      topics: ['immutability', 'higher-order functions', 'monads'],
-      estimatedDifficulty: 'intermediate',
-      chapters: [
-        {
-          title: 'Chapter 1: Pure Functions',
-          estimatedConcepts: ['pure function', 'referential transparency'],
-        },
-        {
-          title: 'Chapter 2: Higher-Order Functions',
-          estimatedConcepts: ['map', 'filter', 'reduce'],
-        },
-        {
-          title: 'Chapter 3: Monads',
-          estimatedConcepts: ['monad', 'functor', 'applicative'],
-        },
-      ],
-      primer:
-        'You already know functions; focus on equational reasoning early on.',
-      prerequisiteWarnings: [
-        { topic: 'category theory', reason: 'Not strictly required.' },
-      ],
+    mockBrainCall.mockResolvedValue({
+      output: {
+        bookSummary: 'An introduction to functional programming.',
+        topics: ['immutability', 'higher-order functions', 'monads'],
+        estimatedDifficulty: 'intermediate',
+        chapters: [
+          {
+            title: 'Chapter 1: Pure Functions',
+            estimatedConcepts: ['pure function', 'referential transparency'],
+          },
+          {
+            title: 'Chapter 2: Higher-Order Functions',
+            estimatedConcepts: ['map', 'filter', 'reduce'],
+          },
+          {
+            title: 'Chapter 3: Monads',
+            estimatedConcepts: ['monad', 'functor', 'applicative'],
+          },
+        ],
+        primer:
+          'You already know functions; focus on equational reasoning early on.',
+        prerequisiteWarnings: [
+          { topic: 'category theory', reason: 'Not strictly required.' },
+        ],
+      },
+      callId: 5,
+      cacheHit: false,
     });
 
     const service = new BookDiagnosticService();
