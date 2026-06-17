@@ -7,6 +7,7 @@ import FlowCoordinator from './FlowCoordinator';
 import OrbQuestMenu from './OrbQuestMenu';
 import SessionStartDialog from '../../views/aiSession/SessionStartDialog';
 import sessionApi from '../../api/sessionApi';
+import questApi from '../../api/questApi';
 import useBrainState from '../../brain/useBrainState';
 import triggerBus from '../../brain/triggerBus';
 
@@ -40,11 +41,33 @@ export default function BrainShell({ children }) {
   // --- SessionStartDialog ---
   const [sessionDialogOpen, setSessionDialogOpen] = useState(false);
 
+  // --- Active Quest (for SessionStartDialog pre-fill) ---
+  const [activeQuest, setActiveQuest] = useState(null);
+
   // --- Resume pill (active session from previous run) ---
   const [resumeSessionId, setResumeSessionId] = useState(null);
   const mountedRef = useRef(true);
   useEffect(() => {
     mountedRef.current = true;
+
+    // Fetch active quest on mount.
+    const fetchActiveQuest = async () => {
+      try {
+        const quests = await questApi.list({ status: 'active' });
+        if (!mountedRef.current) return;
+        setActiveQuest(Array.isArray(quests) && quests.length > 0 ? quests[0] : null);
+      } catch (_e) {
+        // fail silent — quest service may not be available
+      }
+    };
+    fetchActiveQuest();
+
+    // Subscribe to quest:changed so the dialog stays current if the user
+    // creates or archives a quest while the menu is open.
+    const ipc = window.electron?.ipcRenderer;
+    const onQuestChanged = () => { fetchActiveQuest(); };
+    ipc?.on('quest:changed', onQuestChanged);
+
     (async () => {
       try {
         const active = await sessionApi.loadActive();
@@ -57,6 +80,7 @@ export default function BrainShell({ children }) {
     })();
     return () => {
       mountedRef.current = false;
+      ipc?.removeListener('quest:changed', onQuestChanged);
     };
   }, []);
 
@@ -114,7 +138,7 @@ export default function BrainShell({ children }) {
       <SessionStartDialog
         open={sessionDialogOpen}
         onClose={() => setSessionDialogOpen(false)}
-        activeQuest={null}
+        activeQuest={activeQuest}
         userId={1}
       />
     </Box>
