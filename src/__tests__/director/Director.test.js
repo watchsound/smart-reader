@@ -37,6 +37,33 @@ beforeEach(() => {
   tools.registerHandler('topUnmasteredConcepts', async () => ({ concepts: ['x'] }));
 });
 
+describe('Director.step', () => {
+  test('step returns one ReAct decision from a single brainCall — does not loop or execute tools', async () => {
+    mockBrainCall.mockResolvedValueOnce({
+      output: { action: 'tool', tool: 'topUnmasteredConcepts', args: { n: 5 }, reasoning: 'starting with weak concepts' },
+      callId: 999,
+    });
+
+    const state = { input: 'go', observations: [], iteration: 0, budget: 3 };
+    const decision = await Director.step({
+      config: makeConfig(),
+      state,
+      traceId: 'trace-x',
+      userId: 1,
+    });
+
+    expect(decision).toMatchObject({
+      action: 'tool',
+      tool: 'topUnmasteredConcepts',
+      args: { n: 5 },
+    });
+    // Only one brainCall, no tool execution
+    expect(mockBrainCall).toHaveBeenCalledTimes(1);
+    // traceId threaded through
+    expect(mockBrainCall.mock.calls[0][2]).toMatchObject({ traceId: 'trace-x' });
+  });
+});
+
 describe('Director.run', () => {
   test('happy path: tool then answer', async () => {
     mockBrainCall

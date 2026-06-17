@@ -62,6 +62,34 @@ function buildIterationPrompt(systemPrompt, input, history, availableTools) {
   ].join('\n');
 }
 
+/**
+ * step — single decision primitive.
+ *
+ * Calls brainCall exactly once, returns the raw ReAct step object
+ * `{ action, tool, args, answer, reasoning }`. Does NOT execute any tool,
+ * does NOT mutate state, does NOT loop. SessionRunner (Task 12) and run()
+ * both call this as their decision unit.
+ *
+ * @param {Object} opts
+ * @param {Object} opts.config — Director config (intent, systemPrompt, tools, …)
+ * @param {Object} opts.state  — { input, observations/history, iteration, budget }
+ * @param {string} opts.traceId
+ * @param {number} [opts.userId=1]
+ * @param {Object} [opts.contextOverrides={}]
+ * @returns {Promise<Object>} raw ReAct step ({ action, tool, args, answer, reasoning })
+ */
+async function step({ config, state, traceId, userId = 1, contextOverrides = {} }) {
+  const history = state.observations || state.history || [];
+  const prompt = buildIterationPrompt(config.systemPrompt, state.input, history, config.tools);
+  const stepResult = await brainCall(config.intent, prompt, {
+    userId,
+    traceId,
+    schema: REACT_STEP_SCHEMA,
+    contextOverrides,
+  });
+  return stepResult.output || {};
+}
+
 async function run({ config, input, userId = 1, contextOverrides = {} }) {
   const traceId = generateTraceId();
   const history = [];
@@ -69,15 +97,16 @@ async function run({ config, input, userId = 1, contextOverrides = {} }) {
 
   try {
     for (let iter = 0; iter < config.budget; iter++) {
-      const prompt = buildIterationPrompt(config.systemPrompt, input, history, config.tools);
       let stepResult;
       try {
-        stepResult = await brainCall(config.intent, prompt, {
-          userId,
-          traceId,
-          schema: REACT_STEP_SCHEMA,
-          contextOverrides,
-        });
+        stepResult = await brainCall(config.intent,
+          buildIterationPrompt(config.systemPrompt, input, history, config.tools),
+          {
+            userId,
+            traceId,
+            schema: REACT_STEP_SCHEMA,
+            contextOverrides,
+          });
       } catch (e) {
         // eslint-disable-next-line no-console
         console.warn(`[Director] brainCall failed iter=${iter}:`, e?.message || e);
@@ -128,4 +157,4 @@ function runFallback(config, traceId, callIds) {
   };
 }
 
-module.exports = { run };
+module.exports = { run, step };
