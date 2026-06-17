@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import brainVisibilityApi from '../../api/brainVisibilityApi';
 import MasterySnapshotStrip from './MasterySnapshotStrip';
+import MasteryTrajectoryStrip from './MasteryTrajectoryStrip';
 import BrainActivityTimelineStrip from './BrainActivityTimelineStrip';
 import RecentSessionsTable from './RecentSessionsTable';
 import TopTouchedConceptsTable from './TopTouchedConceptsTable';
@@ -40,6 +41,7 @@ export default function BrainActivityDashboard({ onConceptClick }) {
       ) : (
         <>
           <MasterySnapshotStrip data={data.mastery} />
+          <MasteryTrajectoryStrip data={data.masteryTrajectory} />
           <BrainActivityTimelineStrip data={data.timeline} />
           <RecentSessionsTable
             rows={data.sessions}

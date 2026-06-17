@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import brainVisibilityApi from '../../api/brainVisibilityApi';
 import LineageTimeline from './LineageTimeline';
+import MasterySparkline from './MasterySparkline';
 
 export default function ConceptInspector({ learningPointId, onClose }) {
   const [data, setData] = useState(null);
@@ -58,13 +59,11 @@ export default function ConceptInspector({ learningPointId, onClose }) {
           }}
         >
           Cost to date: <strong>${data.costToDate.toFixed(4)}</strong>
-          {data.boxOverTime ? null : (
-            <span style={{ marginLeft: 12, fontStyle: 'italic' }}>
-              (snapshot only — no event history)
-            </span>
-          )}
         </div>
-        <h3 style={{ fontSize: 14, marginBottom: 8 }}>Lineage</h3>
+        {data.boxOverTime && data.boxOverTime.length > 0
+          ? <MasterySparkline series={data.boxOverTime} />
+          : <span style={{ marginLeft: 12, fontStyle: 'italic', color: '#999', fontSize: 12 }}>(snapshot only)</span>}
+        <h3 style={{ fontSize: 14, marginBottom: 8, marginTop: 16 }}>Lineage</h3>
         <LineageTimeline events={data.lineage} />
       </div>
     </Drawer>
