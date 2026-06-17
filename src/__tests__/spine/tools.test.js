@@ -18,9 +18,25 @@ describe('Tool registry (Phase 9 dormant)', () => {
       expect(typeof decl.schema).toBe('object');
     }
   });
+});
 
-  test('invoke throws in Phase 9 (dormant)', () => {
-    expect(() => tools.invoke('navigate', { view: 'reading' }))
-      .toThrow(/not yet wired/);
+describe('Tool registry handlers (Phase 10)', () => {
+  beforeEach(() => {
+    // Clear any prior handler registrations between tests.
+    tools._clearHandlers();
+  });
+
+  test('invoke throws on unknown tool', () => {
+    expect(() => tools.invoke('doesNotExist', {})).toThrow(/unknown tool/);
+  });
+
+  test('invoke throws when tool has no handler', () => {
+    expect(() => tools.invoke('navigate', { view: 'reading' })).toThrow(/no handler/);
+  });
+
+  test('registerHandler + invoke runs the handler', async () => {
+    tools.registerHandler('navigate', async ({ view }) => `navigated to ${view}`);
+    const result = await tools.invoke('navigate', { view: 'reading' });
+    expect(result).toBe('navigated to reading');
   });
 });

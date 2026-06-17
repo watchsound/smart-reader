@@ -9,6 +9,7 @@
  */
 
 const TOOLS = {};
+const HANDLERS = {};
 
 function register(name, decl) {
   if (!name || !decl || !decl.schema) {
@@ -16,6 +17,15 @@ function register(name, decl) {
   }
   TOOLS[name] = Object.freeze({ name, ...decl });
 }
+
+function registerHandler(name, fn) {
+  if (!TOOLS[name]) {
+    throw new Error(`registerHandler: tool '${name}' is not registered`);
+  }
+  HANDLERS[name] = fn;
+}
+
+function _clearHandlers() { for (const k of Object.keys(HANDLERS)) delete HANDLERS[k]; }
 
 function describe(name) {
   return TOOLS[name] || null;
@@ -27,7 +37,9 @@ function list() {
 
 function invoke(name, args) {
   if (!TOOLS[name]) throw new Error(`unknown tool: ${name}`);
-  throw new Error(`tools.invoke(${name}): not yet wired — see Phase 10 Director Mode`);
+  const handler = HANDLERS[name];
+  if (!handler) throw new Error(`tool ${name} has no handler — Phase 10 must register one`);
+  return handler(args || {});
 }
 
 register('navigate', {
@@ -65,4 +77,4 @@ register('scheduleReread', {
   },
 });
 
-module.exports = { register, describe, list, invoke };
+module.exports = { register, registerHandler, _clearHandlers, describe, list, invoke };
