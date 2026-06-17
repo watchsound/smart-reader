@@ -28,7 +28,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { instanceInMain as aiProviderManager } from '../../commons/service/AIProviderManager';
 import { createMicroCardProposalPrompt } from '../../commons/utils/AIPrompts';
-import { getStructured } from '../../commons/service/polyfills/structuredOutput';
 import { hashParagraph } from '../../commons/brain/paragraphHash';
 
 const DEFAULTS = {
@@ -190,11 +189,22 @@ class MicroCardProposer {
       knownConcepts,
     });
     let raw;
+    let proposalCallId = null;
     try {
-      raw = await getStructured(provider, prompt, PROPOSAL_SCHEMA, {
-        schemaName: 'microCardProposal',
-        maxRetries: 1,
-      });
+      const { brainCall } = require('../brain/spine');
+      const result = await brainCall(
+        'propose-microcard',
+        prompt,
+        {
+          userId: opts.userId || 1,
+          schema: PROPOSAL_SCHEMA,
+          contextOverrides: {
+            currentBook: { bookId, chapterIndex: opts.chapterIndex, chapterTitle },
+          },
+        },
+      );
+      raw = result.output;
+      proposalCallId = result.callId;
     } catch (err) {
       console.warn('[MicroCardProposer] AI call failed:', err?.message || err);
       release({ releaseHash: true });
@@ -240,6 +250,7 @@ class MicroCardProposer {
     return {
       proposed: true,
       proposalId,
+      callId: proposalCallId,
       front,
       back,
       domain: typeof raw.domain === 'string' ? raw.domain : 'knowledge',

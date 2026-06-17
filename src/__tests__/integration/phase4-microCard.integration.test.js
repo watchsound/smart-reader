@@ -27,6 +27,11 @@ jest.mock('../../commons/service/polyfills/structuredOutput', () => ({
   getStructured: (...args) => mockGetStructured(...args),
 }));
 
+const mockBrainCall = jest.fn();
+jest.mock('../../main/brain/spine', () => ({
+  brainCall: (...args) => mockBrainCall(...args),
+}));
+
 const { MicroCardProposer, SKIP } = require('../../main/utils/MicroCardProposer');
 
 const PARAGRAPH = [
@@ -41,16 +46,21 @@ const PARAGRAPH = [
 describe('Phase 4 integration — micro-card proposer happy path', () => {
   beforeEach(() => {
     mockGetStructured.mockReset();
+    mockBrainCall.mockReset();
   });
 
   it('propose -> AI accepts -> returns hydrated proposal with proposalId', async () => {
-    mockGetStructured.mockResolvedValue({
-      shouldPropose: true,
-      front: 'What is a monad?',
-      back: 'A design pattern composing effectful computations via unit + bind.',
-      domain: 'programming',
-      conceptName: 'monad',
-      confidence: 0.85,
+    mockBrainCall.mockResolvedValue({
+      output: {
+        shouldPropose: true,
+        front: 'What is a monad?',
+        back: 'A design pattern composing effectful computations via unit + bind.',
+        domain: 'programming',
+        conceptName: 'monad',
+        confidence: 0.85,
+      },
+      callId: 42,
+      cacheHit: false,
     });
 
     const proposer = new MicroCardProposer();
@@ -65,6 +75,7 @@ describe('Phase 4 integration — micro-card proposer happy path', () => {
 
     expect(result.proposed).toBe(true);
     expect(result.proposalId).toBeTruthy();
+    expect(result.callId).toBe(42);
     expect(result.front).toBe('What is a monad?');
     expect(result.back).toContain('design pattern');
     expect(result.domain).toBe('programming');
@@ -82,6 +93,6 @@ describe('Phase 4 integration — micro-card proposer happy path', () => {
     });
     expect(second.proposed).toBe(false);
     expect(second.reason).toBe(SKIP.DUPLICATE);
-    expect(mockGetStructured).toHaveBeenCalledTimes(1);
+    expect(mockBrainCall).toHaveBeenCalledTimes(1);
   });
 });
