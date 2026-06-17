@@ -8,41 +8,83 @@ shows cost telemetry for every LLM call that flows through:
 - `brainCall(intent, input, options)` — all Phase 0–8 Trigger-producing services
   (migrated in Plan 9b + the Phase 9c specials: `argument-xray`,
   `synthesize-pull-suggestion`).
-- `meteredCall(provider, prompt, options)` — currently only the plain-text
-  `createBookmarkUtils.js` site.
+- `meteredCall(provider, prompt, options)` — plain-text calls
+  (`createBookmarkUtils.js` + others migrated via spine bridge).
+- `meteredCallJson(prompt, schema, opts)` — main-process structured-output calls.
+- `spine:meter` IPC bridge — renderer-to-main metered LLM dispatch via `spineApi`.
+
+## What Plan 9d added
+
+Plan 9d shipped the renderer-to-main metering infrastructure for JSON and
+non-JSON calls:
+
+- **`meteredCallJson(prompt, schema, opts)`** in `src/main/brain/spine/meteredCall.js`
+  — Runs structured-output LLM calls on the main process, writes the ledger row
+  with full cost telemetry, returns `{ output, callId }`.
+
+- **`spine:meter` IPC handler** — Main-process handler that accepts `{ label, prompt, schema? }`
+  from the renderer and dispatches through `meteredCall` or `meteredCallJson`.
+
+- **`spineApi` renderer client** — New `src/renderer/api/spineApi.js` mirroring
+  `AIProviderManager` shape: `generateContent(prompt, opts)` and
+  `generateContentWithJson(prompt, schema, opts)`. Both accept a `label` option
+  (kebab-case identifier for the call site).
+
+- **2 demo migrations:**
+  - Main-process JSON: `AIConceptExtractionService.js:62`
+    (concept extraction, now metered).
+  - Renderer-direct: `StepTwoVerbCard.js:63`
+    (translate verb step, now calls `spineApi.generateContentWithJson`).
 
 ## Not covered
 
-The following LLM call sites bypass the Call Ledger entirely. Their cost is
+The following LLM call sites bypass the Call Ledger. Their cost is
 NOT visible in the Economics Panel:
 
-### Main-process structured-output sites (3)
-- `src/main/main.ts:601` — `aiProviderManager.generateContentWithJson(...)`
-- `src/main/utils/AIConceptExtractionService.js:62` — `generateContentWithJson(...)`
-- `src/main/utils/AIConceptExtractionService.js:130` — `generateContentWithJson(...)`
+### Main-process JSON sites (2 remaining)
+- [ ] `src/main/utils/AIConceptExtractionService.js:130` — `generateContentWithJson(...)`
+- [ ] `src/main/main.ts:601` — `aiProviderManager.generateContentWithJson(...)`
 
-These can be instrumented once a `meteredCallStructured` variant exists
-(or once they migrate through `brainCall` with a proper Intent and schema).
-
-### Renderer-direct sites (~20)
-- `src/renderer/views/translate/*` (3 call sites)
-- `src/renderer/views/grammar/*` (2 call sites)
-- `src/renderer/views/writing/*` (5 call sites)
-- `src/renderer/views/chat/*` (streaming + non-streaming)
-- `src/renderer/views/browser/*` (study-enhancer, rewrite-helper, smart-summary)
-- `src/renderer/components/web-based-search/*`
+### Renderer-direct sites (~19 remaining)
+- Translate (2 remaining, 1 migrated)
+- Grammar (2 sites)
+- Writing (5 sites)
+- Chat (streaming + non-streaming)
+- Browser (study-enhancer, rewrite-helper, smart-summary)
+- Web-based-search (~2 sites)
 
 These call `aiProviderManager.instanceInRender.generateContent(...)` directly
-from the renderer process. Since `brain_call_ledger` is a main-process SQLite
-table, these sites cannot record without an IPC bridge.
+from the renderer process. Without an IPC bridge, they cannot write `brain_call_ledger`.
 
-## Recommended next steps (Plan 9d or Phase 10)
+## How to migrate a renderer-direct call site
 
-1. Add an IPC handler `spine:meteredCall(label, providerPrompt) → { output, callId }`
-   that runs the LLM call on the main side and writes the ledger row.
-2. Update a renderer-side helper `import { meter } from 'api/spineApi'`
-   to wrap renderer-direct calls.
-3. Migrate the renderer view files one cluster at a time
-   (translate → grammar → writing → chat → browser).
-4. For structured-output JSON sites, add a `meteredCallStructured` variant
-   in `src/main/brain/spine/meteredCall.js`.
+Find the direct call to `aiProviderManager.instanceInRender` and replace it
+with the `spineApi` client:
+
+```js
+// Before:
+import aiProviderManager from '...aiProviderManager';
+const r = await aiProviderManager.instanceInRender.generateContent(prompt);
+const j = await aiProviderManager.instanceInRender.generateContentWithJson(prompt, schema, true);
+
+// After:
+import spineApi from '../../api/spineApi'; // adjust path as needed
+const r = await spineApi.generateContent(prompt, { label: 'feature-name' });
+const j = await spineApi.generateContentWithJson(prompt, schema, { label: 'feature-name' });
+```
+
+**Label naming:** Use a short kebab-case identifier specific to the feature
+(e.g., `translate-verb-step`, `grammar-correction`, `smart-summary-rewrite`).
+
+## Next phase — Plan 9e
+
+Recommended migration order (one feature cluster per PR):
+
+1. **Translate** — 2 remaining call sites
+2. **Grammar** — 2 call sites
+3. **Writing** — 5 call sites
+4. **Browser** — ~5 call sites (study-enhancer, rewrite-helper, smart-summary)
+5. **Web-based-search** — ~2 call sites
+
+After Plan 9e completes, all main-process and renderer-direct LLM calls will be
+metered and visible in the Economics Panel.
