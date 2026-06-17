@@ -18,7 +18,7 @@ import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import SchoolIcon from '@mui/icons-material/School';
 
 import { langstudyComparisonExerciseMore } from '../../../commons/utils/AIPrompts';
-import { instanceInRender as aiProviderManager } from '../../../commons/service/AIProviderManager';
+import spineApi from '../../api/spineApi';
 
 const ContentCard = styled(Box)(({ theme }) => ({
   backgroundColor: theme.palette.background.paper,
@@ -110,9 +110,10 @@ function ExerciseCard({ exercise, colors, index }) {
     setIsLoading(true);
     try {
       const prompt = langstudyComparisonExerciseMore(exercise);
-      const moreExamples = await aiProviderManager.generateContentWithJson(
+      const moreExamples = await spineApi.generateContentWithJson(
         prompt,
-        true,
+        null,
+        { label: 'writing-comparison-examples' },
       );
       if (moreExamples && moreExamples.data) {
         setAdditionalExamples(moreExamples.data);

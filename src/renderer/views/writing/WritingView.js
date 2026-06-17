@@ -35,7 +35,7 @@ import {
 } from '../../../commons/utils/AIPrompts';
 import AnnotatedText from './AnnotatedText';
 import ParagraphComparer from './ParagraphComparer';
-import { instanceInRender as aiProviderManager } from '../../../commons/service/AIProviderManager';
+import spineApi from '../../api/spineApi';
 import ComparisonExercise from './ComparisonExercise';
 
 // Step icons mapping
@@ -312,9 +312,10 @@ function WritingView() {
       setIsLoading(true);
       try {
         const prompt = langstudyAnnotatePrompt(curStep);
-        const mapped = await aiProviderManager.generateContentWithJson(
+        const mapped = await spineApi.generateContentWithJson(
           `${prompt}\n ${text}`,
-          false,
+          null,
+          { label: 'writing-mapping' },
         );
         setDecorText((prev) =>
           prev.map((value, index) => (index === activeStep ? mapped : value)),
@@ -361,9 +362,10 @@ function WritingView() {
     if (!text || lang5w) return;
     setIsLoading(true);
     try {
-      const r = await aiProviderManager.generateContentWithJson(
+      const r = await spineApi.generateContentWithJson(
         `${langstudy5wPrompt}\n  ${text}`,
-        true,
+        null,
+        { label: 'writing-view' },
       );
       setLang5w(r);
     } catch (error) {
@@ -375,7 +377,7 @@ function WritingView() {
   const tryGrammarComparison = async () => {
     if (!mywriting) return;
     const prompt = langstudyComparisonExercise(text, mywriting);
-    const r = await aiProviderManager.generateContentWithJson(prompt, true);
+    const r = await spineApi.generateContentWithJson(prompt, null, { label: 'writing-view' });
     setMywritingComparison(r);
   };
 
@@ -383,9 +385,10 @@ function WritingView() {
     if (!mywriting) return;
     setIsLoading(true);
     try {
-      const r = await aiProviderManager.generateContentWithJson(
+      const r = await spineApi.generateContentWithJson(
         `${langstudyGrammarCheckPrompt}\n please do grammar checking for: \n${mywriting}`,
-        false,
+        null,
+        { label: 'writing-view' },
       );
       setMywritingCheck(r);
       await tryGrammarComparison();
