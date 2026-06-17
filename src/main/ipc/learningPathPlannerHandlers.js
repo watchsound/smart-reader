@@ -129,8 +129,9 @@ function registerLearningPathPlannerHandlers(services = {}) {
             },
           }));
         if (steps.length > 0) {
+          const triggerId = `phase7:${goal.slice(0, 80)}`;
           triggerEmitter.emit({
-            id: `phase7:${goal.slice(0, 80)}`,
+            id: triggerId,
             source: 'phase-7-learning-path',
             unit: 'multi-surface-flow',
             surfaceTarget: { kind: 'flow', steps },
@@ -144,6 +145,17 @@ function registerLearningPathPlannerHandlers(services = {}) {
               questId: createdQuest?.id || null,
             },
           });
+          // Phase 9b: bind the ledger row to the trigger so the Rationale Card
+          // can look it up via CallLedgerStore.findByTriggerId.
+          try {
+            if (result.callId) {
+              // eslint-disable-next-line global-require
+              const CallLedgerStore = require('../db/CallLedgerStore');
+              CallLedgerStore.bindTriggerId(result.callId, triggerId);
+            }
+          } catch (e) {
+            console.warn('[phase-7] bindTriggerId failed:', e?.message || e);
+          }
         }
       }
 

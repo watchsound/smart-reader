@@ -19,7 +19,6 @@
 
 import { instanceInMain as aiProviderManager } from '../../commons/service/AIProviderManager';
 import { createLearningPathPrompt } from '../../commons/utils/AIPrompts';
-import { getStructured } from '../../commons/service/polyfills/structuredOutput';
 
 const MAX_ANALYZED_BOOKS = 20;
 const MAX_UNANALYZED_BOOKS = 30;
@@ -120,11 +119,12 @@ class LearningPathPlannerService {
    * @param {Array} books — all user books (from getBooksByCategory('', token))
    * @returns {Promise<Object>} { summary, pathSteps, coverageGaps, analyzedCount, totalBooks } or { error }
    */
-  async plan(goal, books) {
+  // TODO(multi-user): thread userId through from the IPC handler payload
+  // so multi-user deployments get per-user Brain context.
+  async plan(goal, books, opts = {}) {
     if (!goal || !goal.trim()) return { error: 'Learning goal is required.' };
 
-    const provider = aiProviderManager.currentProvider;
-    if (!provider) return { error: 'No AI provider configured.' };
+    if (!aiProviderManager.currentProvider) return { error: 'No AI provider configured.' };
 
     const allBooks = Array.isArray(books) ? books : [];
     if (allBooks.length === 0) {
@@ -147,11 +147,18 @@ class LearningPathPlannerService {
     });
 
     let raw;
+    let planCallId = null;
     try {
-      raw = await getStructured(provider, prompt, PATH_SCHEMA, {
-        schemaName: 'learningPath',
-        maxRetries: 1,
-      });
+      // eslint-disable-next-line global-require
+      const { brainCall } = require('../brain/spine');
+      const userId = opts.userId || 1;
+      const brainResult = await brainCall(
+        'plan-cross-book-path',
+        prompt,
+        { userId, schema: PATH_SCHEMA },
+      );
+      raw = brainResult.output;
+      planCallId = brainResult.callId;
     } catch (err) {
       return { error: err?.message || 'AI call failed.' };
     }
@@ -182,6 +189,7 @@ class LearningPathPlannerService {
         : [],
       analyzedCount: analyzed.length,
       totalBooks: allBooks.length,
+      callId: planCallId,
     };
   }
 }
