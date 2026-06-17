@@ -43,11 +43,11 @@ npm run test:smoke        # Boot Electron 12s + scan main-process logs for crash
 
 ### Process Model (Electron IPC)
 
-- **Main Process** (`src/main/main.ts`): ~2400 lines handling IPC events, window management, database operations, AI provider integration, and ChromaDB. All database and external service calls happen here.
+- **Main Process** (`src/main/main.ts`): ~2700 lines handling IPC events, window management, database operations, AI provider integration, and ChromaDB. All database and external service calls happen here.
 - **Preload Script** (`src/main/preload.ts`): Bridges main/renderer with secure IPC API exposure.
 - **Renderer Process** (`src/renderer/`): React UI with Redux state management.
 
-Communication flows through ~100+ IPC handlers defined in `main.ts` starting around line 487.
+Communication flows through ~100+ IPC handlers defined in `main.ts` starting around line 507.
 
 ### AI Provider Strategy Pattern
 
