@@ -238,6 +238,58 @@ function bindTriggerId(callId, triggerId) {
   return info.changes;
 }
 
+/**
+ * Sum cost + tokens + counts for all ledger rows sharing a trace_id,
+ * broken down per intent. Used by EconomicsPanel to show per-session spend.
+ *
+ * @param {string} traceId
+ * @returns {{ traceId: string, totalCost: number, totalTokens: number, callCount: number, byIntent: Record<string, {count:number, cost:number, tokens:number}> }}
+ */
+function aggregateByTraceId(traceId) {
+  const db = DBManager.getDb();
+  const rows = db.prepare(`
+    SELECT intent, cost_usd, prompt_tokens, completion_tokens
+    FROM brain_call_ledger
+    WHERE trace_id = ?
+  `).all(traceId);
+  const byIntent = {};
+  let totalCost = 0;
+  let totalTokens = 0;
+  for (const r of rows) {
+    if (!byIntent[r.intent]) byIntent[r.intent] = { count: 0, cost: 0, tokens: 0 };
+    byIntent[r.intent].count++;
+    byIntent[r.intent].cost += r.cost_usd || 0;
+    byIntent[r.intent].tokens += (r.prompt_tokens || 0) + (r.completion_tokens || 0);
+    totalCost += r.cost_usd || 0;
+    totalTokens += (r.prompt_tokens || 0) + (r.completion_tokens || 0);
+  }
+  return { traceId, totalCost, totalTokens, callCount: rows.length, byIntent };
+}
+
+/**
+ * Return distinct Director sessions (non-null trace_ids) ordered newest-first,
+ * each with summary stats. Used by EconomicsPanel session list.
+ *
+ * @param {{ limit?: number }} [opts]
+ * @returns {{ traceId: string, startedAt: number, endedAt: number, totalCost: number, callCount: number }[]}
+ */
+function listSessionTraces({ limit = 20 } = {}) {
+  const db = DBManager.getDb();
+  const rows = db.prepare(`
+    SELECT trace_id AS traceId,
+           MIN(ts) AS startedAt,
+           MAX(ts) AS endedAt,
+           SUM(cost_usd) AS totalCost,
+           COUNT(*) AS callCount
+    FROM brain_call_ledger
+    WHERE trace_id IS NOT NULL
+    GROUP BY trace_id
+    ORDER BY startedAt DESC
+    LIMIT ?
+  `).all(limit);
+  return rows;
+}
+
 module.exports = {
   record,
   recordCacheHit,
@@ -246,7 +298,9 @@ module.exports = {
   tracesByCallId,
   aggregateByIntent,
   aggregateByProvider,
+  aggregateByTraceId,
   cacheHitRateByIntent,
+  listSessionTraces,
   prune,
   bindTriggerId,
 };

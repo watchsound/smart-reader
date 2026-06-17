@@ -29,12 +29,40 @@ function run(cmd, args, opts = {}) {
 }
 
 function rebuildForNode() {
-  // Rebuild only better-sqlite3 against system Node ABI.
-  return run(npmCmd, [
-    'rebuild',
-    'better-sqlite3',
-    '--build-from-source',
-  ]);
+  // Install a prebuilt better-sqlite3 binary for system Node ABI into
+  // release/app/node_modules (where better-sqlite3 lives as a dep).
+  // We use prebuild-install (bundled with better-sqlite3) to download the
+  // prebuilt binary for the running Node version, bypassing node-gyp which
+  // fails on Windows paths containing non-ASCII characters (MSBuild limit).
+  //
+  // After that, we copy the Node-ABI binary into src/node_modules/better-sqlite3
+  // too, since Jest also resolves that hoisted copy first (moduleDirectories: ["src"]).
+  const { existsSync, copyFileSync } = require('fs');
+  const path = require('path');
+  const root = path.join(__dirname, '..', '..');
+  const bsqDir = path.join(root, 'release', 'app', 'node_modules', 'better-sqlite3');
+  const prebuildBin = path.join(
+    root, 'release', 'app', 'node_modules', '.bin', isWin ? 'prebuild-install.cmd' : 'prebuild-install',
+  );
+
+  if (existsSync(bsqDir) && existsSync(prebuildBin)) {
+    const nodeVersion = process.version.slice(1); // strip leading 'v'
+    const prebuildStatus = run(prebuildBin, ['--runtime', 'node', '--target', nodeVersion], { cwd: bsqDir });
+    if (prebuildStatus !== 0) return prebuildStatus;
+
+    // Copy the freshly installed Node-ABI binary to the Jest-resolved copy.
+    const nodeBinary = path.join(bsqDir, 'build', 'Release', 'better_sqlite3.node');
+    const jestCopy = path.join(root, 'src', 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node');
+    if (existsSync(nodeBinary) && existsSync(path.dirname(jestCopy))) {
+      // eslint-disable-next-line no-console
+      console.log('[test-integration] copying system-Node binary to src/node_modules');
+      copyFileSync(nodeBinary, jestCopy);
+    }
+    return 0;
+  }
+
+  // Fallback: try npm rebuild (may fail silently on this setup)
+  return run(npmCmd, ['rebuild', 'better-sqlite3']);
 }
 
 function rebuildForElectron() {
@@ -48,6 +76,7 @@ function runJest() {
     'jest',
     'src/__tests__/integration/',
     'src/__tests__/main/',
+    'src/__tests__/db/',
     '--no-coverage',
   ]);
 }

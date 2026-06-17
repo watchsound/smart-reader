@@ -35,6 +35,14 @@ function registerCallLedgerHandlers() {
   ipcMain.handle('callLedger:tracesByCallId', async (_e, callId) => {
     return CallLedgerStore.tracesByCallId(callId);
   });
+
+  ipcMain.handle('callLedger:aggregateByTraceId', async (_e, { traceId }) =>
+    CallLedgerStore.aggregateByTraceId(traceId)
+  );
+
+  ipcMain.handle('callLedger:listSessionTraces', async (_e, { limit }) =>
+    CallLedgerStore.listSessionTraces({ limit })
+  );
 }
 
 module.exports = { registerCallLedgerHandlers };

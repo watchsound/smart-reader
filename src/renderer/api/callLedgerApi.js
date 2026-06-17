@@ -73,6 +73,30 @@ const callLedgerApi = {
       callId,
     );
   },
+
+  /**
+   * Aggregate cost + token + call breakdown for a single Director session.
+   * @param {string} traceId
+   * @returns {Promise<{ traceId: string, totalCost: number, totalTokens: number, callCount: number, byIntent: Record<string, {count:number, cost:number, tokens:number}> }>}
+   */
+  aggregateByTraceId(traceId) {
+    return window.electron.ipcRenderer.invoke(
+      'callLedger:aggregateByTraceId',
+      { traceId },
+    );
+  },
+
+  /**
+   * List distinct Director sessions (newest-first) with summary stats.
+   * @param {number} [limit=20]
+   * @returns {Promise<{ traceId: string, startedAt: number, endedAt: number, totalCost: number, callCount: number }[]>}
+   */
+  listSessionTraces(limit = 20) {
+    return window.electron.ipcRenderer.invoke(
+      'callLedger:listSessionTraces',
+      { limit },
+    );
+  },
 };
 
 export default callLedgerApi;
