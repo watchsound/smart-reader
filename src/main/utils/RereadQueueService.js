@@ -143,6 +143,16 @@ class RereadQueueService {
     this._setAll(items);
     return true;
   }
+
+  /**
+   * Remove a re-read item by id — used by UndoRegistry to reverse a scheduleReread call.
+   * Semantically equivalent to dismiss(); named separately so undo intent is clear.
+   * @param {string} id
+   * @returns {boolean}
+   */
+  unschedule(id) {
+    return this.dismiss(id);
+  }
 }
 
 export default RereadQueueService;
