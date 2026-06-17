@@ -21,6 +21,7 @@ import {
 } from '../db/BookmarkGroupManager';
 import { getFaviconBase64 } from './fileUtil';
 import { instanceInMain as aiProviderManager } from '../../commons/service/AIProviderManager';
+import meteredCall from '../brain/spine/meteredCall';
 
 
 async function savePDF4URL(id, url) {
@@ -161,7 +162,14 @@ async function createBookmarkUtils(url,  token) {
   let newBookmark = null;
   try {
     const prompt = getUserMessageForCategory(groupStructure,  `${title} ${description}`)
-    let cat = await aiProviderManager.generateContent(prompt);
+    const provider = aiProviderManager.currentProvider;
+    let cat;
+    if (provider) {
+      const r = await meteredCall(provider, prompt, { legacyLabel: 'bookmark-categorize' });
+      cat = r.output;
+    } else {
+      cat = await aiProviderManager.generateContent(prompt);
+    }
     cat = cat.replaceAll('-', '');
     let category = getBookmarkGroupByName(cat, token);
     if (!category) {
