@@ -601,9 +601,12 @@ const createWindow = async () => {
     }
     try {
       const level = store.get('reader_level');
-      const json = await aiProviderManager.generateContentWithJson(
+      // eslint-disable-next-line global-require
+      const meteredCallJson = require('./brain/spine/meteredCallJson');
+      const { output: json } = await meteredCallJson(
         createVocabularyPrompt(text.trim(), level),
-        true,
+        null,
+        { legacyLabel: 'add-vocabulary' },
       );
       const newOne = await createVocabulary(
         {

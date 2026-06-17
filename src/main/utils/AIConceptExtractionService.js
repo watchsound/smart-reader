@@ -130,9 +130,12 @@ class AIConceptExtractionService {
 
     try {
       const prompt = createEntityResolutionPrompt(text);
-      const result = await aiProviderManager.generateContentWithJson(
+      // eslint-disable-next-line global-require
+      const meteredCallJson = require('../brain/spine/meteredCallJson');
+      const { output: result } = await meteredCallJson(
         prompt,
-        true,
+        null,
+        { legacyLabel: 'entity-extraction' },
       );
 
       if (!result || !result.entities) {
