@@ -60,6 +60,19 @@ const callLedgerApi = {
       sinceMs,
     );
   },
+
+  /**
+   * Fetch all ledger rows sharing the same trace_id as the given call,
+   * ordered by ts ASC. Falls back to [row] when trace_id is null.
+   * @param {number} callId
+   * @returns {Promise<import('../../main/db/CallLedgerStore').LedgerRow[]>}
+   */
+  tracesByCallId(callId) {
+    return window.electron.ipcRenderer.invoke(
+      'callLedger:tracesByCallId',
+      callId,
+    );
+  },
 };
 
 export default callLedgerApi;

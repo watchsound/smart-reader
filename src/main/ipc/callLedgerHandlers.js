@@ -31,6 +31,10 @@ function registerCallLedgerHandlers() {
     const map = CallLedgerStore.cacheHitRateByIntent(sinceMs || 0);
     return Object.fromEntries(map);
   });
+
+  ipcMain.handle('callLedger:tracesByCallId', async (_e, callId) => {
+    return CallLedgerStore.tracesByCallId(callId);
+  });
 }
 
 module.exports = { registerCallLedgerHandlers };
