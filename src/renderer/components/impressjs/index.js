@@ -2,7 +2,7 @@
 import customStorage from '../../store/customStorage';
 
 import { createDecomposeParagraphPrompt } from '../../../commons/utils/AIPrompts';
-import { instanceInRender as aiProviderManager } from '../../../commons/service/AIProviderManager';
+import spineApi from '../../api/spineApi';
 import { generateLayout, selectLayoutTheme } from './layoutGenerators';
 import { getRuntimeBundleString } from './effects/runtime';
 
@@ -18,7 +18,7 @@ const generateImpressHTML = async ({ paragraph }) => {
 
   async function decomposeWithAI(input) {
     const prompt = createDecomposeParagraphPrompt(input);
-    const r = await aiProviderManager.generateContentWithJson(prompt, true);
+    const r = await spineApi.generateContentWithJson(prompt, null, { label: 'impress-slide-decompose' });
     const slides = [];
     const deck = { layout_theme: null, global_mood: null, background: null };
     if (r) {

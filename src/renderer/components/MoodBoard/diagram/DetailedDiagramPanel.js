@@ -120,7 +120,7 @@ import CustomLinkFactory from './CustomLinkFactory';
 import ToggleButton from './ToggleButton';
 import customStorage from '../../../store/customStorage';
 import { createMoodBoardLayoutPrompt } from '../../../../commons/utils/AIPrompts';
-import { instanceInRender as aiProviderManager } from '../../../../commons/service/AIProviderManager';
+import spineApi from '../../../api/spineApi';
 import { adjustFontSize } from '../../../utils/common';
 
 function DetailedDiagramPanel({ curMoodBoard }) {
@@ -359,15 +359,11 @@ function DetailedDiagramPanel({ curMoodBoard }) {
     const width = size.width ?? 650;
     const height = size.height ?? 450;
     const layoutPrompt = createMoodBoardLayoutPrompt(width, height, notesList);
-    const layout = await aiProviderManager.generateContentWithJson(
+    const layoutJson = await spineApi.generateContentWithJson(
       layoutPrompt,
-      false,
+      null,
+      { label: 'moodboard-diagram-layout' },
     );
-    if (!layout) {
-      setInProcess(false);
-      return;
-    }
-    const layoutJson = await aiProviderManager.extractJsonData(layout);
     if (!layoutJson) {
       setInProcess(false);
       return;

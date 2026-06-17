@@ -1,8 +1,9 @@
 /**
  * @jest-environment jsdom
  */
-jest.mock('../../commons/service/AIProviderManager', () => ({
-  instanceInRender: {
+jest.mock('../../renderer/api/spineApi', () => ({
+  __esModule: true,
+  default: {
     generateContentWithJson: jest.fn(),
   },
 }));
@@ -17,12 +18,12 @@ global.window.electron = {
   ipcRenderer: { getAssetRootPath: jest.fn().mockResolvedValue('/fake/assets') },
 };
 
-const aiProviderManager = require('../../commons/service/AIProviderManager').instanceInRender;
+const spineApi = require('../../renderer/api/spineApi').default;
 const { generateImpressHTML } = require('../../renderer/components/impressjs/index.js');
 
 describe('Impress orchestrator HTML generation', () => {
   test('emits per-slide data attributes from extended AI schema', async () => {
-    aiProviderManager.generateContentWithJson.mockResolvedValueOnce({
+    spineApi.generateContentWithJson.mockResolvedValueOnce({
       layout_theme: 'helix',
       global_mood: 'dramatic',
       background: 'gradient_flow',
@@ -38,7 +39,7 @@ describe('Impress orchestrator HTML generation', () => {
   });
 
   test('legacy AI schema (no new fields) still produces valid HTML', async () => {
-    aiProviderManager.generateContentWithJson.mockResolvedValueOnce({
+    spineApi.generateContentWithJson.mockResolvedValueOnce({
       layout_theme: 'spiral',
       data: [{ content: 'A' }, { content: 'B' }],
     });
