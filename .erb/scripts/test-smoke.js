@@ -63,6 +63,10 @@ const ERROR_PATTERNS = [
   // require(...).X is not a function — covers the electron-debug merge
   // bug and the Phase 8 wiring bug (recordEvent.X undefined).
   /TypeError:.*is not a function/i,
+  // Cannot read properties of undefined — covers the case where
+  // `require('electron')` returns a string (script mode vs main-process
+  // mode), so `import { app } from 'electron'` leaves `app` undefined.
+  /TypeError: Cannot read properties of undefined/i,
   // SqliteError: no such table / column — covers init-table omissions.
   /SqliteError/,
   // Module resolution failures from typo'd imports.
@@ -88,6 +92,16 @@ function isFlagged(line) {
 }
 
 function preflight() {
+  // Boot via project root (package.json `main` field) so Electron loads
+  // the entry as the main process, NOT as a standalone Node script.
+  // When invoked with an explicit script path, `require('electron')`
+  // returns the path string instead of the API object, so destructured
+  // imports like `import { app } from 'electron'` leave `app` undefined.
+  const PKG_JSON = path.join(PROJECT_ROOT, 'package.json');
+  if (!fs.existsSync(PKG_JSON)) {
+    console.error(`[test-smoke] missing package.json at ${PROJECT_ROOT}`);
+    process.exit(1);
+  }
   if (!fs.existsSync(APP_ENTRY)) {
     console.error(`[test-smoke] missing main entry: ${APP_ENTRY}`);
     process.exit(1);
@@ -135,9 +149,14 @@ function run() {
   );
 
   const flagged = [];
+  // Pass PROJECT_ROOT (the dir containing package.json) so Electron
+  // resolves the entry via the `main` field and runs it as the main
+  // process. Passing APP_ENTRY directly puts Electron in node-script
+  // mode where `require('electron')` returns a string path instead of
+  // the API object.
   const proc = spawn(
     ELECTRON_BIN,
-    ['-r', 'ts-node/register/transpile-only', APP_ENTRY],
+    ['-r', 'ts-node/register/transpile-only', PROJECT_ROOT],
     {
       cwd: PROJECT_ROOT,
       env: {
