@@ -1,5 +1,10 @@
 // src/__tests__/spine/BrainContext.test.js
 const mockGetRecentEpisodes = jest.fn();
+const mockTopNByMastery = jest.fn();
+
+jest.mock('../../main/db/LearningPointManager', () => ({
+  topNByMastery: mockTopNByMastery,
+}));
 
 jest.mock('../../main/brain', () => ({
   getLearningBrain: () => ({
@@ -28,6 +33,8 @@ const BrainContext = require('../../main/brain/spine/BrainContext');
 require('../../main/brain/spine/slices/activeQuest'); // self-registers
 require('../../main/brain/spine/slices/currentBook');
 require('../../main/brain/spine/slices/recentEpisodes');
+require('../../main/brain/spine/slices/mastery');
+require('../../main/brain/spine/slices/recentComprehension');
 
 describe('BrainContext.activeQuest', () => {
   beforeEach(() => {
@@ -87,5 +94,29 @@ describe('BrainContext.recentEpisodes', () => {
     mockGetRecentEpisodes.mockResolvedValue([]);
     const result = await BrainContext.buildSlice(['recentEpisodes'], 1);
     expect(result.recentEpisodes).toEqual([]);
+  });
+});
+
+describe('BrainContext.mastery', () => {
+  beforeEach(() => { mockTopNByMastery.mockReset(); });
+
+  test('returns top-N learning points compacted', async () => {
+    mockTopNByMastery.mockReturnValue([
+      { concept: 'duration', mastery_level: 78 },
+      { concept: 'convexity', mastery_level: 42 },
+    ]);
+    const result = await BrainContext.buildSlice(['mastery'], 1);
+    expect(result.mastery).toEqual([
+      { c: 'duration', m: 78 },
+      { c: 'convexity', m: 42 },
+    ]);
+    expect(mockTopNByMastery).toHaveBeenCalledWith(1, 15);
+  });
+});
+
+describe('BrainContext.recentComprehension', () => {
+  test('returns empty array placeholder for Phase 9a', async () => {
+    const result = await BrainContext.buildSlice(['recentComprehension'], 1);
+    expect(result.recentComprehension).toEqual([]);
   });
 });

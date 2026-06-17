@@ -1249,6 +1249,32 @@ export const getDailyForecast = (token, days = 14) => {
 };
 
 // =============================================================================
+// PHASE 9 — Brain Spine helpers
+// =============================================================================
+
+/**
+ * Return top-N learning points for a user by mastery_level DESC.
+ * Used by the Brain Spine `mastery` slice (Phase 9).
+ *
+ * @param {number} userId
+ * @param {number} n
+ * @returns {Array<{ concept: string, mastery_level: number }>}
+ */
+export const topNByMastery = (userId, n = 15) => {
+  const rows = db
+    .prepare(
+      `SELECT concept, mastery_level
+         FROM learning_point
+        WHERE user_id = ?
+          AND (status IS NULL OR status = 'active')
+        ORDER BY mastery_level DESC
+        LIMIT ?`,
+    )
+    .all(userId || 1, n);
+  return rows;
+};
+
+// =============================================================================
 // EXPORTS
 // =============================================================================
 
