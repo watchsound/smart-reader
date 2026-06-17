@@ -52,6 +52,8 @@ import KnowledgeDashboard from './views/knowledge';
 import LearningCalendarPage from './views/calendar';
 import { LearningPlansPage } from './views/learning';
 import { StudySessionPage } from './views/study';
+import AISessionView from './views/aiSession/AISessionView';
+// SessionSummaryView (/ai-session/:id/summary) will be added in Task 7.
 
 
 const router = createHashRouter([
@@ -228,6 +230,14 @@ const router = createHashRouter([
         path: 'browser',
         element: <BrowserView />,
         loader: urlLoader,
+
+        shouldReload: false,
+      },
+      {
+        // Phase 10b-2 Task 5: AI-directed study session shell.
+        // /ai-session/:id/summary route will be added in Task 7 (SessionSummaryView).
+        path: 'ai-session/:id',
+        element: <AISessionView />,
 
         shouldReload: false,
       },
