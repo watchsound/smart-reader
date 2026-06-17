@@ -1,6 +1,7 @@
 // src/__tests__/spine/BrainContext.test.js
 const mockGetRecentEpisodes = jest.fn();
 const mockTopNByMastery = jest.fn();
+const mockGetTriggerTelemetry = jest.fn();
 
 jest.mock('../../main/db/LearningPointManager', () => ({
   topNByMastery: mockTopNByMastery,
@@ -9,6 +10,7 @@ jest.mock('../../main/db/LearningPointManager', () => ({
 jest.mock('../../main/brain', () => ({
   getLearningBrain: () => ({
     episodeCollector: { getRecentEpisodes: mockGetRecentEpisodes },
+    getTriggerTelemetry: mockGetTriggerTelemetry,
   }),
 }));
 
@@ -35,6 +37,7 @@ require('../../main/brain/spine/slices/currentBook');
 require('../../main/brain/spine/slices/recentEpisodes');
 require('../../main/brain/spine/slices/mastery');
 require('../../main/brain/spine/slices/recentComprehension');
+require('../../main/brain/spine/slices/acceptDismissPatterns');
 
 describe('BrainContext.activeQuest', () => {
   beforeEach(() => {
@@ -118,5 +121,28 @@ describe('BrainContext.recentComprehension', () => {
   test('returns empty array placeholder for Phase 9a', async () => {
     const result = await BrainContext.buildSlice(['recentComprehension'], 1);
     expect(result.recentComprehension).toEqual([]);
+  });
+});
+
+describe('BrainContext.acceptDismissPatterns', () => {
+  beforeEach(() => { mockGetTriggerTelemetry.mockReset(); });
+
+  test('returns per-source accept/dismiss ratios', async () => {
+    mockGetTriggerTelemetry.mockReturnValue({
+      bySource: {
+        'reread-queue-schedule':      { accepted: 2, dismissed: 8 },
+        'schedule-production-prompt': { accepted: 5, dismissed: 1 },
+      },
+    });
+    const result = await BrainContext.buildSlice(['acceptDismissPatterns'], 1);
+    const p = result.acceptDismissPatterns;
+    expect(p['reread-queue-schedule'].acceptRate).toBeCloseTo(0.2, 2);
+    expect(p['schedule-production-prompt'].acceptRate).toBeCloseTo(0.833, 2);
+  });
+
+  test('returns empty object when telemetry empty', async () => {
+    mockGetTriggerTelemetry.mockReturnValue({ bySource: {} });
+    const result = await BrainContext.buildSlice(['acceptDismissPatterns'], 1);
+    expect(result.acceptDismissPatterns).toEqual({});
   });
 });
