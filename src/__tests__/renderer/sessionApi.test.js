@@ -6,13 +6,15 @@ const fakeInvoke = jest.fn().mockResolvedValue({ sessionId: 'sess-1', traceId: '
 const fakeOn = jest.fn();
 const fakeRemoveListener = jest.fn();
 
-jest.mock('electron', () => ({
+// sessionApi reads `window.electron.ipcRenderer` at module load. Set it
+// up before requiring the module under test.
+window.electron = {
   ipcRenderer: {
     invoke: fakeInvoke,
     on: fakeOn,
     removeListener: fakeRemoveListener,
   },
-}));
+};
 
 const sessionApi = require('../../renderer/api/sessionApi').default;
 

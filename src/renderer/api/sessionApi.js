@@ -17,7 +17,7 @@
  *   });
  */
 
-const { ipcRenderer } = window.require ? window.require('electron') : require('electron');
+const { ipcRenderer } = window.electron || {};
 
 const sessionApi = {
   /**

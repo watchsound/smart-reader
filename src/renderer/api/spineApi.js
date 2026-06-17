@@ -7,7 +7,7 @@
  *
  * Pass `{ label, withMeta: true }` if you need the `callId` back.
  */
-const { ipcRenderer } = window.require ? window.require('electron') : require('electron');
+const { ipcRenderer } = window.electron || {};
 
 async function invokeBridge(payload) {
   const res = await ipcRenderer.invoke('spine:meter', payload);

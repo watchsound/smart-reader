@@ -12,7 +12,7 @@
  *   const concept = await brainVisibilityApi.concept({ learningPointId: 42, userId: 1 });
  */
 
-const { ipcRenderer } = window.require ? window.require('electron') : require('electron');
+const { ipcRenderer } = window.electron || {};
 
 const brainVisibilityApi = {
   /**
