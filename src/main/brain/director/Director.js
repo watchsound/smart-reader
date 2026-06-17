@@ -121,7 +121,7 @@ async function run({ config, input, userId = 1, contextOverrides = {} }) {
           continue;
         }
         try {
-          const result = await tools.invoke(step.tool, step.args || {});
+          const result = await tools.invoke(step.tool, step.args || {}, { traceId, userId });
           history.push({ tool: step.tool, args: step.args || {}, result });
         } catch (e) {
           history.push({ tool: step.tool, args: step.args || {}, result: { error: e?.message || String(e) } });

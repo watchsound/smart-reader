@@ -60,11 +60,11 @@ function __reset() {
   for (const k of Object.keys(HANDLERS)) delete HANDLERS[k];
 }
 
-function invoke(name, args) {
+function invoke(name, args, ctx = {}) {
   if (!TOOLS[name]) throw new Error(`unknown tool: ${name}`);
   const handler = HANDLERS[name];
   if (!handler) throw new Error(`tool ${name} has no handler — Phase 10 must register one`);
-  return handler(args || {});
+  return handler(args || {}, ctx);
 }
 
 register('navigate', {
