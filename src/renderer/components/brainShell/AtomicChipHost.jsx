@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Paper, Typography, Button, Stack } from '@mui/material';
 import triggerBus from '../../brain/triggerBus';
+import RationaleCard from './RationaleCard';
 
 /**
  * AtomicChipHost — renders a single Atomic Chip Proposal.
@@ -86,6 +87,7 @@ export default function AtomicChipHost({ proposal }) {
             </Button>
           ))}
         </Stack>
+        <RationaleCard triggerId={proposal.id} />
       </Stack>
     </Paper>
   );

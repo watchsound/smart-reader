@@ -8,6 +8,7 @@ import {
   Box,
 } from '@mui/material';
 import triggerBus from '../../brain/triggerBus';
+import RationaleCard from './RationaleCard';
 
 /**
  * InlineSequenceHost — renders a multi-step Inline Sequence Flow.
@@ -109,6 +110,7 @@ export default function InlineSequenceHost({ proposal, onStepResult }) {
             {isLastStep ? 'Done' : 'Next'}
           </Button>
         </Stack>
+        <RationaleCard triggerId={proposal.id} />
       </Stack>
     </Paper>
   );

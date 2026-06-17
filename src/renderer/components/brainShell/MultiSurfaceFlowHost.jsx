@@ -13,6 +13,7 @@ import {
 import CloseIcon from '@mui/icons-material/Close';
 import PauseIcon from '@mui/icons-material/Pause';
 import triggerBus from '../../brain/triggerBus';
+import RationaleCard from './RationaleCard';
 
 /**
  * MultiSurfaceFlowHost — renders a flow that walks the user across views.
@@ -109,6 +110,7 @@ export default function MultiSurfaceFlowHost({ proposal, onStepResult }) {
           <Typography variant="caption" sx={{ ml: 1, opacity: 0.5 }}>
             step {stepIdx + 1} of {total}
           </Typography>
+          <RationaleCard triggerId={proposal.id} />
         </Box>
         <Box sx={{ flex: 1 }}>
           <LinearProgress
