@@ -1275,6 +1275,74 @@ export const topNByMastery = (userId, n = 15) => {
 };
 
 // =============================================================================
+// PHASE 10b-1 — Study-Session Director read helpers
+// =============================================================================
+
+/**
+ * Return due-review counts per domain for a user.
+ * A row is "due" when next_review <= now and fully_learned = 0.
+ * sampleIds contains up to 5 ids from that domain so the Director can
+ * surface concrete examples without an extra round-trip.
+ *
+ * Uses two passes (GROUP BY + per-domain sample fetch) to avoid correlated
+ * subquery syntax that can confuse better-sqlite3's prepared-statement parser.
+ *
+ * @param {number} userId
+ * @returns {Array<{ domain: string, count: number, sampleIds: string[] }>}
+ */
+export const dueByDomain = (userId) => {
+  const now = new Date().toISOString();
+  const buckets = db
+    .prepare(
+      `SELECT domain_type AS domain, COUNT(*) AS count
+         FROM learning_point
+        WHERE user_id = ? AND fully_learned = 0
+          AND next_review IS NOT NULL AND next_review <= ?
+        GROUP BY domain_type
+        ORDER BY count DESC`,
+    )
+    .all(userId, now);
+
+  const sampleStmt = db.prepare(
+    `SELECT id FROM learning_point
+      WHERE user_id = ? AND domain_type = ? AND fully_learned = 0
+        AND next_review IS NOT NULL AND next_review <= ?
+      ORDER BY next_review ASC LIMIT 5`,
+  );
+
+  return buckets.map((r) => ({
+    domain: r.domain,
+    count: r.count,
+    sampleIds: sampleStmt.all(userId, r.domain, now).map((s) => s.id),
+  }));
+};
+
+/**
+ * Return the last N micro-cards (source_type='book') accepted by the user,
+ * newest first. Because learning_point has no dedicated `accepted_at` column,
+ * `created_at` is used as the acceptance timestamp (cards are created at
+ * acceptance time by microcard-accept). `title` is used as the headword proxy.
+ *
+ * Returns an empty array when no micro-cards exist rather than failing.
+ *
+ * @param {number} userId
+ * @param {number} n
+ * @returns {Array<{ id: string, headword: string, acceptedAt: string }>}
+ */
+export const recentlyAccepted = (userId, n = 10) => {
+  const rows = db
+    .prepare(
+      `SELECT id, title AS headword, created_at AS acceptedAt
+         FROM learning_point
+        WHERE user_id = ? AND source_type = 'book'
+        ORDER BY created_at DESC
+        LIMIT ?`,
+    )
+    .all(userId, n);
+  return rows;
+};
+
+// =============================================================================
 // EXPORTS
 // =============================================================================
 
