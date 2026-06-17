@@ -599,3 +599,28 @@ CREATE INDEX "idx_consolidated_memory_concept"
   ON "consolidated_memory"("concept_id");
 CREATE INDEX "idx_consolidated_memory_type"
   ON "consolidated_memory"("memory_type");
+
+-- ============================================
+-- Phase 9 Brain Spine — Call Ledger
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS "brain_call_ledger" (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  intent TEXT NOT NULL,
+  ts INTEGER NOT NULL,
+  provider TEXT NOT NULL,
+  context_keys TEXT,
+  prompt_tokens INTEGER,
+  completion_tokens INTEGER,
+  cost_usd REAL,
+  cache_hit INTEGER NOT NULL DEFAULT 0,
+  cache_key TEXT,
+  duration_ms INTEGER,
+  trigger_id TEXT,
+  output_summary TEXT,
+  output_json TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_brain_call_ledger_ts ON brain_call_ledger(ts);
+CREATE INDEX IF NOT EXISTS idx_brain_call_ledger_intent_ts ON brain_call_ledger(intent, ts);
+CREATE INDEX IF NOT EXISTS idx_brain_call_ledger_trigger ON brain_call_ledger(trigger_id);
+CREATE INDEX IF NOT EXISTS idx_brain_call_ledger_cache ON brain_call_ledger(intent, cache_key);
