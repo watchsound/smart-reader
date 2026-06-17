@@ -40,4 +40,16 @@ function list() {
   return Object.keys(INTENTS).sort();
 }
 
-module.exports = { register, resolve, list };
+// Seed registration runs on first require of this module.
+// Done as a side-effect import to keep the registry a single source of truth.
+let seedsLoaded = false;
+function ensureSeeds() {
+  if (!seedsLoaded) {
+    seedsLoaded = true;
+    require('./seedIntents'); // eslint-disable-line global-require
+  }
+}
+function resolveWithSeeds(name) { ensureSeeds(); return resolve(name); }
+function listWithSeeds() { ensureSeeds(); return list(); }
+
+module.exports = { register, resolve: resolveWithSeeds, list: listWithSeeds };
