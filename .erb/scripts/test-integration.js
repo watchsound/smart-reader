@@ -44,7 +44,12 @@ function rebuildForElectron() {
 }
 
 function runJest() {
-  return run(npxCmd, ['jest', 'src/__tests__/integration/', '--no-coverage']);
+  return run(npxCmd, [
+    'jest',
+    'src/__tests__/integration/',
+    'src/__tests__/main/',
+    '--no-coverage',
+  ]);
 }
 
 (async function main() {

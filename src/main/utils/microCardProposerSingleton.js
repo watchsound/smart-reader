@@ -11,17 +11,17 @@
  *      contract, which is narrower than MicroCardProposer's full API.
  *
  * commit({ userId, paragraphHash, draft, domain }) → { id }
- *   Stores the accepted draft as a learning_point row via the proposer.
- *   In Phase 4 the renderer sends the accepted draft after user confirms;
- *   here we expose the same path for the Director's auto-accept flow.
- *   Returns { id } where id is the proposalId (used as the undo handle).
+ *   Stores the accepted draft as a learning_point row via direct SQL.
+ *   `id` is the UUID of the created learning_point row (used as the undo handle).
  *
  * delete(id) → boolean
- *   Removes a previously committed card. The underlying implementation
- *   is thin for Phase 10b-1 (stub that returns true); full DB DELETE
- *   will be wired in Phase 10b-3 when the Director can access the DB
- *   manager directly.
+ *   Removes a previously committed card by its UUID. Returns true if a row
+ *   was deleted, false if not found.
  */
+
+const { randomUUID } = require('crypto');
+// eslint-disable-next-line global-require
+const dbManager = require('../db/dbManager');
 
 // MicroCardProposer is an ES-module default export compiled via Babel/TS;
 // CJS consumers must use .default.
@@ -37,42 +37,104 @@ function getInstance() {
 }
 
 /**
- * Commit (accept) a micro-card draft. The Director has already decided
- * this paragraph warrants a card; this writes it to the store.
+ * Serialise a draft field into a JSON string matching the learning_point
+ * front/back column contract: { text: string }.
+ * Handles the Phase-4 shape ({ front, back } on draft) as well as the
+ * Director shape ({ title, content }).
+ *
+ * @param {string|object|undefined} value
+ * @returns {string}  JSON string
+ */
+function toContentJson(value) {
+  if (!value) return JSON.stringify({ text: '' });
+  if (typeof value === 'string') return JSON.stringify({ text: value });
+  // Already a structured object — re-serialise so the column is always TEXT.
+  return JSON.stringify(value);
+}
+
+/**
+ * Commit (accept) a micro-card draft. Writes a learning_point row so the
+ * card persists and participates in the Leitner SR schedule.
  *
  * @param {{ userId: number, paragraphHash: string, draft: object, domain: string }} args
- * @returns {{ id: string }}
+ *   draft may contain any of: title, headword, content, definition, front, back
+ * @returns {{ id: string }}  UUID of the created row (undo handle)
  */
 function commit({ userId, paragraphHash, draft, domain }) {
-  // Phase 10b-1: MicroCardProposer.proposeFromParagraph is the LLM path;
-  // direct commit of an already-drafted card is not yet wired to the DB
-  // writer (that lives in the acceptProposal IPC handler, which needs the
-  // full Electron context). We record the commit in the proposer's
-  // chapter-state so dedup gates stay consistent, and return a stable id
-  // derived from the hash so the undo registry can reference it.
-  //
-  // Full implementation (writing learning_point row) tracked as a
-  // Discovered Issue — non-trivial without DB manager access here.
-  const proposer = getInstance();
-  // Touch chapter state so the hash is recorded (side-effect only).
-  if (typeof proposer.getChapterState === 'function') {
-    const state = proposer.getChapterState(userId, paragraphHash);
-    state.seenHashes.add(paragraphHash);
+  const db = dbManager.getDb();
+  const id = randomUUID();
+  const now = new Date().toISOString();
+
+  // Resolve title — Director uses draft.title; Phase-4 shape may use front.
+  const title =
+    (draft.title && String(draft.title).trim()) ||
+    (draft.headword && String(draft.headword).trim()) ||
+    (draft.front && typeof draft.front === 'string'
+      ? draft.front.slice(0, 120)
+      : '') ||
+    '';
+
+  // Resolve front/back JSON columns.
+  const front = toContentJson(draft.front || draft.title || draft.headword || '');
+  const back = toContentJson(draft.back || draft.content || draft.definition || '');
+
+  // next_review defaults to tomorrow (box 1 interval = 1 day).
+  const nextReview = new Date(Date.now() + 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
+
+  db.prepare(`
+    INSERT INTO learning_point (
+      id, user_id, title, front, back,
+      domain_type, source_type, source_id,
+      box, next_review, mastery_level, ease_factor, interval_days,
+      status, created_at, updated_at
+    ) VALUES (
+      ?, ?, ?, ?, ?,
+      ?, 'book', ?,
+      1, ?, 0, 2.5, 1,
+      'active', ?, ?
+    )
+  `).run(
+    id,
+    userId,
+    title,
+    front,
+    back,
+    domain || 'knowledge',
+    paragraphHash || null,
+    nextReview,
+    now,
+    now,
+  );
+
+  // Touch chapter state so the hash is recorded for dedup gates.
+  try {
+    const proposer = getInstance();
+    if (typeof proposer.getChapterState === 'function') {
+      const state = proposer.getChapterState(userId, paragraphHash);
+      if (state && state.seenHashes) {
+        state.seenHashes.add(paragraphHash);
+      }
+    }
+  } catch (_) {
+    // MicroCardProposer unavailable in test/CLI context — safe to ignore.
   }
-  const id = `mc-commit:${paragraphHash}:${domain}`;
+
   return { id };
 }
 
 /**
- * Delete (undo) a previously committed micro-card.
+ * Delete (undo) a previously committed micro-card by its learning_point UUID.
  *
- * @param {string} id — the id returned by commit()
+ * @param {string} id — UUID returned by commit()
  * @returns {boolean}
  */
 function deleteCard(id) {
-  // Phase 10b-1 stub: returns true (no DB row yet to delete).
-  // Full implementation tracked as Discovered Issue.
-  return !!id;
+  if (!id) return false;
+  const db = dbManager.getDb();
+  const result = db.prepare('DELETE FROM learning_point WHERE id = ?').run(id);
+  return result.changes > 0;
 }
 
 module.exports = { commit, delete: deleteCard, getInstance };

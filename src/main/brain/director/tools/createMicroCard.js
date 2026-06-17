@@ -58,10 +58,10 @@ tools.registerHandler('createMicroCard', async (args, ctx = {}) => {
     userId, paragraphHash, draft, domain,
   });
 
-  return { callId, microCardId };
+  return { callId, microCardId, userId };
 });
 
-UndoRegistry.register('createMicroCard', async ({ microCardId }) => {
+UndoRegistry.register('createMicroCard', async ({ microCardId, userId: _userId }) => {
   const undone = MicroCardProposer.delete(microCardId);
   return { undone: !!undone };
 });
