@@ -2545,6 +2545,22 @@ app
     sessionHandlers.register();
     // Phase 11 (Brain Visibility): dashboard + concept IPC.
     brainVisibilityHandlers.register();
+
+    // Phase 12: backfill mastery_event on first boot.
+    const { isEmpty } = require('./db/MasteryEventStore');
+    const { backfill: backfillMastery } = require('./utils/MasteryEventBackfill');
+    setImmediate(async () => {
+      try {
+        if (isEmpty()) {
+          console.log('[phase-12] mastery_event empty → running backfill');
+          await backfillMastery({ userId: 1 });
+          console.log('[phase-12] backfill complete');
+        }
+      } catch (e) {
+        console.warn('[phase-12] backfill failed (continuing):', e.message);
+      }
+    });
+
     // Phase 8: MoodBoard organize-suggestion IPC handlers (renderer side
     // of the brain heartbeat's `suggestOrganizeSessions` task).
     registerMoodBoardOrganizerHandlers(store);
