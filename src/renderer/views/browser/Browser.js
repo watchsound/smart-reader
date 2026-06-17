@@ -21,7 +21,6 @@ import CreateVocabularyDialog from './CreateVocabularyDialog';
 import HistoryTree from './HistoryTree';
 import { createRewriteHtmlCodeForWordFrequencyJsonPrompt, createSmartSummaryPrompt, createMindmapExtractionPrompt, createEntityResolutionPrompt } from '../../../commons/utils/AIPrompts';
 import speakText from '../../utils/tts';
-import { instanceInRender as aiProviderManager } from '../../../commons/service/AIProviderManager';
 
 import generateImpressHTML from '../../components/impressjs';
 import ImpressModal from '../../components/impressjs/ImpressModal';
@@ -32,6 +31,7 @@ import BrowserContextMenu from './BrowserContextMenu';
 import { useStudyEnhancer } from './study-enhancer';
 import { useSkills } from '../../hooks/useSkills';
 import FiveWAnalysisPanel from '../../components/knowledge/FiveWAnalysisPanel';
+import spineApi from '../../api/spineApi';
 import './browser.styles.css';
 
 function Browser({ urlPath, curBook }) {
@@ -257,7 +257,7 @@ return getTextContentWithTags(document.body);
         htmlContentWithTagsArray.map(async (htmlContentWithTags) => {
           if (htmlContentWithTags.type === 'text') {
             const prompt = `${createRewriteHtmlCodeForWordFrequencyJsonPrompt(wordLevel)}\n\n\n${htmlContentWithTags.data}`;
-            const htmlJson = await aiProviderManager.generateContentWithJson(prompt, true);
+            const htmlJson = await spineApi.generateContentWithJson(prompt, null, { label: 'browser-html-rewrite' });
             if (htmlJson && htmlJson['modified-html']) {
               return JSON.stringify(htmlJson['modified-html']);
             }
@@ -434,7 +434,7 @@ return getTextContentWithTags(document.body);
 
       // 2. Generate summary using AI with vocabulary constraint
       const prompt = createSmartSummaryPrompt(selectedText, vocabularyWords);
-      const result = await aiProviderManager.generateContentWithJson(prompt, true);
+      const result = await spineApi.generateContentWithJson(prompt, null, { label: 'browser-summary' });
 
       if (!result || !result.summary) {
         console.warn('Failed to generate summary');
@@ -500,7 +500,7 @@ return getTextContentWithTags(document.body);
     try {
       // 1. Generate mindmap data using AI
       const prompt = createMindmapExtractionPrompt(selectedText);
-      const result = await aiProviderManager.generateContentWithJson(prompt, true);
+      const result = await spineApi.generateContentWithJson(prompt, null, { label: 'browser-mindmap' });
 
       if (!result || !result.root || !result.nodes) {
         console.warn('Failed to generate mindmap data');
@@ -563,7 +563,7 @@ return getTextContentWithTags(document.body);
     try {
       // 1. Generate entity resolution data using AI
       const prompt = createEntityResolutionPrompt(selectedText);
-      const result = await aiProviderManager.generateContentWithJson(prompt, true);
+      const result = await spineApi.generateContentWithJson(prompt, null, { label: 'browser-entity-resolve' });
 
       if (!result || !result.entities || result.entities.length === 0) {
         console.warn('No entities found for resolution');

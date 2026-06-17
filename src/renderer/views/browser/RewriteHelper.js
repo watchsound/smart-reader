@@ -1,5 +1,5 @@
 import { createRewriteHtmlCodeForElementarySchoolPrompt } from '../../../commons/utils/AIPrompts';
-import { instanceInRender as aiProviderManager } from '../../../commons/service/AIProviderManager';
+import spineApi from '../../api/spineApi';
 
 export function getTextContentWithTags(element) {
   let textWithTags = '';
@@ -29,9 +29,10 @@ export default async function rewriteHtmlForElementarySchool(document) {
 
   try {
     const prompt = `${createRewriteHtmlCodeForElementarySchoolPrompt}\n${bodyContent}`;
-    const translatedContent = await aiProviderManager.generateContentWithJson(
+    const translatedContent = await spineApi.generateContentWithJson(
       prompt,
-      false,
+      null,
+      { label: 'browser-rewrite' },
     );
     setTranslatedContent(document.body, translatedContent);
   } catch (error) {
