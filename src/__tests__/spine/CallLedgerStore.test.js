@@ -209,3 +209,31 @@ describe('CallLedgerStore.bindTriggerId', () => {
       .toThrow(/unknown callId/);
   });
 });
+
+describe('CallLedgerStore trace_id', () => {
+  test('record persists trace_id when provided', () => {
+    const id = CallLedgerStore.record({
+      intent: 'director-pull-suggestion',
+      provider: 'deepseek-v3', ts: 1000, cache_hit: false,
+      trace_id: 'trace_abc',
+    });
+    const row = testDb.prepare('SELECT trace_id FROM brain_call_ledger WHERE id = ?').get(id);
+    expect(row.trace_id).toBe('trace_abc');
+  });
+
+  test('tracesByCallId returns ordered rows sharing trace_id', () => {
+    const id1 = CallLedgerStore.record({ intent: 'x', provider: 'p', ts: 100, cache_hit: false, trace_id: 't' });
+    const id2 = CallLedgerStore.record({ intent: 'x', provider: 'p', ts: 200, cache_hit: false, trace_id: 't' });
+    const id3 = CallLedgerStore.record({ intent: 'x', provider: 'p', ts: 300, cache_hit: false, trace_id: 'other' });
+    const trace = CallLedgerStore.tracesByCallId(id2);
+    expect(trace.map((r) => r.id)).toEqual([id1, id2]);
+    expect(trace.every((r) => r.trace_id === 't')).toBe(true);
+  });
+
+  test('tracesByCallId returns just the row when trace_id is null', () => {
+    const id = CallLedgerStore.record({ intent: 'x', provider: 'p', ts: 1, cache_hit: false });
+    const trace = CallLedgerStore.tracesByCallId(id);
+    expect(trace.length).toBe(1);
+    expect(trace[0].id).toBe(id);
+  });
+});

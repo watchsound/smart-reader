@@ -40,11 +40,11 @@ function record(row) {
   const stmt = db.prepare(`
     INSERT INTO brain_call_ledger
       (intent, ts, provider, context_keys, prompt_tokens, completion_tokens,
-       cost_usd, cache_hit, cache_key, duration_ms, trigger_id,
+       cost_usd, cache_hit, cache_key, duration_ms, trigger_id, trace_id,
        output_summary, output_json)
     VALUES
       (@intent, @ts, @provider, @context_keys, @prompt_tokens, @completion_tokens,
-       @cost_usd, @cache_hit, @cache_key, @duration_ms, @trigger_id,
+       @cost_usd, @cache_hit, @cache_key, @duration_ms, @trigger_id, @trace_id,
        @output_summary, @output_json)
   `);
   const info = stmt.run({
@@ -59,6 +59,7 @@ function record(row) {
     cache_key: row.cache_key ?? null,
     duration_ms: row.duration_ms ?? null,
     trigger_id: row.trigger_id ?? null,
+    trace_id: row.trace_id ?? null,
     output_summary: row.output_summary ?? null,
     output_json: row.output_json != null ? JSON.stringify(row.output_json) : null,
   });
@@ -208,6 +209,25 @@ function prune({ maxAgeMs, maxRows }) {
   return dropped;
 }
 
+/**
+ * Return all ledger rows that share the same trace_id as `callId`.
+ * If the row has no trace_id, returns just that single row.
+ * Rows are ordered by ts ASC (i.e. Director iteration order).
+ */
+function tracesByCallId(callId) {
+  const db = DBManager.getDb();
+  const row = db.prepare('SELECT trace_id FROM brain_call_ledger WHERE id = ?').get(callId);
+  if (!row) return [];
+  if (!row.trace_id) {
+    const single = db.prepare('SELECT * FROM brain_call_ledger WHERE id = ?').get(callId);
+    return single ? [hydrate(single)] : [];
+  }
+  const rows = db.prepare(
+    'SELECT * FROM brain_call_ledger WHERE trace_id = ? ORDER BY ts ASC',
+  ).all(row.trace_id);
+  return rows.map(hydrate);
+}
+
 /** Update the trigger_id of an existing call row. Used for post-emit backfill. */
 function bindTriggerId(callId, triggerId) {
   const db = DBManager.getDb();
@@ -223,6 +243,7 @@ module.exports = {
   recordCacheHit,
   findCacheHit,
   findByTriggerId,
+  tracesByCallId,
   aggregateByIntent,
   aggregateByProvider,
   cacheHitRateByIntent,
