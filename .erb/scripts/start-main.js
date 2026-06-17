@@ -14,6 +14,7 @@
  * fix this. We delete the variable here in Node before spawning.
  */
 const { spawn } = require('child_process');
+const net = require('net');
 const path = require('path');
 
 const env = { ...process.env, NODE_ENV: 'development', TS_NODE_TRANSPILE_ONLY: 'true' };
@@ -25,12 +26,48 @@ const electronmonBin = path.join(
   isWin ? 'electronmon.cmd' : 'electronmon',
 );
 
-const proc = spawn(
-  electronmonBin,
-  ['-r', 'ts-node/register/transpile-only', '.'],
-  { stdio: 'inherit', env, shell: isWin, cwd: path.join(__dirname, '..', '..') },
-);
-proc.on('exit', (code, signal) => {
-  if (signal) process.kill(process.pid, signal);
-  process.exit(code ?? 0);
+const RENDERER_PORT = Number(process.env.PORT || 1212);
+const WAIT_MS = 60_000;
+
+function waitForPort(port, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const deadline = Date.now() + timeoutMs;
+    const attempt = () => {
+      const sock = net.connect(port, '127.0.0.1');
+      sock.once('connect', () => { sock.destroy(); resolve(); });
+      sock.once('error', () => {
+        sock.destroy();
+        if (Date.now() > deadline) {
+          reject(new Error(`renderer dev server on :${port} did not come up within ${timeoutMs}ms`));
+        } else {
+          setTimeout(attempt, 500);
+        }
+      });
+    };
+    attempt();
+  });
+}
+
+async function main() {
+  // If npm start ran both concurrently, the renderer dev server may not
+  // be listening yet. Wait until it is before launching Electron, otherwise
+  // BrowserWindow.loadURL hits ECONNREFUSED.
+  process.stdout.write(`[start-main] waiting for renderer on :${RENDERER_PORT}...\n`);
+  await waitForPort(RENDERER_PORT, WAIT_MS);
+  process.stdout.write(`[start-main] renderer up, launching Electron\n`);
+
+  const proc = spawn(
+    electronmonBin,
+    ['-r', 'ts-node/register/transpile-only', '.'],
+    { stdio: 'inherit', env, shell: isWin, cwd: path.join(__dirname, '..', '..') },
+  );
+  proc.on('exit', (code, signal) => {
+    if (signal) process.kill(process.pid, signal);
+    process.exit(code ?? 0);
+  });
+}
+
+main().catch((err) => {
+  process.stderr.write(`[start-main] ${err.message}\n`);
+  process.exit(1);
 });

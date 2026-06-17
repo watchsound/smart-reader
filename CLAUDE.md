@@ -12,12 +12,13 @@ SmartReader v2 is an AI-powered e-reader desktop application built on Electron R
 # Install dependencies
 npm install
 
-# Development (run in two terminals)
-npm run start:renderer    # Terminal 1: Webpack dev server on :3000
-npm run start:main        # Terminal 2: Electron with hot reload
-
-# Or use single command (checks port first)
+# Development — single command (checks port, then runs renderer + main concurrently;
+# main waits for the renderer dev server on :1212 before launching Electron)
 npm start
+
+# Or run each side in its own terminal (useful when debugging one side)
+npm run start:renderer    # Terminal 1: Webpack dev server on :1212
+npm run start:main        # Terminal 2: Electron with hot reload (waits for :1212)
 
 # Build for production
 npm run build             # Build both main and renderer
