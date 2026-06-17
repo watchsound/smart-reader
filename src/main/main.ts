@@ -238,6 +238,9 @@ const { registerCallLedgerHandlers } = require('./ipc/callLedgerHandlers');
 // Plan 9d (Brain Spine): Renderer-direct LLM calls bridge — meteredCallJson IPC
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const spineHandlers = require('./ipc/spineHandlers');
+// Phase 10b-1 (Study-Session Director): session lifecycle IPC
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const sessionHandlers = require('./ipc/sessionHandlers');
 
 const options = {
   width: 1050,
@@ -2530,6 +2533,8 @@ app
     // Plan 9d (Brain Spine): Renderer-direct LLM calls bridge.
     // Polymorphic IPC channel for both text (meteredCall) and JSON (meteredCallJson).
     spineHandlers.register();
+    // Phase 10b-1 (Study-Session Director): session lifecycle IPC.
+    sessionHandlers.register();
     // Phase 8: MoodBoard organize-suggestion IPC handlers (renderer side
     // of the brain heartbeat's `suggestOrganizeSessions` task).
     registerMoodBoardOrganizerHandlers(store);
