@@ -603,6 +603,22 @@ export const applyProductionGrade = (id, productionScore, token) => {
     return { error: err.message };
   }
 
+  try {
+    const MasteryEventStore = require('./MasteryEventStore');
+    MasteryEventStore.record({
+      learningPointId: id,
+      userId,
+      ts: Date.now(),
+      eventType: 'mastery_change',
+      prevBox: current.box,
+      newBox: nextBox,
+      prevMastery: current.masteryLevel,
+      newMastery: nextMastery,
+      source: 'production-grade',
+      sourceRef: null,
+    });
+  } catch (_e) { /* never break the primary write */ }
+
   return {
     changed: nextMastery !== current.masteryLevel || nextBox !== current.box,
     beforeMastery: current.masteryLevel,
@@ -1028,6 +1044,23 @@ export const processReview = (id, rating, responseTimeMs, token) => {
       id,
       userId,
     );
+
+    try {
+      const MasteryEventStore = require('./MasteryEventStore');
+      MasteryEventStore.record({
+        learningPointId: id,
+        userId,
+        ts: Date.now(),
+        eventType: 'box_change',
+        prevBox: point.box,
+        newBox,
+        prevMastery: point.mastery_level ?? null,
+        newMastery: masteryLevel,
+        rating: String(rating),
+        source: 'user-review',
+        sourceRef: null,
+      });
+    } catch (_e) { /* never break the primary write */ }
 
     return {
       success: true,

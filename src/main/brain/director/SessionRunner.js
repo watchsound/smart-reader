@@ -245,6 +245,21 @@ class SessionRunner {
           // tools.invoke calls the handler which calls ctx.awaitUserResult — suspends here
           const userResult = await tools.invoke(decision.tool, decision.args || {}, this._ctx(state));
           state.pendingSurface = null;
+
+          if (decision.tool === 'openLeitnerCard' && userResult?.rating != null) {
+            try {
+              const MasteryEventStore = require('../../db/MasteryEventStore');
+              MasteryEventStore.record({
+                learningPointId: decision.args?.learningPointId,
+                userId: state.userId,
+                ts: Date.now(),
+                eventType: 'review',
+                rating: String(userResult.rating),
+                source: 'director-session',
+                sourceRef: state.traceId,
+              });
+            } catch (_e) { /* swallow — telemetry must never break the session loop */ }
+          }
           const summary = JSON.stringify(userResult).slice(0, 200);
           state.observations.push({ tool: decision.tool, summary });
           this._appendTrace(state, {
