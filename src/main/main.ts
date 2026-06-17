@@ -244,6 +244,9 @@ const sessionHandlers = require('./ipc/sessionHandlers');
 // Phase 10b-3: wire rereadQueueSingleton for Director's scheduleReread tool
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const rereadQueueSingleton = require('./utils/rereadQueueSingleton');
+// Phase 11 (Brain Visibility): dashboard + concept IPC
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const brainVisibilityHandlers = require('./ipc/brainVisibilityHandlers');
 
 const options = {
   width: 1050,
@@ -2540,6 +2543,8 @@ app
     spineHandlers.register();
     // Phase 10b-1 (Study-Session Director): session lifecycle IPC.
     sessionHandlers.register();
+    // Phase 11 (Brain Visibility): dashboard + concept IPC.
+    brainVisibilityHandlers.register();
     // Phase 8: MoodBoard organize-suggestion IPC handlers (renderer side
     // of the brain heartbeat's `suggestOrganizeSessions` task).
     registerMoodBoardOrganizerHandlers(store);
