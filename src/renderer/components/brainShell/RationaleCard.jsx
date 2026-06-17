@@ -14,6 +14,7 @@ import callLedgerApi from '../../api/callLedgerApi';
 export default function RationaleCard({ triggerId }) {
   const [open, setOpen] = useState(false);
   const [row, setRow] = useState(null);
+  const [trace, setTrace] = useState(null);
 
   useEffect(() => {
     if (!open || row || !triggerId) return undefined;
@@ -24,6 +25,13 @@ export default function RationaleCard({ triggerId }) {
       .catch(() => { if (!cancelled) setRow(null); });
     return () => { cancelled = true; };
   }, [open, triggerId, row]);
+
+  useEffect(() => {
+    if (!open || !row || !row.trace_id) return undefined;
+    let cancelled = false;
+    callLedgerApi.tracesByCallId(row.id).then((t) => { if (!cancelled) setTrace(t); });
+    return () => { cancelled = true; };
+  }, [open, row]);
 
   if (!triggerId) return null;
 
@@ -66,6 +74,18 @@ export default function RationaleCard({ triggerId }) {
                 {renderOutput()}
               </Typography>
             </Box>
+            {trace && trace.length > 1 && (
+              <Box sx={{ mt: 1, p: 1, background: '#f8f8f8', borderRadius: 1 }}>
+                <Typography variant="caption" sx={{ display: 'block', mb: 0.5, fontWeight: 600 }}>
+                  Director trace ({trace.length} steps)
+                </Typography>
+                {trace.map((r, i) => (
+                  <Typography key={r.id} variant="caption" component="div" sx={{ pl: 1 }}>
+                    Step {i + 1}: {r.output_summary || '(no summary)'}
+                  </Typography>
+                ))}
+              </Box>
+            )}
           </Box>
         )}
       </Collapse>
