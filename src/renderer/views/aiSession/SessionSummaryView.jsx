@@ -6,13 +6,16 @@ export default function SessionSummaryView() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [trace, setTrace] = useState([]);
+  const [traceId, setTraceId] = useState(null);
 
   useEffect(() => {
     (async () => {
       const result = await sessionApi.getTrace(id);
-      // getTrace returns { traceId, events } in production; accept a plain array too
-      // (the plain-array shape is used in tests and legacy callers).
-      setTrace(Array.isArray(result) ? result : (result?.events ?? []));
+      // getTrace returns { traceId, events }; accept a plain array too for backwards compat.
+      const events = Array.isArray(result) ? result : (result?.events || []);
+      const tid = Array.isArray(result) ? null : (result?.traceId || null);
+      setTrace(events);
+      setTraceId(tid);
     })();
   }, [id]);
 
@@ -25,6 +28,11 @@ export default function SessionSummaryView() {
       <h1>Session complete</h1>
       <div style={{ color: '#666', marginBottom: 24 }}>
         {iterationCount} iterations · ended with {endEvent?.payload?.reason || 'unknown'}
+        {traceId && (
+          <span style={{ marginLeft: 12 }}>
+            <code style={{ fontSize: 11, color: '#999' }}>trace {traceId.slice(0, 8)}</code>
+          </span>
+        )}
       </div>
 
       <h3>Actions taken</h3>

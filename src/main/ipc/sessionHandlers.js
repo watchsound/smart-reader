@@ -10,7 +10,7 @@
  *   session:loadActive       (none)                     → SessionState | null
  *   session:undoSoftWrite    { sessionId, softWriteId } → { undone, reason? }
  *   session:listCompleted    { userId, limit? }         → ai_sessions[]
- *   session:getTrace         { sessionId }              → TraceEvent[]
+ *   session:getTrace         { sessionId }              → { traceId: string|null, events: TraceEvent[] }
  *
  * Real-time events are broadcast via webContents.send to all windows:
  *   session:<sessionId>:trace  — every trace event emitted by the runner
@@ -74,9 +74,14 @@ function register() {
     AISessionStore.listByUser(userId, limit)
   );
 
-  ipcMain.handle('session:getTrace', async (_e, { sessionId }) =>
-    AISessionStore.getTrace(sessionId)
-  );
+  ipcMain.handle('session:getTrace', async (_e, { sessionId }) => {
+    const events = AISessionStore.getTrace(sessionId);
+    const session = AISessionStore.findById(sessionId);
+    return {
+      traceId: session?.trace_id || null,
+      events: events || [],
+    };
+  });
 }
 
 module.exports = { register, runnerForTest: () => runner };

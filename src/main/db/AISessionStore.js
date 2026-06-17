@@ -99,4 +99,15 @@ function getTrace(sessionId) {
   }));
 }
 
-module.exports = { persistCompleted, listByUser, getTrace };
+/**
+ * Return the ai_sessions row for a given session id, or undefined if not found.
+ *
+ * @param {string} sessionId
+ * @returns {Object|undefined}
+ */
+function findById(sessionId) {
+  const db = DBManager.getDb();
+  return db.prepare('SELECT * FROM ai_sessions WHERE id = ?').get(sessionId);
+}
+
+module.exports = { persistCompleted, listByUser, getTrace, findById };

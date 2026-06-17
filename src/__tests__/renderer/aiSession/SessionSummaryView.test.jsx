@@ -9,11 +9,11 @@ const sampleTrace = [
   { kind: 'soft-write', iteration: 2, payload: { tool: 'createMicroCard', args: {} } },
   { kind: 'end', iteration: 5, payload: { reason: 'done' } },
 ];
-const fakeApi = { getTrace: jest.fn().mockResolvedValue(sampleTrace) };
+const fakeApi = { getTrace: jest.fn().mockResolvedValue({ traceId: 'tr-abcdef12', events: sampleTrace }) };
 jest.mock('../../../renderer/api/sessionApi', () => ({ __esModule: true, default: fakeApi }));
 import SessionSummaryView from '../../../renderer/views/aiSession/SessionSummaryView';
 
-test('shows goal + soft-write list + end reason', async () => {
+test('shows goal + soft-write list + end reason + traceId fragment', async () => {
   render(
     <MemoryRouter initialEntries={['/ai-session/s1/summary']}>
       <Routes><Route path="/ai-session/:id/summary" element={<SessionSummaryView />} /></Routes>
@@ -23,4 +23,6 @@ test('shows goal + soft-write list + end reason', async () => {
   expect(screen.getByText(/scheduleReread/)).toBeInTheDocument();
   expect(screen.getByText(/createMicroCard/)).toBeInTheDocument();
   expect(screen.getByText(/done/i)).toBeInTheDocument();
+  // traceId snippet: first 8 chars of 'tr-abcdef12' = 'tr-abcde'
+  expect(screen.getByText(/trace tr-abcde/i)).toBeInTheDocument();
 });

@@ -45,7 +45,8 @@ jest.mock('../../main/brain/director/SessionActiveStore', () => ({
 
 jest.mock('../../main/db/AISessionStore', () => ({
   listByUser: jest.fn().mockResolvedValue([]),
-  getTrace: jest.fn().mockResolvedValue([]),
+  getTrace: jest.fn().mockReturnValue([]),
+  findById: jest.fn().mockReturnValue({ trace_id: 'tr-test-0001' }),
   persistCompleted: jest.fn(),
 }));
 
@@ -102,11 +103,13 @@ describe('sessionHandlers', () => {
     expect(AISessionStore.listByUser).toHaveBeenCalledWith(1, 10);
   });
 
-  it('session:getTrace handler delegates to AISessionStore.getTrace', async () => {
+  it('session:getTrace handler returns { traceId, events } shape', async () => {
     const AISessionStore = require('../../main/db/AISessionStore');
     register();
-    await mockHandlers['session:getTrace']({}, { sessionId: 'abc-123' });
+    const result = await mockHandlers['session:getTrace']({}, { sessionId: 'abc-123' });
     expect(AISessionStore.getTrace).toHaveBeenCalledWith('abc-123');
+    expect(AISessionStore.findById).toHaveBeenCalledWith('abc-123');
+    expect(result).toEqual({ traceId: 'tr-test-0001', events: [] });
   });
 
   it('session:undoSoftWrite returns not-found when no matching softWrite', async () => {
