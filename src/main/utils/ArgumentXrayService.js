@@ -70,7 +70,7 @@ class ArgumentXrayService {
       return empty;
     }
 
-    const { brainCall } = require('../../main/brain/spine');
+    const { brainCall } = require('../brain/spine');
     const prompt = buildPrompt(paragraph);
     let raw;
     let callId = null;
