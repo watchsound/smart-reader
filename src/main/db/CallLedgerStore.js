@@ -66,13 +66,50 @@ function record(row) {
 }
 
 /** Record a cache hit referencing an existing fresh call. Returns the new id. */
-async function recordCacheHit({ intent, cacheKey, triggerId }) {
-  throw new Error('not implemented');
+function recordCacheHit({ intent, cacheKey, triggerId }) {
+  const db = DBManager.getDb();
+  const src = db.prepare(`
+    SELECT * FROM brain_call_ledger
+    WHERE intent = ? AND cache_key = ? AND cache_hit = 0
+    ORDER BY ts DESC LIMIT 1
+  `).get(intent, cacheKey);
+  if (!src) {
+    throw new Error(`recordCacheHit: no fresh row for ${intent}/${cacheKey}`);
+  }
+  const info = db.prepare(`
+    INSERT INTO brain_call_ledger
+      (intent, ts, provider, context_keys, prompt_tokens, completion_tokens,
+       cost_usd, cache_hit, cache_key, duration_ms, trigger_id,
+       output_summary, output_json)
+    VALUES
+      (?, ?, ?, ?, NULL, NULL, NULL, 1, ?, NULL, ?, ?, ?)
+  `).run(
+    src.intent, Date.now(), src.provider, src.context_keys,
+    src.cache_key, triggerId || null, src.output_summary, src.output_json,
+  );
+  return info.lastInsertRowid;
 }
 
 /** Find the most recent fresh cached output for (intent, cacheKey). Returns LedgerRow or null. */
-async function findCacheHit(intent, cacheKey) {
-  throw new Error('not implemented');
+function findCacheHit(intent, cacheKey) {
+  if (!cacheKey) return null;
+  const db = DBManager.getDb();
+  const row = db.prepare(`
+    SELECT * FROM brain_call_ledger
+    WHERE intent = ? AND cache_key = ? AND cache_hit = 0
+    ORDER BY ts DESC LIMIT 1
+  `).get(intent, cacheKey);
+  if (!row) return null;
+  return hydrate(row);
+}
+
+function hydrate(row) {
+  return {
+    ...row,
+    context_keys: row.context_keys ? JSON.parse(row.context_keys) : [],
+    output_json: row.output_json ? JSON.parse(row.output_json) : null,
+    cache_hit: !!row.cache_hit,
+  };
 }
 
 /** Fetch the most recent ledger row for a triggerId (for Rationale Card). */

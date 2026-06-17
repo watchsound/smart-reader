@@ -87,3 +87,41 @@ describe('CallLedgerStore.record', () => {
     expect(JSON.parse(row.context_keys)).toEqual([]);
   });
 });
+
+describe('CallLedgerStore cache lookup', () => {
+  test('findCacheHit returns null when no row exists', () => {
+    const hit = CallLedgerStore.findCacheHit('propose-microcard', 'nokey');
+    expect(hit).toBeNull();
+  });
+
+  test('findCacheHit returns the most recent fresh row for (intent, cacheKey)', () => {
+    CallLedgerStore.record({
+      intent: 'propose-microcard',
+      ts: 1000,
+      provider: 'deepseek-v3',
+      cache_key: 'k1',
+      cache_hit: false,
+      output_json: { v: 'old' },
+    });
+    CallLedgerStore.record({
+      intent: 'propose-microcard',
+      ts: 2000,
+      provider: 'deepseek-v3',
+      cache_key: 'k1',
+      cache_hit: false,
+      output_json: { v: 'new' },
+    });
+    const hit = CallLedgerStore.findCacheHit('propose-microcard', 'k1');
+    expect(hit.output_json).toEqual({ v: 'new' });
+  });
+
+  test('findCacheHit ignores cache_hit rows', () => {
+    CallLedgerStore.record({
+      intent: 'x', ts: 1000, provider: 'p', cache_key: 'k', cache_hit: false, output_json: { v: 'fresh' },
+    });
+    CallLedgerStore.recordCacheHit({ intent: 'x', cacheKey: 'k', triggerId: null });
+    const hit = CallLedgerStore.findCacheHit('x', 'k');
+    expect(hit.output_json).toEqual({ v: 'fresh' });
+    expect(hit.cache_hit).toBe(false);
+  });
+});
