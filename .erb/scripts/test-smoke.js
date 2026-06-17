@@ -84,6 +84,13 @@ const IGNORE_PATTERNS = [
   /DeprecationWarning.*punycode/,
   // electron-store first-run config-missing warning.
   /electron-store.*config not set/i,
+  // Kuzu graceful fallback in dev: the kuzu prebuilt is Node-only and
+  // segfaults under Electron, so the module is intentionally absent
+  // from root deps in dev mode. KuzuAdapter + GraphInterface catch the
+  // ENOENT and continue without graph features. These are expected
+  // dev-mode warnings, not failures.
+  /\[KuzuAdapter\] Failed to load kuzu native module: Cannot find module 'kuzu'/,
+  /\[GraphInterface\] Kuzu native module not available: Cannot find module 'kuzu'/,
 ];
 
 function isFlagged(line) {

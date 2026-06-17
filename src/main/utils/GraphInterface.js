@@ -92,17 +92,20 @@ class GraphInterface {
           break;
 
         case 'kuzu':
-          // Kùzu embedded graph database (MIT license, embeddable)
-          const KuzuAdapter = require('./KuzuAdapter').default;
-          // Check if kuzu native module is available
-          if (!KuzuAdapter.isKuzuAvailable()) {
-            const loadError = KuzuAdapter.getKuzuLoadError();
+          // Kùzu embedded graph database (MIT license, embeddable).
+          // isKuzuAvailable + getKuzuLoadError are STATIC methods on the
+          // class; the singleton instance is on `.default`. Need both.
+          const kuzuAdapterModule = require('./KuzuAdapter');
+          const KuzuAdapterClass = kuzuAdapterModule.KuzuAdapter;
+          const kuzuAdapterInstance = kuzuAdapterModule.default;
+          if (!KuzuAdapterClass.isKuzuAvailable()) {
+            const loadError = KuzuAdapterClass.getKuzuLoadError();
             console.warn('[GraphInterface] Kuzu native module not available:', loadError?.message);
             this.loadError = loadError;
             this.isInitialized = false;
             return false;
           }
-          this.adapter = KuzuAdapter;
+          this.adapter = kuzuAdapterInstance;
           break;
 
         case 'graphiti':
@@ -173,7 +176,7 @@ class GraphInterface {
     // Check if kuzu native module is available (for kuzu adapter)
     if (this.adapterType === 'kuzu' || !this.adapterType) {
       try {
-        const KuzuAdapter = require('./KuzuAdapter').default;
+        const { KuzuAdapter } = require('./KuzuAdapter');
         status.nativeModuleAvailable = KuzuAdapter.isKuzuAvailable();
         if (!status.nativeModuleAvailable) {
           const loadError = KuzuAdapter.getKuzuLoadError();
