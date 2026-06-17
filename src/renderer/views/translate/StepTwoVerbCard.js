@@ -17,7 +17,7 @@ import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
 
 import { getVerbComparisonPrompt, getVerbExplainedPrompt } from '../../../commons/utils/AIPrompts';
 import { parseMarkdownToHtmlNoCallback } from '../../components/note/NoteUtil';
-import { instanceInRender as aiProviderManager } from '../../../commons/service/AIProviderManager';
+import spineApi from '../../api/spineApi';
 
 /**
   "input-verb-list" : [
@@ -60,7 +60,7 @@ function StepTwoVerbCard({
       } else {
         prompt = getVerbExplainedPrompt(vbs[0], language);
       }
-      const r = await aiProviderManager.generateContent(prompt);
+      const r = await spineApi.generateContent(prompt, { label: 'translate-verb-step' });
       setDetailedExplanation(r || '');
       setExpanded(true);
     } catch (e) {
