@@ -59,9 +59,12 @@ class AIConceptExtractionService {
     try {
       // Use the mindmap extraction prompt to get structured concepts
       const prompt = createMindmapExtractionPrompt(text);
-      const result = await aiProviderManager.generateContentWithJson(
+      // eslint-disable-next-line global-require
+      const meteredCallJson = require('../brain/spine/meteredCallJson');
+      const { output: result } = await meteredCallJson(
         prompt,
-        true,
+        null, // free-form JSON; provider-native JSON-mode handles shape
+        { legacyLabel: 'concept-extraction' },
       );
 
       if (!result || !result.nodes) {
