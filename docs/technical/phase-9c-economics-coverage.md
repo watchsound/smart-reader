@@ -1,90 +1,74 @@
-# Phase 9c — Economics Panel Coverage
+# Phase 9 — Economics Panel Coverage (Final)
 
 ## Status
 
-The Brain Spine Economics Panel (`src/renderer/components/brainShell/EconomicsPanel.jsx`)
-shows cost telemetry for every LLM call that flows through:
+The Brain Spine Economics Panel shows cost telemetry for EVERY LLM call site
+in the codebase. Phase 9e completed the renderer-direct + main-process JSON
+migration that 9d demonstrated.
 
-- `brainCall(intent, input, options)` — all Phase 0–8 Trigger-producing services
-  (migrated in Plan 9b + the Phase 9c specials: `argument-xray`,
-  `synthesize-pull-suggestion`).
-- `meteredCall(provider, prompt, options)` — plain-text calls
-  (`createBookmarkUtils.js` + others migrated via spine bridge).
-- `meteredCallJson(prompt, schema, opts)` — main-process structured-output calls.
-- `spine:meter` IPC bridge — renderer-to-main metered LLM dispatch via `spineApi`.
+## Entry points
 
-## What Plan 9d added
+- **`brainCall(intent, input, options)`** — Brain-mediated calls (Phase 0–8
+  services that use the BrainContext slice catalog).
+- **`meteredCall(provider, prompt, options)`** — Main-process plain-text legacy
+  calls.
+- **`meteredCallJson(prompt, schema, options)`** — Main-process structured-output
+  legacy calls.
+- **`spineApi.generateContent(prompt, options)`** + **`spineApi.generateContentWithJson(prompt, schema, options)`** — Renderer-direct calls (any feature, via `spine:meter` IPC bridge).
 
-Plan 9d shipped the renderer-to-main metering infrastructure for JSON and
-non-JSON calls:
+## Labels in use
 
-- **`meteredCallJson(prompt, schema, opts)`** in `src/main/brain/spine/meteredCall.js`
-  — Runs structured-output LLM calls on the main process, writes the ledger row
-  with full cost telemetry, returns `{ output, callId }`.
+| Cluster | Label(s) |
+|---|---|
+| Translate | `translate-verb-step`, `translate-main` |
+| Grammar | `grammar-correction-card`, `grammar-main` |
+| Writing | `writing-comparison-examples`, `writing-mapping`, `writing-view` |
+| Browser | `browser-html-rewrite`, `browser-summary`, `browser-mindmap`, `browser-entity-resolve`, `browser-rewrite` |
+| Web Search | `web-search` |
+| Chat | `chat-message` |
+| MoodBoard | `moodboard-diagram-layout` |
+| Impress | `impress-slide-decompose` |
+| Main-process JSON | `concept-extraction`, `entity-extraction`, `add-vocabulary` |
+| Main-process text | `bookmark-categorize` |
 
-- **`spine:meter` IPC handler** — Main-process handler that accepts `{ label, prompt, schema? }`
-  from the renderer and dispatches through `meteredCall` or `meteredCallJson`.
+## Not covered (by design)
 
-- **`spineApi` renderer client** — New `src/renderer/api/spineApi.js` mirroring
-  `AIProviderManager` shape: `generateContent(prompt, opts)` and
-  `generateContentWithJson(prompt, schema, opts)`. Both accept a `label` option
-  (kebab-case identifier for the call site).
+- **Streaming chat responses** — neither `meteredCall` nor `spineApi` handle
+  the streaming code path. Sites using `generateContentStream` (if any) are
+  not metered. Adding a streaming variant requires preserving the streaming
+  semantics through IPC, which is non-trivial — deferred indefinitely until
+  a real cost signal motivates the work.
+- **Brain Spine's own internal LLM calls** — `brainCall` records itself.
+  `meteredCall` and `meteredCallJson` record themselves. They are intentionally
+  the only "metering primitives" that don't need outer wrapping.
 
-- **2 demo migrations:**
-  - Main-process JSON: `AIConceptExtractionService.js:62`
-    (concept extraction, now metered).
-  - Renderer-direct: `StepTwoVerbCard.js:63`
-    (translate verb step, now calls `spineApi.generateContentWithJson`).
+## Migration recipe (for future call sites)
 
-## Not covered
-
-The following LLM call sites bypass the Call Ledger. Their cost is
-NOT visible in the Economics Panel:
-
-### Main-process JSON sites (2 remaining)
-- [ ] `src/main/utils/AIConceptExtractionService.js:130` — `generateContentWithJson(...)`
-- [ ] `src/main/main.ts:601` — `aiProviderManager.generateContentWithJson(...)`
-
-### Renderer-direct sites (~19 remaining)
-- Translate (2 remaining, 1 migrated)
-- Grammar (2 sites)
-- Writing (5 sites)
-- Chat (streaming + non-streaming)
-- Browser (study-enhancer, rewrite-helper, smart-summary)
-- Web-based-search (~2 sites)
-
-These call `aiProviderManager.instanceInRender.generateContent(...)` directly
-from the renderer process. Without an IPC bridge, they cannot write `brain_call_ledger`.
-
-## How to migrate a renderer-direct call site
-
-Find the direct call to `aiProviderManager.instanceInRender` and replace it
-with the `spineApi` client:
+For renderer-direct call sites in new code:
 
 ```js
-// Before:
-import aiProviderManager from '...aiProviderManager';
-const r = await aiProviderManager.instanceInRender.generateContent(prompt);
-const j = await aiProviderManager.instanceInRender.generateContentWithJson(prompt, schema, true);
+import spineApi from '<path>/api/spineApi';
 
-// After:
-import spineApi from '../../api/spineApi'; // adjust path as needed
 const r = await spineApi.generateContent(prompt, { label: 'feature-name' });
 const j = await spineApi.generateContentWithJson(prompt, schema, { label: 'feature-name' });
 ```
 
-**Label naming:** Use a short kebab-case identifier specific to the feature
-(e.g., `translate-verb-step`, `grammar-correction`, `smart-summary-rewrite`).
+For main-process call sites in new code:
 
-## Next phase — Plan 9e
+```js
+const meteredCall = require('<path>/brain/spine/meteredCall');
+const meteredCallJson = require('<path>/brain/spine/meteredCallJson');
 
-Recommended migration order (one feature cluster per PR):
+const { output: r } = await meteredCall(provider, prompt, { legacyLabel: 'feature-name' });
+const { output: j } = await meteredCallJson(prompt, schema, { legacyLabel: 'feature-name' });
+```
 
-1. **Translate** — 2 remaining call sites
-2. **Grammar** — 2 call sites
-3. **Writing** — 5 call sites
-4. **Browser** — ~5 call sites (study-enhancer, rewrite-helper, smart-summary)
-5. **Web-based-search** — ~2 call sites
+Pick `label` as a short kebab-case identifier for the feature. The Economics
+Panel groups by this label.
 
-After Plan 9e completes, all main-process and renderer-direct LLM calls will be
-metered and visible in the Economics Panel.
+## What this enables
+
+Open the Brain Dashboard → Economics Panel. The "By Intent" and "By Provider"
+tables now reflect 100% of LLM spend across the application. Total Cost and
+Projected/mo chips are accurate. Per-intent cache hit rates show the impact
+of Brain-mediated `content-hash` caching where applicable.
