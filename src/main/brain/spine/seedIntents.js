@@ -85,4 +85,18 @@ intents.register('director-pull-suggestion', {
   cachePolicy: 'content-hash',
 });
 
+intents.register('director-session-step', {
+  label: 'Director — per-step session decision',
+  contextSlices: ['activeQuest', 'recentEpisodes', 'mastery'],
+  costCeilingTokens: 2000,
+  cachePolicy: 'none',
+});
+
+intents.register('session-soft-write', {
+  label: 'Session soft-write acknowledgement',
+  contextSlices: [],
+  costCeilingTokens: 200,
+  cachePolicy: 'none',
+});
+
 module.exports = {};
