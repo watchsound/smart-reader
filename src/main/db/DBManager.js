@@ -49,6 +49,12 @@ Object.freeze(db); // Optional: makes the instance immutable
 
 export default db;
 
+// Named-export accessor used by Brain Spine modules (Phase 9+).
+// Returns the same live database instance as `export default db`.
+// The accessor form is preferred by test mocks that swap the DB per
+// test via `jest.mock('./dbManager', () => ({ getDb: () => testDb }))`.
+export const getDb = () => db;
+
 export const getUserIdFromToken = (token) => {
   if (!global.shared || !global.shared.store) {
     console.log('global.shared.store not initialized yet');

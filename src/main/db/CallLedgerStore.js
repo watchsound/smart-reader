@@ -6,7 +6,7 @@
  * Used internally by the Brain Spine (`brainCall`, `meteredCall`).
  */
 
-const DBManager = require('./DBManager');
+const DBManager = require('./dbManager');
 
 /**
  * @typedef {Object} LedgerRow
@@ -14,7 +14,7 @@ const DBManager = require('./DBManager');
  * @property {string} intent
  * @property {number} ts          - epoch ms
  * @property {string} provider
- * @property {string[]} context_keys
+ * @property {string[]} context_keys     - stored as JSON TEXT; serialize on write, parse on read
  * @property {number} prompt_tokens
  * @property {number} completion_tokens
  * @property {number} cost_usd
@@ -23,7 +23,7 @@ const DBManager = require('./DBManager');
  * @property {number} duration_ms
  * @property {string|null} trigger_id
  * @property {string|null} output_summary
- * @property {object|null} output_json
+ * @property {object|null} output_json   - stored as JSON TEXT; serialize on write, parse on read
  */
 
 /**
@@ -44,7 +44,7 @@ async function recordCacheHit({ intent, cacheKey, triggerId }) {
   throw new Error('not implemented');
 }
 
-/** Find a usable cached output for (intent, cacheKey). Returns LedgerRow or null. */
+/** Find the most recent fresh cached output for (intent, cacheKey). Returns LedgerRow or null. */
 async function findCacheHit(intent, cacheKey) {
   throw new Error('not implemented');
 }
@@ -69,7 +69,15 @@ async function cacheHitRateByIntent(sinceMs) {
   throw new Error('not implemented');
 }
 
-/** Drop rows older than maxAgeMs OR oldest rows until count ≤ maxRows. Returns count pruned. */
+/**
+ * Drop rows older than maxAgeMs OR oldest rows until count ≤ maxRows.
+ * Either constraint may be omitted (0 / falsy) to skip that eviction path.
+ *
+ * @param {Object}  opts
+ * @param {number} [opts.maxAgeMs] - omit to skip age-based eviction
+ * @param {number} [opts.maxRows]  - omit to skip count-based eviction
+ * @returns {Promise<number>} count of rows pruned
+ */
 async function prune({ maxAgeMs, maxRows }) {
   throw new Error('not implemented');
 }
