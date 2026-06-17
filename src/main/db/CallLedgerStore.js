@@ -113,23 +113,65 @@ function hydrate(row) {
 }
 
 /** Fetch the most recent ledger row for a triggerId (for Rationale Card). */
-async function findByTriggerId(triggerId) {
-  throw new Error('not implemented');
+function findByTriggerId(triggerId) {
+  if (!triggerId) return null;
+  const db = DBManager.getDb();
+  const row = db.prepare(`
+    SELECT * FROM brain_call_ledger
+    WHERE trigger_id = ?
+    ORDER BY ts DESC LIMIT 1
+  `).get(triggerId);
+  return row ? hydrate(row) : null;
 }
 
 /** Aggregate cost + call_count grouped by intent within [sinceMs, nowMs]. */
-async function aggregateByIntent(sinceMs) {
-  throw new Error('not implemented');
+function aggregateByIntent(sinceMs) {
+  const db = DBManager.getDb();
+  const rows = db.prepare(`
+    SELECT intent AS key,
+           SUM(CASE WHEN cache_hit = 0 THEN 1 ELSE 0 END) AS call_count,
+           SUM(CASE WHEN cache_hit = 0 THEN cost_usd ELSE 0 END) AS total_cost_usd,
+           SUM(CASE WHEN cache_hit = 1 THEN 1 ELSE 0 END) AS cache_hits
+    FROM brain_call_ledger
+    WHERE ts >= ?
+    GROUP BY intent
+    ORDER BY total_cost_usd DESC
+  `).all(sinceMs);
+  return rows;
 }
 
 /** Aggregate cost + call_count grouped by provider within [sinceMs, nowMs]. */
-async function aggregateByProvider(sinceMs) {
-  throw new Error('not implemented');
+function aggregateByProvider(sinceMs) {
+  const db = DBManager.getDb();
+  const rows = db.prepare(`
+    SELECT provider AS key,
+           SUM(CASE WHEN cache_hit = 0 THEN 1 ELSE 0 END) AS call_count,
+           SUM(CASE WHEN cache_hit = 0 THEN cost_usd ELSE 0 END) AS total_cost_usd,
+           SUM(CASE WHEN cache_hit = 1 THEN 1 ELSE 0 END) AS cache_hits
+    FROM brain_call_ledger
+    WHERE ts >= ?
+    GROUP BY provider
+    ORDER BY total_cost_usd DESC
+  `).all(sinceMs);
+  return rows;
 }
 
 /** Cache hit-rate per intent within [sinceMs, nowMs]. Returns Map<intent, ratio>. */
-async function cacheHitRateByIntent(sinceMs) {
-  throw new Error('not implemented');
+function cacheHitRateByIntent(sinceMs) {
+  const db = DBManager.getDb();
+  const rows = db.prepare(`
+    SELECT intent,
+           SUM(cache_hit) AS hits,
+           COUNT(*) AS total
+    FROM brain_call_ledger
+    WHERE ts >= ?
+    GROUP BY intent
+  `).all(sinceMs);
+  const out = new Map();
+  for (const r of rows) {
+    out.set(r.intent, r.total > 0 ? r.hits / r.total : 0);
+  }
+  return out;
 }
 
 /**

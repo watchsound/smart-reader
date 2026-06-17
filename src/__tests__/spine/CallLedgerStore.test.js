@@ -125,3 +125,44 @@ describe('CallLedgerStore cache lookup', () => {
     expect(hit.cache_hit).toBe(false);
   });
 });
+
+describe('CallLedgerStore aggregations', () => {
+  beforeEach(() => {
+    const seed = [
+      { intent: 'a', provider: 'deepseek-v3', cost_usd: 0.01, cache_hit: false, ts: 1000 },
+      { intent: 'a', provider: 'deepseek-v3', cost_usd: 0.02, cache_hit: false, ts: 2000 },
+      { intent: 'a', provider: 'qwen', cost_usd: 0.03, cache_hit: false, ts: 3000 },
+      { intent: 'b', provider: 'deepseek-v3', cost_usd: 0.04, cache_hit: false, ts: 4000 },
+      { intent: 'a', provider: 'deepseek-v3', cost_usd: 0,    cache_hit: true,  ts: 5000 },
+    ];
+    for (const r of seed) CallLedgerStore.record(r);
+  });
+
+  test('aggregateByIntent sums cost and counts fresh calls', () => {
+    const rows = CallLedgerStore.aggregateByIntent(0);
+    const byKey = Object.fromEntries(rows.map((r) => [r.key, r]));
+    expect(byKey.a.call_count).toBe(3);
+    expect(byKey.a.total_cost_usd).toBeCloseTo(0.06, 5);
+    expect(byKey.a.cache_hits).toBe(1);
+    expect(byKey.b.call_count).toBe(1);
+  });
+
+  test('aggregateByProvider sums per provider', () => {
+    const rows = CallLedgerStore.aggregateByProvider(0);
+    const byKey = Object.fromEntries(rows.map((r) => [r.key, r]));
+    expect(byKey['deepseek-v3'].call_count).toBe(3);
+    expect(byKey['qwen'].call_count).toBe(1);
+  });
+
+  test('cacheHitRateByIntent returns ratio per intent', () => {
+    const map = CallLedgerStore.cacheHitRateByIntent(0);
+    expect(map.get('a')).toBeCloseTo(0.25, 5); // 1 hit / 4 total for intent a
+  });
+
+  test('findByTriggerId returns the most recent row for that trigger', () => {
+    CallLedgerStore.record({ intent: 'x', provider: 'p', ts: 100, cache_hit: false, trigger_id: 'T1', output_summary: 'first' });
+    CallLedgerStore.record({ intent: 'x', provider: 'p', ts: 200, cache_hit: false, trigger_id: 'T1', output_summary: 'second' });
+    const row = CallLedgerStore.findByTriggerId('T1');
+    expect(row.output_summary).toBe('second');
+  });
+});
