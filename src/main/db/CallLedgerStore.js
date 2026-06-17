@@ -67,7 +67,7 @@ function record(row) {
 }
 
 /** Record a cache hit referencing an existing fresh call. Returns the new id. */
-function recordCacheHit({ intent, cacheKey, triggerId }) {
+function recordCacheHit({ intent, cacheKey, triggerId, traceId }) {
   const db = DBManager.getDb();
   const src = db.prepare(`
     SELECT * FROM brain_call_ledger
@@ -80,13 +80,13 @@ function recordCacheHit({ intent, cacheKey, triggerId }) {
   const info = db.prepare(`
     INSERT INTO brain_call_ledger
       (intent, ts, provider, context_keys, prompt_tokens, completion_tokens,
-       cost_usd, cache_hit, cache_key, duration_ms, trigger_id,
+       cost_usd, cache_hit, cache_key, duration_ms, trigger_id, trace_id,
        output_summary, output_json)
     VALUES
-      (?, ?, ?, ?, NULL, NULL, NULL, 1, ?, NULL, ?, ?, ?)
+      (?, ?, ?, ?, NULL, NULL, NULL, 1, ?, NULL, ?, ?, ?, ?)
   `).run(
     src.intent, Date.now(), src.provider, src.context_keys,
-    src.cache_key, triggerId || null, src.output_summary, src.output_json,
+    src.cache_key, triggerId || null, traceId || null, src.output_summary, src.output_json,
   );
   return info.lastInsertRowid;
 }

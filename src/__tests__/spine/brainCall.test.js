@@ -118,4 +118,12 @@ describe('brainCall', () => {
     const second = await brainCall('test-none-intent', 'same input', { userId: 1 });
     expect(second.cacheHit).toBe(false);
   });
+
+  test('options.traceId flows into the ledger row', async () => {
+    const { callId } = await brainCall('test-spine-intent', 'with trace', {
+      userId: 1, traceId: 'trace_xyz',
+    });
+    const row = testDb.prepare('SELECT trace_id FROM brain_call_ledger WHERE id = ?').get(callId);
+    expect(row.trace_id).toBe('trace_xyz');
+  });
 });
