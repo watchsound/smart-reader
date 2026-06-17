@@ -16,6 +16,19 @@ import {
 import RefreshIcon from '@mui/icons-material/Refresh';
 import brainApi from '../../api/brainApi';
 
+// Map known Trigger source ids to the spine Intent that produces them.
+// Sources are emitted by Phase 0–8 services; the intent column lets the user
+// correlate Orb acceptance patterns with the Economics Panel's per-intent cost.
+const SOURCE_TO_INTENT = {
+  'phase-7-learning-path':     'plan-cross-book-path',
+  'reread-queue-schedule':     'schedule-reread',
+  'production-prompt':         'schedule-production-prompt',
+  'moodboard-organize':        'suggest-organize',
+  'microcard-propose':         'propose-microcard',
+  'book-diagnostic':           'diagnose-book',
+  'comprehension-grade':       'grade-comprehension',
+};
+
 /**
  * TriggerTelemetryPanel — visualizes per-source accept/dismiss tallies
  * persisted by LearningBrainAgent.recordProposalEvent. Reads
@@ -116,6 +129,7 @@ export default function TriggerTelemetryPanel() {
             <TableHead>
               <TableRow>
                 <TableCell sx={{ fontWeight: 600 }}>Source</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Intent</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 600 }}>
                   Accept
                 </TableCell>
@@ -133,6 +147,11 @@ export default function TriggerTelemetryPanel() {
                 <TableRow key={r.source}>
                   <TableCell>
                     <Typography variant="body2">{r.source}</Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2" sx={{ opacity: 0.75 }}>
+                      {SOURCE_TO_INTENT[r.source] || '—'}
+                    </Typography>
                   </TableCell>
                   <TableCell align="right">{r.accepted || 0}</TableCell>
                   <TableCell align="right">{r.dismissed || 0}</TableCell>

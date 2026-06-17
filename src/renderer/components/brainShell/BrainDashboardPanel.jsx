@@ -4,6 +4,7 @@ import { Paper, Stack, Typography, Box, Chip, Button } from '@mui/material';
 import useBrainState from '../../brain/useBrainState';
 import triggerBus from '../../brain/triggerBus';
 import TriggerTelemetryPanel from './TriggerTelemetryPanel';
+import EconomicsPanel from './EconomicsPanel';
 
 /**
  * BrainDashboardPanel — additive panel for the existing `/` dashboard
@@ -178,6 +179,9 @@ export default function BrainDashboardPanel() {
         )}
 
         <TriggerTelemetryPanel />
+        <Box sx={{ mt: 2 }}>
+          <EconomicsPanel />
+        </Box>
       </Stack>
     </Paper>
   );
