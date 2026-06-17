@@ -1,4 +1,5 @@
 import { instanceInRender as aiProviderManager } from '../../../commons/service/AIProviderManager';
+import spineApi from '../../api/spineApi';
 
 export async function parseJsonFromLLM(content) {
   try {
@@ -29,8 +30,9 @@ export async function parseJsonFromLLM(content) {
   } catch (error) {
     console.error('after sanitized, Error parsing JSON:', error);
     try {
-      const st = await aiProviderManager.generateContent(
+      const st = await spineApi.generateContent(
         `${JSON_FIX_JSON_PROMPT}\n\n${content}`,
+        { label: 'web-search' }
       );
       console.log(` json str after sanitized = ${st}`);
       return JSON.parse(st);

@@ -4,6 +4,7 @@ import axios from 'axios';
 import { load as cheerio_load } from 'cheerio';
 // import { Ollama } from 'ollama';
 import { instanceInRender as aiProviderManager } from '../../../commons/service/AIProviderManager';
+import spineApi from '../../api/spineApi';
 
 import {
   parseJsonFromLLM,
@@ -121,7 +122,7 @@ Provide a relevance score for each result and return the top ${topN} most releva
 `;
 
   // Query Ollama with the constructed prompt
-  const response = await aiProviderManager.generateContent(query_prompt);
+  const response = await spineApi.generateContent(query_prompt, { label: 'web-search' });
 
   // Parse the response
   const parsedResponse = JSON.parse(response); // Assuming response is structured
@@ -256,7 +257,7 @@ Query: "${userQuery}"\n
 Return only category name.`;
 
     // Query the LLM
-    const response = await aiProviderManager.generateContent(prompt);
+    const response = await spineApi.generateContent(prompt, { label: 'web-search' });
 
     console.log(`response = ${JSON.stringify(response)}`);
     let matchedCategory = response.trim();
