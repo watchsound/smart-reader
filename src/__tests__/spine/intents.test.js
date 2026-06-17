@@ -2,11 +2,12 @@
 const intents = require('../../main/brain/spine/intents');
 
 describe('seed intents', () => {
-  test('all 11 spec intents are registered', () => {
+  test('all 12 spec intents are registered', () => {
     const names = intents.list();
     const expected = [
       'argument-xray',
       'diagnose-book',
+      'director-pull-suggestion',
       'extract-learning-points',
       'grade-comprehension',
       'plan-cross-book-path',

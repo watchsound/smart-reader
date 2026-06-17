@@ -59,9 +59,9 @@ afterEach(() => { testDb.close(); });
 const { brainCall, intents } = require('../../main/brain/spine');
 
 describe('Spine end-to-end', () => {
-  test('all 11 seed intents resolve and dispatch successfully', async () => {
+  test('all 12 seed intents resolve and dispatch successfully', async () => {
     const names = intents.list();
-    expect(names.length).toBe(11);
+    expect(names.length).toBe(12);
     for (const intent of names) {
       const result = await brainCall(intent, `smoke for ${intent}`, {
         userId: 1,
