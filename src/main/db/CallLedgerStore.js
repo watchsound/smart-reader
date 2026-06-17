@@ -35,8 +35,34 @@ const DBManager = require('./dbManager');
  */
 
 /** Insert a fresh (non-cache-hit) call row. Returns the new id. */
-async function record(row) {
-  throw new Error('not implemented');
+function record(row) {
+  const db = DBManager.getDb();
+  const stmt = db.prepare(`
+    INSERT INTO brain_call_ledger
+      (intent, ts, provider, context_keys, prompt_tokens, completion_tokens,
+       cost_usd, cache_hit, cache_key, duration_ms, trigger_id,
+       output_summary, output_json)
+    VALUES
+      (@intent, @ts, @provider, @context_keys, @prompt_tokens, @completion_tokens,
+       @cost_usd, @cache_hit, @cache_key, @duration_ms, @trigger_id,
+       @output_summary, @output_json)
+  `);
+  const info = stmt.run({
+    intent: row.intent,
+    ts: row.ts,
+    provider: row.provider,
+    context_keys: JSON.stringify(row.context_keys || []),
+    prompt_tokens: row.prompt_tokens ?? 0,
+    completion_tokens: row.completion_tokens ?? 0,
+    cost_usd: row.cost_usd ?? 0,
+    cache_hit: row.cache_hit ? 1 : 0,
+    cache_key: row.cache_key ?? null,
+    duration_ms: row.duration_ms ?? 0,
+    trigger_id: row.trigger_id ?? null,
+    output_summary: row.output_summary ?? null,
+    output_json: row.output_json != null ? JSON.stringify(row.output_json) : null,
+  });
+  return info.lastInsertRowid;
 }
 
 /** Record a cache hit referencing an existing fresh call. Returns the new id. */
