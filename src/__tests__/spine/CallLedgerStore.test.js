@@ -126,6 +126,33 @@ describe('CallLedgerStore cache lookup', () => {
   });
 });
 
+describe('CallLedgerStore.prune', () => {
+  test('drops rows older than maxAgeMs', () => {
+    const now = Date.now();
+    CallLedgerStore.record({ intent: 'a', provider: 'p', ts: now - 100 * 24 * 3600 * 1000, cache_hit: false });
+    CallLedgerStore.record({ intent: 'a', provider: 'p', ts: now - 10 * 24 * 3600 * 1000,  cache_hit: false });
+    const dropped = CallLedgerStore.prune({ maxAgeMs: 90 * 24 * 3600 * 1000, maxRows: 10000 });
+    expect(dropped).toBe(1);
+    const remaining = testDb.prepare('SELECT COUNT(*) AS c FROM brain_call_ledger').get().c;
+    expect(remaining).toBe(1);
+  });
+
+  test('drops oldest rows when count > maxRows', () => {
+    // Use recent base timestamp so age-based eviction does not fire;
+    // only the row-count path should prune here.
+    const base = Date.now() - 5 * 24 * 3600 * 1000; // 5 days ago (within 90-day window)
+    for (let i = 0; i < 15; i++) {
+      CallLedgerStore.record({ intent: 'a', provider: 'p', ts: base + i, cache_hit: false });
+    }
+    const dropped = CallLedgerStore.prune({ maxAgeMs: 90 * 24 * 3600 * 1000, maxRows: 10 });
+    expect(dropped).toBe(5);
+    const remaining = testDb.prepare('SELECT COUNT(*) AS c FROM brain_call_ledger').get().c;
+    expect(remaining).toBe(10);
+    const minTs = testDb.prepare('SELECT MIN(ts) AS m FROM brain_call_ledger').get().m;
+    expect(minTs).toBe(base + 5); // oldest 5 (base+0..base+4) dropped
+  });
+});
+
 describe('CallLedgerStore aggregations', () => {
   beforeEach(() => {
     const seed = [

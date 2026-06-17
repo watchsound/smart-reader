@@ -177,14 +177,35 @@ function cacheHitRateByIntent(sinceMs) {
 /**
  * Drop rows older than maxAgeMs OR oldest rows until count ≤ maxRows.
  * Either constraint may be omitted (0 / falsy) to skip that eviction path.
+ * Age-based eviction runs first; row-count eviction then trims the remainder.
  *
  * @param {Object}  opts
  * @param {number} [opts.maxAgeMs] - omit to skip age-based eviction
  * @param {number} [opts.maxRows]  - omit to skip count-based eviction
- * @returns {Promise<number>} count of rows pruned
+ * @returns {number} count of rows pruned
  */
-async function prune({ maxAgeMs, maxRows }) {
-  throw new Error('not implemented');
+function prune({ maxAgeMs, maxRows }) {
+  const db = DBManager.getDb();
+  let dropped = 0;
+  if (maxAgeMs && maxAgeMs > 0) {
+    const cutoff = Date.now() - maxAgeMs;
+    const info = db.prepare('DELETE FROM brain_call_ledger WHERE ts < ?').run(cutoff);
+    dropped += info.changes;
+  }
+  if (maxRows && maxRows > 0) {
+    const count = db.prepare('SELECT COUNT(*) AS c FROM brain_call_ledger').get().c;
+    if (count > maxRows) {
+      const excess = count - maxRows;
+      const info = db.prepare(`
+        DELETE FROM brain_call_ledger
+        WHERE id IN (
+          SELECT id FROM brain_call_ledger ORDER BY ts ASC LIMIT ?
+        )
+      `).run(excess);
+      dropped += info.changes;
+    }
+  }
+  return dropped;
 }
 
 module.exports = {
