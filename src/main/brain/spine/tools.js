@@ -11,11 +11,22 @@
 const TOOLS = {};
 const HANDLERS = {};
 
+const VALID_KINDS = ['read', 'surface', 'soft-write', 'control'];
+
 function register(name, decl) {
-  if (!name || !decl || !decl.schema) {
+  if (!name || !decl || (!decl.schema && !decl.argsSchema)) {
     throw new Error('tools.register: name and schema required');
   }
-  TOOLS[name] = Object.freeze({ name, ...decl });
+  if (decl.kind && !VALID_KINDS.includes(decl.kind)) {
+    throw new Error(`[tools.register] invalid kind: ${decl.kind}`);
+  }
+  TOOLS[name] = Object.freeze({
+    name,
+    ...decl,
+    // argsSchema is the canonical field for descriptors(); fall back to schema if absent
+    argsSchema: decl.argsSchema || decl.schema || {},
+    kind: decl.kind || 'read',
+  });
 }
 
 function registerHandler(name, fn) {
@@ -33,6 +44,20 @@ function describe(name) {
 
 function list() {
   return Object.keys(TOOLS).sort();
+}
+
+function descriptors() {
+  return Object.values(TOOLS).map(t => ({
+    name: t.name,
+    description: t.description || '',
+    argsSchema: t.argsSchema,
+    kind: t.kind,
+  }));
+}
+
+function __reset() {
+  for (const k of Object.keys(TOOLS)) delete TOOLS[k];
+  for (const k of Object.keys(HANDLERS)) delete HANDLERS[k];
 }
 
 function invoke(name, args) {
@@ -77,4 +102,4 @@ register('scheduleReread', {
   },
 });
 
-module.exports = { register, registerHandler, _clearHandlers, describe, list, invoke };
+module.exports = { register, registerHandler, _clearHandlers, describe, list, descriptors, invoke, __reset };
