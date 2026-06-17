@@ -131,6 +131,41 @@ testFn('getDashboard returns mastery + timeline + sessions + topConcepts', async
   expect(r.topConcepts[0].decisionCount).toBe(1);
 });
 
+testFn('getConcept returns meta + lineage + costToDate', async () => {
+  const db = freshDb();
+  db.prepare(`
+    INSERT INTO learning_point (id, user_id, domain_type, title, front, back, source_type, source_id, box, mastery_level, next_review, created_at, updated_at)
+    VALUES ('lp-1', 1, 'vocabulary', 'parse', '{"text":"parse"}', '{"text":"to analyze"}', 'book', 'p-h-abc', 1, 25, '2026-06-20', datetime('now'), datetime('now'))
+  `).run();
+  const now = Date.now();
+  CallLedgerStore.record({
+    intent: 'director-session-step', ts: now, provider: 'deepseek',
+    context_keys: [], prompt_tokens: 100, completion_tokens: 50, cost_usd: 0.002,
+    cache_hit: false, cache_key: null, duration_ms: 200, trigger_id: null,
+    output_summary: 's', output_json: null, trace_id: 'tr-A',
+  });
+  AISessionStore.persistCompleted({
+    id: 'sX', userId: 1, questId: null, goal: 'g', traceId: 'tr-A',
+    status: 'completed', iteration: 1, budget: 12,
+    startedAt: now - 1000, endedAt: now, errorReason: null,
+    trace: [
+      { iteration: 0, kind: 'tool', payload: { tool: 'openLeitnerCard', args: { learningPointId: 'lp-1' } }, ts: now - 500 },
+    ],
+  });
+  const r = await BrainVisibilityService.getConcept({ learningPointId: 'lp-1', userId: 1 });
+  expect(r.meta.title).toBe('parse');
+  expect(r.meta.box).toBe(1);
+  expect(r.lineage.some(e => e.kind === 'created')).toBe(true);
+  expect(r.lineage.some(e => e.kind === 'brain-decision')).toBe(true);
+  expect(r.costToDate).toBeCloseTo(0.002);
+});
+
+testFn('getConcept returns null meta for unknown id', async () => {
+  freshDb();
+  const r = await BrainVisibilityService.getConcept({ learningPointId: 'nope', userId: 1 });
+  expect(r.meta).toBeNull();
+});
+
 testFn('window filters: 7d excludes a session from 30d ago', async () => {
   freshDb();
 

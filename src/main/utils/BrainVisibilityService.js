@@ -183,4 +183,100 @@ async function getDashboard({ window = '30d', userId = 1 } = {}) {
   return { mastery, timeline, sessions, topConcepts };
 }
 
-module.exports = { getDashboard };
+/**
+ * Convert a SQLite datetime string (or epoch number) to epoch-ms.
+ */
+function parseTimestamp(s) {
+  if (!s) return 0;
+  if (typeof s === 'number') return s;
+  const t = Date.parse(s);
+  return Number.isFinite(t) ? t : 0;
+}
+
+/**
+ * Return per-concept payload: meta + brain-decision lineage + cost-to-date.
+ *
+ * Lineage is built by scanning ai_session_trace rows whose payload_json
+ * references this learningPointId (same JSON-scan logic used by getDashboard's
+ * topTouchedConcepts). Cost-to-date sums ledger rows whose trace_id appears in
+ * those sessions, so the cost attribution is "what did the Brain spend when it
+ * was working on sessions that touched this concept?"
+ *
+ * boxOverTime is null for v1 (no box-change event history yet).
+ *
+ * @param {Object} opts
+ * @param {string} opts.learningPointId
+ * @param {number} [opts.userId=1]
+ * @returns {Promise<{ meta, lineage, costToDate, boxOverTime }>}
+ */
+async function getConcept({ learningPointId, userId = 1 }) {
+  const db = dbManager.getDb();
+
+  const lp = db.prepare(`
+    SELECT id, title, domain_type AS domain, box, mastery_level AS masteryPct,
+           next_review AS nextReview, source_type AS sourceType, source_id AS sourceId,
+           created_at AS createdAt
+    FROM learning_point WHERE id = ? AND user_id = ?
+  `).get(learningPointId, userId);
+
+  if (!lp) return { meta: null, lineage: [], costToDate: 0, boxOverTime: null };
+
+  // Scan every trace row for this user and collect those that reference the concept.
+  const traceRows = db.prepare(`
+    SELECT t.session_id, t.payload_json, t.ts, t.kind
+    FROM ai_session_trace t
+    JOIN ai_sessions s ON s.id = t.session_id
+    WHERE s.user_id = ?
+  `).all(userId);
+
+  const decisions = [];
+  const traceIds = new Set();
+
+  for (const r of traceRows) {
+    const payload = safeParseJson(r.payload_json);
+    if (extractLearningPointId(payload) !== learningPointId) continue;
+
+    // Collect the session's trace_id for cost aggregation.
+    const session = db.prepare(`SELECT trace_id FROM ai_sessions WHERE id = ?`).get(r.session_id);
+    if (session?.trace_id) traceIds.add(session.trace_id);
+
+    decisions.push({
+      kind: 'brain-decision',
+      ts: r.ts,
+      sessionId: r.session_id,
+      tool: payload?.tool || r.kind,
+      args: payload?.args || null,
+      callId: null,
+    });
+  }
+
+  // Sum ledger costs for all sessions that touched this concept.
+  let costToDate = 0;
+  if (traceIds.size > 0) {
+    const placeholders = [...traceIds].map(() => '?').join(',');
+    const costRows = db.prepare(
+      `SELECT cost_usd FROM brain_call_ledger WHERE trace_id IN (${placeholders})`,
+    ).all(...traceIds);
+    costToDate = costRows.reduce((s, r) => s + (r.cost_usd || 0), 0);
+  }
+
+  // Creation event first, then brain-decisions sorted newest-first.
+  const lineage = [
+    {
+      kind: 'created',
+      ts: parseTimestamp(lp.createdAt),
+      sourceType: lp.sourceType,
+      sourceId: lp.sourceId,
+    },
+    ...decisions,
+  ].sort((a, b) => b.ts - a.ts);
+
+  return {
+    meta: lp,
+    lineage,
+    costToDate,
+    boxOverTime: null,
+  };
+}
+
+module.exports = { getDashboard, getConcept };
