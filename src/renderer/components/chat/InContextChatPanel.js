@@ -79,6 +79,7 @@ import skillApi from '../../api/skillApi';
 import FiveWAnalysisPanel from '../knowledge/FiveWAnalysisPanel';
 import QuizPanel from '../knowledge/QuizPanel';
 import SimplifiedTextPanel from '../knowledge/SimplifiedTextPanel';
+import spineApi from '../../api/spineApi';
 
 // Quick Action Chip Styles
 const QuickActionChip = styled(Chip)(({ theme, chipcolor }) => ({
@@ -349,7 +350,7 @@ function InContextChatPanel({ articleStr, curBook, selectedText = '', onRef }) {
 
     // we try to ask open ai to do the mapping directly.
     const prompt = mapToNewJsonSchema('Mind Map', JSON.stringify(jsonData), JSON.stringify(mindMapSchema) );
-    const r = await aiProviderManager.generateContentWithJson( prompt, false );
+    const r = await spineApi.generateContentWithJson( prompt, null, { label: 'chat-message' } );
     if (r) {
       content0 = stripJsonWrap(r)
       if ( content0.startsWith('{') && content0.charAt(content0.length-1) === '}' )

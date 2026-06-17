@@ -87,6 +87,7 @@ import StringPicker from '../../components/Picker/StringPicker';
 import promptSettingList, { None } from '../../constants/promptSettingList';
 import skillApi from '../../api/skillApi';
 import SlashCommandMenu from '../../components/chat/SlashCommandMenu';
+import spineApi from '../../api/spineApi';
 
 // Color palette for AI Assistant (matching BookmarkUI style)
 const ASSISTANT_COLORS = {
@@ -480,7 +481,7 @@ function ChatDetailPanel({ chatId }) {
 
     // we try to ask open ai to do the mapping directly.
     const prompt =  mapToNewJsonSchema('Mind Map', JSON.stringify(jsonData), JSON.stringify(mindMapSchema) );
-    const r = await aiProviderManager.generateContentWithJson( prompt, false );
+    const r = await spineApi.generateContentWithJson( prompt, null, { label: 'chat-message' } );
     if (r) {
       content0 = stripJsonWrap(r)
       if ( content0.startsWith('{') && content0.charAt(content0.length-1) === '}' )
