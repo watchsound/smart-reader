@@ -118,7 +118,10 @@ test('scheduleProductionPrompt executes + undo reverses', async () => {
   });
   expect(PPS.schedulePrompt).toHaveBeenCalled();
   expect(result.promptId).toBe('pp-1');
-  const undo = await UndoRegistry.run('scheduleProductionPrompt', { promptId: 'pp-1' });
+  expect(result.userId).toBe(1);
+  expect(result.learningPointId).toBe(99);
+  const undo = await UndoRegistry.run('scheduleProductionPrompt', { userId: 1, learningPointId: 99 });
+  expect(PPS.unschedule).toHaveBeenCalledWith({ userId: 1, learningPointId: 99 });
   expect(undo.undone).toBe(true);
 });
 

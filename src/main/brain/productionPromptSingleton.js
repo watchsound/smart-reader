@@ -51,9 +51,8 @@ function getInstance() {
 async function schedulePrompt({ userId, learningPointId, prompt: _prompt }) {
   // The underlying service selects candidates from the graph; learningPointId
   // is passed as metadata so the caller can track which point was prompted.
-  // Phase 10b-1: we call schedulePrompt with the userId only (token pulled
-  // from global.shared.store inside the service). The return id is the
-  // learningPointId since that's the stable undo handle.
+  // Token is pulled from global.shared.store inside the service (pass null).
+  // Return id = learningPointId as the stable undo handle.
   await getInstance().schedulePrompt(userId, null);
   return { id: learningPointId };
 }
@@ -61,15 +60,11 @@ async function schedulePrompt({ userId, learningPointId, prompt: _prompt }) {
 /**
  * Undo a scheduled production prompt by clearing the dedup record.
  *
- * @param {string|number} id — learningPointId returned by schedulePrompt
+ * @param {{ promptId: string|number, userId: number, learningPointId: string|number }} args
  * @returns {boolean}
  */
-function unschedule(id) {
-  // clearPrompt needs userId; we don't store it in the id. For Phase 10b-1
-  // we do a best-effort clear — the service's dedup map will re-prune
-  // naturally on the next heartbeat cycle if clearPrompt can't find the
-  // entry. Full implementation tracked as Discovered Issue.
-  const result = getInstance().clearPrompt(1, String(id));
+function unschedule({ userId, learningPointId }) {
+  const result = getInstance().clearPrompt(userId, String(learningPointId));
   return result !== false;
 }
 

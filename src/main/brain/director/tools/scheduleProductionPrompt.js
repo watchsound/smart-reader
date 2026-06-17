@@ -5,11 +5,10 @@
  * Calls meteredCallJson to get a ledger row (tagged
  * session-soft-write:scheduleProductionPrompt), then schedules a
  * production-style prompt for a high-mastery concept via
- * productionPromptSingleton. Returns { callId, promptId } so the live
- * trace sidebar (Plan 10b-2) can surface an undo action.
- *
- * Undo: UndoRegistry.run('scheduleProductionPrompt', { promptId }) →
- *   clears the dedup record so the heartbeat can re-prompt next cycle.
+ * productionPromptSingleton. Returns { callId, promptId, userId, learningPointId }
+ * so that SessionRunner can merge userId + learningPointId into the Undo payload,
+ * allowing UndoRegistry.run('scheduleProductionPrompt', { userId, learningPointId })
+ * to forward both to productionPromptSingleton.unschedule.
  *
  * Why productionPromptSingleton: ProductionPromptService requires an
  * electron-store injection for dedup persistence. The singleton wrapper
@@ -51,10 +50,10 @@ tools.registerHandler('scheduleProductionPrompt', async (args, ctx = {}) => {
     userId, learningPointId, prompt,
   });
 
-  return { callId, promptId };
+  return { callId, promptId, userId, learningPointId };
 });
 
-UndoRegistry.register('scheduleProductionPrompt', async ({ promptId }) => {
-  const undone = ProductionPromptService.unschedule(promptId);
+UndoRegistry.register('scheduleProductionPrompt', async ({ userId, learningPointId }) => {
+  const undone = ProductionPromptService.unschedule({ userId, learningPointId });
   return { undone: !!undone };
 });
