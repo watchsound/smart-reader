@@ -12,6 +12,12 @@
  * The context is cached per-book/chapter so we don't re-fetch on every chat
  * turn within the same session. The cached prefix is the perfect target for
  * a future prompt-caching polyfill / native cache.
+ *
+ * Phase 9 alignment: this is the renderer-side companion to the spine
+ * `tutor-context` Intent (see `src/main/brain/spine/seedIntents.js`).
+ * When Director Mode (Phase 10) lands, this file's slice catalog should
+ * be derived from `intents.resolve('tutor-context').contextSlices`
+ * rather than duplicated here.
  */
 
 import brainApi from '../api/brainApi';
