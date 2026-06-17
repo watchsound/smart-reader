@@ -78,4 +78,11 @@ intents.register('tutor-context', {
   cachePolicy: 'session',
 });
 
+intents.register('director-pull-suggestion', {
+  label: 'Director — pull suggestion ReAct loop',
+  contextSlices: ['activeQuest', 'recentEpisodes', 'mastery', 'acceptDismissPatterns'],
+  costCeilingTokens: 1500,
+  cachePolicy: 'content-hash',
+});
+
 module.exports = {};
