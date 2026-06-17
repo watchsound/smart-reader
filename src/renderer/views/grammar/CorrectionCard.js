@@ -20,7 +20,7 @@ import TextAnnotator from 'text-annotator-v2';
 import { mapToPredefinedColor } from '../../../commons/utils/CommonLangUtil';
 import { getGrammarCorrectionExtraPrompt } from './PromptUtil';
 import { parseMarkdownToHtmlNoCallback } from '../../components/note/NoteUtil';
-import { instanceInRender as aiProviderManager } from '../../../commons/service/AIProviderManager';
+import spineApi from '../../api/spineApi';
 
 // Color palette for error type ribbons (matching BookmarkUI style)
 const ERROR_TYPE_COLORS = {
@@ -148,7 +148,7 @@ function CorrectionCard({
         explain,
         language,
       );
-      const r = await aiProviderManager.generateContent(prompt);
+      const r = await spineApi.generateContent(prompt, { label: 'grammar-correction-card' });
       setDetailedExplanation(r || '');
     } catch (e) {
       console.log(e);

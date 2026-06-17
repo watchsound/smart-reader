@@ -54,7 +54,7 @@ import {
   getGrammarOriginalToAnnotation,
   getGrammarCorrectedToAnnotation,
 } from './GrammarUtil';
-import { instanceInRender as aiProviderManager } from '../../../commons/service/AIProviderManager';
+import spineApi from '../../api/spineApi';
 
 // Styled Components - Matching BookmarksPage style
 const SidebarSection = styled(Box)(({ theme }) => ({
@@ -314,11 +314,7 @@ function GrammarMainPage() {
       setSentence(trimmedContent);
 
       const prompt = getGrammarCorrectionPrompt(trimmedContent, languageModel);
-      const jsonData = await aiProviderManager.generateContentWithJson(
-        prompt,
-        true,
-        'data'
-      );
+      const jsonData = await spineApi.generateContentWithJson(prompt, null, { label: 'grammar-main' });
 
       if (jsonData && jsonData.data) {
         setGrammarCorrection(jsonData);
