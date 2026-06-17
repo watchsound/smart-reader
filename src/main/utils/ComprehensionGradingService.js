@@ -19,7 +19,6 @@ import {
   createComprehensionPromptPrompt,
   createComprehensionGradingPrompt,
 } from '../../commons/utils/AIPrompts';
-import { getStructured } from '../../commons/service/polyfills/structuredOutput';
 
 const EXCERPT_CHAR_LIMIT = 3000;
 
@@ -46,10 +45,16 @@ class ComprehensionGradingService {
    * @returns {Promise<string|null>}
    */
   async generateQuestion(input = {}) {
-    const { chapterTitle = '', textExcerpt = '', bookTitle = '' } = input;
+    const {
+      chapterTitle = '',
+      textExcerpt = '',
+      bookTitle = '',
+      userId,
+      bookId,
+      chapterIndex,
+    } = input;
 
-    const provider = aiProviderManager.currentProvider;
-    if (!provider) return null;
+    if (!aiProviderManager.currentProvider) return null;
 
     const prompt = createComprehensionPromptPrompt({
       chapterTitle,
@@ -57,9 +62,24 @@ class ComprehensionGradingService {
       bookTitle,
     });
 
+    let text;
+    let questionCallId = null;
     try {
-      const text = await provider.generateContent(prompt);
-      return typeof text === 'string' && text.trim() ? text.trim() : null;
+      const { brainCall } = require('../brain/spine');
+      const result = await brainCall(
+        'grade-comprehension',
+        prompt,
+        {
+          userId: userId || 1,
+          contextOverrides: {
+            currentBook: bookId
+              ? { bookId, chapterIndex, chapterTitle }
+              : undefined,
+          },
+        },
+      );
+      text = result.output;
+      questionCallId = result.callId;
     } catch (err) {
       console.error(
         '[ComprehensionGradingService] generateQuestion failed:',
@@ -67,6 +87,16 @@ class ComprehensionGradingService {
       );
       return null;
     }
+
+    if (typeof text !== 'string' || !text.trim()) return null;
+    // Returns a plain string so the IPC handler and renderer callers can use it
+    // directly. The callId is logged for brain_call_ledger traceability; it
+    // cannot be attached to the primitive without breaking the string contract.
+    const question = text.trim();
+    console.log(
+      `[ComprehensionGradingService] generateQuestion callId=${questionCallId}`,
+    );
+    return question;
   }
 
   /**
@@ -88,10 +118,12 @@ class ComprehensionGradingService {
       bookTitle = '',
       question = '',
       answer = '',
+      userId,
+      bookId,
+      chapterIndex,
     } = input;
 
-    const provider = aiProviderManager.currentProvider;
-    if (!provider) return { error: 'No AI provider configured.' };
+    if (!aiProviderManager.currentProvider) return { error: 'No AI provider configured.' };
     if (!answer.trim()) return { error: 'Empty answer.' };
 
     const prompt = createComprehensionGradingPrompt({
@@ -103,11 +135,24 @@ class ComprehensionGradingService {
     });
 
     let raw;
+    let gradingCallId = null;
     try {
-      raw = await getStructured(provider, prompt, GRADING_SCHEMA, {
-        schemaName: 'comprehensionGrading',
-        maxRetries: 1,
-      });
+      const { brainCall } = require('../brain/spine');
+      const result = await brainCall(
+        'grade-comprehension',
+        prompt,
+        {
+          userId: userId || 1,
+          schema: GRADING_SCHEMA,
+          contextOverrides: {
+            currentBook: bookId
+              ? { bookId, chapterIndex }
+              : undefined,
+          },
+        },
+      );
+      raw = result.output;
+      gradingCallId = result.callId;
     } catch (err) {
       return { error: err?.message || 'Grading call failed.' };
     }
@@ -126,6 +171,7 @@ class ComprehensionGradingService {
         : [],
       gaps: Array.isArray(raw.gaps) ? raw.gaps.filter(Boolean) : [],
       feedback: typeof raw.feedback === 'string' ? raw.feedback.trim() : '',
+      callId: gradingCallId,
     };
   }
 }
