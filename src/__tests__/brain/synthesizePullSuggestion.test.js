@@ -1,6 +1,5 @@
 /**
- * synthesizePullSuggestion tests — Plan 3 LLM-backed pull with
- * deterministic Quest-aware fallback.
+ * synthesizePullSuggestion tests — Plan 9c migrated to brainCall / spine.
  */
 
 jest.mock('electron', () => ({
@@ -33,6 +32,12 @@ jest.mock('../../main/brain/ProductionPromptService', () =>
   jest.fn().mockImplementation(() => ({})),
 );
 
+// Spine mock — replaced per test via brainCallMock.mockResolvedValue(...)
+const brainCallMock = jest.fn();
+jest.mock('../../main/brain/spine', () => ({
+  brainCall: (...args) => brainCallMock(...args),
+}));
+
 const LearningBrainAgent = require('../../main/brain/LearningBrainAgent');
 
 function makeStore(quests = []) {
@@ -45,7 +50,15 @@ function makeStore(quests = []) {
   };
 }
 
+// Stub aiProvider so the `if (!this.aiProvider)` guard doesn't short-circuit
+// LLM-path tests. The actual call now goes through brainCall/spine.
+const stubProvider = {};
+
 describe('LearningBrainAgent.synthesizePullSuggestion', () => {
+  beforeEach(() => {
+    brainCallMock.mockReset();
+  });
+
   test('deterministic fallback when no aiProvider — uses top active quest', async () => {
     const store = makeStore([
       {
@@ -72,11 +85,11 @@ describe('LearningBrainAgent.synthesizePullSuggestion', () => {
     expect(result.navigate).toBe('bookshelf');
   });
 
-  test('LLM path — uses aiProvider when present and accepts well-shaped JSON', async () => {
-    const generateContentWithJson = jest.fn().mockResolvedValue({
-      title: 'Drill 5 German verbs',
-      body: 'You have 5 conjugation cards due today.',
-      navigate: 'vocabulary',
+  test('LLM path — uses brainCall when aiProvider present and accepts well-shaped output', async () => {
+    brainCallMock.mockResolvedValue({
+      output: { title: 'Drill 5 German verbs', body: 'You have 5 conjugation cards due today.', navigate: 'vocabulary' },
+      callId: 1,
+      cacheHit: false,
     });
     const agent = new LearningBrainAgent({
       store: makeStore([
@@ -89,17 +102,26 @@ describe('LearningBrainAgent.synthesizePullSuggestion', () => {
           userId: 1,
         },
       ]),
-      aiProvider: { generateContentWithJson },
+      aiProvider: stubProvider,
     });
     const result = await agent.synthesizePullSuggestion();
-    expect(generateContentWithJson).toHaveBeenCalledTimes(1);
+    expect(brainCallMock).toHaveBeenCalledTimes(1);
+    expect(brainCallMock).toHaveBeenCalledWith(
+      'synthesize-pull-suggestion',
+      expect.any(String),
+      expect.objectContaining({ userId: 1, schema: expect.any(Object) }),
+    );
     expect(result.title).toBe('Drill 5 German verbs');
     expect(result.navigate).toBe('vocabulary');
     expect(result.source).toBe('llm');
   });
 
-  test('LLM path — falls back when LLM returns malformed JSON', async () => {
-    const generateContentWithJson = jest.fn().mockResolvedValue('not json{garbage');
+  test('LLM path — falls back when brainCall returns malformed output (missing title/body)', async () => {
+    brainCallMock.mockResolvedValue({
+      output: { unexpected: 'shape' },
+      callId: 2,
+      cacheHit: false,
+    });
     const agent = new LearningBrainAgent({
       store: makeStore([
         {
@@ -111,20 +133,18 @@ describe('LearningBrainAgent.synthesizePullSuggestion', () => {
           userId: 1,
         },
       ]),
-      aiProvider: { generateContentWithJson },
+      aiProvider: stubProvider,
     });
     const result = await agent.synthesizePullSuggestion();
     expect(result.source).toBe('deterministic-fallback');
     expect(result.navigate).toBe('reading/7');
   });
 
-  test('LLM path — falls back when LLM throws', async () => {
-    const generateContentWithJson = jest
-      .fn()
-      .mockRejectedValue(new Error('provider down'));
+  test('LLM path — falls back when brainCall throws', async () => {
+    brainCallMock.mockRejectedValue(new Error('provider down'));
     const agent = new LearningBrainAgent({
       store: makeStore([]),
-      aiProvider: { generateContentWithJson },
+      aiProvider: stubProvider,
     });
     const result = await agent.synthesizePullSuggestion();
     expect(result.source).toBe('deterministic-fallback');
@@ -132,14 +152,14 @@ describe('LearningBrainAgent.synthesizePullSuggestion', () => {
   });
 
   test('LLM path — strips leading slashes from navigate', async () => {
-    const generateContentWithJson = jest.fn().mockResolvedValue({
-      title: 'do thing',
-      body: 'because',
-      navigate: '/notes',
+    brainCallMock.mockResolvedValue({
+      output: { title: 'do thing', body: 'because', navigate: '/notes' },
+      callId: 3,
+      cacheHit: false,
     });
     const agent = new LearningBrainAgent({
       store: makeStore([]),
-      aiProvider: { generateContentWithJson },
+      aiProvider: stubProvider,
     });
     const result = await agent.synthesizePullSuggestion();
     expect(result.navigate).toBe('notes');

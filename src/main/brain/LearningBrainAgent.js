@@ -23,6 +23,16 @@ const {
 
 const NOTIF_DEDUP_KEY = 'learningBrain.notifDedup';
 
+const SUGGESTION_SCHEMA = {
+  type: 'object',
+  properties: {
+    title:    { type: 'string' },
+    body:     { type: 'string' },
+    navigate: { type: 'string' },
+  },
+  required: ['title', 'body'],
+};
+
 // Map the brain's internal nudge `type` to NotificationManager fields.
 // Anything not listed falls back to SYSTEM/NORMAL with no actionUrl.
 const NUDGE_TYPE_MAP = {
@@ -245,13 +255,13 @@ Reply strictly as JSON with this shape:
 }`;
 
     try {
-      const raw = await this.aiProvider.generateContentWithJson(prompt, true);
-      const parsed =
-        typeof raw === 'string'
-          ? JSON.parse(raw)
-          : raw && typeof raw === 'object'
-            ? raw
-            : null;
+      const { brainCall } = require('./spine');
+      const result = await brainCall(
+        'synthesize-pull-suggestion',
+        prompt,
+        { userId: 1, schema: SUGGESTION_SCHEMA },
+      );
+      const parsed = result.output;
       if (
         parsed &&
         typeof parsed.title === 'string' &&
