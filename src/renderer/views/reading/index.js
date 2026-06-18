@@ -1044,12 +1044,25 @@ function EReaderPage() {
       if (!offer || !answer) return;
       setComprPanelState('grading');
       try {
+        // Phase 13 attribution: pass bookId so the service can pick a
+        // representative learning_point from this book to attribute the
+        // mastery_event to. Without bookId the service skips the
+        // attribution write silently (comprehension cost would not appear
+        // in the ROI panel).
         const result = await comprehensionApi.gradeAnswer({
           chapterTitle: offer.chapterName,
           textExcerpt: offer.textExcerpt,
           bookTitle: book?.name || book?.title || '',
           question: comprQuestion,
           answer,
+          bookId: book?.id ?? null,
+          // Synthetic questionId so the mastery_event dedup index treats each
+          // chapter's comprehension as a distinct event. Same chapter graded
+          // twice in one session would collide on (lp, ts, type, source_ref)
+          // only if the user submits in the same millisecond — acceptable.
+          questionId: offer.chapterId
+            ? `book-${book?.id ?? 'x'}-chap-${offer.chapterId}`
+            : null,
         });
         if (result?.error) {
           setComprError(result.error);

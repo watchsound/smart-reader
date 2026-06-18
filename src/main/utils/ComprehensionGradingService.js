@@ -176,17 +176,41 @@ class ComprehensionGradingService {
       callId: gradingCallId,
     };
 
-    // Phase 13 attribution: emit a mastery_event when we have a learning point
-    // to attribute the grade to. We use explicitCallId (the brainCall id we
-    // already captured) so the recorder skips the trace-lookup path.
-    if (learningPointId) {
+    // Phase 13 attribution: emit a mastery_event for this grade.
+    //
+    // If the caller supplied a specific learningPointId, attribute directly
+    // to it. Otherwise, when bookId is available, pick the weakest-mastery
+    // LP from that book — comprehension grades inform whichever concept the
+    // user is most struggling with, and that LP benefits most from the
+    // signal (positive or negative). If neither is available we skip the
+    // attribution write silently (the cost panel will undercount but
+    // grading still succeeds).
+    let attributionLpId = learningPointId || null;
+    if (!attributionLpId && bookId != null) {
       try {
+        // eslint-disable-next-line global-require
+        const dbManager = require('../db/dbManager');
+        const row = dbManager.getDb().prepare(
+          `SELECT id FROM learning_point
+           WHERE user_id = ? AND book_id = ?
+           ORDER BY box ASC, mastery_level ASC, updated_at DESC
+           LIMIT 1`,
+        ).get(userId || 1, bookId);
+        if (row) attributionLpId = row.id;
+      } catch (_e) {
+        // Lookup failure is non-fatal; just skip attribution.
+      }
+    }
+
+    if (attributionLpId) {
+      try {
+        // eslint-disable-next-line global-require
         const recorder = require('../db/masteryEventRecorder');
         recorder.recordWithProximateCall({
           traceId: null,
           explicitCallId: gradingCallId,
           surface: 'comprehension',
-          learningPointId,
+          learningPointId: attributionLpId,
           userId: userId || 1,
           ts: Date.now(),
           eventType: 'mastery_change',

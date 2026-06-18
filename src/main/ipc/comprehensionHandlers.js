@@ -56,6 +56,7 @@ function registerComprehensionHandlers() {
         answer = '',
         learningPointId = null,   // Phase 13: forwarded for mastery_event attribution
         questionId = null,        // Phase 13: forwarded for mastery_event attribution
+        bookId = null,            // Phase 13: forwarded so service can pick a representative LP
       } = payload || {};
       if (!answer.trim()) return { error: 'Empty answer.' };
       return await comprehensionGradingService.gradeAnswer({
@@ -66,6 +67,7 @@ function registerComprehensionHandlers() {
         answer,
         learningPointId,
         questionId,
+        bookId,
       });
     } catch (err) {
       console.error('[comprehensionHandlers] grade-answer failed:', err);

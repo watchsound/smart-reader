@@ -35,6 +35,7 @@ const comprehensionApi = {
     answer,
     learningPointId = null,   // Phase 13: attribution — passed through to mastery_event writer
     questionId = null,        // Phase 13: attribution — passed through to mastery_event writer
+    bookId = null,            // Phase 13: forwarded so service can pick a representative LP when none supplied
   }) {
     return window.electron.ipcRenderer.invoke('comprehension-grade-answer', {
       chapterTitle,
@@ -44,6 +45,7 @@ const comprehensionApi = {
       answer,
       learningPointId,
       questionId,
+      bookId,
     });
   },
 };
