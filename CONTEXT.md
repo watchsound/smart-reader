@@ -74,7 +74,7 @@ Canonical names for domain concepts. One source of truth — code, docs, and con
 - **ROI Ranking** — the `rankCandidates()` API: sort candidate `{ surface, box, domain }` triples by `expectedMasteryDelta / max(expectedCost, ε)` descending. First consumed by Phase 14b's queue re-rank. *Not "Cost-Benefit Sort", not "Priority Score".*
 - **Calibration Report Card** — Phase 14a's only UI: a "Predictions" tab on `BrainDashboardPanel` showing reliability diagram (predicted vs realized Δmastery), Brier score on `pBoxUp`, and coverage (% of recent events whose cell had `n ≥ 10`). The "is the engine earning its keep" surface; mirrors how the Spend & Returns Panel proved Phase 9–13.
 - **Phase 14 consumer surfaces** (forward, each its own future spec):
-  - **14b — ROI-Ranked Proposal Queue** — re-weights the existing Orb queue. No new surface.
+  - **14b — ROI-Ranked Proposal Queue** *(2026-06-18 design)* — re-weights the existing Orb queue. No new surface. Each Trigger gets a `_roi` field on insertion (computed via `predictiveApi.predict()` over a per-source surface mapping); `ProposalQueue` sort comparator picks ROI **within** priority tier and after Quest weighting. Triggers without an inferable learning_point keep ROI=null and sort by tier only. Mapping table lives in `src/renderer/brain/triggerToCell.js`. UI surface: small `+ΔM / $cost` chip on each proposal card with `n` + shrinkage in the tooltip.
   - **14c — Concept ETA Sparkline** — extends Phase 12 sparkline with a dashed projection line.
   - **14d — Budget Session Planner** — new surface: "you have 15 min + $0.30, here's the recommended plan." Folds in 14f (next-best-action card with budget=1).
   - **14e — Quest Pacing Forecaster** — per-Quest ETA + bottleneck-concept list in `OrbQuestMenu`.
