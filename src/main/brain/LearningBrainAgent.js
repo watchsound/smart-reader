@@ -325,6 +325,15 @@ class LearningBrainAgent {
         console.warn('[spine] prune failed:', e.message);
       }
 
+      // Phase 14a: nightly predictive model refresh (cached for 24h).
+      try {
+        const PredictiveEngine = require('./predictive/PredictiveEngine');
+        if (!this._predictiveEngine) this._predictiveEngine = new PredictiveEngine();
+        await this._predictiveEngine.refreshModel({ force: false });
+      } catch (e) {
+        console.warn('[Brain] predictive refresh failed:', e && e.message);
+      }
+
       results.duration = Date.now() - startTime;
       console.log(
         '[LearningBrainAgent] Heartbeat completed in',
