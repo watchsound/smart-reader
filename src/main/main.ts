@@ -364,12 +364,18 @@ async function setupThirdPartySetting(userId: number): Promise<void> {
     model = store.get(`openai_model_${userId}`) as string;
   } else if (provider === AIProvider.Gemini) {
     model = store.get(`gemini_model_${userId}`) as string;
+  } else if (provider === AIProvider.Kimi) {
+    model = store.get(`kimi-model_${userId}`) as string;
+  } else if (provider === AIProvider.Claude) {
+    model = store.get(`claude-model_${userId}`) as string;
   } else if (provider === AIProvider.Baidu) {
     model = store.get(`baidu_secret_${userId}`) as string;
   } else if (provider === AIProvider.Doubao) {
     model = store.get(`doubao-model_${userId}`) as string;
   } else if (provider === AIProvider.Qwen) {
     model = store.get(`qwen-model_${userId}`) as string;
+  } else if (provider === AIProvider.Ollama) {
+    model = store.get(`ollama-model_${userId}`) as string;
   } else if (provider === AIProvider.DeepSeek) {
     model = (store.get(`deepseek-model_${userId}`) as string) || DeepSeekModel.DEEPSEEK_CHAT;
   }
