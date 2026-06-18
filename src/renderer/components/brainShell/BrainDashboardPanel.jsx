@@ -7,6 +7,7 @@ import TriggerTelemetryPanel from './TriggerTelemetryPanel';
 import EconomicsPanel from './EconomicsPanel';
 import PredictionsTab from './predictions/PredictionsTab';
 import PlanTab from './plan/PlanTab';
+import HealthTab from './health/HealthTab';
 import BrainActivityDashboard from '../../views/brainVisibility/BrainActivityDashboard';
 import ConceptInspector from '../../views/brainVisibility/ConceptInspector';
 
@@ -129,6 +130,7 @@ export default function BrainDashboardPanel() {
           <Tab label="Economics" value="economics" sx={{ minHeight: 36, py: 0 }} />
           <Tab label="Predictions" value="predictions" sx={{ minHeight: 36, py: 0 }} />
           <Tab label="Plan" value="plan" sx={{ minHeight: 36, py: 0 }} />
+          <Tab label="Health" value="health" sx={{ minHeight: 36, py: 0 }} />
           <Tab label="Visibility" value="visibility" sx={{ minHeight: 36, py: 0 }} />
         </Tabs>
 
@@ -249,6 +251,8 @@ export default function BrainDashboardPanel() {
         {activeTab === 'predictions' && <PredictionsTab />}
 
         {activeTab === 'plan' && <PlanTab />}
+
+        {activeTab === 'health' && <HealthTab />}
 
         {/* Visibility: BrainActivityDashboard + ConceptInspector drawer */}
         {activeTab === 'visibility' && (

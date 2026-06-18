@@ -334,6 +334,20 @@ class LearningBrainAgent {
         console.warn('[Brain] predictive refresh failed:', e && e.message);
       }
 
+      // Phase 15b: nightly anomaly rescan. Throttled to once / 24h so it
+      // doesn't run on every heartbeat (heartbeat is frequent).
+      try {
+        const oneDay = 24 * 3600 * 1000;
+        if (Date.now() - (this._lastAnomalyScanTs || 0) > oneDay) {
+          const detector = require('../utils/BrainAnomalyDetector');
+          const out = await detector.runAndPersist({});
+          this._lastAnomalyScanTs = Date.now();
+          if (out.found > 0) console.log(`[anomaly] detected ${out.found}, upserted ${out.upserted}, removed ${out.removed}`);
+        }
+      } catch (e) {
+        console.warn('[Brain] anomaly rescan failed:', e && e.message);
+      }
+
       results.duration = Date.now() - startTime;
       console.log(
         '[LearningBrainAgent] Heartbeat completed in',

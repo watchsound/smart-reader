@@ -2617,6 +2617,10 @@ app
     const predictiveEngine = new PredictiveEngine();
     predictiveHandlers.register(ipcMain, predictiveEngine);
 
+    // Phase 15b (Anomaly detector): list / rescan / acknowledge IPC.
+    const anomalyHandlers = require('./ipc/anomalyHandlers');
+    anomalyHandlers.register();
+
     // Phase 12: backfill mastery_event on first boot.
     const { isEmpty } = require('./db/MasteryEventStore');
     const { backfill: backfillMastery } = require('./utils/MasteryEventBackfill');

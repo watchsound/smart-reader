@@ -705,3 +705,22 @@ CREATE UNIQUE INDEX IF NOT EXISTS "idx_mastery_event_dedup" ON "mastery_event" (
 -- Idempotent: re-running this on already-tagged rows is a no-op.
 UPDATE mastery_event SET feature_surface = 'backfill'
   WHERE source = 'backfill' AND feature_surface = 'unknown';
+
+-- Phase 15b — anomaly / regression detection. One row per detected
+-- anomaly instance (UNIQUE on kind+key so rescan is idempotent).
+-- `evidence_json` carries the per-kind detail payload; `acknowledged_at`
+-- is set when the user mutes a specific instance.
+CREATE TABLE IF NOT EXISTS "brain_anomaly" (
+  "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+  "kind" TEXT NOT NULL,
+  "key" TEXT NOT NULL,
+  "severity" TEXT NOT NULL,
+  "evidence_json" TEXT,
+  "since_ts" INTEGER NOT NULL,
+  "last_seen_ts" INTEGER NOT NULL,
+  "acknowledged_at" INTEGER
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "idx_brain_anomaly_kind_key"
+  ON "brain_anomaly" ("kind", "key");
+CREATE INDEX IF NOT EXISTS "idx_brain_anomaly_last_seen"
+  ON "brain_anomaly" ("last_seen_ts");
