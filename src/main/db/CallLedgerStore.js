@@ -41,11 +41,11 @@ function record(row) {
     INSERT INTO brain_call_ledger
       (intent, ts, provider, context_keys, prompt_tokens, completion_tokens,
        cost_usd, cache_hit, cache_key, duration_ms, trigger_id, trace_id,
-       output_summary, output_json)
+       output_summary, output_json, attempt_n, failover_reason, error)
     VALUES
       (@intent, @ts, @provider, @context_keys, @prompt_tokens, @completion_tokens,
        @cost_usd, @cache_hit, @cache_key, @duration_ms, @trigger_id, @trace_id,
-       @output_summary, @output_json)
+       @output_summary, @output_json, @attempt_n, @failover_reason, @error)
   `);
   const info = stmt.run({
     intent: row.intent,
@@ -62,6 +62,11 @@ function record(row) {
     trace_id: row.trace_id ?? null,
     output_summary: row.output_summary ?? null,
     output_json: row.output_json != null ? JSON.stringify(row.output_json) : null,
+    // Phase 15 (provider failover) — per-attempt fields. Default 1/null/null
+    // when the caller doesn't set them (covers every existing call site).
+    attempt_n: row.attempt_n ?? 1,
+    failover_reason: row.failover_reason ?? null,
+    error: row.error ?? null,
   });
   return info.lastInsertRowid;
 }

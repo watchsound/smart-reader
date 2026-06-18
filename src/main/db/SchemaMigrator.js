@@ -71,6 +71,7 @@ function migrate(db) {
     const body = loadSchemaBody();
     if (!body) return { applied: false, reason: 'no schema body' };
     db.exec(body);
+    applyColumnAdditions(db);
     return { applied: true };
   } catch (err) {
     console.error('[SchemaMigrator] migration failed:', err && err.message);
@@ -78,4 +79,36 @@ function migrate(db) {
   }
 }
 
-module.exports = { migrate };
+/**
+ * Idempotent ALTER TABLE ADD COLUMN helper. Reads PRAGMA table_info to
+ * check whether the column already exists; ALTERs only if missing. This
+ * closes the gap SchemaMigrator originally left open: CREATE IF NOT EXISTS
+ * is a no-op when the table exists, so new columns added to db.sql never
+ * propagate to populated DBs without a manual one-shot script.
+ *
+ * Add new columns here whenever a phase needs them. Once added, db.sql
+ * should also carry the column in its CREATE TABLE so fresh DBs match.
+ */
+function ensureColumn(db, table, column, definition) {
+  try {
+    const cols = db.prepare(`PRAGMA table_info("${table}")`).all();
+    if (cols.some((c) => c.name === column)) return false;
+    db.exec(`ALTER TABLE "${table}" ADD COLUMN "${column}" ${definition}`);
+    return true;
+  } catch (e) {
+    console.warn(`[SchemaMigrator] ensureColumn ${table}.${column} failed:`, e && e.message);
+    return false;
+  }
+}
+
+function applyColumnAdditions(db) {
+  // Phase 15 (Reset & Deepen — provider failover): per-attempt tracking
+  // on the Call Ledger. attempt_n is 1-indexed within a single brainCall;
+  // failover_reason names the error class that triggered the next attempt;
+  // error captures the message for the row's own failed attempt (null on success).
+  ensureColumn(db, 'brain_call_ledger', 'attempt_n', 'INTEGER NOT NULL DEFAULT 1');
+  ensureColumn(db, 'brain_call_ledger', 'failover_reason', 'TEXT');
+  ensureColumn(db, 'brain_call_ledger', 'error', 'TEXT');
+}
+
+module.exports = { migrate, ensureColumn };

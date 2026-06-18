@@ -623,7 +623,14 @@ CREATE TABLE IF NOT EXISTS "brain_call_ledger" (
   "trigger_id" TEXT,
   "trace_id" TEXT,
   "output_summary" TEXT,
-  "output_json" TEXT  -- full structured output JSON; consumed by Rationale Card and Phase 10 Director Mode
+  "output_json" TEXT,  -- full structured output JSON; consumed by Rationale Card and Phase 10 Director Mode
+  -- Phase 15 (provider failover): per-attempt tracking.
+  -- attempt_n is 1-indexed within a single brainCall; failover_reason names
+  -- the error class that triggered the next attempt; error captures the
+  -- message for this row's own failed attempt (null on success).
+  "attempt_n" INTEGER NOT NULL DEFAULT 1,
+  "failover_reason" TEXT,
+  "error" TEXT
 );
 CREATE INDEX IF NOT EXISTS "idx_brain_call_ledger_ts" ON "brain_call_ledger"("ts");
 CREATE INDEX IF NOT EXISTS "idx_brain_call_ledger_intent_ts" ON "brain_call_ledger"("intent", "ts");
