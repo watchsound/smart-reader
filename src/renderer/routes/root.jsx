@@ -461,20 +461,31 @@ export default function Root() {
             </IconButton>
           )}
           <Box
+            onClick={() => navigate('/')}
+            title="Go to Brain Dashboard"
             sx={{
-              width: 34,
-              height: 34,
-              borderRadius: '8px',
-              background: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.accent} 100%)`,
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              mr: 1.5,
+              cursor: 'pointer',
+              '&:hover': { opacity: 0.85 },
             }}
           >
-            <AutoStoriesIcon sx={{ fontSize: 18, color: '#fff' }} />
+            <Box
+              sx={{
+                width: 34,
+                height: 34,
+                borderRadius: '8px',
+                background: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.accent} 100%)`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                mr: 1.5,
+              }}
+            >
+              <AutoStoriesIcon sx={{ fontSize: 18, color: '#fff' }} />
+            </Box>
+            <LogoText variant="h6">SmartReader</LogoText>
           </Box>
-          <LogoText variant="h6">SmartReader</LogoText>
           <Box sx={{ flexGrow: 1 }} />
           {isLoggedIn && <HeaderQuickActions />}
           {isLoggedIn && (
