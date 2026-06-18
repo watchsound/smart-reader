@@ -67,16 +67,48 @@ function loadSchemaBody() {
  * know which migration step needs attention.
  */
 function migrate(db) {
+  // Two-phase migration. The body exec and the column additions live in
+  // separate try blocks so a partial body failure (one bad CREATE killing
+  // the rest, e.g. a missing IF NOT EXISTS) does NOT silently swallow the
+  // column ALTERs.
+  //
+  // Concrete incident: from a0b39fa (when SchemaMigrator first shipped)
+  // through 38f25ab, `CREATE TABLE image` in db.sql lacked IF NOT EXISTS.
+  // On every boot of a populated DB, body.exec() threw on that line. The
+  // single try/catch swallowed the error and skipped applyColumnAdditions.
+  // Result: Phase 15a-1's attempt_n/failover_reason/error columns never
+  // applied, and Phase 15a-2's latencyByIntent query failed with
+  // "no such column: error". Fixed in this commit by (a) IF NOT EXISTS on
+  // the image table and (b) splitting the try blocks so future similar
+  // body breakage doesn't block column adds.
+  let bodyApplied = false;
+  let bodyErr = null;
   try {
     const body = loadSchemaBody();
-    if (!body) return { applied: false, reason: 'no schema body' };
-    db.exec(body);
-    applyColumnAdditions(db);
-    return { applied: true };
+    if (body) {
+      db.exec(body);
+      bodyApplied = true;
+    }
   } catch (err) {
-    console.error('[SchemaMigrator] migration failed:', err && err.message);
-    return { applied: false, error: err && err.message };
+    bodyErr = err;
+    console.error('[SchemaMigrator] body exec failed:', err && err.message);
   }
+  let columnsApplied = false;
+  let columnsErr = null;
+  try {
+    applyColumnAdditions(db);
+    columnsApplied = true;
+  } catch (err) {
+    columnsErr = err;
+    console.error('[SchemaMigrator] applyColumnAdditions failed:', err && err.message);
+  }
+  return {
+    applied: bodyApplied || columnsApplied,
+    bodyApplied,
+    columnsApplied,
+    bodyError: bodyErr && bodyErr.message,
+    columnsError: columnsErr && columnsErr.message,
+  };
 }
 
 /**

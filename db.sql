@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS "annotation" (
   "user_id"  INTEGER
 );
 
-CREATE TABLE image (
+CREATE TABLE IF NOT EXISTS "image" (
   "id"  INTEGER PRIMARY KEY AUTOINCREMENT,
   "data" TEXT,
   "hashcode" INTEGER
