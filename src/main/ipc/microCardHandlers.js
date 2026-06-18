@@ -23,6 +23,7 @@ import microCardProposer from '../utils/MicroCardProposer';
 import { learningPointService } from '../utils/LearningPointService';
 import { extractForDomain } from '../utils/extractors';
 import { LIVE_WRITABLE_DOMAINS } from '../../commons/model/LearningPointDomains';
+import { getUserIdFromToken } from '../db/dbManager';
 
 let registered = false;
 
@@ -147,6 +148,29 @@ function registerMicroCardHandlers(_services = {}) {
           success: false,
           error: created?.error || 'Failed to create learning point',
         };
+      }
+
+      // Phase 13 attribution: record mastery_event entry for new LP.
+      // proximateCallId is null — the proposal chain spans multiple LLM
+      // calls (extract + propose), so no single call can be attributed.
+      try {
+        const recorder = require('../db/masteryEventRecorder');
+        const userId = getUserIdFromToken(token);
+        recorder.recordWithProximateCall({
+          traceId: null,
+          surface: 'reading-microcard',
+          learningPointId: created.id,
+          userId,
+          ts: Date.now(),
+          eventType: 'mastery_change',
+          prevBox: null,
+          newBox: 1,
+          prevMastery: null,
+          newMastery: 0,
+          source: 'microcard-accept',
+        });
+      } catch (_e) {
+        // Swallow — telemetry must not break the accept flow.
       }
 
       // 4. Acknowledge mode means "I already know this — track as a
