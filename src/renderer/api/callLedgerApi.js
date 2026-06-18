@@ -97,6 +97,35 @@ const callLedgerApi = {
       { limit },
     );
   },
+
+  // ── Phase 13 attribution channels ────────────────────────────────────────
+
+  /**
+   * Fetch cost-per-group bar data grouped by a lens (attention | phase | intent).
+   * @param {{ lens: string, from: number, to: number, userId: number }} opts
+   * @returns {Promise<import('../../main/utils/AttributionService').BarRow[]>}
+   */
+  attributionBars(opts) {
+    return window.electron.ipcRenderer.invoke('callLedger:attributionBars', opts);
+  },
+
+  /**
+   * Fetch per-event detail rows for a specific group within a lens.
+   * @param {{ lens: string, groupKey: string, from: number, to: number, userId: number, limit?: number }} opts
+   * @returns {Promise<import('../../main/utils/AttributionService').GroupDetail>}
+   */
+  attributionGroupDetail(opts) {
+    return window.electron.ipcRenderer.invoke('callLedger:attributionGroupDetail', opts);
+  },
+
+  /**
+   * Fetch time-series density strip data for the Attribution view sparkline.
+   * @param {number} userId
+   * @returns {Promise<import('../../main/db/CallLedgerStore').DensityRow[]>}
+   */
+  attributionDensityStrip(userId) {
+    return window.electron.ipcRenderer.invoke('callLedger:attributionDensityStrip', { userId });
+  },
 };
 
 export default callLedgerApi;

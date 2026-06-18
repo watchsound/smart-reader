@@ -24,7 +24,7 @@ const comprehensionApi = {
   },
 
   /**
-   * @param {{ chapterTitle: string, textExcerpt: string, bookTitle?: string, question: string, answer: string }} params
+   * @param {{ chapterTitle: string, textExcerpt: string, bookTitle?: string, question: string, answer: string, learningPointId?: string|null, questionId?: string|null }} params
    * @returns {Promise<{ score: number, strengths: string[], gaps: string[], feedback: string } | { error: string }>}
    */
   async gradeAnswer({
@@ -33,6 +33,8 @@ const comprehensionApi = {
     bookTitle = '',
     question,
     answer,
+    learningPointId = null,   // Phase 13: attribution — passed through to mastery_event writer
+    questionId = null,        // Phase 13: attribution — passed through to mastery_event writer
   }) {
     return window.electron.ipcRenderer.invoke('comprehension-grade-answer', {
       chapterTitle,
@@ -40,6 +42,8 @@ const comprehensionApi = {
       bookTitle,
       question,
       answer,
+      learningPointId,
+      questionId,
     });
   },
 };
