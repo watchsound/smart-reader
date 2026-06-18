@@ -61,3 +61,45 @@ test('isEmpty returns true on fresh DB, false after insert', () => {
   MasteryEventStore.record({ learningPointId: 'lp-1', userId: 1, ts: 1000, eventType: 'imported', newBox: 1, newMastery: 25, source: 'backfill' });
   expect(MasteryEventStore.isEmpty()).toBe(false);
 });
+
+describe('record() — Phase 13 attribution fields', () => {
+  it('persists proximate_call_id + feature_surface when supplied', () => {
+    const db = freshDb();
+    const callId = db.prepare(`
+      INSERT INTO brain_call_ledger (intent, ts, provider, cost_usd, cache_hit)
+      VALUES ('director-session-step', ?, 'deepseek', 0.0042, 0)
+    `).run(Date.now()).lastInsertRowid;
+
+    MasteryEventStore.record({
+      learningPointId: 'lp-1',
+      userId: 1,
+      ts: Date.now(),
+      eventType: 'review',
+      source: 'director-session',
+      sourceRef: 'trace-xyz',
+      featureSurface: 'director-session',
+      proximateCallId: callId,
+    });
+
+    const row = db.prepare(
+      `SELECT proximate_call_id, feature_surface FROM mastery_event WHERE learning_point_id='lp-1'`
+    ).get();
+    expect(row.feature_surface).toBe('director-session');
+    expect(row.proximate_call_id).toBe(callId);
+  });
+
+  it('defaults feature_surface to "unknown" when omitted', () => {
+    const db = freshDb();
+    db.prepare(`INSERT INTO learning_point (id, user_id, domain_type, title, front, back, source_type, box, mastery_level, created_at, updated_at)
+                VALUES ('lp-2', 1, 'vocabulary', 'test', '{}', '{}', 'manual', 1, 0, datetime('now'), datetime('now'))`).run();
+
+    MasteryEventStore.record({
+      learningPointId: 'lp-2', userId: 1, ts: Date.now(),
+      eventType: 'review', source: 'legacy',
+    });
+    const row = db.prepare(
+      `SELECT feature_surface FROM mastery_event WHERE learning_point_id='lp-2'`
+    ).get();
+    expect(row.feature_surface).toBe('unknown');
+  });
+});

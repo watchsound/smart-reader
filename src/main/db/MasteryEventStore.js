@@ -28,6 +28,8 @@ const dbManager = require('./dbManager');
  * @param {string}      ev.source         - originating system, e.g. 'user-review'
  * @param {string|null} [ev.sourceRef]    - FK to the source row (e.g. sr_item id)
  * @param {string|null} [ev.notes]
+ * @param {number|null} [ev.proximateCallId] — FK to brain_call_ledger.id when a single LLM call directly caused this mastery move (Phase 13)
+ * @param {string} [ev.featureSurface='unknown'] — feature surface enum value from commons/model/featureSurface.js (Phase 13)
  */
 function record(ev) {
   const db = dbManager.getDb();
@@ -36,14 +38,17 @@ function record(ev) {
       INSERT INTO mastery_event
         (learning_point_id, user_id, ts, event_type,
          prev_box, new_box, prev_mastery, new_mastery,
-         rating, source, source_ref, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         rating, source, source_ref, notes,
+         proximate_call_id, feature_surface)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       ev.learningPointId, ev.userId, ev.ts, ev.eventType,
       ev.prevBox    ?? null, ev.newBox     ?? null,
       ev.prevMastery ?? null, ev.newMastery ?? null,
       ev.rating     ?? null, ev.source,
       ev.sourceRef  ?? null, ev.notes      ?? null,
+      ev.proximateCallId ?? null,
+      ev.featureSurface ?? 'unknown',
     );
   } catch (e) {
     // Silently absorb duplicate-key violations on the dedup index.
