@@ -290,6 +290,95 @@ function listSessionTraces({ limit = 20 } = {}) {
   return rows;
 }
 
+/**
+ * Phase 13 Attribution: per-surface aggregation in [fromMs, toMs).
+ * Returns one row per feature_surface present in the window with:
+ *   - direct_cost_usd, direct_event_count: events with proximate_call_id set
+ *   - amortized_event_count: events without (cost computed downstream)
+ *
+ * @param {{ userId: number, fromMs: number, toMs: number }} opts
+ * @returns {{ feature_surface: string, direct_cost_usd: number, direct_event_count: number, amortized_event_count: number }[]}
+ */
+function aggregateAttribution({ userId, fromMs, toMs }) {
+  const db = DBManager.getDb();
+  return db.prepare(`
+    SELECT
+      e.feature_surface,
+      SUM(CASE WHEN e.proximate_call_id IS NOT NULL THEN COALESCE(c.cost_usd, 0) ELSE 0 END) AS direct_cost_usd,
+      SUM(CASE WHEN e.proximate_call_id IS NOT NULL THEN 1 ELSE 0 END) AS direct_event_count,
+      SUM(CASE WHEN e.proximate_call_id IS NULL THEN 1 ELSE 0 END) AS amortized_event_count
+    FROM mastery_event e
+    LEFT JOIN brain_call_ledger c ON c.id = e.proximate_call_id
+    WHERE e.user_id = ? AND e.ts >= ? AND e.ts < ?
+    GROUP BY e.feature_surface
+  `).all(userId, fromMs, toMs);
+}
+
+/**
+ * Total cost_usd per intent within [fromMs, toMs). Used as the amortization
+ * spend pool for surfaces whose calls cannot be directly attributed.
+ *
+ * @param {{ fromMs: number, toMs: number }} opts
+ * @returns {Record<string, number>} map of intent → total cost
+ */
+function intentSpendInWindow({ fromMs, toMs }) {
+  const db = DBManager.getDb();
+  const rows = db.prepare(`
+    SELECT intent, SUM(CASE WHEN cache_hit = 0 THEN cost_usd ELSE 0 END) AS total
+    FROM brain_call_ledger
+    WHERE ts >= ? AND ts < ?
+    GROUP BY intent
+  `).all(fromMs, toMs);
+  return Object.fromEntries(rows.map((r) => [r.intent, r.total || 0]));
+}
+
+/**
+ * Per-surface drill-down: events + their proximate call (intent + cost) if any.
+ * Filter by `surfaces` list OR by a single `intent`. Ordered newest first.
+ *
+ * @param {{ userId: number, fromMs: number, toMs: number, surfaces?: string[], intent?: string, limit?: number }} opts
+ */
+function attributionGroupDetail({ userId, fromMs, toMs, surfaces, intent, limit = 50 }) {
+  const db = DBManager.getDb();
+  if (intent) {
+    return db.prepare(`
+      SELECT e.learning_point_id, e.ts, e.feature_surface, e.proximate_call_id,
+             c.intent, c.cost_usd AS proximate_cost_usd
+      FROM mastery_event e
+      LEFT JOIN brain_call_ledger c ON c.id = e.proximate_call_id
+      WHERE e.user_id = ? AND e.ts >= ? AND e.ts < ? AND c.intent = ?
+      ORDER BY e.ts DESC LIMIT ?
+    `).all(userId, fromMs, toMs, intent, limit);
+  }
+  const placeholders = surfaces.map(() => '?').join(',');
+  return db.prepare(`
+    SELECT e.learning_point_id, e.ts, e.feature_surface, e.proximate_call_id,
+           c.intent, c.cost_usd AS proximate_cost_usd
+    FROM mastery_event e
+    LEFT JOIN brain_call_ledger c ON c.id = e.proximate_call_id
+    WHERE e.user_id = ? AND e.ts >= ? AND e.ts < ?
+      AND e.feature_surface IN (${placeholders})
+    ORDER BY e.ts DESC LIMIT ?
+  `).all(userId, fromMs, toMs, ...surfaces, limit);
+}
+
+/**
+ * Daily mastery_event count for the brushable density timeline.
+ * Returns one row per UTC day with { day: 'YYYY-MM-DD', count: number }, oldest first.
+ *
+ * @param {{ userId: number }} opts
+ */
+function attributionDensityStrip({ userId }) {
+  const db = DBManager.getDb();
+  return db.prepare(`
+    SELECT strftime('%Y-%m-%d', ts/1000, 'unixepoch') AS day, COUNT(*) AS count
+    FROM mastery_event
+    WHERE user_id = ?
+    GROUP BY day
+    ORDER BY day ASC
+  `).all(userId);
+}
+
 module.exports = {
   record,
   recordCacheHit,
@@ -303,4 +392,8 @@ module.exports = {
   listSessionTraces,
   prune,
   bindTriggerId,
+  aggregateAttribution,
+  intentSpendInWindow,
+  attributionGroupDetail,
+  attributionDensityStrip,
 };
