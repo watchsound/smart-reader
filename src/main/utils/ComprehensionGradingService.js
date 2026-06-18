@@ -121,6 +121,8 @@ class ComprehensionGradingService {
       userId,
       bookId,
       chapterIndex,
+      learningPointId,
+      questionId,
     } = input;
 
     if (!aiProviderManager.currentProvider) return { error: 'No AI provider configured.' };
@@ -161,7 +163,7 @@ class ComprehensionGradingService {
       return { error: 'AI returned empty grading result.' };
     }
 
-    return {
+    const grade = {
       score:
         typeof raw.score === 'number'
           ? Math.max(0, Math.min(100, raw.score))
@@ -173,6 +175,34 @@ class ComprehensionGradingService {
       feedback: typeof raw.feedback === 'string' ? raw.feedback.trim() : '',
       callId: gradingCallId,
     };
+
+    // Phase 13 attribution: emit a mastery_event when we have a learning point
+    // to attribute the grade to. We use explicitCallId (the brainCall id we
+    // already captured) so the recorder skips the trace-lookup path.
+    if (learningPointId) {
+      try {
+        const recorder = require('../db/masteryEventRecorder');
+        recorder.recordWithProximateCall({
+          traceId: null,
+          explicitCallId: gradingCallId,
+          surface: 'comprehension',
+          learningPointId,
+          userId: userId || 1,
+          ts: Date.now(),
+          eventType: 'mastery_change',
+          prevBox: null,
+          newBox: null,
+          prevMastery: null,
+          newMastery: grade.score,
+          source: 'comprehension-grade',
+          sourceRef: questionId || null,
+        });
+      } catch (_e) {
+        // Never break grading on a telemetry write failure.
+      }
+    }
+
+    return grade;
   }
 }
 
