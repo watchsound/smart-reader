@@ -184,6 +184,7 @@ There is no dedicated technical doc per loop yet — code is the source of truth
 | Phase 8b — Organize loop | Cluster of ≥5 same-domain learning points in same book | `MoodBoardOrganizerService` (SQL cluster detection + dedup + Slice 3 `createBoardFromCluster`) | organize banner in `MoodBoardView` |
 | Phase 8c — Production loop | High-mastery learning point | `ProductionPromptService.schedulePrompt` (mastery ≥ 60, ≥3 reviews, substantive back) | `ProductionPromptPanel` |
 | Phase 9 — Brain Spine | every LLM call site | `brain/spine/brainCall` + `meteredCall` (BrainContext + Intent Registry + Tool Registry + Call Ledger) | `RationaleCard` + `EconomicsPanel` in `BrainDashboardPanel`; TriggerTelemetryPanel intent column |
+| Phase 14a — Predictive Engine | nightly heartbeat refresh | `brain/predictive/PredictiveEngine` (empirical-Bayes over `mastery_event ⋈ brain_call_ledger`, hierarchical shrinkage by `(surface, box, domain)`) | `PredictionsTab` in `BrainDashboardPanel` (calibration KPIs + reliability diagram) |
 
 Cross-loop plumbing:
 - Episode types defined in `EpisodeCollector.EVENT_TYPES` (mirrored on the renderer as `EPISODE_TYPES` in `renderer/api/brainApi.js`)
