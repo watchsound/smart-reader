@@ -248,8 +248,10 @@ class SessionRunner {
 
           if (decision.tool === 'openLeitnerCard' && userResult?.rating != null) {
             try {
-              const MasteryEventStore = require('../../db/MasteryEventStore');
-              MasteryEventStore.record({
+              const recorder = require('../../db/masteryEventRecorder');
+              recorder.recordWithProximateCall({
+                traceId: state.traceId,
+                surface: 'director-session',
                 learningPointId: decision.args?.learningPointId,
                 userId: state.userId,
                 ts: Date.now(),
@@ -258,7 +260,7 @@ class SessionRunner {
                 source: 'director-session',
                 sourceRef: state.traceId,
               });
-            } catch (_e) { /* swallow — telemetry must never break the session loop */ }
+            } catch (_e) { /* never break the session loop */ }
           }
           const summary = JSON.stringify(userResult).slice(0, 200);
           state.observations.push({ tool: decision.tool, summary });
