@@ -2,6 +2,97 @@
 
 An autonomous background agent that manages learning through episodic memory and periodic analysis. Inspired by [OpenClaw](https://openclaw.ai) heartbeat mechanism and [Graphiti/Zep](https://github.com/getzep/graphiti) episodic memory.
 
+> **Note (2026-06-18):** This document describes the foundational Brain layer (background service, episode collection, consolidation). Phase 9–15 added significant layers on top. Read this whole section first for the current shape; the rest of the doc remains authoritative for the foundational pieces.
+
+### Current Stack (Phase 9–15)
+
+The Brain today is a layered stack. Foundational layer (this doc, below) sits at the bottom; Phase 9 adds the LLM access spine; Phase 10b adds AI-driven sessions; Phase 11–12 add visibility + trajectory; Phase 13 adds attribution; Phase 14 adds the Predictive Engine and four consumers; Phase 15 adds reliability + anomaly detection.
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│  Brain Dashboard surfaces (BrainDashboardPanel)                       │
+│  Overview │ Trigger Log │ Spend & Returns │ Predictions │ Plan │     │
+│  Health   │ Visibility                                                │
+└──────────────────────────────────────────────────────────────────────┘
+                                  ▲
+┌─────────────────────────────────┴────────────────────────────────────┐
+│  Phase 14a Predictive Engine + consumers                              │
+│  brain/predictive/PredictiveEngine         (empirical-Bayes model)    │
+│  brain/predictive/conceptProjection         (per-concept ETA, 14c)    │
+│  utils/BudgetSessionPlanner                 (14d budget planner)      │
+│  utils/QuestPacingService                   (14e Quest pacing)        │
+│  renderer/brain/triggerToCell               (14b queue ROI rank)      │
+└─────────────────────────────────▲────────────────────────────────────┘
+                                  │  consumes
+┌─────────────────────────────────┴────────────────────────────────────┐
+│  Phase 13 Attribution Layer                                           │
+│  utils/AttributionService    (mastery_event ⋈ brain_call_ledger)     │
+│  db.feature_surface enum     (proximate_call_id + amortized cost)    │
+└─────────────────────────────────▲────────────────────────────────────┘
+                                  │
+┌─────────────────────────────────┴────────────────────────────────────┐
+│  Phase 11–12 Visibility + Trajectory                                  │
+│  utils/BrainVisibilityService    (dashboard + concept inspector)     │
+│  db/MasteryEventStore            (append-only mastery_event table)   │
+└─────────────────────────────────▲────────────────────────────────────┘
+                                  │
+┌─────────────────────────────────┴────────────────────────────────────┐
+│  Phase 10/10b Director Mode                                           │
+│  brain/director/SessionRunner    (AI-driven study sessions)          │
+│  brain/spine/tools.js            (registered Brain-invokable tools)  │
+└─────────────────────────────────▲────────────────────────────────────┘
+                                  │
+┌─────────────────────────────────┴────────────────────────────────────┐
+│  Phase 9 Brain Spine (every LLM call)                                 │
+│  brain/spine/brainCall + meteredCall + meteredCallJson               │
+│  brain/spine/providerFailover    (Phase 15a-1 same-provider retry)   │
+│  brain/spine/BrainContext        (canonical learner snapshot)        │
+│  brain/spine/intents             (Intent Registry)                   │
+│  db/CallLedgerStore              (brain_call_ledger + latency stats) │
+└─────────────────────────────────▲────────────────────────────────────┘
+                                  │
+┌─────────────────────────────────┴────────────────────────────────────┐
+│  Phase 15b Anomaly Detection (cross-cutting)                          │
+│  utils/BrainAnomalyDetector     (4 detectors, nightly + on-demand)   │
+│  db.brain_anomaly               (persisted + acknowledge state)      │
+└─────────────────────────────────▲────────────────────────────────────┘
+                                  │  reads from all layers
+┌─────────────────────────────────┴────────────────────────────────────┐
+│  Foundational layer (this document, below)                            │
+│  brain/LearningBrainAgent        (heartbeat orchestrator)            │
+│  brain/EpisodeCollector          (episodic memory)                   │
+│  brain/HybridScheduler           (timing)                            │
+│  utils/ConsolidationService      (LLM-driven memory consolidation)   │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+**The heartbeat (`LearningBrainAgent.runHeartbeat`) now runs three extra steps after the original Brain checklist:**
+1. Phase 9 Call Ledger prune (90d / 10K rows LRU)
+2. Phase 14a Predictive Engine model refresh (24h cache)
+3. Phase 15b anomaly rescan (24h throttle)
+
+**Read the specs for design rationale:**
+- [Phase 9 — Brain Spine](../superpowers/specs/2026-06-17-phase-9-brain-spine-design.md)
+- [Phase 10b — Study-Session Director](../superpowers/specs/2026-06-17-phase-10b-study-session-director-design.md)
+- [Phase 11 — Brain Visibility](../superpowers/specs/2026-06-17-phase-11-brain-visibility-design.md)
+- [Phase 12 — Mastery Trajectory](../superpowers/specs/2026-06-17-phase-12-mastery-trajectory-design.md)
+- [Phase 13 — Attribution Layer](../superpowers/specs/2026-06-18-phase-13-attribution-design.md)
+- [Phase 14a — Predictive Engine](../superpowers/specs/2026-06-18-phase-14a-predictive-engine-design.md)
+- [Phase 14b — ROI-Ranked Proposal Queue](../superpowers/specs/2026-06-18-phase-14b-roi-ranked-queue-design.md)
+- [Phase 14c — Concept ETA Sparkline](../superpowers/specs/2026-06-18-phase-14c-concept-eta-sparkline-design.md)
+- [Phase 14d — Budget Session Planner](../superpowers/specs/2026-06-18-phase-14d-budget-session-planner-design.md)
+- [Phase 14e — Quest Pacing Forecaster](../superpowers/specs/2026-06-18-phase-14e-quest-pacing-forecaster-design.md)
+- [Phase 15a — Reset & Deepen](../superpowers/specs/2026-06-18-phase-15a-reset-and-deepen-design.md)
+- [Phase 15b — Anomaly Detection](../superpowers/specs/2026-06-18-phase-15b-anomaly-detection-design.md)
+
+Glossary: [CONTEXT.md](../../CONTEXT.md)
+
+---
+
+### Foundational layer (original document)
+
+The remainder of this document describes the original Phase 0–8 layer: the background service, episode collector, consolidation pipeline, and notification system. Still in active use; the Phase 9+ stack composes on top of it.
+
 ### Architecture
 
 ```
