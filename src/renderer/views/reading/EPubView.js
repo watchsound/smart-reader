@@ -71,6 +71,8 @@ import {
   ensureVocabBackfilled,
 } from '../../api/learningPointApi';
 import { classify } from '../../utils/srsHaloClassifier';
+import { analyzeParagraph } from '../../api/argumentXrayApi';
+import { classify as classifyXray } from '../../utils/argumentXrayClassifier';
 
 const cardWidth = 360;
 
@@ -846,6 +848,29 @@ function EPubView({
             }
           } catch (error) {
             console.error('Smart Summary error:', error);
+          }
+        })();
+      }
+      return;
+    }
+
+    if (selectionType === SelectionType.ArgumentXray) {
+      setOpenDialog(false);
+      const text = rendition.getRange(cfiRange).toString() || '';
+      if (text.length > 20 && animations.isReady && animations.applySrsHalo) {
+        (async () => {
+          try {
+            const token = customStorage.getToken();
+            const analysis = await analyzeParagraph(text, token);
+            if (analysis?.error) {
+              console.warn('[ArgumentXray]', analysis.error);
+              return;
+            }
+            const items = classifyXray(analysis);
+            if (items.length === 0) return;
+            await animations.applySrsHalo(items);
+          } catch (err) {
+            console.warn('[ArgumentXray] failed:', err?.message || err);
           }
         })();
       }

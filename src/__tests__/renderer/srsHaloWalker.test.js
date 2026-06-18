@@ -90,6 +90,31 @@ describe('wrapMatchesInDocument', () => {
     expect(spans).toHaveLength(1);
   });
 
+  it("wraps a 'claim' word with .argument-claim (Argument X-ray)", () => {
+    // Argument X-ray (#13) reuses this walker. Claims are propositional
+    // statements; visually they need to stand apart from evidence so the
+    // load-bearing structure of the paragraph surfaces at a glance. The
+    // class is the contract — CSS controls the actual gold tint.
+    wrapMatchesInDocument(document, body, [
+      { word: 'cat', state: 'claim', intensity: 0 },
+    ]);
+    const span = body.querySelector('span.argument-claim');
+    expect(span).toBeTruthy();
+    expect(span.textContent).toBe('cat');
+  });
+
+  it("wraps an 'evidence' word with .argument-evidence (Argument X-ray)", () => {
+    // Evidence words are the supporting facts/examples/citations. Distinct
+    // class from claims so the reader can see at-a-glance which words carry
+    // the argument vs. which back it up.
+    wrapMatchesInDocument(document, body, [
+      { word: 'cat', state: 'evidence', intensity: 0 },
+    ]);
+    const span = body.querySelector('span.argument-evidence');
+    expect(span).toBeTruthy();
+    expect(span.textContent).toBe('cat');
+  });
+
   it('skips text inside SCRIPT, STYLE, CODE, PRE — never haloes code samples or markup', () => {
     // A reader's EPUB may include programming examples, embedded scripts,
     // or raw style blocks. Haloing matching tokens INSIDE these would

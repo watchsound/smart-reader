@@ -15,9 +15,12 @@ const normalize = (s) =>
 const classForState = (state) => {
   if (state === 'mastered') return 'epub-ac-srs-mastered';
   if (state === 'foggy') return 'epub-ac-srs-foggy';
+  if (state === 'claim') return 'argument-claim';
+  if (state === 'evidence') return 'argument-evidence';
   return 'epub-ac-lexical-halo';
 };
 
+// eslint-disable-next-line import/prefer-default-export
 export const wrapMatchesInDocument = (doc, root, items, options = {}) => {
   const targets = new Map();
   items.forEach((item) => {
@@ -44,6 +47,8 @@ export const wrapMatchesInDocument = (doc, root, items, options = {}) => {
     'epub-ac-lexical-halo',
     'epub-ac-srs-foggy',
     'epub-ac-srs-mastered',
+    'argument-claim',
+    'argument-evidence',
   ]);
   const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
     acceptNode: (n) => {
@@ -52,10 +57,17 @@ export const wrapMatchesInDocument = (doc, root, items, options = {}) => {
       while (p && p !== root) {
         if (excludeTags.has(p.tagName)) return NodeFilter.FILTER_REJECT;
         if (p.classList) {
+          const cls = p.classList;
           let alreadyHaloed = false;
-          haloClasses.forEach((c) => {
-            if (p.classList.contains(c)) alreadyHaloed = true;
-          });
+          // for-of avoids no-loop-func: the loop body references `cls`
+          // (stable per iteration), not the outer `p`.
+          // eslint-disable-next-line no-restricted-syntax
+          for (const c of haloClasses) {
+            if (cls.contains(c)) {
+              alreadyHaloed = true;
+              break;
+            }
+          }
           if (alreadyHaloed) return NodeFilter.FILTER_REJECT;
         }
         p = p.parentNode;

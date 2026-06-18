@@ -17,6 +17,7 @@ import CameraAltIcon from '@mui/icons-material/CameraAlt';
 import SlideshowIcon from '@mui/icons-material/Slideshow';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
+import BalanceIcon from '@mui/icons-material/Balance';
 import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -32,6 +33,7 @@ export const SelectionType = Object.freeze({
   Presentation: 'presentation',
   SmartSummary: 'smartSummary',
   MindMap: 'mindmap',
+  ArgumentXray: 'argumentXray',
   Cancel: 'cancel',
 });
 
@@ -256,6 +258,14 @@ function CreateAnnotationPanel({
               </QuickAction>
             </Tooltip>
           )}
+          <Tooltip title="Argument X-ray (highlight claims vs evidence)">
+            <QuickAction
+              actioncolor="#d4b86a"
+              onClick={() => handleClose(SelectionType.ArgumentXray)}
+            >
+              <BalanceIcon sx={{ fontSize: 20 }} />
+            </QuickAction>
+          </Tooltip>
         </Box>
       </Section>
 

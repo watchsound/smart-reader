@@ -330,6 +330,29 @@ class EPUBAdapter {
         opacity: 0;
         animation: epub-ac-mastered-emerge 600ms ease-out forwards;
       }
+
+      @keyframes argument-xray-emerge {
+        from { background-color: rgba(0, 0, 0, 0); }
+        to   { background-color: var(--ax-bg); }
+      }
+      .argument-claim {
+        --ax-bg: rgba(212, 184, 106, 0.30);
+        display: inline;
+        background-color: var(--ax-bg);
+        border-bottom: 2px solid rgba(212, 184, 106, 0.85);
+        padding-bottom: 1px;
+        animation: argument-xray-emerge 500ms ease-out both;
+        cursor: help;
+      }
+      .argument-evidence {
+        --ax-bg: rgba(100, 180, 255, 0.22);
+        display: inline;
+        background-color: var(--ax-bg);
+        border-bottom: 2px solid rgba(100, 180, 255, 0.75);
+        padding-bottom: 1px;
+        animation: argument-xray-emerge 500ms ease-out both;
+        cursor: help;
+      }
     `;
 
     this.currentDocument.head.appendChild(style);
