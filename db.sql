@@ -37,7 +37,7 @@ DROP TABLE IF EXISTS "ai_session_trace";
 DROP TABLE IF EXISTS "ai_sessions";
 DROP TABLE IF EXISTS "mastery_event";
 
-CREATE TABLE "user" (
+CREATE TABLE IF NOT EXISTS "user" (
   "id"  INTEGER PRIMARY KEY AUTOINCREMENT,
   "username"  TEXT,
   "email"  TEXT UNIQUE,
@@ -45,7 +45,7 @@ CREATE TABLE "user" (
   "status"  INTEGER
 );
 
-CREATE TABLE "note" (
+CREATE TABLE IF NOT EXISTS "note" (
   "id" INTEGER PRIMARY KEY AUTOINCREMENT,
   "data" TEXT,
   "leitner_item_id"  INTEGER,
@@ -53,7 +53,7 @@ CREATE TABLE "note" (
   "user_id"  INTEGER
 );
 
-CREATE TABLE "annotation" (
+CREATE TABLE IF NOT EXISTS "annotation" (
   "id" INTEGER PRIMARY KEY AUTOINCREMENT,
   "data" TEXT,
   "created_at" TEXT,
@@ -66,7 +66,7 @@ CREATE TABLE image (
   "hashcode" INTEGER
 );
 
-CREATE TABLE "bookmark_group" (
+CREATE TABLE IF NOT EXISTS "bookmark_group" (
   "id" INTEGER PRIMARY KEY AUTOINCREMENT,
   "group_name" TEXT NOT NULL,
   "parent_group_id" INTEGER,
@@ -75,7 +75,7 @@ CREATE TABLE "bookmark_group" (
   FOREIGN KEY ("parent_group_id") REFERENCES "bookmark_group"("id")
 );
 
-CREATE TABLE "bookmark" (
+CREATE TABLE IF NOT EXISTS "bookmark" (
   "id"  INTEGER PRIMARY KEY AUTOINCREMENT,
   "source_key"  TEXT,
   "source_type" TEXT,
@@ -92,14 +92,14 @@ CREATE TABLE "bookmark" (
   FOREIGN KEY ("group_id") REFERENCES "bookmark_group"("id")
 );
 
-CREATE TABLE "history_group" (
+CREATE TABLE IF NOT EXISTS "history_group" (
   "id" INTEGER PRIMARY KEY AUTOINCREMENT,
   "group_name" TEXT NOT NULL,
   "created_at" TEXT,
   "user_id"  INTEGER
 );
 
-CREATE TABLE "history" (
+CREATE TABLE IF NOT EXISTS "history" (
   "id"  INTEGER PRIMARY KEY AUTOINCREMENT,
   "source_key"  TEXT,
   "source_type" TEXT,
@@ -110,14 +110,14 @@ CREATE TABLE "history" (
   "group_id" INTEGER
 );
 
-CREATE TABLE "bookshelf" (
+CREATE TABLE IF NOT EXISTS "bookshelf" (
   "id" INTEGER PRIMARY KEY AUTOINCREMENT,
   "name" TEXT NOT NULL,
   "created_at" TEXT,
   "user_id"  INTEGER
 );
 
-CREATE TABLE "book" (
+CREATE TABLE IF NOT EXISTS "book" (
   "id"  INTEGER PRIMARY KEY AUTOINCREMENT,
   "key_in_storage" TEXT,
   "id_from_server" INTEGER,
@@ -139,7 +139,7 @@ CREATE TABLE "book" (
   "user_id"  INTEGER
 );
 
-CREATE TABLE "prompt" (
+CREATE TABLE IF NOT EXISTS "prompt" (
   "id"  INTEGER PRIMARY KEY AUTOINCREMENT,
   "title"  INTEGER,
   "content"  TEXT,
@@ -148,7 +148,7 @@ CREATE TABLE "prompt" (
   "user_id"  INTEGER
 );
 
-CREATE TABLE "chat" (
+CREATE TABLE IF NOT EXISTS "chat" (
   "id"  INTEGER PRIMARY KEY AUTOINCREMENT,
   "description"  TEXT,
   "total_tokens"  INTEGER,
@@ -159,7 +159,7 @@ CREATE TABLE "chat" (
   "user_id"  INTEGER
 );
 
-CREATE TABLE "message" (
+CREATE TABLE IF NOT EXISTS "message" (
   "id"  INTEGER PRIMARY KEY AUTOINCREMENT,
   "chat_id"  INTEGER,
   "role"  TEXT,
@@ -169,14 +169,14 @@ CREATE TABLE "message" (
   "user_id"  INTEGER
 );
 
-CREATE TABLE "quiz_problem" (
+CREATE TABLE IF NOT EXISTS "quiz_problem" (
   "id"  INTEGER PRIMARY KEY AUTOINCREMENT,
   "data" TEXT,
   "created_at" TEXT,
   "user_id"  INTEGER
 );
 
-CREATE TABLE "mood_board" (
+CREATE TABLE IF NOT EXISTS "mood_board" (
   "id"  INTEGER PRIMARY KEY AUTOINCREMENT,
   "name"  TEXT,
   "description"  TEXT,
@@ -187,7 +187,7 @@ CREATE TABLE "mood_board" (
   "user_id"  INTEGER
 );
 
-CREATE TABLE "vocabulary" (
+CREATE TABLE IF NOT EXISTS "vocabulary" (
   "id"  INTEGER PRIMARY KEY AUTOINCREMENT,
   "word"  TEXT,
   "definition"  TEXT,
@@ -199,7 +199,7 @@ CREATE TABLE "vocabulary" (
   "user_id"  INTEGER
 );
 
-CREATE TABLE "leitner_item" (
+CREATE TABLE IF NOT EXISTS "leitner_item" (
   "id"  INTEGER PRIMARY KEY AUTOINCREMENT,
   "type" INTEGER,
   "box" INTEGER,
@@ -210,7 +210,7 @@ CREATE TABLE "leitner_item" (
   "score"  INTEGER
 );
 
-CREATE TABLE "vocabulary_set" (
+CREATE TABLE IF NOT EXISTS "vocabulary_set" (
   "id"  INTEGER PRIMARY KEY AUTOINCREMENT,
   "name"  TEXT,
   "score"  INTEGER,
@@ -226,7 +226,7 @@ CREATE TABLE "vocabulary_set" (
 -- vocabulary, notes, formulas, problems, etc.
 -- with embedded Leitner spaced repetition
 
-CREATE TABLE "learning_point" (
+CREATE TABLE IF NOT EXISTS "learning_point" (
   "id" TEXT PRIMARY KEY,
   "user_id" INTEGER NOT NULL,
 
@@ -284,19 +284,19 @@ CREATE TABLE "learning_point" (
 );
 
 -- Performance indexes
-CREATE INDEX "idx_lp_user_due" ON "learning_point"("user_id", "next_review", "fully_learned");
-CREATE INDEX "idx_lp_user_box" ON "learning_point"("user_id", "box", "status");
-CREATE INDEX "idx_lp_source" ON "learning_point"("source_type", "source_id");
-CREATE INDEX "idx_lp_plan" ON "learning_point"("plan_id");
-CREATE INDEX "idx_lp_domain_type" ON "learning_point"("user_id", "domain_type", "item_type");
-CREATE INDEX "idx_lp_tags" ON "learning_point"("tags");
+CREATE INDEX IF NOT EXISTS "idx_lp_user_due" ON "learning_point"("user_id", "next_review", "fully_learned");
+CREATE INDEX IF NOT EXISTS "idx_lp_user_box" ON "learning_point"("user_id", "box", "status");
+CREATE INDEX IF NOT EXISTS "idx_lp_source" ON "learning_point"("source_type", "source_id");
+CREATE INDEX IF NOT EXISTS "idx_lp_plan" ON "learning_point"("plan_id");
+CREATE INDEX IF NOT EXISTS "idx_lp_domain_type" ON "learning_point"("user_id", "domain_type", "item_type");
+CREATE INDEX IF NOT EXISTS "idx_lp_tags" ON "learning_point"("tags");
 
 -- ============================================
 -- AI Learning Companion Tables
 -- ============================================
 
 -- Learning Topics (user-created learning goals)
-CREATE TABLE "learning_topic" (
+CREATE TABLE IF NOT EXISTS "learning_topic" (
   "id" TEXT PRIMARY KEY,
   "user_id" INTEGER NOT NULL,
   "name" TEXT NOT NULL,
@@ -318,11 +318,11 @@ CREATE TABLE "learning_topic" (
   FOREIGN KEY ("user_id") REFERENCES "user"("id")
 );
 
-CREATE INDEX "idx_learning_topic_user_status" ON "learning_topic"("user_id", "status");
-CREATE INDEX "idx_learning_topic_domain" ON "learning_topic"("domain_type");
+CREATE INDEX IF NOT EXISTS "idx_learning_topic_user_status" ON "learning_topic"("user_id", "status");
+CREATE INDEX IF NOT EXISTS "idx_learning_topic_domain" ON "learning_topic"("domain_type");
 
 -- Learning Plans (AI-generated curricula)
-CREATE TABLE "learning_plan" (
+CREATE TABLE IF NOT EXISTS "learning_plan" (
   "id" TEXT PRIMARY KEY,
   "topic_id" TEXT NOT NULL,
   "user_id" INTEGER NOT NULL,
@@ -338,11 +338,11 @@ CREATE TABLE "learning_plan" (
   FOREIGN KEY ("user_id") REFERENCES "user"("id")
 );
 
-CREATE INDEX "idx_learning_plan_topic" ON "learning_plan"("topic_id");
-CREATE INDEX "idx_learning_plan_user_status" ON "learning_plan"("user_id", "status");
+CREATE INDEX IF NOT EXISTS "idx_learning_plan_topic" ON "learning_plan"("topic_id");
+CREATE INDEX IF NOT EXISTS "idx_learning_plan_user_status" ON "learning_plan"("user_id", "status");
 
 -- Learning Sessions (individual study sessions)
-CREATE TABLE "learning_session" (
+CREATE TABLE IF NOT EXISTS "learning_session" (
   "id" TEXT PRIMARY KEY,
   "plan_id" TEXT,
   "topic_id" TEXT NOT NULL,
@@ -360,11 +360,11 @@ CREATE TABLE "learning_session" (
   FOREIGN KEY ("user_id") REFERENCES "user"("id")
 );
 
-CREATE INDEX "idx_learning_session_topic" ON "learning_session"("topic_id", "started_at");
-CREATE INDEX "idx_learning_session_user" ON "learning_session"("user_id", "started_at");
+CREATE INDEX IF NOT EXISTS "idx_learning_session_topic" ON "learning_session"("topic_id", "started_at");
+CREATE INDEX IF NOT EXISTS "idx_learning_session_user" ON "learning_session"("user_id", "started_at");
 
 -- Learning Item Performance (tracks individual item learning history)
-CREATE TABLE "learning_item_performance" (
+CREATE TABLE IF NOT EXISTS "learning_item_performance" (
   "id" INTEGER PRIMARY KEY AUTOINCREMENT,
   "user_id" INTEGER NOT NULL,
   "topic_id" TEXT NOT NULL,
@@ -384,11 +384,11 @@ CREATE TABLE "learning_item_performance" (
   FOREIGN KEY ("session_id") REFERENCES "learning_session"("id")
 );
 
-CREATE INDEX "idx_learning_item_perf_topic_item" ON "learning_item_performance"("topic_id", "item_id");
-CREATE INDEX "idx_learning_item_perf_user" ON "learning_item_performance"("user_id", "reviewed_at");
+CREATE INDEX IF NOT EXISTS "idx_learning_item_perf_topic_item" ON "learning_item_performance"("topic_id", "item_id");
+CREATE INDEX IF NOT EXISTS "idx_learning_item_perf_user" ON "learning_item_performance"("user_id", "reviewed_at");
 
 -- Learner Profile (global learning characteristics)
-CREATE TABLE "learner_profile" (
+CREATE TABLE IF NOT EXISTS "learner_profile" (
   "id" INTEGER PRIMARY KEY AUTOINCREMENT,
   "user_id" INTEGER NOT NULL UNIQUE,
   "global_profile" TEXT NOT NULL,
@@ -398,7 +398,7 @@ CREATE TABLE "learner_profile" (
 );
 
 -- Learner Domain Profile (per-domain learning characteristics)
-CREATE TABLE "learner_domain_profile" (
+CREATE TABLE IF NOT EXISTS "learner_domain_profile" (
   "id" INTEGER PRIMARY KEY AUTOINCREMENT,
   "user_id" INTEGER NOT NULL,
   "domain_type" TEXT NOT NULL,
@@ -410,10 +410,10 @@ CREATE TABLE "learner_domain_profile" (
   FOREIGN KEY ("user_id") REFERENCES "user"("id")
 );
 
-CREATE INDEX "idx_learner_domain_profile_user" ON "learner_domain_profile"("user_id");
+CREATE INDEX IF NOT EXISTS "idx_learner_domain_profile_user" ON "learner_domain_profile"("user_id");
 
 -- Learning Notifications (persistent notification store)
-CREATE TABLE "learning_notification" (
+CREATE TABLE IF NOT EXISTS "learning_notification" (
   "id" TEXT PRIMARY KEY,
   "user_id" INTEGER NOT NULL,
   "type" TEXT NOT NULL,
@@ -440,15 +440,15 @@ CREATE TABLE "learning_notification" (
   FOREIGN KEY ("topic_id") REFERENCES "learning_topic"("id")
 );
 
-CREATE INDEX "idx_learning_notification_user_status" ON "learning_notification"("user_id", "status");
-CREATE INDEX "idx_learning_notification_scheduled" ON "learning_notification"("scheduled_for");
+CREATE INDEX IF NOT EXISTS "idx_learning_notification_user_status" ON "learning_notification"("user_id", "status");
+CREATE INDEX IF NOT EXISTS "idx_learning_notification_scheduled" ON "learning_notification"("scheduled_for");
 
 -- ============================================
 -- Adaptive Spaced Repetition (FSRS) Tables
 -- ============================================
 
 -- SR Items (tracks spaced repetition state for any learning item)
-CREATE TABLE "sr_item" (
+CREATE TABLE IF NOT EXISTS "sr_item" (
   "id" INTEGER PRIMARY KEY AUTOINCREMENT,
   "user_id" INTEGER NOT NULL,
   "item_id" TEXT NOT NULL,
@@ -467,12 +467,12 @@ CREATE TABLE "sr_item" (
   FOREIGN KEY ("topic_id") REFERENCES "learning_topic"("id")
 );
 
-CREATE INDEX "idx_sr_item_user_due" ON "sr_item"("user_id", "next_review");
-CREATE INDEX "idx_sr_item_user_type" ON "sr_item"("user_id", "item_type");
-CREATE INDEX "idx_sr_item_topic" ON "sr_item"("topic_id");
+CREATE INDEX IF NOT EXISTS "idx_sr_item_user_due" ON "sr_item"("user_id", "next_review");
+CREATE INDEX IF NOT EXISTS "idx_sr_item_user_type" ON "sr_item"("user_id", "item_type");
+CREATE INDEX IF NOT EXISTS "idx_sr_item_topic" ON "sr_item"("topic_id");
 
 -- SR Review History (tracks individual reviews for analytics and optimization)
-CREATE TABLE "sr_review_history" (
+CREATE TABLE IF NOT EXISTS "sr_review_history" (
   "id" INTEGER PRIMARY KEY AUTOINCREMENT,
   "user_id" INTEGER NOT NULL,
   "item_id" TEXT NOT NULL,
@@ -492,11 +492,11 @@ CREATE TABLE "sr_review_history" (
   FOREIGN KEY ("topic_id") REFERENCES "learning_topic"("id")
 );
 
-CREATE INDEX "idx_sr_review_history_user" ON "sr_review_history"("user_id", "reviewed_at");
-CREATE INDEX "idx_sr_review_history_item" ON "sr_review_history"("item_id", "item_type");
+CREATE INDEX IF NOT EXISTS "idx_sr_review_history_user" ON "sr_review_history"("user_id", "reviewed_at");
+CREATE INDEX IF NOT EXISTS "idx_sr_review_history_item" ON "sr_review_history"("item_id", "item_type");
 
 -- SR User Parameters (personalized FSRS parameters per user)
-CREATE TABLE "sr_user_parameters" (
+CREATE TABLE IF NOT EXISTS "sr_user_parameters" (
   "id" INTEGER PRIMARY KEY AUTOINCREMENT,
   "user_id" INTEGER NOT NULL UNIQUE,
   "parameters" TEXT NOT NULL,
@@ -597,11 +597,11 @@ CREATE TABLE IF NOT EXISTS "consolidated_memory" (
   FOREIGN KEY ("user_id") REFERENCES "user"("id")
 );
 
-CREATE INDEX "idx_consolidated_memory_user_period"
+CREATE INDEX IF NOT EXISTS "idx_consolidated_memory_user_period"
   ON "consolidated_memory"("user_id", "period_start");
-CREATE INDEX "idx_consolidated_memory_concept"
+CREATE INDEX IF NOT EXISTS "idx_consolidated_memory_concept"
   ON "consolidated_memory"("concept_id");
-CREATE INDEX "idx_consolidated_memory_type"
+CREATE INDEX IF NOT EXISTS "idx_consolidated_memory_type"
   ON "consolidated_memory"("memory_type");
 
 -- ============================================
@@ -635,7 +635,7 @@ CREATE INDEX IF NOT EXISTS "idx_brain_call_ledger_trace" ON brain_call_ledger("t
 -- Phase 10b Study-Session Director — AI Sessions
 -- ============================================
 
-CREATE TABLE "ai_sessions" (
+CREATE TABLE IF NOT EXISTS "ai_sessions" (
   "id" TEXT PRIMARY KEY NOT NULL,
   "user_id" INTEGER NOT NULL,
   "quest_id" INTEGER,
@@ -648,10 +648,10 @@ CREATE TABLE "ai_sessions" (
   "ended_at" INTEGER,
   "error_reason" TEXT
 );
-CREATE INDEX "idx_ai_sessions_user_id" ON "ai_sessions" ("user_id", "started_at" DESC);
-CREATE INDEX "idx_ai_sessions_trace_id" ON "ai_sessions" ("trace_id");
+CREATE INDEX IF NOT EXISTS "idx_ai_sessions_user_id" ON "ai_sessions" ("user_id", "started_at" DESC);
+CREATE INDEX IF NOT EXISTS "idx_ai_sessions_trace_id" ON "ai_sessions" ("trace_id");
 
-CREATE TABLE "ai_session_trace" (
+CREATE TABLE IF NOT EXISTS "ai_session_trace" (
   "id" INTEGER PRIMARY KEY AUTOINCREMENT,
   "session_id" TEXT NOT NULL,
   "iteration" INTEGER NOT NULL,
@@ -660,14 +660,14 @@ CREATE TABLE "ai_session_trace" (
   "ts" INTEGER NOT NULL,
   FOREIGN KEY ("session_id") REFERENCES "ai_sessions" ("id")
 );
-CREATE INDEX "idx_ai_session_trace_session_id" ON "ai_session_trace" ("session_id", "ts" ASC);
+CREATE INDEX IF NOT EXISTS "idx_ai_session_trace_session_id" ON "ai_session_trace" ("session_id", "ts" ASC);
 
 -- ============================================
 -- Phase 12 Historical Mastery Trajectory
 -- ============================================
 
 -- Mastery Event Log (append-only event log for mastery state changes)
-CREATE TABLE "mastery_event" (
+CREATE TABLE IF NOT EXISTS "mastery_event" (
   "id" INTEGER PRIMARY KEY AUTOINCREMENT,
   "learning_point_id" TEXT NOT NULL,
   "user_id" INTEGER NOT NULL,
@@ -686,12 +686,12 @@ CREATE TABLE "mastery_event" (
   FOREIGN KEY ("learning_point_id") REFERENCES "learning_point" ("id") ON DELETE CASCADE,
   FOREIGN KEY ("proximate_call_id") REFERENCES "brain_call_ledger" ("id") ON DELETE SET NULL
 );
-CREATE INDEX "idx_mastery_event_lp_ts" ON "mastery_event" ("learning_point_id", "ts");
-CREATE INDEX "idx_mastery_event_user_ts" ON "mastery_event" ("user_id", "ts");
-CREATE INDEX "idx_mastery_event_surface_ts" ON "mastery_event" ("feature_surface", "ts");
-CREATE INDEX "idx_mastery_event_proximate_call" ON "mastery_event" ("proximate_call_id")
+CREATE INDEX IF NOT EXISTS "idx_mastery_event_lp_ts" ON "mastery_event" ("learning_point_id", "ts");
+CREATE INDEX IF NOT EXISTS "idx_mastery_event_user_ts" ON "mastery_event" ("user_id", "ts");
+CREATE INDEX IF NOT EXISTS "idx_mastery_event_surface_ts" ON "mastery_event" ("feature_surface", "ts");
+CREATE INDEX IF NOT EXISTS "idx_mastery_event_proximate_call" ON "mastery_event" ("proximate_call_id")
   WHERE "proximate_call_id" IS NOT NULL;
-CREATE UNIQUE INDEX "idx_mastery_event_dedup" ON "mastery_event" (
+CREATE UNIQUE INDEX IF NOT EXISTS "idx_mastery_event_dedup" ON "mastery_event" (
   "learning_point_id", "ts", "event_type", COALESCE("source_ref", '')
 );
 -- Phase 13 backfill data migration: tag existing Phase-12 backfill rows.
