@@ -146,6 +146,48 @@ function aggregateByIntent(sinceMs) {
   return rows;
 }
 
+/**
+ * Phase 15a: latency stats per intent within window. Returns mean, p50,
+ * p95, and max from the non-cache-hit, success rows (attempt_n = 1 or
+ * final-success final attempts). Cache-hit rows are excluded — they don't
+ * represent real latency. Failed-attempt rows (error IS NOT NULL) are also
+ * excluded so retry latency doesn't pollute the success picture.
+ *
+ * Returns Array<{ intent, n, mean_ms, p50_ms, p95_ms, max_ms }>.
+ *
+ * Done in JS rather than SQL because SQLite has no native PERCENTILE_CONT
+ * and emulating it with window functions is brittle across SQLite versions.
+ */
+function latencyByIntent(sinceMs) {
+  const db = DBManager.getDb();
+  const rows = db.prepare(`
+    SELECT intent, duration_ms
+    FROM brain_call_ledger
+    WHERE ts >= ?
+      AND cache_hit = 0
+      AND duration_ms IS NOT NULL
+      AND error IS NULL
+    ORDER BY intent
+  `).all(sinceMs);
+  const buckets = new Map();
+  for (const r of rows) {
+    if (!buckets.has(r.intent)) buckets.set(r.intent, []);
+    buckets.get(r.intent).push(r.duration_ms);
+  }
+  const out = [];
+  for (const [intent, durs] of buckets.entries()) {
+    durs.sort((a, b) => a - b);
+    const n = durs.length;
+    const mean = durs.reduce((s, v) => s + v, 0) / n;
+    const p50 = durs[Math.floor(n * 0.5)];
+    const p95 = durs[Math.min(n - 1, Math.floor(n * 0.95))];
+    const max = durs[n - 1];
+    out.push({ intent, n, mean_ms: mean, p50_ms: p50, p95_ms: p95, max_ms: max });
+  }
+  out.sort((a, b) => b.p95_ms - a.p95_ms);
+  return out;
+}
+
 /** Aggregate cost + call_count grouped by provider within [sinceMs, nowMs]. */
 function aggregateByProvider(sinceMs) {
   const db = DBManager.getDb();
@@ -393,6 +435,7 @@ module.exports = {
   aggregateByIntent,
   aggregateByProvider,
   aggregateByTraceId,
+  latencyByIntent,
   cacheHitRateByIntent,
   listSessionTraces,
   prune,

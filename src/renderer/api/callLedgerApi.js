@@ -50,6 +50,17 @@ const callLedgerApi = {
   },
 
   /**
+   * Phase 15a: per-intent latency stats since `sinceMs`.
+   * Returns `Array<{ intent, n, mean_ms, p50_ms, p95_ms, max_ms }>`.
+   */
+  latencyByIntent(sinceMs) {
+    return window.electron.ipcRenderer.invoke(
+      'callLedger:latencyByIntent',
+      sinceMs,
+    );
+  },
+
+  /**
    * Cache hit-rate per intent since `sinceMs`.
    * @param {number} [sinceMs=0]
    * @returns {Promise<Record<string, number>>}

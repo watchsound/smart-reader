@@ -34,6 +34,11 @@ function registerCallLedgerHandlers(ipcMain = electronIpcMain) {
     return CallLedgerStore.aggregateByProvider(sinceMs || 0);
   });
 
+  // Phase 15a: per-intent latency stats (mean/p50/p95/max) within window.
+  ipcMain.handle('callLedger:latencyByIntent', async (_e, sinceMs) => {
+    return CallLedgerStore.latencyByIntent(sinceMs || 0);
+  });
+
   ipcMain.handle('callLedger:cacheHitRateByIntent', async (_e, sinceMs) => {
     const map = CallLedgerStore.cacheHitRateByIntent(sinceMs || 0);
     return Object.fromEntries(map);

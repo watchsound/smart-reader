@@ -20,22 +20,25 @@ export default function EconomicsPanel() {
   const [byProvider, setByProvider] = useState([]);
   const [cacheRates, setCacheRates] = useState({});
   const [sessions, setSessions] = useState([]);
+  const [latency, setLatency] = useState([]);
   const [loading, setLoading] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     const sinceMs = Date.now() - WINDOWS[windowKey];
     try {
-      const [intents, providers, rates, traces] = await Promise.all([
+      const [intents, providers, rates, traces, lat] = await Promise.all([
         callLedgerApi.aggregateByIntent(sinceMs),
         callLedgerApi.aggregateByProvider(sinceMs),
         callLedgerApi.cacheHitRateByIntent(sinceMs),
         callLedgerApi.listSessionTraces(20),
+        callLedgerApi.latencyByIntent(sinceMs),
       ]);
       setByIntent(intents || []);
       setByProvider(providers || []);
       setCacheRates(rates || {});
       setSessions(traces || []);
+      setLatency(lat || []);
     } finally {
       setLoading(false);
     }
@@ -70,6 +73,7 @@ export default function EconomicsPanel() {
         <Tab label="ROI"         value="roi" />
         <Tab label="By Intent"   value="intent" />
         <Tab label="By Provider" value="provider" />
+        <Tab label="Latency"     value="latency" />
         <Tab label="By Session"  value="session" />
       </Tabs>
 
@@ -130,6 +134,40 @@ export default function EconomicsPanel() {
               <TableRow>
                 <TableCell colSpan={3} align="center">
                   <Typography variant="caption" color="text.secondary">No spend recorded yet</Typography>
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      )}
+
+      {viewTab === 'latency' && (
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell>Intent</TableCell>
+              <TableCell align="right">Calls</TableCell>
+              <TableCell align="right">Mean</TableCell>
+              <TableCell align="right">p50</TableCell>
+              <TableCell align="right">p95</TableCell>
+              <TableCell align="right">Max</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {latency.map((r) => (
+              <TableRow key={r.intent}>
+                <TableCell>{r.intent}</TableCell>
+                <TableCell align="right">{r.n}</TableCell>
+                <TableCell align="right">{Math.round(r.mean_ms)}ms</TableCell>
+                <TableCell align="right">{Math.round(r.p50_ms)}ms</TableCell>
+                <TableCell align="right">{Math.round(r.p95_ms)}ms</TableCell>
+                <TableCell align="right">{Math.round(r.max_ms)}ms</TableCell>
+              </TableRow>
+            ))}
+            {latency.length === 0 && !loading && (
+              <TableRow>
+                <TableCell colSpan={6} align="center">
+                  <Typography variant="caption" color="text.secondary">No successful calls in window</Typography>
                 </TableCell>
               </TableRow>
             )}
