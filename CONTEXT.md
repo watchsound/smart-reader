@@ -34,6 +34,19 @@ Canonical names for domain concepts. One source of truth — code, docs, and con
 - **MoodBoard** — visual organize surface; target of Phase 8b organize loop.
 - **Production Prompt** — high-mastery generative prompt (Phase 8c).
 
+## Phase 9 — Brain Spine (2026-06-17 design)
+
+- **Brain Spine** (Spine) — the unified LLM access layer. Single path every Brain-mediated LLM call flows through. Owns context injection, intent dispatch, telemetry recording, caching. Lives in `src/main/brain/spine/`. *Not "LLM manager", not "AI service", not "LangChain".*
+- **brainCall** — primary spine entry: `brainCall(intent, input, options) → { output, callId }`. Builds the BrainContext slice for the intent, dispatches via existing `AIProviderManager` + `getStructured` polyfill, records to the Call Ledger.
+- **meteredCall** — passthrough spine entry for legacy / non-Brain LLM calls. Records cost to the Call Ledger; does *not* inject BrainContext. Used during migration so all LLM spend is visible before every site adopts `brainCall`.
+- **BrainContext** — canonical serializable snapshot of learner state: active Quest, current book/chapter, last-N episodes, top-N mastery, recent comprehension scores, recent accept/dismiss patterns. Built on demand, cache-keyable, sliceable by intent.
+- **Intent** — declared purpose of a Brain-mediated LLM call (e.g. `extract-learning-points`, `grade-comprehension`, `propose-microcard`, `synthesize-pull-suggestion`). Resolved in the Intent Registry to `{ contextSlices, costCeilingTokens, cachePolicy, schema? }`. *Not "task", not "operation".*
+- **Tool** — registered AI-invocable capability with JSON-schema declaration (e.g. `navigate`, `createMicroCard`, `markConceptMastered`). Defined in Phase 9 for forward-compat; first consumed in Phase 10 Director Mode.
+- **Call Ledger** — SQLite table `brain_call_ledger` recording every spine call: intent, timestamp, provider, context-slice keys, token counts, cost USD, cache hit/miss, duration, optional triggerId, output summary. Source of truth for Rationale Card + Economics Panel. Pruned at 90 days or 10K rows (LRU).
+- **Rationale Card** — expandable UI on every Proposal showing the BrainContext slice + intent + structured output that produced it. Renders from Call Ledger keyed by `trigger_id`. The primary "why this, why now" trust mechanism.
+- **Economics Panel** — tab in `BrainDashboardPanel` aggregating Call Ledger: cost by intent, cost by provider, cache hit-rate, projected monthly burn. Last 7/30 day windows.
+- **Director Mode** — Phase 10 (not Phase 9): AI-as-Driver mode where the AI selects intents + invokes Tools to drive a session, using BrainContext as global state. Phase 9 defines the seams (Tool registry, Intent declaration) that Phase 10 plugs into.
+
 ## Plan 2 + 3 additions (Brain shell expansion)
 
 - **Pull Suggestion** — synthesized "what should I do now?" returned by `LearningBrainAgent.synthesizePullSuggestion` when the user pulls (clicks the Orb) and the queue is empty. Shape: `{ title, body, navigate?, source }` where `source` is `'llm'` or `'deterministic-fallback'`. Surfaced in the `BrainDashboardPanel`.
