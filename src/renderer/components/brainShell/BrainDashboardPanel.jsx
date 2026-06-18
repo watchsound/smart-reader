@@ -133,7 +133,22 @@ export default function BrainDashboardPanel() {
         <Tabs
           value={activeTab}
           onChange={(_, v) => setActiveTab(v)}
-          sx={{ borderBottom: '1px solid #e2e8f0', minHeight: 36 }}
+          sx={{
+            borderBottom: '1px solid #e2e8f0',
+            minHeight: 36,
+            // App.css applies a global `button { background: #2eb67d }` that
+            // leaks through MUI's Tab (which renders as <button>) on the
+            // selected state. Force transparent + a hover tint so the selected
+            // tab reads as: bold text + indicator underline, the way MUI tabs
+            // are designed to.
+            '& .MuiTab-root': { backgroundColor: 'transparent' },
+            '& .MuiTab-root:hover': { backgroundColor: 'rgba(97,31,105,0.04)' },
+            '& .MuiTab-root.Mui-selected': {
+              backgroundColor: 'transparent',
+              color: '#611f69',
+              fontWeight: 600,
+            },
+          }}
           TabIndicatorProps={{ style: { height: 2 } }}
         >
           <Tab label="Overview" value="overview" sx={{ minHeight: 36, py: 0 }} />
