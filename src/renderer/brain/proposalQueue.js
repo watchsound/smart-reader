@@ -105,6 +105,12 @@ class ProposalQueue {
         const aQ = isQuestAligned(a);
         const bQ = isQuestAligned(b);
         if (aQ !== bQ) return bQ ? 1 : -1;
+        // Phase 14b: ROI within tier, after quest weighting. Null ROI is
+        // treated as 0 (neutral) so non-mappable triggers don't get
+        // demoted purely for lacking a predictive signal.
+        const aRoi = (a._roi && typeof a._roi.value === 'number') ? a._roi.value : 0;
+        const bRoi = (b._roi && typeof b._roi.value === 'number') ? b._roi.value : 0;
+        if (aRoi !== bRoi) return bRoi - aRoi;
         return b.emittedAt - a.emittedAt; // newer first inside same tier
       });
   }

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Paper, Stack, Typography, Box, Chip, Button, Tabs, Tab } from '@mui/material';
+import { Paper, Stack, Typography, Box, Chip, Button, Tabs, Tab, Tooltip } from '@mui/material';
 import useBrainState from '../../brain/useBrainState';
 import triggerBus from '../../brain/triggerBus';
 import TriggerTelemetryPanel from './TriggerTelemetryPanel';
@@ -209,6 +209,17 @@ export default function BrainDashboardPanel() {
                     >
                       {p.source}: {p.payload?.title || p.id}
                     </Typography>
+                    {p._roi && (
+                      <Tooltip
+                        title={`${p._roi.n} events · ${p._roi.shrinkageLevel} shrinkage`}
+                      >
+                        <Chip
+                          size="small"
+                          variant="outlined"
+                          label={`+${p._roi.expectedDelta.toFixed(1)}M / $${p._roi.expectedCost.toFixed(4)}`}
+                        />
+                      </Tooltip>
+                    )}
                     <Button size="small" onClick={() => triggerBus.accept(p.id)}>
                       Do now
                     </Button>

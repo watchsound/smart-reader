@@ -11,6 +11,29 @@
  */
 
 const ProposalQueue = require('./proposalQueue');
+const { triggerToCell } = require('./triggerToCell');
+const predictiveApi = require('../api/predictiveApi');
+
+// Phase 14b: enrich trigger with `_roi` before enqueue so the sort comparator
+// can read it without going async. Failures are silent — null ROI is treated
+// as neutral (0) by the queue, preserving priority-tier ordering.
+async function _enrichWithRoi(trigger) {
+  try {
+    const cell = triggerToCell(trigger);
+    if (!cell) return;
+    const p = await predictiveApi.predict(cell);
+    if (!p) return;
+    trigger._roi = {
+      value: p.expectedMasteryDelta / Math.max(p.expectedCost, 1e-9),
+      n: p.n,
+      shrinkageLevel: p.shrinkageLevel,
+      expectedCost: p.expectedCost,
+      expectedDelta: p.expectedMasteryDelta,
+    };
+  } catch (_e) {
+    // graceful — leave _roi unset; sort treats absent as 0
+  }
+}
 
 // Set of bookIds in active Quests. Bus owns this so ProposalQueue can
 // consult it lazily during sort (see proposalQueue.getQuestBookIds opt).
@@ -113,8 +136,16 @@ function init() {
     return;
   }
   ipc.on('brain:trigger:push', (_evt, trigger) => {
+    // Phase 14b: compute ROI asynchronously then re-notify so the sorted
+    // list reflects the enriched score. The trigger is enqueued
+    // immediately (priority-tier slot is fine without ROI); the async
+    // enrichment then mutates the same object and a second notify()
+    // surfaces the updated sort to subscribers.
     queue.enqueue(trigger);
     notify();
+    _enrichWithRoi(trigger).then(() => {
+      if (trigger._roi) notify();
+    });
   });
   // Quest mutations on main re-broadcast so the bus can refresh its
   // weighting context without a renderer poll.
