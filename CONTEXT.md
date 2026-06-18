@@ -55,3 +55,13 @@ Canonical names for domain concepts. One source of truth — code, docs, and con
 - **Phase 4/5/6 in-context exception** — Phase 4 (`microcard-propose`), Phase 5 (`PreReadingPanel`), Phase 6 (`ComprehensionPanel`) deliberately do NOT emit Triggers; their in-context surfaces are natural. The Brain Orb is reserved for chapter-end / cluster / cross-book / cross-context proposals (Phase 7, 8a/b/c) where no obvious in-context attachment exists.
 - **Atomic Chip Actions** — `AtomicChipHost` reads optional `payload.actions: Array<{ label, navigate?, primary? }>` and renders them as buttons. Used by Phase 8a/b/c triggers to provide "Open" / "Try it" / "Open MoodBoard" navigation. Engagement (any action click) closes the active flow.
 - **Queue Persistence** — the renderer-side `ProposalQueue` snapshots itself to electron-store on every change (`brain:trigger:queue-snapshot`) and rehydrates on `triggerBus.init()` (`brain:trigger:queue-restore`). `queue.purgeExpired()` drops items past TTL after restore.
+
+## Phase 13 — Attribution Layer (2026-06-18 design)
+
+- **Attribution Layer** — Phase 13 surface joining `brain_call_ledger ⋈ mastery_event` to surface cost-per-mastery-move. Implemented as the **ROI** tab of the Spend & Returns Panel (formerly Economics Panel). *Not "attribution tracking" generically; specifically the LLM-ROI lens.*
+- **Feature Surface** — closed enum value identifying which product surface caused a mastery move. Stored on `mastery_event.feature_surface`. 8 values: `reading-microcard`, `director-session`, `comprehension`, `production-prompt`, `pre-reading-diagnostic`, `manual-review`, `backfill`, `unknown` (lint guard). Lives in `src/commons/model/featureSurface.js`. *Not "source" — `mastery_event.source` is the older free-text label.*
+- **Proximate Call** — when a single LLM call directly produced a mastery move, its ledger row id is stored on `mastery_event.proximate_call_id`. Enables exact $-attribution for the Director / Comprehension / Production-grade paths.
+- **Amortized Cost** — for surfaces where causation chains across multiple calls (e.g. micro-card extraction → propose → user-accept), per-event cost = total surface spend in window ÷ surface event count in window. Displayed with an "amortized" badge.
+- **Attention State** (L3 lens) — domain-meaningful grouping of feature surfaces: `while-reading`, `focused-session`, `historical`. Default lens on the ROI tab.
+- **Phase Group** (L2 lens) — feature-surface grouping aligned with project phases: `reading-loop`, `director`, `comprehension`, `production-prompts`, `diagnostics`, `manual-review`, `historical`.
+- **Spend & Returns Panel** — renamed display title of the existing `EconomicsPanel`. File name and import path unchanged. ROI tab is the new default.
