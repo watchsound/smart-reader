@@ -104,3 +104,25 @@ describe('getBars', () => {
     expect(bars[0].costPerEvent).toBeLessThan(bars[bars.length - 1].costPerEvent);
   });
 });
+
+describe('getGroupDetail', () => {
+  it('returns events for a group with per-event cost (direct or amortized)', async () => {
+    const db = freshDb();
+    const ts = 2000;
+    const cA = insCall(db, 'director-session-step', 0.012, ts);
+    insEv(db, 'lp-a', ts, 'director-session', cA);
+    insEv(db, 'lp-b', ts - 1000, 'director-session');
+
+    const svc = new AttributionService();
+    const detail = await svc.getGroupDetail({
+      lens: 'attention', groupKey: 'focused-session',
+      from: 0, to: 9999, userId: 1,
+    });
+    expect(detail.group.key).toBe('focused-session');
+    expect(detail.events.length).toBe(2);
+    expect(detail.events[0].learningPointId).toBe('lp-a');
+    expect(detail.events[0].proximateCallId).toBe(cA);
+    expect(detail.events[0].amortized).toBe(false);
+    expect(detail.events[1].amortized).toBe(true);
+  });
+});

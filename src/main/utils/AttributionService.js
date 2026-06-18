@@ -114,7 +114,46 @@ class AttributionService {
     return key;
   }
 
-  async getGroupDetail(_opts)  { throw new Error('not implemented — Task 8'); }
+  async getGroupDetail({ lens, groupKey, from, to, userId, limit = 50 }) {
+    const lensMap = lens === 'attention' ? ATTENTION_STATE
+                  : lens === 'phase'     ? PHASE_GROUP
+                  : null;
+
+    const rows = lens === 'intent'
+      ? CallLedgerStore.attributionGroupDetail({
+          userId, fromMs: from, toMs: to, intent: groupKey, limit,
+        })
+      : CallLedgerStore.attributionGroupDetail({
+          userId, fromMs: from, toMs: to,
+          surfaces: Object.keys(lensMap).filter((s) => lensMap[s] === groupKey),
+          limit,
+        });
+
+    const bars = await this.getBars({ lens, from, to, userId });
+    const groupBar = bars.find((b) => b.groupKey === groupKey)
+      || { eventCount: 0, totalCostUsd: 0, groupLabel: groupKey };
+    const amortizedUnitCost = groupBar.eventCount > 0
+      ? groupBar.totalCostUsd / groupBar.eventCount : 0;
+
+    return {
+      group: {
+        key: groupKey,
+        label: groupBar.groupLabel,
+        totalCostUsd: groupBar.totalCostUsd,
+        eventCount: groupBar.eventCount,
+      },
+      events: rows.map((r) => ({
+        learningPointId: r.learning_point_id,
+        ts: r.ts,
+        featureSurface: r.feature_surface,
+        proximateCallId: r.proximate_call_id,
+        intent: r.intent || null,
+        eventCostUsd: r.proximate_cost_usd != null ? r.proximate_cost_usd : amortizedUnitCost,
+        amortized: r.proximate_call_id == null,
+      })),
+    };
+  }
+
   async getDensityStrip(opts)  { return CallLedgerStore.attributionDensityStrip(opts); }
 }
 
