@@ -2611,6 +2611,12 @@ app
     // Phase 11 (Brain Visibility): dashboard + concept IPC.
     brainVisibilityHandlers.register();
 
+    // Phase 14a (Predictive Engine): predict / rank / refresh / report IPC.
+    const PredictiveEngine = require('./brain/predictive/PredictiveEngine');
+    const predictiveHandlers = require('./ipc/predictiveHandlers');
+    const predictiveEngine = new PredictiveEngine();
+    predictiveHandlers.register(ipcMain, predictiveEngine);
+
     // Phase 12: backfill mastery_event on first boot.
     const { isEmpty } = require('./db/MasteryEventStore');
     const { backfill: backfillMastery } = require('./utils/MasteryEventBackfill');
