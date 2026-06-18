@@ -99,7 +99,7 @@ body {
 
 textarea,
 input,
-button {
+button:not(.MuiButtonBase-root) {
   font-size: 0.95rem;
   font-family: inherit;
   border: 1px solid #e8e8e8;
@@ -119,7 +119,13 @@ input:focus {
   box-shadow: 0 0 0 1px #1d9bd1;
 }
 
-button {
+/* Raw <button> sites use this green pill styling (ContextMenu, routes/contact,
+   routes/edit, AISessionView, SessionStartDialog, etc.). MUI button-based
+   components — Button, IconButton, Tab, ToggleButton, BottomNavigationAction —
+   all carry .MuiButtonBase-root and are excluded so the global doesn't leak
+   into them. Without this exclusion, .Mui-selected tabs render as a forest-
+   green tile because Mui-selected only overrides text color, not background. */
+button:not(.MuiButtonBase-root) {
   color: #fff;
   background: #2eb67d;
   font-weight: 600;
@@ -127,18 +133,18 @@ button {
   border: none;
 }
 
-button:hover {
+button:not(.MuiButtonBase-root):hover {
   background: #238c61;
   box-shadow: none;
   transform: none;
 }
 
-button:active {
+button:not(.MuiButtonBase-root):active {
   transform: none;
   background: #1e7a54;
 }
 
-button:disabled {
+button:not(.MuiButtonBase-root):disabled {
   opacity: 0.6;
   cursor: not-allowed;
   transform: none;
