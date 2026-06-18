@@ -681,10 +681,20 @@ CREATE TABLE "mastery_event" (
   "source" TEXT NOT NULL,
   "source_ref" TEXT,
   "notes" TEXT,
-  FOREIGN KEY ("learning_point_id") REFERENCES "learning_point" ("id") ON DELETE CASCADE
+  "proximate_call_id" INTEGER,
+  "feature_surface" TEXT NOT NULL DEFAULT 'unknown',
+  FOREIGN KEY ("learning_point_id") REFERENCES "learning_point" ("id") ON DELETE CASCADE,
+  FOREIGN KEY ("proximate_call_id") REFERENCES "brain_call_ledger" ("id") ON DELETE SET NULL
 );
 CREATE INDEX "idx_mastery_event_lp_ts" ON "mastery_event" ("learning_point_id", "ts");
 CREATE INDEX "idx_mastery_event_user_ts" ON "mastery_event" ("user_id", "ts");
+CREATE INDEX "idx_mastery_event_surface_ts" ON "mastery_event" ("feature_surface", "ts");
+CREATE INDEX "idx_mastery_event_proximate_call" ON "mastery_event" ("proximate_call_id")
+  WHERE "proximate_call_id" IS NOT NULL;
 CREATE UNIQUE INDEX "idx_mastery_event_dedup" ON "mastery_event" (
   "learning_point_id", "ts", "event_type", COALESCE("source_ref", '')
 );
+-- Phase 13 backfill data migration: tag existing Phase-12 backfill rows.
+-- Idempotent: re-running this on already-tagged rows is a no-op.
+UPDATE mastery_event SET feature_surface = 'backfill'
+  WHERE source = 'backfill' AND feature_surface = 'unknown';
