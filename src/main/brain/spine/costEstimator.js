@@ -7,6 +7,10 @@
  *
  * Refresh quarterly. Raw token counts are stored on the ledger so historical
  * costs can be recomputed when this table is updated.
+ *
+ * Phase 13.2: per-provider pricing overrides are read from electron-store
+ * (`aiPricing.overrides`). Override takes precedence over PRICING; invalid
+ * overrides (negative, NaN, missing fields) silently fall back to PRICING.
  */
 
 const PRICING = {
@@ -38,9 +42,42 @@ const PRICING = {
 
 const DEFAULT_PROVIDER_NAME = 'deepseek-v3';
 
+// Lazy-init electron-store so test environments that mock the module can
+// inject their fake before the first estimate() call.
+let _store;
+function _getStore() {
+  if (!_store) {
+    const Store = require('electron-store');
+    _store = new Store();
+  }
+  return _store;
+}
+
+/**
+ * Read the stored override for `providerKey`.
+ * Returns null if no override exists or the stored value is invalid.
+ * @param {string} providerKey
+ * @returns {{ input: number, output: number } | null}
+ */
+function getOverride(providerKey) {
+  let all;
+  try {
+    all = _getStore().get('aiPricing.overrides') || {};
+  } catch (_) {
+    return null; // electron-store not available (e.g. unit-test env)
+  }
+  const row = all[providerKey];
+  if (!row) return null;
+  if (
+    typeof row.input === 'number' && row.input >= 0 && Number.isFinite(row.input) &&
+    typeof row.output === 'number' && row.output >= 0 && Number.isFinite(row.output)
+  ) return row;
+  return null;
+}
+
 function estimate(providerName, { prompt_tokens = 0, completion_tokens = 0 }) {
   const key = providerName?.toLowerCase?.() || DEFAULT_PROVIDER_NAME;
-  const row = PRICING[key] || PRICING[DEFAULT_PROVIDER_NAME];
+  const row = getOverride(key) || PRICING[key] || PRICING[DEFAULT_PROVIDER_NAME];
   return (prompt_tokens * row.input + completion_tokens * row.output) / 1e6;
 }
 
@@ -50,4 +87,19 @@ function estimateTokens(text) {
   return Math.ceil(s.length / 4);
 }
 
-module.exports = { estimate, estimateTokens, PRICING };
+/**
+ * Returns the effective rate for a provider, plus whether it comes from an
+ * override or from the hardcoded PRICING table.
+ * Convenience for the Settings UI.
+ * @param {string} providerName
+ * @returns {{ input: number, output: number, source: 'override' | 'default' }}
+ */
+function effectiveRate(providerName) {
+  const key = providerName?.toLowerCase?.() || DEFAULT_PROVIDER_NAME;
+  const override = getOverride(key);
+  if (override) return { ...override, source: 'override' };
+  const def = PRICING[key] || PRICING[DEFAULT_PROVIDER_NAME];
+  return { ...def, source: 'default' };
+}
+
+module.exports = { estimate, estimateTokens, effectiveRate, PRICING };

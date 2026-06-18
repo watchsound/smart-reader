@@ -12,6 +12,17 @@ jest.mock('../../renderer/api/callLedgerApi', () => ({
   },
 }));
 
+jest.mock('../../renderer/api/aiPricingApi', () => ({
+  __esModule: true,
+  default: {
+    defaults: jest.fn().mockResolvedValue({
+      'deepseek-v3': { input: 0.27, output: 1.10 },
+      claude:        { input: 3.00, output: 15.00 },
+    }),
+    get: jest.fn().mockResolvedValue({}),
+  },
+}));
+
 import ProviderSpendStats from '../../renderer/views/settings/ProviderSpendStats';
 
 describe('ProviderSpendStats', () => {

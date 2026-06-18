@@ -50,6 +50,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import customStorage from '../../store/customStorage';
 import graphApi from '../../api/graphApi';
 import ProviderSpendStats from './ProviderSpendStats';
+import ProviderPricingOverride from './ProviderPricingOverride';
 import '../../components/CustomizedFilterBase/nodefilter-styles.module.css';
 import {
   StudyMode,
@@ -816,6 +817,7 @@ export default function SettingsPanel() {
                 }
               />
             </Box>
+            <ProviderPricingOverride providerKey="chatgpt" label="OpenAI ChatGPT" />
           </Box>
         </ProviderCard>
 
@@ -937,6 +939,7 @@ export default function SettingsPanel() {
                 Save
               </SaveButton>
             </Box>
+            <ProviderPricingOverride providerKey="gemini" label="Google Gemini" />
           </Box>
         </ProviderCard>
 
@@ -1055,6 +1058,7 @@ export default function SettingsPanel() {
                 Save
               </SaveButton>
             </Box>
+            <ProviderPricingOverride providerKey="claude" label="Anthropic Claude" />
           </Box>
         </ProviderCard>
 
@@ -1178,6 +1182,7 @@ export default function SettingsPanel() {
                 Save
               </SaveButton>
             </Box>
+            <ProviderPricingOverride providerKey="baidu" label="百度 ERNIE" />
           </Box>
         </ProviderCard>
 
@@ -1289,6 +1294,7 @@ export default function SettingsPanel() {
                 Save
               </SaveButton>
             </Box>
+            <ProviderPricingOverride providerKey="kimi" label="月之暗面 Kimi" />
           </Box>
         </ProviderCard>
 
@@ -1413,6 +1419,7 @@ export default function SettingsPanel() {
                 Save
               </SaveButton>
             </Box>
+            <ProviderPricingOverride providerKey="doubao" label="字节跳动 豆包" />
           </Box>
         </ProviderCard>
 
@@ -1524,6 +1531,7 @@ export default function SettingsPanel() {
                 Save
               </SaveButton>
             </Box>
+            <ProviderPricingOverride providerKey="qwen" label="阿里云 通义千问" />
           </Box>
         </ProviderCard>
 
@@ -1630,6 +1638,7 @@ export default function SettingsPanel() {
                 Save
               </SaveButton>
             </Box>
+            <ProviderPricingOverride providerKey="ollama" label="Ollama (Local)" />
           </Box>
         </ProviderCard>
       </SettingsSectionWrapper>

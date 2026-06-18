@@ -21,6 +21,34 @@ function register() {
       return { output: null, callId: null, error: e?.message || String(e) };
     }
   });
+
+  // Phase 13.2 — per-provider pricing overrides
+  // Stored in electron-store under `aiPricing.overrides`.
+  // Using a fresh Store() per call keeps this handler stateless and avoids
+  // the singleton concern; electron-store shares the same backing JSON file.
+  ipcMain.handle('aiPricing:get', () => {
+    const Store = require('electron-store');
+    const store = new Store();
+    return store.get('aiPricing.overrides') || {};
+  });
+
+  ipcMain.handle('aiPricing:set', (_e, { providerKey, input, output }) => {
+    const Store = require('electron-store');
+    const store = new Store();
+    const all = store.get('aiPricing.overrides') || {};
+    if (input === null && output === null) {
+      delete all[providerKey];
+    } else {
+      all[providerKey] = { input: Number(input), output: Number(output) };
+    }
+    store.set('aiPricing.overrides', all);
+    return all;
+  });
+
+  ipcMain.handle('aiPricing:defaults', () => {
+    const { PRICING } = require('../brain/spine/costEstimator');
+    return PRICING;
+  });
 }
 
 module.exports = { register };
