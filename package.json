@@ -94,7 +94,14 @@
       "release/app/dist",
       ".erb/dll",
       "src/__tests__/setup.js",
-      "__fixtures__"
+      "__fixtures__",
+      "src/__tests__/integration/",
+      "src/__tests__/main/",
+      "src/__tests__/db/",
+      "src/__tests__/spine/",
+      "src/__tests__/utils/",
+      "src/__tests__/brain/SessionRunner.attribution.test.js",
+      "src/__tests__/ipc/microCardHandlers.masteryEvent.test.js"
     ],
     "transform": {
       "\\.(ts|tsx|js|jsx)$": "ts-jest"

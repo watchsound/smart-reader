@@ -66,31 +66,77 @@ function rebuildForNode() {
 }
 
 function rebuildForElectron() {
-  // Restore the Electron binary. `npm run rebuild` is defined in
-  // package.json to call electron-rebuild for the project's deps.
-  // It rebuilds release/app/node_modules/better-sqlite3 — but src/node_modules
-  // is no longer a junction in many dev setups, so we ALSO have to copy the
-  // rebuilt Electron-ABI binary into src/node_modules. Without this copy,
-  // `npm start` finds the stale Node-ABI binary in src/node_modules and
-  // crashes with NODE_MODULE_VERSION mismatch.
-  const status = run(npmCmd, ['run', 'rebuild']);
-  if (status !== 0) return status;
-
-  const { existsSync, copyFileSync } = require('fs');
+  // Restore the Electron binary. Two pitfalls electron-rebuild trips on:
+  //   1. It treats "build/Release/better_sqlite3.node already exists" as
+  //      "nothing to do" and exits with "Rebuild Complete" — leaving the
+  //      Node-ABI binary in place. We delete the binary first so the
+  //      prebuild fetch actually runs.
+  //   2. The fetched prebuild only matches Electron's ABI; if prebuild-install
+  //      fails (network/timeout/missing asset), electron-rebuild falls back
+  //      to compiling from source via node-gyp, which FAILS on Windows when
+  //      the project path contains non-ASCII characters (MSBuild bug). We
+  //      surface that failure rather than letting a broken restore silently
+  //      pass.
+  const { existsSync, unlinkSync, copyFileSync, rmSync } = require('fs');
   const path = require('path');
   const root = path.join(__dirname, '..', '..');
-  const electronBinary = path.join(
+  const releaseAppBsq = path.join(
     root, 'release', 'app', 'node_modules', 'better-sqlite3',
-    'build', 'Release', 'better_sqlite3.node',
+  );
+  const releaseAppBinary = path.join(
+    releaseAppBsq, 'build', 'Release', 'better_sqlite3.node',
   );
   const srcCopy = path.join(
     root, 'src', 'node_modules', 'better-sqlite3',
     'build', 'Release', 'better_sqlite3.node',
   );
-  if (existsSync(electronBinary) && existsSync(path.dirname(srcCopy))) {
+
+  // Force a fresh build by wiping the cached Node-ABI binary so
+  // electron-rebuild's existence check fails and it runs the prebuild fetch.
+  if (existsSync(releaseAppBinary)) {
+    // eslint-disable-next-line no-console
+    console.log('[test-integration] removing stale binary so electron-rebuild fetches the prebuild');
+    try { unlinkSync(releaseAppBinary); } catch (_e) { /* ignore */ }
+  }
+  const prebuildsDir = path.join(releaseAppBsq, 'prebuilds');
+  if (existsSync(prebuildsDir)) {
+    try { rmSync(prebuildsDir, { recursive: true, force: true }); } catch (_e) { /* ignore */ }
+  }
+
+  const status = run(npmCmd, ['run', 'rebuild']);
+  if (status !== 0) return status;
+
+  // Verify rebuild actually produced an Electron-ABI binary. If it produced
+  // a Node-ABI one (electron-rebuild silently fell back to system Node),
+  // copying it to src/node_modules would break `npm start`. Detect by trying
+  // to load it under system Node — Electron-ABI throws NODE_MODULE_VERSION.
+  if (!existsSync(releaseAppBinary)) {
+    // eslint-disable-next-line no-console
+    console.error('[test-integration] electron-rebuild produced no binary; aborting copy');
+    return 1;
+  }
+  let isElectronAbi = false;
+  try {
+    require(releaseAppBinary);
+    // Loaded under Node — wrong ABI.
+  } catch (e) {
+    if (/NODE_MODULE_VERSION/.test(String(e && e.message))) isElectronAbi = true;
+  }
+  if (!isElectronAbi) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[test-integration] WARNING: rebuilt binary loads under system Node — ' +
+        'electron-rebuild appears to have produced a Node-ABI binary. ' +
+        '`npm start` will likely fail with NODE_MODULE_VERSION mismatch. ' +
+        'Workaround: rm -rf release/app/node_modules/better-sqlite3 && ' +
+        'npm --prefix release/app install better-sqlite3 && npm run rebuild.',
+    );
+  }
+
+  if (existsSync(path.dirname(srcCopy))) {
     // eslint-disable-next-line no-console
     console.log('[test-integration] copying Electron-ABI binary back to src/node_modules');
-    copyFileSync(electronBinary, srcCopy);
+    copyFileSync(releaseAppBinary, srcCopy);
   }
   return 0;
 }
@@ -101,7 +147,22 @@ function runJest() {
     'src/__tests__/integration/',
     'src/__tests__/main/',
     'src/__tests__/db/',
+    'src/__tests__/spine/',
+    'src/__tests__/utils/',
+    'src/__tests__/brain/SessionRunner.attribution.test.js',
+    'src/__tests__/ipc/microCardHandlers.masteryEvent.test.js',
     '--no-coverage',
+    // Override testPathIgnorePatterns from package.json — those exclusions
+    // exist so `npm test` skips DB-touching files; this runner explicitly
+    // re-includes them after rebuilding better-sqlite3 for system Node.
+    '--testPathIgnorePatterns',
+    'release/app/dist',
+    '--testPathIgnorePatterns',
+    '.erb/dll',
+    '--testPathIgnorePatterns',
+    'src/__tests__/setup.js',
+    '--testPathIgnorePatterns',
+    '__fixtures__',
   ]);
 }
 

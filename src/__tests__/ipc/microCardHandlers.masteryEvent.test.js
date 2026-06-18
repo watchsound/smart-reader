@@ -173,8 +173,10 @@ describe('microcard-accept — Phase 13 mastery_event instrumentation', () => {
     const ev = mockRecordWithProximateCall.mock.calls[0][0];
     expect(ev.surface).toBe('reading-microcard');
     expect(ev.learningPointId).toBe('lp-ack-1');
-    // newBox is 1 — the event reflects entry into the system, not the subsequent
-    // box-bump for acknowledge mode (that's a separate update, not a mastery_event).
-    expect(ev.newBox).toBe(1);
+    // newBox is 4 — Phase 13 P2 reordered the writes so the box-bump for
+    // acknowledge happens FIRST, then a single mastery_event reflects the
+    // final state. Source distinguishes the path ('microcard-acknowledge').
+    expect(ev.newBox).toBe(4);
+    expect(ev.source).toBe('microcard-acknowledge');
   });
 });
