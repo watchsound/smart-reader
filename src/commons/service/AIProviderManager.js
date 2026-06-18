@@ -17,6 +17,7 @@ import OllamaProvider from './OllamaProvider';
 import OllamaMainProvider from './OllamaMainProvider.js';
 import DoubaoProvider from './DoubaoProvider';
 import QwenProvider from './QwenProvider';
+import DeepSeekProvider from './DeepSeekProvider';
 
 export class AIProviderManager {
   constructor() {
@@ -39,6 +40,7 @@ export class AIProviderManager {
     apiKeyBaidu,
     apiKeyDoubao,
     apiKeyQwen,
+    apiKeyDeepSeek,
   ) {
     let key = '';
     let provider0 = provider;
@@ -56,6 +58,8 @@ export class AIProviderManager {
       key = apiKeyDoubao;
     } else if (provider0 === AIProvider.Qwen) {
       key = apiKeyQwen;
+    } else if (provider0 === AIProvider.DeepSeek) {
+      key = apiKeyDeepSeek;
     }
 
     if (!provider0) {
@@ -78,7 +82,11 @@ export class AIProviderManager {
                 if (key) provider0 = AIProvider.Doubao;
                 else {
                   key = apiKeyQwen;
-                  provider0 = AIProvider.Qwen;
+                  if (key) provider0 = AIProvider.Qwen;
+                  else {
+                    key = apiKeyDeepSeek;
+                    provider0 = AIProvider.DeepSeek;
+                  }
                 }
               }
             }
@@ -124,6 +132,9 @@ export class AIProviderManager {
     } else if (provider === AIProvider.Qwen) {
       this.currentProvider = new QwenProvider(key, model);
       this.currentProviderName = AIProvider.Qwen;
+    } else if (provider === AIProvider.DeepSeek) {
+      this.currentProvider = new DeepSeekProvider(key, model);
+      this.currentProviderName = AIProvider.DeepSeek;
     }
   }
 

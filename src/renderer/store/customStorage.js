@@ -10,6 +10,7 @@ import {
   KimiModel,
   DoubaoModel,
   QwenModel,
+  DeepSeekModel,
 } from '../../commons/model/DataTypes';
 import { instanceInRender as aiProviderManager } from '../../commons/service/AIProviderManager';
 
@@ -52,6 +53,7 @@ class customStorage {
     const apiKeyBaidu = await this.getBaiduKey();
     const apiKeyDoubao = await this.getDoubaoKey();
     const apiKeyQwen = await this.getQwenKey();
+    const apiKeyDeepSeek = await this.getApiKeyDeepSeek();
     const { key, provider } = aiProviderManager.preSetup(
       provider0,
       apiKeyChatgpt,
@@ -61,6 +63,7 @@ class customStorage {
       apiKeyBaidu,
       apiKeyDoubao,
       apiKeyQwen,
+      apiKeyDeepSeek,
     );
     let model = '';
     if (provider === AIProvider.ChatGPT) {
@@ -77,6 +80,8 @@ class customStorage {
       model = await this.getDoubaoModel();
     } else if (provider === AIProvider.Qwen) {
       model = await this.getQwenModel();
+    } else if (provider === AIProvider.DeepSeek) {
+      model = await this.getModelDeepSeek();
     }
 
     aiProviderManager.setup(true, userId, provider, key, model);
@@ -1427,6 +1432,32 @@ class customStorage {
   static setQwenKey(key) {
     if (!this.isLoggedIn()) return null;
     return window.electron.ipcRenderer.setQwenKey(key, this.getSessionToken());
+  }
+
+  // DeepSeek key
+  static getApiKeyDeepSeek() {
+    if (!this.isLoggedIn()) return null;
+    return window.electron.ipcRenderer.getDeepSeekKey(this.getSessionToken());
+  }
+
+  static setApiKeyDeepSeek(key) {
+    if (!this.isLoggedIn()) return null;
+    return window.electron.ipcRenderer.setDeepSeekKey(key, this.getSessionToken());
+  }
+
+  // DeepSeek model
+  static async setModelDeepSeek(mode) {
+    if (!this.isLoggedIn()) return null;
+    const r = await window.electron.ipcRenderer.setDeepSeekModel(
+      mode,
+      this.getSessionToken(),
+    );
+    return r;
+  }
+
+  static getModelDeepSeek() {
+    if (!this.isLoggedIn()) return DeepSeekModel.DEEPSEEK_CHAT;
+    return window.electron.ipcRenderer.getDeepSeekModel(this.getSessionToken());
   }
 
   static getUseChroma() {

@@ -66,6 +66,7 @@ import {
   OllamaModel,
   DoubaoModel,
   QwenModel,
+  DeepSeekModel,
 } from '../../../commons/model/DataTypes';
 import { useDeleteAllNoteMutation } from '../../store/api/noteApiSlice';
 import { useClearAllBooksMutation } from '../../store/api/bookApiSlice';
@@ -371,6 +372,7 @@ export default function SettingsPanel() {
   const [kimiKey, setKimiKey] = useState('');
   const [doubaoKey, setDoubaoKey] = useState('');
   const [qwenKey, setQwenKey] = useState('');
+  const [deepSeekKey, setDeepSeekKey] = useState('');
   const [aiProvider, setAiProvider] = useState('');
 
   const [serverUrl, setServerUrl] = useState('');
@@ -386,6 +388,7 @@ export default function SettingsPanel() {
   const [kimiModel, setKimiModel] = useState(KimiModel.KIMI_K2);
   const [doubaoModel, setDoubaoModel] = useState(DoubaoModel.DOUBAO_PRO_32K);
   const [qwenModel, setQwenModel] = useState(QwenModel.QWEN_PLUS);
+  const [deepSeekModel, setDeepSeekModel] = useState(DeepSeekModel.DEEPSEEK_CHAT);
   const [ollamaModel, setOllamaModel] = useState(OllamaModel.LLAMA_3_2_3B);
   // Advanced models (more capable)
   const [chatGPTAdvModel, setChatGPTAdvModel] = useState(ChatGPTModel.GPT4_1);
@@ -528,6 +531,10 @@ export default function SettingsPanel() {
       if (dkey) setDoubaoKey(dkey);
       const qkey = await customStorage.getQwenKey();
       if (qkey) setQwenKey(qkey);
+      const dsKey = await customStorage.getApiKeyDeepSeek?.() || '';
+      if (dsKey) setDeepSeekKey(dsKey);
+      const dsModel = await customStorage.getModelDeepSeek?.();
+      if (dsModel) setDeepSeekModel(dsModel);
       const ai = await customStorage.getAIProvider();
       if (ai) setAiProvider(ai);
       const url = await customStorage.getServerUrl();
@@ -1532,6 +1539,114 @@ export default function SettingsPanel() {
               </SaveButton>
             </Box>
             <ProviderPricingOverride providerKey="qwen" label="阿里云 通义千问" />
+          </Box>
+        </ProviderCard>
+
+        {/* DeepSeek */}
+        <ProviderCard
+          selected={aiProvider === AIProvider.DeepSeek}
+          onClick={() => setAiProvider(AIProvider.DeepSeek)}
+        >
+          <Box sx={{ flex: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+              <Typography sx={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                DeepSeek
+              </Typography>
+              {aiProvider === AIProvider.DeepSeek && (
+                <CheckCircleIcon sx={{ fontSize: 16, color: '#2eb67d' }} />
+              )}
+            </Box>
+            <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary', mb: 1 }}>
+              Open-source-first default. Best $/quality ratio for English; OpenAI-compatible API.
+            </Typography>
+            <Box
+              sx={{
+                display: 'flex',
+                gap: 1,
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                mb: 1,
+              }}
+            >
+              <StyledTextField
+                size="small"
+                placeholder="API Key"
+                value={deepSeekKey}
+                type={showPasswords.deepseek ? 'text' : 'password'}
+                onChange={(e) => setDeepSeekKey(e.target.value)}
+                sx={{ width: '280px' }}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <KeyIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                    </InputAdornment>
+                  ),
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        size="small"
+                        onClick={() => togglePassword('deepseek')}
+                      >
+                        {showPasswords.deepseek ? (
+                          <VisibilityOffIcon sx={{ fontSize: 16 }} />
+                        ) : (
+                          <VisibilityIcon sx={{ fontSize: 16 }} />
+                        )}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
+              />
+              <Button
+                size="small"
+                variant="text"
+                href="https://platform.deepseek.com/api_keys"
+                target="_blank"
+                rel="noopener noreferrer"
+                sx={{ fontSize: '0.7rem', textTransform: 'none' }}
+              >
+                Get API Key
+              </Button>
+            </Box>
+            <Box
+              sx={{
+                display: 'flex',
+                gap: 1,
+                alignItems: 'center',
+                flexWrap: 'wrap',
+              }}
+            >
+              <Box>
+                <Typography
+                  sx={{ fontSize: '0.7rem', color: 'text.secondary', mb: 0.5 }}
+                >
+                  Model
+                </Typography>
+                <StyledSelect
+                  value={deepSeekModel}
+                  onChange={(e) => setDeepSeekModel(e.target.value)}
+                  size="small"
+                  sx={{ minWidth: '200px' }}
+                >
+                  <MenuItem value={DeepSeekModel.DEEPSEEK_CHAT}>
+                    DeepSeek Chat (chat-tuned)
+                  </MenuItem>
+                  <MenuItem value={DeepSeekModel.DEEPSEEK_REASONER}>
+                    DeepSeek Reasoner (R1, reasoning)
+                  </MenuItem>
+                </StyledSelect>
+              </Box>
+              <SaveButton
+                onClick={() => {
+                  customStorage.setApiKeyDeepSeek?.(deepSeekKey);
+                  customStorage.setModelDeepSeek?.(deepSeekModel);
+                  saveAIProvider(AIProvider.DeepSeek);
+                }}
+              >
+                Save
+              </SaveButton>
+            </Box>
+            <ProviderPricingOverride providerKey="deepseek" label="DeepSeek" />
           </Box>
         </ProviderCard>
 

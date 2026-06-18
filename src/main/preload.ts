@@ -1056,6 +1056,22 @@ const electronHandler = {
       const resp = ipcRenderer.sendSync('setQwenKey', { key, token });
       return resp;
     },
+    getDeepSeekKey(token: string) {
+      const resp = ipcRenderer.sendSync('getDeepSeekKey', token);
+      return resp;
+    },
+    setDeepSeekKey(key: string, token: string) {
+      const resp = ipcRenderer.sendSync('setDeepSeekKey', { key, token });
+      return resp;
+    },
+    getDeepSeekModel(token: string) {
+      const resp = ipcRenderer.sendSync('getDeepSeekModel', token);
+      return resp;
+    },
+    setDeepSeekModel(mode: string, token: string) {
+      const resp = ipcRenderer.sendSync('setDeepSeekModel', { mode, token });
+      return resp;
+    },
     getRecentURL(token: string) {
       const resp = ipcRenderer.sendSync('getRecentURL', token);
       return resp;

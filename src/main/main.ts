@@ -56,6 +56,7 @@ import {
   KimiModel,
   DoubaoModel,
   QwenModel,
+  DeepSeekModel,
 } from '../commons/model/DataTypes';
 
 import { getUserIdFromToken } from './db/dbManager';
@@ -342,6 +343,9 @@ async function setupThirdPartySetting(userId: number): Promise<void> {
   const apiKeyClaude = store.get(`claude_key_${userId}`) as string;
   // const baiduAccessToken = await getBaiduAccessToken(userId);
   const apiKeyBaidu = store.get(`baidu_key_${userId}`) as string;
+  const apiKeyDoubao = store.get(`doubao_key_${userId}`) as string;
+  const apiKeyQwen = store.get(`qwen_key_${userId}`) as string;
+  const apiKeyDeepSeek = store.get(`deepseek_key_${userId}`) as string;
 
   const { key, provider } = aiProviderManager.preSetup(
     provider0,
@@ -350,6 +354,9 @@ async function setupThirdPartySetting(userId: number): Promise<void> {
     apiKeyKimi,
     apiKeyClaude,
     apiKeyBaidu,
+    apiKeyDoubao,
+    apiKeyQwen,
+    apiKeyDeepSeek,
   );
 
   let model = '';
@@ -359,6 +366,12 @@ async function setupThirdPartySetting(userId: number): Promise<void> {
     model = store.get(`gemini_model_${userId}`) as string;
   } else if (provider === AIProvider.Baidu) {
     model = store.get(`baidu_secret_${userId}`) as string;
+  } else if (provider === AIProvider.Doubao) {
+    model = store.get(`doubao-model_${userId}`) as string;
+  } else if (provider === AIProvider.Qwen) {
+    model = store.get(`qwen-model_${userId}`) as string;
+  } else if (provider === AIProvider.DeepSeek) {
+    model = (store.get(`deepseek-model_${userId}`) as string) || DeepSeekModel.DEEPSEEK_CHAT;
   }
 
   aiProviderManager.setup(false, userId, provider, key, model);
@@ -1440,6 +1453,46 @@ const createWindow = async () => {
       _.returnValue = false;
     } else {
       store.set(`qwen_key_${userId}`, key || false);
+      _.returnValue = true;
+    }
+  });
+
+  ipcMain.on('getDeepSeekKey', (_, token) => {
+    const userId = getUserIdFromToken(token);
+    if (userId < 0) {
+      _.returnValue = false;
+    } else {
+      const key = store.get(`deepseek_key_${userId}`);
+      _.returnValue = key || false;
+    }
+  });
+
+  ipcMain.on('setDeepSeekKey', (_, { key, token }) => {
+    const userId = getUserIdFromToken(token);
+    if (userId < 0) {
+      _.returnValue = false;
+    } else {
+      store.set(`deepseek_key_${userId}`, key || false);
+      _.returnValue = true;
+    }
+  });
+
+  ipcMain.on('getDeepSeekModel', (_, token) => {
+    const userId = getUserIdFromToken(token);
+    if (userId < 0) {
+      _.returnValue = -1;
+    } else {
+      const mode = store.get(`deepseek-model_${userId}`);
+      _.returnValue = mode || DeepSeekModel.DEEPSEEK_CHAT;
+    }
+  });
+
+  ipcMain.on('setDeepSeekModel', (_, { mode, token }) => {
+    const userId = getUserIdFromToken(token);
+    if (userId < 0) {
+      _.returnValue = false;
+    } else {
+      store.set(`deepseek-model_${userId}`, mode);
       _.returnValue = true;
     }
   });
