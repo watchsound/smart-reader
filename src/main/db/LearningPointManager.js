@@ -549,7 +549,7 @@ export const updateLearningPoint = (id, updates, token) => {
  * @param {number} productionScore 0–100 score from ComprehensionGradingService
  * @param {string} token
  */
-export const applyProductionGrade = (id, productionScore, token) => {
+export const applyProductionGrade = (id, productionScore, token, opts = {}) => {
   const userId = getUserIdFromToken(token);
   if (userId < 0) return { error: 'Invalid session' };
 
@@ -604,8 +604,10 @@ export const applyProductionGrade = (id, productionScore, token) => {
   }
 
   try {
-    const MasteryEventStore = require('./MasteryEventStore');
-    MasteryEventStore.record({
+    const recorder = require('./masteryEventRecorder');
+    recorder.recordWithProximateCall({
+      traceId: opts?.proximateTraceId || null,
+      surface: 'production-prompt',
       learningPointId: id,
       userId,
       ts: Date.now(),
@@ -615,7 +617,6 @@ export const applyProductionGrade = (id, productionScore, token) => {
       prevMastery: current.masteryLevel,
       newMastery: nextMastery,
       source: 'production-grade',
-      sourceRef: null,
     });
   } catch (_e) { /* never break the primary write */ }
 
@@ -1046,8 +1047,10 @@ export const processReview = (id, rating, responseTimeMs, token) => {
     );
 
     try {
-      const MasteryEventStore = require('./MasteryEventStore');
-      MasteryEventStore.record({
+      const recorder = require('./masteryEventRecorder');
+      recorder.recordWithProximateCall({
+        traceId: null,
+        surface: 'manual-review',
         learningPointId: id,
         userId,
         ts: Date.now(),
@@ -1058,7 +1061,6 @@ export const processReview = (id, rating, responseTimeMs, token) => {
         newMastery: masteryLevel,
         rating: String(rating),
         source: 'user-review',
-        sourceRef: null,
       });
     } catch (_e) { /* never break the primary write */ }
 

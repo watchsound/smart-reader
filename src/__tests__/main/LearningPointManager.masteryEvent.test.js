@@ -1,17 +1,17 @@
 /**
  * LearningPointManager.masteryEvent.test.js
  *
- * Verifies that Phase 12 forward-instrumentation emits mastery_event rows
- * from applyProductionGrade and processReview without breaking the primary
- * write path.
+ * Verifies that Phase 13 instrumentation emits mastery_event rows via
+ * masteryEventRecorder from applyProductionGrade and processReview without
+ * breaking the primary write path.
  *
  * Uses the same mock pattern as
  *   src/__tests__/learning/LearningPointManager.test.js:
  *   - dbManager is mocked as an ES module default export.
- *   - MasteryEventStore is mocked so we can assert on record() calls
- *     without a real DB.
- *   - MasteryEventStore.record errors are swallowed — confirmed by testing
- *     that a throwing mock still returns a valid result.
+ *   - masteryEventRecorder is mocked so we can assert on recordWithProximateCall()
+ *     calls without a real DB.
+ *   - recorder errors are swallowed — confirmed by testing that a throwing mock
+ *     still returns a valid result.
  */
 
 // ── dbManager mock (must come before any require of LearningPointManager) ─────
@@ -36,12 +36,11 @@ jest.mock('../../commons/utils/SqliteHelper', () => ({
   }),
 }));
 
-// ── MasteryEventStore mock ─────────────────────────────────────────────────────
-// record() is called via require() inside the function body so jest.mock works.
-const mockMasteryRecord = jest.fn();
-jest.mock('../../main/db/MasteryEventStore', () => ({
-  record: (...args) => mockMasteryRecord(...args),
-  queryByConcept: jest.fn(() => []),
+// ── masteryEventRecorder mock ──────────────────────────────────────────────────
+// recordWithProximateCall() is called via require() inside the function body.
+const mockRecordWithProximateCall = jest.fn();
+jest.mock('../../main/db/masteryEventRecorder', () => ({
+  recordWithProximateCall: (...args) => mockRecordWithProximateCall(...args),
 }));
 
 // ── imports after mocks ────────────────────────────────────────────────────────
@@ -104,7 +103,7 @@ function setupProcessReview({ box = 2, mastery_level = 40 } = {}) {
 describe('LearningPointManager — mastery_event instrumentation', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockMasteryRecord.mockClear();
+    mockRecordWithProximateCall.mockClear();
   });
 
   // ── applyProductionGrade ────────────────────────────────────────────────────
@@ -116,12 +115,13 @@ describe('LearningPointManager — mastery_event instrumentation', () => {
       const result = applyProductionGrade('lp-1', 85, 'valid-token');
 
       expect(result.error).toBeUndefined();
-      expect(mockMasteryRecord).toHaveBeenCalledTimes(1);
-      const ev = mockMasteryRecord.mock.calls[0][0];
+      expect(mockRecordWithProximateCall).toHaveBeenCalledTimes(1);
+      const ev = mockRecordWithProximateCall.mock.calls[0][0];
       expect(ev.learningPointId).toBe('lp-1');
       expect(ev.userId).toBe(1);
       expect(ev.eventType).toBe('mastery_change');
       expect(ev.source).toBe('production-grade');
+      expect(ev.surface).toBe('production-prompt');
       expect(ev.prevMastery).toBe(60);
       expect(ev.newMastery).toBe(85);
       expect(ev.prevBox).toBe(3);
@@ -133,15 +133,35 @@ describe('LearningPointManager — mastery_event instrumentation', () => {
       const result = applyProductionGrade('lp-1', 30, 'valid-token');
 
       expect(result.demoted).toBe(true);
-      expect(mockMasteryRecord).toHaveBeenCalledTimes(1);
-      const ev = mockMasteryRecord.mock.calls[0][0];
+      expect(mockRecordWithProximateCall).toHaveBeenCalledTimes(1);
+      const ev = mockRecordWithProximateCall.mock.calls[0][0];
       expect(ev.eventType).toBe('mastery_change');
+      expect(ev.surface).toBe('production-prompt');
       expect(ev.newBox).toBe(3); // demoted from 4
     });
 
-    test('primary write result is intact even if MasteryEventStore.record throws', () => {
+    test('forwards proximateTraceId from opts to recorder', () => {
       setupApplyGrade({ masteryLevel: 60, box: 3 });
-      mockMasteryRecord.mockImplementationOnce(() => {
+
+      applyProductionGrade('lp-1', 85, 'valid-token', { proximateTraceId: 'trace-xyz' });
+
+      expect(mockRecordWithProximateCall).toHaveBeenCalledTimes(1);
+      const ev = mockRecordWithProximateCall.mock.calls[0][0];
+      expect(ev.traceId).toBe('trace-xyz');
+    });
+
+    test('uses traceId: null when opts is omitted', () => {
+      setupApplyGrade({ masteryLevel: 60, box: 3 });
+
+      applyProductionGrade('lp-1', 85, 'valid-token');
+
+      const ev = mockRecordWithProximateCall.mock.calls[0][0];
+      expect(ev.traceId).toBeNull();
+    });
+
+    test('primary write result is intact even if recorder throws', () => {
+      setupApplyGrade({ masteryLevel: 60, box: 3 });
+      mockRecordWithProximateCall.mockImplementationOnce(() => {
         throw new Error('DB unavailable');
       });
 
@@ -158,7 +178,7 @@ describe('LearningPointManager — mastery_event instrumentation', () => {
     test('does NOT emit event when token is invalid', () => {
       const result = applyProductionGrade('lp-1', 85, 'bad-token');
       expect(result.error).toBe('Invalid session');
-      expect(mockMasteryRecord).not.toHaveBeenCalled();
+      expect(mockRecordWithProximateCall).not.toHaveBeenCalled();
     });
 
     test('does NOT emit event when learning point not found', () => {
@@ -166,7 +186,7 @@ describe('LearningPointManager — mastery_event instrumentation', () => {
       mockDb.prepare.mockReturnValueOnce(selectStmt);
       const result = applyProductionGrade('missing', 85, 'valid-token');
       expect(result.error).toBe('Learning point not found');
-      expect(mockMasteryRecord).not.toHaveBeenCalled();
+      expect(mockRecordWithProximateCall).not.toHaveBeenCalled();
     });
   });
 
@@ -180,12 +200,14 @@ describe('LearningPointManager — mastery_event instrumentation', () => {
 
       expect(result.error).toBeUndefined();
       expect(result.success).toBe(true);
-      expect(mockMasteryRecord).toHaveBeenCalledTimes(1);
-      const ev = mockMasteryRecord.mock.calls[0][0];
+      expect(mockRecordWithProximateCall).toHaveBeenCalledTimes(1);
+      const ev = mockRecordWithProximateCall.mock.calls[0][0];
       expect(ev.learningPointId).toBe('lp-1');
       expect(ev.userId).toBe(1);
       expect(ev.eventType).toBe('box_change');
       expect(ev.source).toBe('user-review');
+      expect(ev.surface).toBe('manual-review');
+      expect(ev.traceId).toBeNull();
       expect(ev.rating).toBe('3');
       expect(ev.prevBox).toBe(2);
       expect(ev.newBox).toBe(3); // Good advances one box
@@ -196,17 +218,18 @@ describe('LearningPointManager — mastery_event instrumentation', () => {
 
       processReview('lp-1', 1, 200, 'valid-token');
 
-      expect(mockMasteryRecord).toHaveBeenCalledTimes(1);
-      const ev = mockMasteryRecord.mock.calls[0][0];
+      expect(mockRecordWithProximateCall).toHaveBeenCalledTimes(1);
+      const ev = mockRecordWithProximateCall.mock.calls[0][0];
       expect(ev.eventType).toBe('box_change');
       expect(ev.source).toBe('user-review');
+      expect(ev.surface).toBe('manual-review');
       expect(ev.rating).toBe('1');
       expect(ev.newBox).toBe(1); // Again resets to box 1
     });
 
-    test('primary write result is intact even if MasteryEventStore.record throws', () => {
+    test('primary write result is intact even if recorder throws', () => {
       setupProcessReview({ box: 2, mastery_level: 40 });
-      mockMasteryRecord.mockImplementationOnce(() => {
+      mockRecordWithProximateCall.mockImplementationOnce(() => {
         throw new Error('DB unavailable');
       });
 
