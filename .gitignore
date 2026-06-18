@@ -32,3 +32,16 @@ npm-debug.log.*
 .claude/
 .codegraph/
 .history/
+
+# Build output (not the release/ tree — that's already gitignored)
+/build/
+
+# Lint output dumps
+lint_output.txt
+
+# SQLite WAL / SHM files (transient sidecar files for journal_mode = WAL)
+sqlite_tables.db-shm
+sqlite_tables.db-wal
+
+# SQLite corruption backups (dbInit creates these when it finds a corrupt file)
+sqlite_tables.db.corrupt-*
