@@ -16,6 +16,9 @@ const predictiveApi = {
   report(opts) {
     return window.electron.ipcRenderer.invoke('predictive:report', opts);
   },
+  plan(opts) {
+    return window.electron.ipcRenderer.invoke('predictive:plan', opts);
+  },
 };
 
 module.exports = predictiveApi;

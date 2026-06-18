@@ -33,4 +33,9 @@ describe('predictiveApi', () => {
     await api.report({ windowDays: 30 });
     expect(window.electron.ipcRenderer.invoke).toHaveBeenCalledWith('predictive:report', { windowDays: 30 });
   });
+
+  test('plan invokes predictive:plan', async () => {
+    await api.plan({ timeBudgetMin: 15, dollarBudget: 0.3 });
+    expect(window.electron.ipcRenderer.invoke).toHaveBeenCalledWith('predictive:plan', { timeBudgetMin: 15, dollarBudget: 0.3 });
+  });
 });

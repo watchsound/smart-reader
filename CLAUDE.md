@@ -185,6 +185,10 @@ There is no dedicated technical doc per loop yet — code is the source of truth
 | Phase 8c — Production loop | High-mastery learning point | `ProductionPromptService.schedulePrompt` (mastery ≥ 60, ≥3 reviews, substantive back) | `ProductionPromptPanel` |
 | Phase 9 — Brain Spine | every LLM call site | `brain/spine/brainCall` + `meteredCall` (BrainContext + Intent Registry + Tool Registry + Call Ledger) | `RationaleCard` + `EconomicsPanel` in `BrainDashboardPanel`; TriggerTelemetryPanel intent column |
 | Phase 14a — Predictive Engine | nightly heartbeat refresh | `brain/predictive/PredictiveEngine` (empirical-Bayes over `mastery_event ⋈ brain_call_ledger`, hierarchical shrinkage by `(surface, box, domain)`) | `PredictionsTab` in `BrainDashboardPanel` (calibration KPIs + reliability diagram) |
+| Phase 14b — ROI-ranked queue | every Brain Trigger push | `triggerToCell` + async `predictiveApi.predict` per trigger; `ProposalQueue` sort = tier → quest → ROI desc | subtle `+ΔM / $cost` chip on each proposal in `BrainDashboardPanel` |
+| Phase 14c — Concept ETA sparkline | concept inspector open | `brain/predictive/conceptProjection.getConceptProjection` extends `BrainVisibilityService.getConcept` response | dashed projection continuation in `MasterySparkline` + ETA chip in `ConceptInspector` |
+| Phase 14d — Budget Session Planner | "Plan now" button | `utils/BudgetSessionPlanner.computePlan` (FSRS-due ∪ active-Quest scope, greedy ROI fill) | `PlanTab` in `BrainDashboardPanel` (budget toggles → ranked checklist with Start actions) |
+| Phase 14e — Quest pacing forecaster | active Quest in OrbQuestMenu | `utils/QuestPacingService.computePacing` reuses 14c projection across Quest's bookIds, picks max ETA + top-5 bottlenecks | `QuestPacing` line under each active Quest with expandable bottleneck list |
 
 Cross-loop plumbing:
 - Episode types defined in `EpisodeCollector.EVENT_TYPES` (mirrored on the renderer as `EPISODE_TYPES` in `renderer/api/brainApi.js`)
