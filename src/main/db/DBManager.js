@@ -39,6 +39,21 @@ class DatabaseSingleton {
       const database = new Database(dbPath);
       database.pragma('journal_mode = WAL');
 
+      // Apply any tables/indices that exist in db.sql but not yet in this
+      // DB file. Idempotent — every CREATE in db.sql uses IF NOT EXISTS.
+      // Without this, new phases that add tables crash IPC handlers on
+      // boot with `no such table: X` until the dev hand-runs the missing
+      // CREATEs. See SchemaMigrator for scope + limitations (no ALTER yet).
+      try {
+        // eslint-disable-next-line global-require
+        const { migrate } = require('./SchemaMigrator');
+        migrate(database);
+      } catch (e) {
+        // Never let migration crash the app — fall through and let the
+        // missing-table errors surface in their actual IPC paths.
+        console.warn('[dbManager] SchemaMigrator threw:', e && e.message);
+      }
+
       DatabaseSingleton.instance = database;
     }
     return DatabaseSingleton.instance;
