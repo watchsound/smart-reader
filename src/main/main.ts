@@ -361,9 +361,15 @@ async function setupThirdPartySetting(userId: number): Promise<void> {
 
   let model = '';
   if (provider === AIProvider.ChatGPT) {
-    model = store.get(`openai_model_${userId}`) as string;
+    // IPC handler writes to `chatgpt-model_<uid>` (see line 889).
+    // Was reading `openai_model_<uid>` — wrong prefix AND wrong separator;
+    // never matched, so user's model selection was silently dropped on every
+    // boot and the hardcoded default in ChatGPTProvider applied instead.
+    model = store.get(`chatgpt-model_${userId}`) as string;
   } else if (provider === AIProvider.Gemini) {
-    model = store.get(`gemini_model_${userId}`) as string;
+    // IPC handler writes to `gemini-model_<uid>` (see line 832). Was reading
+    // `gemini_model_<uid>` — separator mismatch; same silent-drop bug.
+    model = store.get(`gemini-model_${userId}`) as string;
   } else if (provider === AIProvider.Kimi) {
     model = store.get(`kimi-model_${userId}`) as string;
   } else if (provider === AIProvider.Claude) {
