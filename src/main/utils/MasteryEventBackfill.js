@@ -11,13 +11,15 @@
  *   3. Catchall       → one `imported` event per learning_point that still
  *      has no mastery_event row after the two passes above
  *
- * All inserts go through MasteryEventStore.record() which absorbs duplicates
- * via the UNIQUE index on (learning_point_id, ts, event_type, COALESCE(source_ref,'')).
+ * All inserts go through masteryEventRecorder.recordWithProximateCall() which
+ * stamps feature_surface='backfill' and delegates to the store's record method,
+ * which absorbs duplicates via the UNIQUE index on
+ * (learning_point_id, ts, event_type, COALESCE(source_ref,'')).
  * Running backfill() twice produces identical state.
  */
 
 const dbManager = require('../db/dbManager');
-const MasteryEventStore = require('../db/MasteryEventStore');
+const recorder = require('../db/masteryEventRecorder');
 
 /**
  * Coerce a column value to epoch-ms.
@@ -54,7 +56,9 @@ async function backfill({ userId = 1 } = {}) {
         .prepare(`SELECT * FROM sr_item WHERE user_id = ?`)
         .all(userId);
       for (const r of rows) {
-        MasteryEventStore.record({
+        recorder.recordWithProximateCall({
+          traceId: null,           // backfill has no LLM call
+          surface: 'backfill',
           learningPointId: String(r.item_id),
           userId,
           ts: parseTs(r.last_review || r.created_at),
@@ -80,7 +84,9 @@ async function backfill({ userId = 1 } = {}) {
         )
         .all(userId);
       for (const r of rows) {
-        MasteryEventStore.record({
+        recorder.recordWithProximateCall({
+          traceId: null,           // backfill has no LLM call
+          surface: 'backfill',
           learningPointId: String(r.item_id),
           userId,
           ts: parseTs(r.reviewed_at),
@@ -106,7 +112,9 @@ async function backfill({ userId = 1 } = {}) {
         )
         .all(userId);
       for (const r of rows) {
-        MasteryEventStore.record({
+        recorder.recordWithProximateCall({
+          traceId: null,           // backfill has no LLM call
+          surface: 'backfill',
           learningPointId: String(r.learning_point_id),
           userId,
           ts: parseTs(r.end_time),
@@ -136,7 +144,9 @@ async function backfill({ userId = 1 } = {}) {
     .all(userId);
 
   for (const lp of orphans) {
-    MasteryEventStore.record({
+    recorder.recordWithProximateCall({
+      traceId: null,           // backfill has no LLM call
+      surface: 'backfill',
       learningPointId: lp.id,
       userId,
       ts: parseTs(lp.created_at),

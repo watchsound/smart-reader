@@ -43,3 +43,21 @@ test('backfill skips silently if no learning_point rows', async () => {
   freshDb();
   await expect(backfill({ userId: 1 })).resolves.not.toThrow();
 });
+
+test('backfilled mastery_event rows have feature_surface="backfill"', async () => {
+  const db = freshDb();
+  // Insert an sr_item row (Pass 1) and a learning_point (Pass 3 catchall).
+  // sr_item.item_id must match a learning_point.id for the FK constraint.
+  db.prepare(`INSERT INTO learning_point (id, user_id, domain_type, title, front, back, source_type, box, mastery_level, created_at, updated_at)
+              VALUES ('lp-sr', 1, 'vocabulary', 'word', '{}', '{}', 'book', 1, 30, '2026-06-15', '2026-06-15')`).run();
+  db.prepare(`INSERT INTO sr_item (user_id, item_id, item_type, last_review, review_count, created_at)
+              VALUES (1, 'lp-sr', 'learning_point', '2026-06-10', 3, '2026-06-01')`).run();
+  await backfill({ userId: 1 });
+  const rows = db.prepare(
+    `SELECT feature_surface FROM mastery_event WHERE learning_point_id = ?`
+  ).all('lp-sr');
+  expect(rows.length).toBeGreaterThanOrEqual(1);
+  rows.forEach((row) => {
+    expect(row.feature_surface).toBe('backfill');
+  });
+});
