@@ -20,9 +20,14 @@ test('shows goal + soft-write list + end reason + traceId fragment', async () =>
     </MemoryRouter>
   );
   await screen.findByText(/Session complete/i);
-  expect(screen.getByText(/scheduleReread/)).toBeInTheDocument();
-  expect(screen.getByText(/createMicroCard/)).toBeInTheDocument();
+  // Phase 15a-3: scheduleReread + createMicroCard now appear in BOTH the
+  // "Actions taken" list AND the new "Director rationale, step by step"
+  // list, so getAllByText is the correct assertion.
+  expect(screen.getAllByText(/scheduleReread/).length).toBeGreaterThan(0);
+  expect(screen.getAllByText(/createMicroCard/).length).toBeGreaterThan(0);
   expect(screen.getByText(/done/i)).toBeInTheDocument();
   // traceId snippet: first 8 chars of 'tr-abcdef12' = 'tr-abcde'
   expect(screen.getByText(/trace tr-abcde/i)).toBeInTheDocument();
+  // Director rationale section is rendered when steps exist.
+  expect(screen.getByText(/Director rationale/i)).toBeInTheDocument();
 });

@@ -11,6 +11,7 @@ const fakeApi = {
   ]),
   attributionBars: jest.fn().mockResolvedValue([]),
   attributionDensityStrip: jest.fn().mockResolvedValue([]),
+  latencyByIntent: jest.fn().mockResolvedValue([]),
 };
 
 jest.mock('../../../renderer/api/callLedgerApi', () => ({

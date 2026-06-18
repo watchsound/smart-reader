@@ -19,6 +19,7 @@ jest.mock('../../renderer/api/callLedgerApi', () => ({
     listSessionTraces: jest.fn().mockResolvedValue([]),
     attributionBars: jest.fn().mockResolvedValue([]),
     attributionDensityStrip: jest.fn().mockResolvedValue([]),
+    latencyByIntent: jest.fn().mockResolvedValue([]),
   },
 }));
 
