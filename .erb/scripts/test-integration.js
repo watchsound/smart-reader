@@ -66,18 +66,20 @@ function rebuildForNode() {
 }
 
 function rebuildForElectron() {
-  // Restore the Electron binary. Two pitfalls electron-rebuild trips on:
-  //   1. It treats "build/Release/better_sqlite3.node already exists" as
-  //      "nothing to do" and exits with "Rebuild Complete" — leaving the
-  //      Node-ABI binary in place. We delete the binary first so the
-  //      prebuild fetch actually runs.
-  //   2. The fetched prebuild only matches Electron's ABI; if prebuild-install
-  //      fails (network/timeout/missing asset), electron-rebuild falls back
-  //      to compiling from source via node-gyp, which FAILS on Windows when
-  //      the project path contains non-ASCII characters (MSBuild bug). We
-  //      surface that failure rather than letting a broken restore silently
-  //      pass.
-  const { existsSync, unlinkSync, copyFileSync, rmSync } = require('fs');
+  // Restore the Electron binary by fetching the Electron-ABI prebuilt
+  // directly via prebuild-install. The package-level `npm run rebuild`
+  // delegates to electron-rebuild, which is unreliable on this codebase:
+  //   - It treats "build/Release/better_sqlite3.node already exists" as
+  //     "nothing to do" — leaving the Node-ABI binary from runJest's
+  //     rebuildForNode step in place.
+  //   - On Windows with non-ASCII project paths it falls back to
+  //     node-gyp-from-source, which then fails (MSBuild can't handle
+  //     non-ASCII path segments). The failure surfaces as a noisy
+  //     exception, but only after we've already wasted minutes.
+  // prebuild-install is the underlying tool that actually downloads
+  // the v116 prebuild from the better-sqlite3 GitHub releases. We
+  // invoke it directly with the explicit Electron target.
+  const { existsSync, copyFileSync, rmSync } = require('fs');
   const path = require('path');
   const root = path.join(__dirname, '..', '..');
   const releaseAppBsq = path.join(
@@ -91,46 +93,68 @@ function rebuildForElectron() {
     'build', 'Release', 'better_sqlite3.node',
   );
 
-  // Force a fresh build by wiping the cached Node-ABI binary so
-  // electron-rebuild's existence check fails and it runs the prebuild fetch.
-  if (existsSync(releaseAppBinary)) {
+  // Wipe stale Node-ABI artifacts so prebuild-install does the install.
+  for (const target of [
+    path.join(releaseAppBsq, 'build'),
+    path.join(releaseAppBsq, 'prebuilds'),
+  ]) {
+    if (existsSync(target)) {
+      try { rmSync(target, { recursive: true, force: true }); } catch (_e) { /* ignore */ }
+    }
+  }
+
+  // Look up Electron's version from its installed package.json so this
+  // doesn't drift when Electron is bumped.
+  let electronVersion;
+  try {
+    // eslint-disable-next-line global-require, import/no-dynamic-require
+    electronVersion = require(path.join(root, 'node_modules', 'electron', 'package.json')).version;
+  } catch (_e) {
     // eslint-disable-next-line no-console
-    console.log('[test-integration] removing stale binary so electron-rebuild fetches the prebuild');
-    try { unlinkSync(releaseAppBinary); } catch (_e) { /* ignore */ }
-  }
-  const prebuildsDir = path.join(releaseAppBsq, 'prebuilds');
-  if (existsSync(prebuildsDir)) {
-    try { rmSync(prebuildsDir, { recursive: true, force: true }); } catch (_e) { /* ignore */ }
+    console.error('[test-integration] could not read electron version');
+    return 1;
   }
 
-  const status = run(npmCmd, ['run', 'rebuild']);
-  if (status !== 0) return status;
+  const prebuildInstall = path.join(
+    root, 'release', 'app', 'node_modules', '.bin',
+    isWin ? 'prebuild-install.cmd' : 'prebuild-install',
+  );
+  if (!existsSync(prebuildInstall)) {
+    // eslint-disable-next-line no-console
+    console.error('[test-integration] prebuild-install not found at', prebuildInstall);
+    return 1;
+  }
+  const status = run(prebuildInstall, ['--runtime', 'electron', '--target', electronVersion], {
+    cwd: releaseAppBsq,
+  });
+  if (status !== 0) {
+    // eslint-disable-next-line no-console
+    console.error('[test-integration] prebuild-install failed for Electron target', electronVersion);
+    return status;
+  }
 
-  // Verify rebuild actually produced an Electron-ABI binary. If it produced
-  // a Node-ABI one (electron-rebuild silently fell back to system Node),
-  // copying it to src/node_modules would break `npm start`. Detect by trying
-  // to load it under system Node — Electron-ABI throws NODE_MODULE_VERSION.
+  // Verify the fetched binary is genuinely Electron-ABI. If it loads under
+  // system Node, the prebuild ended up Node-ABI (shouldn't happen, but
+  // detect rather than silently propagate).
   if (!existsSync(releaseAppBinary)) {
     // eslint-disable-next-line no-console
-    console.error('[test-integration] electron-rebuild produced no binary; aborting copy');
+    console.error('[test-integration] prebuild-install reported success but no binary exists');
     return 1;
   }
   let isElectronAbi = false;
   try {
+    // eslint-disable-next-line global-require, import/no-dynamic-require
     require(releaseAppBinary);
-    // Loaded under Node — wrong ABI.
   } catch (e) {
     if (/NODE_MODULE_VERSION/.test(String(e && e.message))) isElectronAbi = true;
   }
   if (!isElectronAbi) {
     // eslint-disable-next-line no-console
-    console.warn(
-      '[test-integration] WARNING: rebuilt binary loads under system Node — ' +
-        'electron-rebuild appears to have produced a Node-ABI binary. ' +
-        '`npm start` will likely fail with NODE_MODULE_VERSION mismatch. ' +
-        'Workaround: rm -rf release/app/node_modules/better-sqlite3 && ' +
-        'npm --prefix release/app install better-sqlite3 && npm run rebuild.',
+    console.error(
+      '[test-integration] FATAL: fetched binary loads under system Node — wrong ABI. ' +
+        '`npm start` would fail.',
     );
+    return 1;
   }
 
   if (existsSync(path.dirname(srcCopy))) {
