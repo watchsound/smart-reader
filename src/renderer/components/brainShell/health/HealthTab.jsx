@@ -41,13 +41,13 @@ function actionFor(navigate, a) {
   const e = a.evidence || {};
   switch (a.kind) {
     case 'mastery-regression':
-      return { label: 'Inspect', onClick: () => navigate(`/knowledge?concept=${encodeURIComponent(e.learningPointId)}`) };
+      return { label: 'Inspect', onClick: () => navigate(`/?inspect=${encodeURIComponent(e.learningPointId)}`) };
     case 'zero-roi-spend':
       return { label: 'View ROI', onClick: () => navigate('/?tab=economics') };
     case 'provider-error-spike':
       return { label: 'View latency', onClick: () => navigate('/?tab=economics') };
     case 'stalled-quest-concept':
-      return { label: 'Inspect', onClick: () => navigate(`/knowledge?concept=${encodeURIComponent(e.learningPointId)}`) };
+      return { label: 'Inspect', onClick: () => navigate(`/?inspect=${encodeURIComponent(e.learningPointId)}`) };
     default:
       return null;
   }

@@ -42,7 +42,8 @@ export default function BrainDashboardPanel() {
   const line =
     typeof narration === 'function' ? narration(queue.length) : narration;
 
-  // Tab state
+  // Tab state — also URL-synced via ?tab= so deep links (e.g. HealthTab
+  // action buttons) can land on a specific view.
   const [activeTab, setActiveTab] = useState('overview');
 
   // URL-synced inspect state (learningPointId is a string per Phase 11 Task 1)
@@ -64,6 +65,16 @@ export default function BrainDashboardPanel() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inspectId]);
+
+  // Phase 15b: honor ?tab= on mount so HealthTab action buttons can deep
+  // link to Economics / Visibility / etc. Subsequent tab switches don't
+  // back-sync to the URL — that'd churn the history. One-way: URL → state.
+  useEffect(() => {
+    const t = searchParams.get('tab');
+    const valid = new Set(['overview', 'trigger-log', 'economics', 'predictions', 'plan', 'health', 'visibility']);
+    if (t && valid.has(t)) setActiveTab(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Synthesized suggestion (LLM or deterministic) for the empty-queue path.
   const [suggestion, setSuggestion] = useState(null);
