@@ -150,29 +150,6 @@ function registerMicroCardHandlers(_services = {}) {
         };
       }
 
-      // Phase 13 attribution: record mastery_event entry for new LP.
-      // proximateCallId is null — the proposal chain spans multiple LLM
-      // calls (extract + propose), so no single call can be attributed.
-      try {
-        const recorder = require('../db/masteryEventRecorder');
-        const userId = getUserIdFromToken(token);
-        recorder.recordWithProximateCall({
-          traceId: null,
-          surface: 'reading-microcard',
-          learningPointId: created.id,
-          userId,
-          ts: Date.now(),
-          eventType: 'mastery_change',
-          prevBox: null,
-          newBox: 1,
-          prevMastery: null,
-          newMastery: 0,
-          source: 'microcard-accept',
-        });
-      } catch (_e) {
-        // Swallow — telemetry must not break the accept flow.
-      }
-
       // 4. Acknowledge mode means "I already know this — track as a
       //    deep-decay refresher." createLearningPoint always starts at
       //    box 1; bump to box 4 via a follow-up update so the SR scheduler
@@ -193,6 +170,32 @@ function registerMicroCardHandlers(_services = {}) {
             updated?.error || '(unknown)',
           );
         }
+      }
+
+      // Phase 13 attribution: record ONE mastery_event reflecting the
+      // FINAL box (1 for accept, 4 for acknowledge). Writing before the
+      // bump would overcount the reading-microcard surface (two events
+      // per acknowledge) and misreport the resulting mastery state.
+      // proximateCallId is null — the proposal chain spans multiple LLM
+      // calls (extract + propose), so no single call can be attributed.
+      try {
+        const recorder = require('../db/masteryEventRecorder');
+        const userId = getUserIdFromToken(token);
+        recorder.recordWithProximateCall({
+          traceId: null,
+          surface: 'reading-microcard',
+          learningPointId: created.id,
+          userId,
+          ts: Date.now(),
+          eventType: 'mastery_change',
+          prevBox: null,
+          newBox: actualStartingBox,
+          prevMastery: null,
+          newMastery: 0,
+          source: mode === 'acknowledge' ? 'microcard-acknowledge' : 'microcard-accept',
+        });
+      } catch (_e) {
+        // Swallow — telemetry must not break the accept flow.
       }
 
       return {
