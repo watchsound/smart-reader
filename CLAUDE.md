@@ -160,6 +160,15 @@ Located in `.erb/configs/`:
 - `webpack.config.renderer.dev.ts` - Dev server with hot reload
 - `webpack.config.renderer.dev.dll.ts` - DLL bundles (includes `better-sqlite3` in externals)
 
+## Known environment constraints
+
+Some workspaces (this one included) check the repo out at a path containing non-ASCII characters (e.g. `C:\Users\.\Desktop\我的AI项目\...`). Two Windows toolchains misbehave on such paths:
+
+- **MSBuild / node-gyp can't build from source.** `electron-rebuild` falls back to source compilation when its prebuilt fetch fails, and that fallback then dies on the non-ASCII path. Fix: `.erb/scripts/test-integration.js` invokes `prebuild-install --runtime electron --target <version>` directly, bypassing `electron-rebuild` (commit `68e22c9`). On a fresh clone, if `npm run rebuild` reports "Rebuild Complete" but `release/app/node_modules/better-sqlite3/build/Release/better_sqlite3.node` is missing or wrong-ABI, do `rm -rf release/app/node_modules/better-sqlite3 && npm --prefix release/app install better-sqlite3 && npm run rebuild`.
+- **Chromium GPU cache logs `0x5 ERROR_ACCESS_DENIED`.** Visible during `npm start` as Chinese-text errors from `cache_util_win.cc` / `gpu_disk_cache.cc`. Benign — Chromium falls back to a fresh cache. Not silenced in code because shipping a flag to suppress logs only this machine emits is net negative.
+
+On a Windows machine where the repo lives at an ASCII-only path, neither constraint applies and these workarounds are no-ops.
+
 ## Security Notes
 
 Context isolation is disabled for file:// protocol support. The preload script provides controlled API exposure between processes.
