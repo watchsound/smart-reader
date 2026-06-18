@@ -287,11 +287,23 @@ async function getConcept({ learningPointId, userId = 1 }) {
     source: e.source,
   }));
 
+  // Phase 14c: 30-day forward projection of mastery using the Predictive
+  // Engine. Best-effort — projection is optional metadata; downstream UI
+  // hides the dashed line if absent.
+  let projection = null;
+  try {
+    const { getConceptProjection } = require('../brain/predictive/conceptProjection');
+    projection = await getConceptProjection({ learningPoint: lp });
+  } catch (e) {
+    console.warn('[BrainVisibility] projection failed:', e && e.message);
+  }
+
   return {
     meta: lp,
     lineage,
     costToDate,
     boxOverTime,
+    projection,
   };
 }
 

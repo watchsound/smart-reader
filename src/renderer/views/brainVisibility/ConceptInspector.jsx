@@ -61,7 +61,30 @@ export default function ConceptInspector({ learningPointId, onClose }) {
           Cost to date: <strong>${data.costToDate.toFixed(4)}</strong>
         </div>
         {data.boxOverTime && data.boxOverTime.length > 0
-          ? <MasterySparkline series={data.boxOverTime} />
+          ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <MasterySparkline series={data.boxOverTime} projection={data.projection} />
+              {data.projection && data.projection.etaDays != null && (
+                <span
+                  title={`basis: ${data.projection.basisSurface} · ${data.projection.basisRate.toFixed(2)}/day · ${data.projection.shrinkageLevel} shrinkage`}
+                  style={{
+                    fontSize: 11,
+                    padding: '2px 8px',
+                    border: '1px solid #69a',
+                    borderRadius: 10,
+                    color: '#446',
+                  }}
+                >
+                  ETA: {data.projection.etaDays}d to 80
+                </span>
+              )}
+              {data.projection && data.projection.insufficientData && (
+                <span style={{ fontSize: 11, fontStyle: 'italic', color: '#999' }}>
+                  insufficient data for projection
+                </span>
+              )}
+            </div>
+          )
           : <span style={{ marginLeft: 12, fontStyle: 'italic', color: '#999', fontSize: 12 }}>(snapshot only)</span>}
         <h3 style={{ fontSize: 14, marginBottom: 8, marginTop: 16 }}>Lineage</h3>
         <LineageTimeline events={data.lineage} />
