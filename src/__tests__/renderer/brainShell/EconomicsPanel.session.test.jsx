@@ -9,6 +9,8 @@ const fakeApi = {
   listSessionTraces: jest.fn().mockResolvedValue([
     { traceId: 'sess-trace-001', startedAt: 1000, endedAt: 2000, callCount: 5, totalCost: 0.0042 },
   ]),
+  attributionBars: jest.fn().mockResolvedValue([]),
+  attributionDensityStrip: jest.fn().mockResolvedValue([]),
 };
 
 jest.mock('../../../renderer/api/callLedgerApi', () => ({

@@ -6,6 +6,7 @@ import {
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import callLedgerApi from '../../api/callLedgerApi';
+import ROITab from './spendReturns/ROITab';
 
 const WINDOWS = {
   '7d':  7  * 24 * 3600 * 1000,
@@ -14,7 +15,7 @@ const WINDOWS = {
 
 export default function EconomicsPanel() {
   const [windowKey, setWindowKey] = useState('7d');
-  const [viewTab, setViewTab] = useState('intent');
+  const [viewTab, setViewTab] = useState('roi');
   const [byIntent, setByIntent] = useState([]);
   const [byProvider, setByProvider] = useState([]);
   const [cacheRates, setCacheRates] = useState({});
@@ -48,7 +49,7 @@ export default function EconomicsPanel() {
   return (
     <Paper variant="outlined" sx={{ p: 2 }}>
       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-        <Typography variant="subtitle1">LLM Economics</Typography>
+        <Typography variant="subtitle1">Spend &amp; Returns</Typography>
         <Stack direction="row" spacing={1} alignItems="center">
           <Tabs value={windowKey} onChange={(_e, v) => setWindowKey(v)}>
             <Tab label="7 days"  value="7d" />
@@ -66,10 +67,13 @@ export default function EconomicsPanel() {
       </Stack>
 
       <Tabs value={viewTab} onChange={(_e, v) => setViewTab(v)} sx={{ mb: 1 }}>
+        <Tab label="ROI"         value="roi" />
         <Tab label="By Intent"   value="intent" />
         <Tab label="By Provider" value="provider" />
         <Tab label="By Session"  value="session" />
       </Tabs>
+
+      {viewTab === 'roi' && <ROITab />}
 
       {viewTab === 'intent' && (
         <Table size="small">
