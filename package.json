@@ -338,7 +338,7 @@
     },
     "extraResources": [
       "./assets/**",
-      "./sqlite_tables.db",
+      "./db.sql",
       "./src/renderer/views/browser/preload.js"
     ],
     "publish": {

@@ -1,6 +1,5 @@
 import Database from 'better-sqlite3';
 import path from 'path';
-import fs from 'fs';
 import { app } from 'electron';
 import { dateToSQLiteString } from '../../commons/utils/SqliteHelper';
 
@@ -18,24 +17,14 @@ class DatabaseSingleton {
         process.env.NODE_ENV === 'development'
           ? './sqlite_tables.db'
           : path.join(app.getPath('userData'), 'sqlite_tables.db');
-      // : path.join(process.resourcesPath, './sqlite_tables.db');
 
-      // copy database file to a writable place
-      if (process.env.NODE_ENV !== 'development') {
-        const originalDbPath = path.join(
-          process.resourcesPath,
-          'sqlite_tables.db',
-        );
-        const userDataDbPath = path.join(
-          app.getPath('userData'),
-          'sqlite_tables.db',
-        );
-
-        if (!fs.existsSync(userDataDbPath)) {
-          fs.copyFileSync(originalDbPath, userDataDbPath);
-        }
-      }
-
+      // Phase 13 cleanup (P4): no seed-copy step. better-sqlite3 creates
+      // the file if it doesn't exist; SchemaMigrator (called below) populates
+      // the schema from db.sql; DatabaseInitializer (called later, after user
+      // login) seeds reference data (bookmark groups, bookshelves). Production
+      // builds bundle db.sql via electron-builder's `extraResources`.
+      // Result: sqlite_tables.db is no longer a binary tracked in git; it's
+      // pure user data, created and grown on each install.
       const database = new Database(dbPath);
       database.pragma('journal_mode = WAL');
 

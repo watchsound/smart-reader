@@ -45,3 +45,8 @@ sqlite_tables.db-wal
 
 # SQLite corruption backups (dbInit creates these when it finds a corrupt file)
 sqlite_tables.db.corrupt-*
+
+# User-state SQLite database (Phase 13 P4 cleanup).
+# Schema is generated from db.sql by SchemaMigrator on first boot, and
+# reference data is seeded by DatabaseInitializer. No tracked binary.
+sqlite_tables.db
