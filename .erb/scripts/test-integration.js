@@ -68,7 +68,31 @@ function rebuildForNode() {
 function rebuildForElectron() {
   // Restore the Electron binary. `npm run rebuild` is defined in
   // package.json to call electron-rebuild for the project's deps.
-  return run(npmCmd, ['run', 'rebuild']);
+  // It rebuilds release/app/node_modules/better-sqlite3 — but src/node_modules
+  // is no longer a junction in many dev setups, so we ALSO have to copy the
+  // rebuilt Electron-ABI binary into src/node_modules. Without this copy,
+  // `npm start` finds the stale Node-ABI binary in src/node_modules and
+  // crashes with NODE_MODULE_VERSION mismatch.
+  const status = run(npmCmd, ['run', 'rebuild']);
+  if (status !== 0) return status;
+
+  const { existsSync, copyFileSync } = require('fs');
+  const path = require('path');
+  const root = path.join(__dirname, '..', '..');
+  const electronBinary = path.join(
+    root, 'release', 'app', 'node_modules', 'better-sqlite3',
+    'build', 'Release', 'better_sqlite3.node',
+  );
+  const srcCopy = path.join(
+    root, 'src', 'node_modules', 'better-sqlite3',
+    'build', 'Release', 'better_sqlite3.node',
+  );
+  if (existsSync(electronBinary) && existsSync(path.dirname(srcCopy))) {
+    // eslint-disable-next-line no-console
+    console.log('[test-integration] copying Electron-ABI binary back to src/node_modules');
+    copyFileSync(electronBinary, srcCopy);
+  }
+  return 0;
 }
 
 function runJest() {

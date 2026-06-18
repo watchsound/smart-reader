@@ -75,6 +75,17 @@ const ERROR_PATTERNS = [
   /Uncaught Exception/i,
   // Sync IPC errors that crash the main process.
   /Failed to construct '.*': /i,
+  // better-sqlite3 ABI mismatch — happens after test:integration leaves the
+  // src/node_modules binary built for system Node instead of Electron.
+  // Symptom: "was compiled against a different Node.js version using
+  //          NODE_MODULE_VERSION X. This version of Node.js requires N."
+  // Fix: `npm run rebuild` THEN copy the rebuilt binary from
+  //      release/app/node_modules/better-sqlite3/build/Release/ into
+  //      src/node_modules/better-sqlite3/build/Release/.
+  /NODE_MODULE_VERSION/,
+  // electronmon's "uncaught exception" line — generic catch-all for any
+  // boot crash that the more specific patterns above miss.
+  /\[electronmon\] uncaught exception/i,
 ];
 
 // Lines matching these are benign and ignored even if they hit an
