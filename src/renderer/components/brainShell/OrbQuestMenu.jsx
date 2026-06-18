@@ -48,6 +48,9 @@ export default function OrbQuestMenu({ anchorEl, onClose, onStartSession }) {
   // quests; each progress fetch is a single COUNT query, cheap but not
   // free.
   const [progressById, setProgressById] = useState({});
+  // Phase 14e: pacing forecast keyed by questId. Fetched lazily after
+  // progress lands so the initial menu open stays fast.
+  const [pacingById, setPacingById] = useState({});
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -68,11 +71,28 @@ export default function OrbQuestMenu({ anchorEl, onClose, onStartSession }) {
         }),
       );
       setProgressById(Object.fromEntries(entries));
+      // Phase 14e: kick off pacing fetches after progress lands. Don't
+      // block the menu render — failures degrade silently.
+      Promise.all(
+        all
+          .filter((q) => q.status === 'active')
+          .map(async (q) => {
+            try {
+              const pacing = await questApi.getPacing(q.id);
+              return [q.id, pacing];
+            } catch (_err) {
+              return [q.id, null];
+            }
+          }),
+      ).then((pacingEntries) => {
+        setPacingById(Object.fromEntries(pacingEntries));
+      });
     } catch (e) {
       // eslint-disable-next-line no-console
       console.warn('[OrbQuestMenu] list failed', e);
       setQuests([]);
       setProgressById({});
+      setPacingById({});
     } finally {
       setLoading(false);
     }
@@ -200,6 +220,7 @@ export default function OrbQuestMenu({ anchorEl, onClose, onStartSession }) {
                       booksScopeFallback={(q.bookIds || []).length}
                       isPhase7={q.metadata?.source === 'phase-7-learning-path'}
                     />
+                    <QuestPacing pacing={pacingById[q.id]} />
                   </Box>
                 }
               />
@@ -322,6 +343,52 @@ function QuestProgress({ progress, booksScopeFallback, isPhase7 }) {
       <Typography variant="caption" sx={{ opacity: 0.7 }}>
         {captionParts.join(' · ')}
       </Typography>
+    </Box>
+  );
+}
+
+/**
+ * Phase 14e: Quest pacing forecaster summary line + collapsible bottlenecks.
+ * Renders nothing until pacing data arrives — keeps the menu render fast.
+ */
+// eslint-disable-next-line react/prop-types
+function QuestPacing({ pacing }) {
+  const [expanded, setExpanded] = useState(false);
+  if (!pacing || !pacing.conceptsTotal) return null;
+  const bottlenecks = Array.isArray(pacing.bottlenecks) ? pacing.bottlenecks : [];
+  const masteredPct = Math.round((pacing.completionFraction || 0) * 100);
+  const etaText = pacing.etaDays != null ? `ETA ${pacing.etaDays}d` : 'ETA —';
+  const bottleneckCount = bottlenecks.length;
+  const summary = `${etaText} · ${pacing.conceptsMastered}/${pacing.conceptsTotal} at mastery · ${bottleneckCount} bottleneck${bottleneckCount === 1 ? '' : 's'}`;
+
+  return (
+    <Box sx={{ mt: 0.5 }}>
+      <Typography
+        variant="caption"
+        sx={{
+          opacity: 0.75,
+          cursor: bottleneckCount > 0 ? 'pointer' : 'default',
+          textDecoration: bottleneckCount > 0 ? 'underline dotted' : 'none',
+        }}
+        onClick={() => bottleneckCount > 0 && setExpanded(!expanded)}
+        title={`${masteredPct}% mastered · top ${pacing.basis?.topNAnalyzed ?? 0} of ${pacing.basis?.scopeTotal ?? 0} analyzed`}
+      >
+        {summary}
+      </Typography>
+      {expanded && (
+        <Box sx={{ mt: 0.5, pl: 1, borderLeft: '2px solid #cbd5e0' }}>
+          {bottlenecks.map((b) => (
+            <Typography
+              key={b.learningPointId}
+              variant="caption"
+              sx={{ display: 'block', opacity: 0.7, fontSize: 11 }}
+            >
+              {(b.title || b.learningPointId).slice(0, 32)} · mastery {Math.round(b.currentMastery)} · {b.reason}
+              {b.etaDays != null ? ` · ${b.etaDays}d` : ''}
+            </Typography>
+          ))}
+        </Box>
+      )}
     </Box>
   );
 }

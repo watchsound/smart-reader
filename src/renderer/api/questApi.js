@@ -69,6 +69,22 @@ const questApi = {
   async getProgress(id, token) {
     return ipc()?.invoke('quest-progress', { id, token });
   },
+
+  /**
+   * Phase 14e: pacing forecast for a Quest.
+   * @returns {Promise<{
+   *   conceptsTotal: number, conceptsMastered: number,
+   *   completionFraction: number, etaDays: number|null,
+   *   indeterminateCount: number,
+   *   bottlenecks: Array<{ learningPointId: string, title: string,
+   *     etaDays: number|null, currentMastery: number, stalledDays: number|null,
+   *     reason: string }>,
+   *   basis: { topNAnalyzed: number, scopeTotal: number },
+   * } | null>}
+   */
+  async getPacing(id) {
+    return ipc()?.invoke('quest-pacing', { id });
+  },
 };
 
 export default questApi;

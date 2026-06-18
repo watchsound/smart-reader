@@ -151,6 +151,25 @@ function registerQuestHandlers(store, services = {}) {
   // + Neo4j adapters). Path-step total comes from Phase 7's persisted
   // metadata.pathSteps; per-step completion tracking would require
   // walk-step marking, which we don't have yet, so we only return total.
+  // Phase 14e: Quest pacing forecaster. Returns ETA, completion fraction,
+  // bottleneck concepts. Heavier than quest-progress (per-concept projection),
+  // so called lazily by OrbQuestMenu on expansion.
+  ipcMain.handle('quest-pacing', async (_event, payload) => {
+    try {
+      const { id } = payload || {};
+      if (!id) return null;
+      const quest = service.get(id);
+      if (!quest) return null;
+      const bookIds = Array.isArray(quest.bookIds) ? quest.bookIds : [];
+      // eslint-disable-next-line global-require
+      const { computePacing } = require('../utils/QuestPacingService');
+      return await computePacing({ bookIds });
+    } catch (err) {
+      console.error('[questHandlers] pacing failed:', err);
+      return null;
+    }
+  });
+
   ipcMain.handle('quest-progress', async (_event, payload) => {
     try {
       const { id, token } = payload || {};
