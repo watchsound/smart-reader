@@ -49,6 +49,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 
 import customStorage from '../../store/customStorage';
 import graphApi from '../../api/graphApi';
+import ProviderSpendStats from './ProviderSpendStats';
 import '../../components/CustomizedFilterBase/nodefilter-styles.module.css';
 import {
   StudyMode,
@@ -681,6 +682,7 @@ export default function SettingsPanel() {
         title="AI Providers"
         color="#1d9bd1"
       >
+        <ProviderSpendStats />
         {/* OpenAI */}
         <ProviderCard
           selected={aiProvider === AIProvider.ChatGPT}

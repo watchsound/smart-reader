@@ -28,6 +28,7 @@ import BookmarksIcon from '@mui/icons-material/Bookmarks';
 
 import customStorage from '../store/customStorage';
 import BrainDashboardPanel from '../components/brainShell/BrainDashboardPanel';
+import AISpendCard from '../components/home/AISpendCard';
 
 const StatCard = styled(Paper)(({ theme }) => ({
   padding: theme.spacing(2.5),
@@ -241,7 +242,9 @@ export default function Index() {
         </WelcomeSection>
 
         {/* Brain-driven shell: Orb-narrated state + top 3 proposals */}
-        <BrainDashboardPanel />
+        <div id="brain-dashboard">
+          <BrainDashboardPanel />
+        </div>
 
         {/* Statistics Cards */}
         <Grid container spacing={2.5} sx={{ mb: 4 }}>
@@ -270,6 +273,11 @@ export default function Index() {
             </Grid>
           ))}
         </Grid>
+
+        {/* AI Spend Card */}
+        <Box sx={{ mb: 4 }}>
+          <AISpendCard />
+        </Box>
 
         {/* Quick Actions */}
         <Typography variant="h6" fontWeight={600} sx={{ mb: 2, color: '#2d3748' }}>
