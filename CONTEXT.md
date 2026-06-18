@@ -65,3 +65,16 @@ Canonical names for domain concepts. One source of truth — code, docs, and con
 - **Attention State** (L3 lens) — domain-meaningful grouping of feature surfaces: `while-reading`, `focused-session`, `historical`. Default lens on the ROI tab.
 - **Phase Group** (L2 lens) — feature-surface grouping aligned with project phases: `reading-loop`, `director`, `comprehension`, `production-prompts`, `diagnostics`, `manual-review`, `historical`.
 - **Spend & Returns Panel** — renamed display title of the existing `EconomicsPanel`. File name and import path unchanged. ROI tab is the new default.
+
+## Phase 14 — Predictive Engine + Consumers (2026-06-18 design family)
+
+- **Predictive Engine** (Engine) — Phase 14a foundation. Empirical-Bayes model over `mastery_event ⋈ brain_call_ledger` returning per-cell `{ expectedMasteryDelta, deltaStd, pBoxUp, expectedCost, p95Cost, n, shrinkageLevel }`. Pure backend; no consumer surface beyond its own calibration tab. Lives in `src/main/brain/predictive/`. *Not "Predictor", not "Forecaster", not "Recommender" (those are consumer-surface names).*
+- **Mastery Cell** (cell) — the prediction unit: `(feature_surface, current_box, domain)`. ~240 cells in the live taxonomy. Empirical-Bayes shrinkage hierarchy: cell → `(surface, box)` → `(surface)` → global.
+- **Shrinkage Level** — discrete tag on every prediction: `'cell' | 'surface-box' | 'surface' | 'global'`. Indicates how much parent-pooling the engine had to do. Consumers use it to downweight low-confidence predictions in their UI.
+- **ROI Ranking** — the `rankCandidates()` API: sort candidate `{ surface, box, domain }` triples by `expectedMasteryDelta / max(expectedCost, ε)` descending. First consumed by Phase 14b's queue re-rank. *Not "Cost-Benefit Sort", not "Priority Score".*
+- **Calibration Report Card** — Phase 14a's only UI: a "Predictions" tab on `BrainDashboardPanel` showing reliability diagram (predicted vs realized Δmastery), Brier score on `pBoxUp`, and coverage (% of recent events whose cell had `n ≥ 10`). The "is the engine earning its keep" surface; mirrors how the Spend & Returns Panel proved Phase 9–13.
+- **Phase 14 consumer surfaces** (forward, each its own future spec):
+  - **14b — ROI-Ranked Proposal Queue** — re-weights the existing Orb queue. No new surface.
+  - **14c — Concept ETA Sparkline** — extends Phase 12 sparkline with a dashed projection line.
+  - **14d — Budget Session Planner** — new surface: "you have 15 min + $0.30, here's the recommended plan." Folds in 14f (next-best-action card with budget=1).
+  - **14e — Quest Pacing Forecaster** — per-Quest ETA + bottleneck-concept list in `OrbQuestMenu`.
