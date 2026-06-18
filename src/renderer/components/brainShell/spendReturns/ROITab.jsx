@@ -138,18 +138,29 @@ export default function ROITab() {
       return;
     }
     setExpanded(groupKey);
-    // Fetch intent-level breakdown for the whole window; the sub-bars are the
-    // intent lens view. The caller can further drill into a specific intent via
-    // the drawer.
+    // Fetch the intent breakdown filtered to THIS group's surfaces. Without
+    // parentLens + parentGroupKey the backend returns every intent in the
+    // window — irrelevant when the user just clicked one specific bar.
+    // When the current lens is already 'intent' the sub-bar concept doesn't
+    // apply (each bar is already an intent); we skip the fetch.
+    if (lens === 'intent') {
+      setSubBars([]);
+      return;
+    }
     try {
       const all = await callLedgerApi.attributionBars({
-        lens: 'intent', from: windowRange.from, to: windowRange.to, userId: 1,
+        lens: 'intent',
+        from: windowRange.from,
+        to: windowRange.to,
+        userId: 1,
+        parentLens: lens,
+        parentGroupKey: groupKey,
       });
       setSubBars(all || []);
     } catch {
       setSubBars([]);
     }
-  }, [expanded, windowRange]);
+  }, [expanded, lens, windowRange]);
 
   const onSubBarClick = useCallback((intent) => {
     setDrawerLens('intent');

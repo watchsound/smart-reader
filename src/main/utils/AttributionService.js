@@ -19,7 +19,7 @@ const DIRECT_INTENTS = new Set([
 ]);
 
 class AttributionService {
-  async getBars({ lens, from, to, userId }) {
+  async getBars({ lens, from, to, userId, parentLens, parentGroupKey }) {
     const perSurface = CallLedgerStore.aggregateAttribution({ userId, fromMs: from, toMs: to });
     const intentSpend = CallLedgerStore.intentSpendInWindow({ fromMs: from, toMs: to });
 
@@ -44,7 +44,23 @@ class AttributionService {
     });
 
     if (lens === 'intent') {
-      return this._barsByIntent({ userId, from, to });
+      // Drill-down support: when called from a parent bar (attention/phase
+      // group), restrict the intent breakdown to intents whose events fell
+      // on surfaces belonging to that parent group. Without this filter the
+      // sub-bars would show every intent in the window — including ones
+      // unrelated to the bar the user just clicked.
+      let surfacesFilter = null;
+      if (parentLens && parentGroupKey) {
+        const parentMap = parentLens === 'attention' ? ATTENTION_STATE
+                        : parentLens === 'phase'     ? PHASE_GROUP
+                        : null;
+        if (parentMap) {
+          surfacesFilter = Object.keys(parentMap).filter(
+            (s) => parentMap[s] === parentGroupKey,
+          );
+        }
+      }
+      return this._barsByIntent({ userId, from, to, surfacesFilter });
     }
 
     const lensMap = lens === 'attention' ? ATTENTION_STATE : PHASE_GROUP;
@@ -70,16 +86,26 @@ class AttributionService {
     })).sort((a, b) => a.costPerEvent - b.costPerEvent);
   }
 
-  async _barsByIntent({ userId, from, to }) {
+  async _barsByIntent({ userId, from, to, surfacesFilter }) {
     const dbManager = require('../db/dbManager');
+    const args = [userId, from, to];
+    let surfaceClause = '';
+    if (Array.isArray(surfacesFilter) && surfacesFilter.length > 0) {
+      const placeholders = surfacesFilter.map(() => '?').join(',');
+      surfaceClause = ` AND e.feature_surface IN (${placeholders})`;
+      args.push(...surfacesFilter);
+    } else if (Array.isArray(surfacesFilter) && surfacesFilter.length === 0) {
+      // Caller asked to filter to an empty surface set — nothing matches.
+      return [];
+    }
     const rows = dbManager.getDb().prepare(`
       SELECT c.intent AS intent, COUNT(*) AS event_count,
              SUM(c.cost_usd) AS total_cost_usd
       FROM mastery_event e
       JOIN brain_call_ledger c ON c.id = e.proximate_call_id
-      WHERE e.user_id = ? AND e.ts >= ? AND e.ts < ?
+      WHERE e.user_id = ? AND e.ts >= ? AND e.ts < ?${surfaceClause}
       GROUP BY c.intent
-    `).all(userId, from, to);
+    `).all(...args);
 
     return rows.map((r) => ({
       groupKey: r.intent,
