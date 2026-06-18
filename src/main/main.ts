@@ -1522,8 +1522,8 @@ const createWindow = async () => {
     }
   });
   ipcMain.handle('emojiData', async () => {
-    const module = await import('./utils/emoji-data');
-    return module;
+    const module = await import('./utils/emoji-data.js');
+    return module.default;
   });
 
   ipcMain.on('getPDF4URL', (_, { id }) => {
