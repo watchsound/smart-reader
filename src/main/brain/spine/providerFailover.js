@@ -17,7 +17,17 @@
  *     - FATAL: 4xx auth (401, 403, 404), schema/parse errors (caller retries).
  */
 
-const DEFAULT_CHAIN = ['DeepSeek', 'Kimi', 'ChatGPT'];
+// Chain entries must match `AIProvider` enum values so they survive the
+// trip through AIProviderManager.currentProviderName + a future
+// getProviderByName() lookup. The enum is the single source of truth — see
+// src/commons/model/DataTypes.js.
+const { AIProvider } = require('../../../commons/model/DataTypes');
+
+const DEFAULT_CHAIN = [
+  AIProvider.DeepSeek,
+  AIProvider.Kimi,
+  AIProvider.ChatGPT,
+];
 const SAME_PROVIDER_RETRY_DELAY_MS = 500;
 
 const FAILOVER_NETWORK_CODES = new Set([

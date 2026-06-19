@@ -1,6 +1,21 @@
 const {
-  classifyError, nextProvider, executeWithFailover,
+  classifyError, nextProvider, executeWithFailover, DEFAULT_CHAIN,
 } = require('../../main/brain/spine/providerFailover');
+const { AIProvider } = require('../../commons/model/DataTypes');
+
+describe('DEFAULT_CHAIN', () => {
+  test('uses AIProvider enum values so currentProviderName comparisons survive', () => {
+    // Pins the contract: chain entries are AIProvider enum values, not display
+    // names. Without this guard, a future rename of the enum (e.g.,
+    // AIProvider.ChatGPT → 'gpt') would silently break the fallback chain
+    // because providerName comparisons in meteredCall use the enum value.
+    expect(DEFAULT_CHAIN).toEqual([
+      AIProvider.DeepSeek,
+      AIProvider.Kimi,
+      AIProvider.ChatGPT,
+    ]);
+  });
+});
 
 describe('classifyError', () => {
   test('ECONNRESET → transient', () => {
