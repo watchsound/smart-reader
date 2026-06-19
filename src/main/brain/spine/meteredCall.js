@@ -12,10 +12,26 @@
  */
 const CallLedgerStore = require('../../db/CallLedgerStore');
 const costEstimator = require('./costEstimator');
-const { executeWithFailover } = require('./providerFailover');
+const { executeWithFailover, DEFAULT_CHAIN } = require('./providerFailover');
 const {
   instanceInMain: aiProviderManager,
 } = require('../../../commons/service/AIProviderManager');
+
+/**
+ * Build the failover chain for a primary provider: primary first, then any
+ * DEFAULT_CHAIN entry that's been registered in AIProviderManager. Empty
+ * registry → degenerate single-entry chain (same as pre-Phase-15a behavior).
+ */
+function buildFailoverChain(primaryName) {
+  const chain = [primaryName];
+  for (const fallback of DEFAULT_CHAIN) {
+    if (fallback === primaryName) continue;
+    if (aiProviderManager.hasRegisteredProvider(fallback)) {
+      chain.push(fallback);
+    }
+  }
+  return chain;
+}
 
 function summarize(out) {
   if (out == null) return null;
@@ -59,22 +75,43 @@ async function meteredCall(provider, prompt, options = {}) {
     } catch (_e) { /* never let ledger failure mask call error */ }
   };
 
+  const chain = buildFailoverChain(providerName);
+
   const t0 = Date.now();
-  const { result: output, attempts } = await executeWithFailover({
-    chain: [providerName],
-    fn: async (_name) => provider.generateContent(prompt),
+  const {
+    result: output,
+    attempts,
+    provider: usedName,
+  } = await executeWithFailover({
+    chain,
+    fn: async (name) => {
+      // Primary reuses the caller's instance; fallbacks come out of the
+      // AIProviderManager registry. Different name → switch provider, new
+      // ledger row tagged with the fallback's name.
+      const p =
+        name === providerName
+          ? provider
+          : aiProviderManager.getProviderByName(name);
+      if (!p) {
+        throw new Error(`providerFailover: no provider registered for ${name}`);
+      }
+      return p.generateContent(prompt);
+    },
     onAttemptFailed,
   });
   const duration_ms = Date.now() - t0;
   const completion_tokens = costEstimator.estimateTokens(output);
+  // Bill cost against the provider that actually succeeded, not the one
+  // originally requested — failing over from cheap → expensive must show up
+  // truthfully in Economics.
   const cost_usd = costEstimator.estimate(
-    providerName,
+    usedName,
     { prompt_tokens, completion_tokens },
   );
   const callId = CallLedgerStore.record({
     intent,
     ts: Date.now(),
-    provider: providerName,
+    provider: usedName,
     context_keys: [],
     prompt_tokens,
     completion_tokens,

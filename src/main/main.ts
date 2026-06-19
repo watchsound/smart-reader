@@ -390,6 +390,30 @@ async function setupThirdPartySetting(userId: number): Promise<void> {
   }
 
   aiProviderManager.setup(false, userId, provider, key, model);
+
+  // Phase 15a — populate the cross-provider failover registry. Each
+  // (name, key, model) pair that the user has configured becomes eligible
+  // for the DEFAULT_CHAIN walk in meteredCall. The currently-active
+  // provider is included too so a single-provider user still sees the
+  // benefit of same-provider retry without the chain looking degenerate.
+  const providerCatalog: Array<[string, string, string]> = [
+    [AIProvider.ChatGPT, apiKeyChatgpt, store.get(`chatgpt-model_${userId}`) as string],
+    [AIProvider.Gemini, apiKeyGemini, store.get(`gemini-model_${userId}`) as string],
+    [AIProvider.Kimi, apiKeyKimi, store.get(`kimi-model_${userId}`) as string],
+    [AIProvider.Claude, apiKeyClaude, store.get(`claude-model_${userId}`) as string],
+    [AIProvider.Baidu, apiKeyBaidu, store.get(`baidu_secret_${userId}`) as string],
+    [AIProvider.Doubao, apiKeyDoubao, store.get(`doubao-model_${userId}`) as string],
+    [AIProvider.Qwen, apiKeyQwen, store.get(`qwen-model_${userId}`) as string],
+    [
+      AIProvider.DeepSeek,
+      apiKeyDeepSeek,
+      (store.get(`deepseek-model_${userId}`) as string) || DeepSeekModel.DEEPSEEK_CHAT,
+    ],
+  ];
+  for (const [name, k, m] of providerCatalog) {
+    if (k) aiProviderManager.registerProvider(name, k, m, false);
+  }
+
   const embeddingFn = buildEmbeddingFunction(store, userId, provider);
   await vectorManager.setup(store, embeddingFn);
   await graphEmbeddingManager.setup(store, embeddingFn);

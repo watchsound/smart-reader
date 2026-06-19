@@ -74,4 +74,88 @@ describe('meteredCall', () => {
       aiProviderManager.currentProviderName = saved;
     }
   });
+
+  describe('cross-provider failover (Phase 15a-1)', () => {
+    // eslint-disable-next-line global-require
+    const aiProviderManager = require('../../commons/service/AIProviderManager').instanceInMain;
+    // eslint-disable-next-line global-require
+    const { AIProvider } = require('../../commons/model/DataTypes');
+
+    let savedHas;
+    let savedGet;
+    let fallbackInstance;
+
+    beforeEach(() => {
+      // Stub the registry so the chain has a Kimi fallback to walk to,
+      // without spinning up a real KimiProvider (which would try a network call).
+      savedHas = aiProviderManager.hasRegisteredProvider.bind(aiProviderManager);
+      savedGet = aiProviderManager.getProviderByName.bind(aiProviderManager);
+      fallbackInstance = {
+        name: AIProvider.Kimi,
+        generateContent: jest.fn().mockResolvedValue('kimi result'),
+      };
+      aiProviderManager.hasRegisteredProvider = (n) => n === AIProvider.Kimi;
+      aiProviderManager.getProviderByName = (n) =>
+        n === AIProvider.Kimi ? fallbackInstance : null;
+    });
+
+    afterEach(() => {
+      aiProviderManager.hasRegisteredProvider = savedHas;
+      aiProviderManager.getProviderByName = savedGet;
+    });
+
+    test('5xx on primary → chain walks to Kimi, ledger records succeeding provider', async () => {
+      const primary = {
+        name: AIProvider.DeepSeek,
+        generateContent: jest
+          .fn()
+          .mockRejectedValueOnce(Object.assign(new Error('server error'), { status: 500 })),
+      };
+
+      const { output, callId } = await meteredCall(primary, 'p', {
+        legacyLabel: 'translate',
+      });
+
+      expect(output).toBe('kimi result');
+      const row = testDb
+        .prepare('SELECT provider, attempt_n FROM brain_call_ledger WHERE id = ?')
+        .get(callId);
+      expect(row.provider).toBe(AIProvider.Kimi);
+      expect(fallbackInstance.generateContent).toHaveBeenCalledTimes(1);
+    });
+
+    test('per-attempt ledger row is written when primary fails over', async () => {
+      const primary = {
+        name: AIProvider.DeepSeek,
+        generateContent: jest
+          .fn()
+          .mockRejectedValueOnce(Object.assign(new Error('500'), { status: 500 })),
+      };
+
+      const { callId } = await meteredCall(primary, 'p', { legacyLabel: 'tr' });
+
+      const rows = testDb
+        .prepare('SELECT provider, attempt_n, failover_reason, error FROM brain_call_ledger ORDER BY id')
+        .all();
+      // Two rows: the failed primary attempt + the success row.
+      expect(rows.length).toBe(2);
+      const failed = rows.find((r) => r.error && r.error.length > 0);
+      const success = rows.find((r) => r.id === callId || r.error === null);
+      expect(failed.provider).toBe(AIProvider.DeepSeek);
+      expect(failed.failover_reason).toBe('failover');
+      expect(success.provider).toBe(AIProvider.Kimi);
+    });
+
+    test('auth error on primary → fatal, no failover attempted', async () => {
+      const primary = {
+        name: AIProvider.DeepSeek,
+        generateContent: jest
+          .fn()
+          .mockRejectedValue(Object.assign(new Error('unauthorized'), { status: 401 })),
+      };
+
+      await expect(meteredCall(primary, 'p')).rejects.toThrow(/exhausted chain/);
+      expect(fallbackInstance.generateContent).not.toHaveBeenCalled();
+    });
+  });
 });

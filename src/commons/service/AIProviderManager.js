@@ -28,6 +28,11 @@ export class AIProviderManager {
     this.currentProvider = null; // Default provider
     this.currentProviderName = '';
     this.invokeTime = Date.now();
+    // Registry of every provider the user has configured a key for, keyed
+    // by AIProvider enum value. Populated by registerProvider() from the
+    // host (main / preload) so cross-provider failover can instantiate any
+    // of them on demand without re-reading electron-store.
+    this.providerRegistry = new Map(); // name -> { key, model, isInRender }
     AIProviderManager.instance = this;
   }
 
@@ -143,6 +148,65 @@ export class AIProviderManager {
     if (this.currentProvider) {
       this.currentProvider.name = this.currentProviderName;
     }
+  }
+
+  /**
+   * Construct (but do not install) a provider instance by AIProvider name.
+   * Pure factory — does NOT mutate currentProvider. Returns null if the
+   * name doesn't match a known provider. Used by getProviderByName for
+   * failover and could be reused later if setup() is refactored.
+   */
+  _constructProvider(name, key, model, isInRender) {
+    if (name === AIProvider.ChatGPT) return new ChatGPTProvider(key, model);
+    if (name === AIProvider.Gemini) return new GeminiProvider(key, model);
+    if (name === AIProvider.Kimi) return new KimiProvider(key, model);
+    if (name === AIProvider.Claude) return new ClaudeProvider(key, model);
+    if (name === AIProvider.Doubao) return new DoubaoProvider(key, model);
+    if (name === AIProvider.Qwen) return new QwenProvider(key, model);
+    if (name === AIProvider.DeepSeek) return new DeepSeekProvider(key, model);
+    if (name === AIProvider.Ollama) {
+      return isInRender
+        ? new OllamaProvider(key, model)
+        : new OllamaMainProvider(key, model);
+    }
+    if (name === AIProvider.Baidu) {
+      return isInRender
+        ? new BaiduProvider(model)
+        : new BaiduQianfanProvider(key, model);
+    }
+    return null;
+  }
+
+  /**
+   * Record that a provider is available for failover. Caller (main / preload)
+   * iterates the user's API keys and calls this for each non-empty one. Empty
+   * key → no entry, so hasRegisteredProvider stays false.
+   */
+  registerProvider(name, key, model, isInRender = false) {
+    if (!name || !key) return;
+    this.providerRegistry.set(name, { key, model, isInRender });
+  }
+
+  hasRegisteredProvider(name) {
+    return this.providerRegistry.has(name);
+  }
+
+  /**
+   * Instantiate a fresh provider from the registry. Returns null if no
+   * entry exists. Stamps the canonical name onto the instance for ledger
+   * accuracy.
+   */
+  getProviderByName(name) {
+    const entry = this.providerRegistry.get(name);
+    if (!entry) return null;
+    const provider = this._constructProvider(
+      name,
+      entry.key,
+      entry.model,
+      entry.isInRender,
+    );
+    if (provider) provider.name = name;
+    return provider;
   }
 
   getCurrentModel() {
