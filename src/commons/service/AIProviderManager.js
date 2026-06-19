@@ -136,6 +136,13 @@ export class AIProviderManager {
       this.currentProvider = new DeepSeekProvider(key, model);
       this.currentProviderName = AIProvider.DeepSeek;
     }
+    // Stamp the AIProvider enum value onto the instance so the Call Ledger
+    // records the canonical name. Without this, `provider.name` is undefined
+    // (provider classes don't set it) and the ledger silently defaults to
+    // 'unknown' — see Phase 15 failover doc.
+    if (this.currentProvider) {
+      this.currentProvider.name = this.currentProviderName;
+    }
   }
 
   getCurrentModel() {

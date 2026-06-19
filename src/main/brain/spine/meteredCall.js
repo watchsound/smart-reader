@@ -13,6 +13,9 @@
 const CallLedgerStore = require('../../db/CallLedgerStore');
 const costEstimator = require('./costEstimator');
 const { executeWithFailover } = require('./providerFailover');
+const {
+  instanceInMain: aiProviderManager,
+} = require('../../../commons/service/AIProviderManager');
 
 function summarize(out) {
   if (out == null) return null;
@@ -26,7 +29,11 @@ async function meteredCall(provider, prompt, options = {}) {
   }
   const label = options.legacyLabel || 'unknown';
   const intent = `legacy:${label}`;
-  const providerName = provider?.name || 'unknown';
+  // provider.name is set by AIProviderManager.setup; fall back to
+  // currentProviderName when callers pass an out-of-band instance, and
+  // only land on 'unknown' as a last resort.
+  const providerName =
+    provider?.name || aiProviderManager.currentProviderName || 'unknown';
   const prompt_tokens = costEstimator.estimateTokens(prompt);
 
   const onAttemptFailed = ({ provider: p, error, attemptN, reason }) => {

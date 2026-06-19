@@ -44,4 +44,34 @@ describe('meteredCall', () => {
     const row = testDb.prepare('SELECT intent FROM brain_call_ledger WHERE id = ?').get(callId);
     expect(row.intent).toBe('legacy:unknown');
   });
+
+  test('falls back to aiProviderManager.currentProviderName when provider.name is missing', async () => {
+    // eslint-disable-next-line global-require
+    const aiProviderManager = require('../../commons/service/AIProviderManager').instanceInMain;
+    const saved = aiProviderManager.currentProviderName;
+    aiProviderManager.currentProviderName = 'deepseek';
+    try {
+      const provider = { generateContent: jest.fn().mockResolvedValue('ok') };
+      const { callId } = await meteredCall(provider, 'p', { legacyLabel: 'translate' });
+      const row = testDb.prepare('SELECT provider FROM brain_call_ledger WHERE id = ?').get(callId);
+      expect(row.provider).toBe('deepseek');
+    } finally {
+      aiProviderManager.currentProviderName = saved;
+    }
+  });
+
+  test('last-resort fallback records "unknown" provider', async () => {
+    // eslint-disable-next-line global-require
+    const aiProviderManager = require('../../commons/service/AIProviderManager').instanceInMain;
+    const saved = aiProviderManager.currentProviderName;
+    aiProviderManager.currentProviderName = '';
+    try {
+      const provider = { generateContent: jest.fn().mockResolvedValue('ok') };
+      const { callId } = await meteredCall(provider, 'p');
+      const row = testDb.prepare('SELECT provider FROM brain_call_ledger WHERE id = ?').get(callId);
+      expect(row.provider).toBe('unknown');
+    } finally {
+      aiProviderManager.currentProviderName = saved;
+    }
+  });
 });
