@@ -1201,101 +1201,101 @@ const electronHandler = {
   },
 };
 
-async function addEPubToVecterDB(
-  bookKey,
-  filePath,
-  maxLength,
-  userId,
-): Promise<any[]> {
-  // console.log(
-  //   ` bookKey = ${bookKey} filePath = ${filePath} maxLength = ${maxLength} userId = ${userId}`,
-  // );
-  const collections: any[] = [];
-  if (!filePath) return collections;
+/**
+ * Parse an EPUB into vector-store-ready chunks for VectorManager.
+ * One chunk per paragraph cluster ≥ maxChunkSize chars, carrying the CFI
+ * of the first paragraph so the reader can deep-link from search hits.
+ */
+async function extractEpubChunks(
+  bookKey: string | number,
+  filePath: string,
+  maxChunkSize: number,
+): Promise<
+  Array<{
+    text: string;
+    chunkIndex: number;
+    cfi: string;
+    sectionTitle: string | null;
+  }>
+> {
+  if (!filePath) return [];
 
-  async function processBook(filePath) {
-    try {
-      const book = ePub(filePath);
-      await book.ready;
-      book.locations.generate(1600); // Optional, for pagination
-      // console.log(` book.spine.spineItems = ${book.spine.spineItems.length} `);
-      for (const section of book.spine.spineItems) {
-        try {
-          const contents = await section.load(book.load.bind(book));
-          // const parser = new DOMParser();
-          // const doc = parser.parseFromString(contents, 'text/html');
+  const chunks: Array<{
+    text: string;
+    chunkIndex: number;
+    cfi: string;
+    sectionTitle: string | null;
+  }> = [];
+  let chunkIndex = 0;
 
-          const paragraphs = contents.querySelectorAll('p');
-          const pArray = [...paragraphs];
-          let record = '';
-          let cfi = '';
+  try {
+    const book = ePub(filePath);
+    await book.ready;
+    book.locations.generate(1600);
 
-          for (let i = 0; i < pArray.length; i++) {
-            const c = pArray[i].textContent;
-            // if (!record)
-            cfi = section.cfiFromElement(pArray[i], section.cfiBase);
-            record = `${record} ${c}`;
-            if (record.length < maxLength) continue;
+    for (const section of book.spine.spineItems) {
+      try {
+        const contents = await section.load(book.load.bind(book));
+        const paragraphs = contents.querySelectorAll('p');
+        const pArray = [...paragraphs];
+        let record = '';
+        let cfi = '';
+        const sectionTitle = section.idref || null;
 
-            const id = `${String(bookKey)}|${cfi}`;
-            // console.log(`in add v db : id = ${id} `);
-            collections.push({
-              // changed from add to push as it seems it should be an array
-              ids: [id],
-              metadatas: [
-                {
-                  source: 'epub',
+        for (let i = 0; i < pArray.length; i += 1) {
+          const c = pArray[i].textContent;
+          if (!record) cfi = section.cfiFromElement(pArray[i], section.cfiBase);
+          record = `${record} ${c}`;
+          if (record.length < maxChunkSize) continue;
 
-                  sourceKey: String(bookKey),
-
-                  cfi,
-
-                  userId: String(userId),
-                },
-              ],
-              documents: [record],
-            });
-
-            record = '';
-            cfi = '';
-          }
-        } catch (sectionError) {
-          console.error('Error loading section:', sectionError);
+          chunks.push({
+            text: record.trim(),
+            chunkIndex,
+            cfi,
+            sectionTitle,
+          });
+          chunkIndex += 1;
+          record = '';
+          cfi = '';
         }
+
+        // Flush a trailing partial chunk so the last paragraph isn't lost.
+        if (record.trim().length > 0) {
+          chunks.push({
+            text: record.trim(),
+            chunkIndex,
+            cfi,
+            sectionTitle,
+          });
+          chunkIndex += 1;
+        }
+      } catch (sectionError) {
+        console.error('extractEpubChunks: section load failed', sectionError);
       }
-    } catch (bookError) {
-      console.error('Error processing book:', bookError);
     }
+  } catch (bookError) {
+    console.error('extractEpubChunks: book parse failed', bookError);
   }
 
-  // Call the function
-  await processBook(filePath);
-  // console.log(` final collection size =  ${collections.length}`);
-  return collections;
+  return chunks;
 }
 
 contextBridge.exposeInMainWorld('electron', electronHandler);
 
 window.addEventListener('DOMContentLoaded', () => {
   ipcRenderer.on(
-    'process-book-for-vectordb',
-    //  (event, param) => {
-    //    console.log( ` in process-book-for-vectordb param = ${param}`);
-
-    (event, { bookKey, filePath, maxLength, userId }) => {
-      //  console.log(
-      //    `process-book-for-vectordb  bookKey = ${bookKey} filePath = ${filePath} maxLength = ${maxLength} userId = ${userId}`,
-      //   );
-      async function t() {
-        const result = await addEPubToVecterDB(
+    'extract-epub-chunks',
+    (_event, { requestId, bookKey, filePath, maxChunkSize }) => {
+      // Reply with the same requestId so main-side BookChunker can correlate
+      // concurrent imports — see BookChunker.requestEPubChunks.
+      (async () => {
+        const chunks = await extractEpubChunks(
           bookKey,
           filePath,
-          maxLength,
-          userId,
-        ); // Assume processBook is your function to process the book
-        ipcRenderer.send('book-for-vectordb-processed', result);
-      }
-      t();
+          maxChunkSize || 250,
+        );
+        ipcRenderer.send('epub-chunks-extracted', { requestId, chunks });
+      })();
     },
   );
 
