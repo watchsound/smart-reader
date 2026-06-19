@@ -16,7 +16,6 @@
   },
   "dependencies": {
     "better-sqlite3": "^11.1.2",
-    "kuzu": "^0.11.3",
     "neo4j-driver": "^6.0.1",
     "ollama": "^0.5.11"
   }

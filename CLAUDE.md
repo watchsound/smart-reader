@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-SmartReader v2 is an AI-powered e-reader desktop application built on Electron React Boilerplate. It combines document reading (EPUB, PDF, Word), note-taking with spaced repetition (Leitner system), AI-assisted learning across multiple LLM providers, and a knowledge graph backed by an embedded Kùzu database (default) with optional Neo4j support. Semantic search lives in the same graph store via the adapter's native HNSW vector index.
+SmartReader v2 is an AI-powered e-reader desktop application built on Electron React Boilerplate. It combines document reading (EPUB, PDF, Word), note-taking with spaced repetition (Leitner system), AI-assisted learning across multiple LLM providers, and a knowledge graph backed by SQLite (default; same DB as the rest of the app) with optional Neo4j support for users running an external graph server. Semantic search lives in the same graph store; cosine similarity runs JS-side against BLOB-packed Float32 embeddings.
 
 ## Development Commands
 
@@ -68,7 +68,7 @@ Manager pattern in `src/main/db/`:
 ### Vector Search
 
 Lives inside the graph database via the adapter's native HNSW vector index
-(`QUERY_VECTOR_INDEX` on Kùzu, cosine similarity on Neo4j). The two
+(JS-side cosine over BLOB-packed Float32 on SQLite, native cosine on Neo4j). The two
 facades:
 
 - `src/main/utils/VectorManager.js` — book-chunk import / search (RAG over book content)
@@ -78,15 +78,25 @@ Both accept an `embeddingFunction(text) => Promise<number[]|null>` produced
 by `src/main/utils/EmbeddingService.js` from the active provider (OpenAI /
 Gemini / Ollama today; other providers degrade to text search).
 
-### Graph Database (Kùzu / Neo4j)
+### Graph Database (SQLite / Neo4j)
 
-Two-tier storage: SQLite is primary (CRUD, categories, user data, settings) and the graph backend handles knowledge graph features (concept relationships, learning paths, semantic search, memory consolidation).
+SQLite owns the entire stack: entity data via the per-entity managers
+(`NoteJsonManager`, `BookManager`, …) plus the graph layer in three
+dedicated tables — `graph_embedding`, `graph_chunk`, `graph_edge` —
+created by `db.sql` and operated on by `SqliteAdapter`.
 
-Two graph backends sit behind `src/main/utils/GraphInterface.js`:
-- **Kùzu (default)**: embedded, MIT license, no external server required. Adapter: `KuzuAdapter.js`. Data lives under `<userData>/kuzu_graph/`.
-- **Neo4j (optional)**: external server, swap in for environments that need it. Adapter: `Neo4jAdapter.js`. Requires connection URI + credentials.
+Two adapters sit behind `src/main/utils/GraphInterface.js`:
+- **SQLite (default)**: shares the existing better-sqlite3 connection. No
+  extra process, no native module to rebuild. Adapter: `SqliteAdapter.js`.
+- **Neo4j (optional)**: external server, opt-in for users who want a real
+  Cypher store. Adapter: `Neo4jAdapter.js`. Requires connection URI +
+  credentials.
 
-The default is set in `GraphInterface.js` (`DEFAULT_ADAPTER_TYPE = 'kuzu'`). Code calling graph operations goes through the interface, not the adapter, so swapping is configuration-level.
+The default is set in `GraphInterface.js` (`DEFAULT_ADAPTER_TYPE = 'sqlite'`).
+Code calling graph operations goes through the interface, not the adapter,
+so swapping is configuration-level. **Kùzu was the previous default but
+its win32-x64 prebuilt segfaults Electron at `require()` time on Windows
+(confirmed via diagnostic) so the adapter was removed.**
 
 See **[docs/technical/graph-database.md](docs/technical/graph-database.md)** for adapter details, IPC handlers, Memory Consolidation Graph (Episode/ConsolidatedMemory/Concept nodes), and configuration.
 
@@ -111,7 +121,7 @@ src/
 │   ├── db/            # SQLite managers
 │   ├── ipc/           # IPC handlers (Phase 4-8 + earlier)
 │   └── utils/         # VectorManager + GraphEmbeddingManager + EmbeddingService,
-│                      # GraphInterface, KuzuAdapter (default), Neo4jAdapter,
+│                      # GraphInterface, SqliteAdapter (default), Neo4jAdapter,
 │                      # RereadQueueService (Phase 8), BookDiagnosticService (Phase 5),
 │                      # ComprehensionGradingService (Phase 6), MicroCardProposer (Phase 4),
 │                      # LearningPathPlannerService (Phase 7), LearningPointEnrichmentService,
@@ -147,12 +157,12 @@ src/
 
 - `@google/generative-ai@0.1.3` for Gemini chat + embeddings
 - `better-sqlite3` is a native module - requires rebuild after Electron upgrades
-- `kuzu` ships platform prebuilts; required for the default graph + vector path
+- Graph + vector layer is part of `better-sqlite3` — no extra dep
 - `ollama` package needs entry in both root and `release/app/package.json`
 
 ## External Runtime Requirements
 
-- **Kùzu**: Embedded by default — no setup required, ships with the app
+- **SQLite**: default. Same `sqlite_tables.db` as the rest of the app — no setup.
 - **Neo4j**: Optional alternative graph backend (enables remote/shared graph databases)
 - **LibreOffice** (optional): For Word document conversion
 - **Ollama** (optional): For local LLM support
@@ -233,7 +243,7 @@ Detailed reference docs live in [docs/technical/](docs/technical/). Open the rel
 | Subsystem | Doc | Scope |
 |-----------|-----|-------|
 | Views & Feature Modules | [views.md](docs/technical/views.md) | Reading, Bookshelf, Notes, Chat, Browser, Vocabulary, Translate, Writing, Grammar, Quiz, MoodBoard, Settings; common UI patterns; AI integration points |
-| Graph Database (Kùzu / Neo4j) | [graph-database.md](docs/technical/graph-database.md) | `GraphInterface` abstraction, KuzuAdapter (default) + Neo4jAdapter (optional), IPC, configuration, Memory Consolidation Graph (`SummarizationGraphService`) |
+| Graph Database (SQLite / Neo4j) | [graph-database.md](docs/technical/graph-database.md) | `GraphInterface` abstraction, SqliteAdapter (default) + Neo4jAdapter (optional), IPC, configuration, Memory Consolidation Graph (`SummarizationGraphService`) |
 | StudyEnhancer System | [study-enhancer.md](docs/technical/study-enhancer.md) | Browser word-animation system, Smart Summary, paragraph action icons |
 | Animation Core | [animation-core.md](docs/technical/animation-core.md) | Modular animations for EPUB/PDF/Notes (`useEPUBAnimations`, `usePDFAnimations`, `useNoteAnimations`) |
 | Rich Markdown Editor | [rich-markdown-editor.md](docs/technical/rich-markdown-editor.md) | TipTap-based editor, `[[wiki-link]]` Knowledge Web, backlinks |

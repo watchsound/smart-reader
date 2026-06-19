@@ -93,9 +93,12 @@ describe('GraphInterface', () => {
       );
     });
 
-    test('should throw error for graphiti adapter (not yet implemented)', async () => {
+    test('should throw error for unknown adapter type (graphiti placeholder dropped in D3)', async () => {
+      // D3: the speculative 'graphiti' case in GraphInterface.initialize was
+      // removed alongside Kùzu cleanup — nothing actually wired it. Unknown
+      // types now fall through to the default-case throw.
       await expect(graphInterface.initialize('graphiti', mockStore)).rejects.toThrow(
-        'Graphiti adapter not yet implemented'
+        /Unknown adapter type/,
       );
     });
 

@@ -100,32 +100,16 @@ class GraphInterface {
           break;
 
         case 'neo4j':
+          // Opt-in for users running an external Neo4j server. Kept behind a
+          // settings toggle, not the default — see DEFAULT_ADAPTER_TYPE.
+          // eslint-disable-next-line global-require, no-case-declarations
           const Neo4jAdapter = require('./Neo4jAdapter').default;
           this.adapter = Neo4jAdapter;
           break;
 
-        case 'kuzu':
-          // Kùzu embedded graph database (MIT license, embeddable).
-          // isKuzuAvailable + getKuzuLoadError are STATIC methods on the
-          // class; the singleton instance is on `.default`. Need both.
-          const kuzuAdapterModule = require('./KuzuAdapter');
-          const KuzuAdapterClass = kuzuAdapterModule.KuzuAdapter;
-          const kuzuAdapterInstance = kuzuAdapterModule.default;
-          if (!KuzuAdapterClass.isKuzuAvailable()) {
-            const loadError = KuzuAdapterClass.getKuzuLoadError();
-            console.warn('[GraphInterface] Kuzu native module not available:', loadError?.message);
-            this.loadError = loadError;
-            this.isInitialized = false;
-            return false;
-          }
-          this.adapter = kuzuAdapterInstance;
-          break;
-
-        case 'graphiti':
-          // Future: Graphiti adapter
-          // const GraphitiAdapter = require('./GraphitiAdapter').default;
-          // this.adapter = GraphitiAdapter;
-          throw new Error('Graphiti adapter not yet implemented');
+        // 'kuzu' was the default before D3; its win32-x64 prebuilt segfaults
+        // Electron at require() time on this machine, so the adapter was
+        // removed. The 'sqlite' default handles everything Kùzu used to.
 
         default:
           throw new Error(`Unknown adapter type: ${adapterType}`);
@@ -179,27 +163,12 @@ class GraphInterface {
         leitnerSystem: false,
         learningPaths: false,
         knowledgeWeb: false,
-        embeddedDatabase: this.adapterType === 'kuzu',
+        embeddedDatabase: this.adapterType === 'sqlite',
         requiresExternalServer: this.adapterType === 'neo4j',
       },
       error: null,
       nativeModuleAvailable: true,
     };
-
-    // Check if kuzu native module is available (for kuzu adapter)
-    if (this.adapterType === 'kuzu' || !this.adapterType) {
-      try {
-        const { KuzuAdapter } = require('./KuzuAdapter');
-        status.nativeModuleAvailable = KuzuAdapter.isKuzuAvailable();
-        if (!status.nativeModuleAvailable) {
-          const loadError = KuzuAdapter.getKuzuLoadError();
-          status.error = loadError ? loadError.message : 'Kuzu native module not available';
-        }
-      } catch (e) {
-        status.nativeModuleAvailable = false;
-        status.error = e.message;
-      }
-    }
 
     // Check adapter-specific capabilities
     if (this.adapter) {
