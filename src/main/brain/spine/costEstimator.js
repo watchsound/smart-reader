@@ -84,7 +84,11 @@ function estimate(providerName, { prompt_tokens = 0, completion_tokens = 0 }) {
 function estimateTokens(text) {
   if (!text) return 0;
   const s = typeof text === 'string' ? text : JSON.stringify(text);
-  return Math.ceil(s.length / 4);
+  // CJK characters (Hiragana, Katakana, CJK Ideographs, Hangul) tokenize as
+  // ~1 token each in BPE — the /4 Latin heuristic under-counts them by ~4×.
+  const cjkCount = (s.match(/[\u3040-\u9fff\uf900-\ufaff\uac00-\ud7af]/g) || []).length;
+  const nonCjkLen = s.length - cjkCount;
+  return Math.ceil(cjkCount + nonCjkLen / 4);
 }
 
 /**
