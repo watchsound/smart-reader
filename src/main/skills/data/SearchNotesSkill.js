@@ -57,10 +57,18 @@ class SearchNotesSkill extends BaseSkill {
     return !!context.noteManager || !!context.services?.noteManager;
   }
 
-  async execute({ query, searchType = 'keyword', limit = 10, sourceType = 'all' }) {
-    const noteManager = this.context.noteManager || this.context.services?.noteManager;
-    const chromaManager = this.context.chromaManager || this.context.services?.chromaManager;
-    const token = this.context.token;
+  async execute({
+    query,
+    searchType = 'keyword',
+    limit = 10,
+    sourceType = 'all',
+  }) {
+    const noteManager =
+      this.context.noteManager || this.context.services?.noteManager;
+    const embeddingSearch =
+      this.context.graphEmbeddingManager ||
+      this.context.services?.graphEmbeddingManager;
+    const { token } = this.context;
 
     if (!noteManager) {
       throw new Error('Note manager not available');
@@ -68,28 +76,44 @@ class SearchNotesSkill extends BaseSkill {
 
     let notes = [];
 
-    if (searchType === 'semantic' && chromaManager) {
-      // Semantic search using ChromaDB
+    if (searchType === 'semantic' && embeddingSearch) {
+      // Semantic search via the graph-backed vector store
       try {
-        const results = await chromaManager.search(query, limit, token);
-        notes = results.map((r) => ({
+        const results = await embeddingSearch.searchNotes(query, token);
+        notes = (results || []).slice(0, limit).map((r) => ({
           id: r.id,
-          title: r.metadata?.title || 'Untitled',
-          content: r.document || '',
+          title: r.title || 'Untitled',
+          content: r.content || '',
           score: r.score || 0,
-          sourceType: r.metadata?.sourceType || 'unknown',
+          sourceType: r.sourceType || 'unknown',
         }));
       } catch (e) {
-        console.warn('Semantic search failed, falling back to keyword search:', e);
-        // Fall back to keyword search
-        notes = await this.keywordSearch(noteManager, query, limit, sourceType, token);
+        console.warn(
+          'Semantic search failed, falling back to keyword search:',
+          e,
+        );
+        notes = await this.keywordSearch(
+          noteManager,
+          query,
+          limit,
+          sourceType,
+          token,
+        );
       }
     } else {
-      // Keyword search using SQLite
-      notes = await this.keywordSearch(noteManager, query, limit, sourceType, token);
+      notes = await this.keywordSearch(
+        noteManager,
+        query,
+        limit,
+        sourceType,
+        token,
+      );
     }
 
-    this.logExecution({ query, searchType, limit }, { resultCount: notes.length });
+    this.logExecution(
+      { query, searchType, limit },
+      { resultCount: notes.length },
+    );
 
     return {
       query,
@@ -113,7 +137,7 @@ class SearchNotesSkill extends BaseSkill {
       }
 
       // Fallback: get all notes and filter
-      const allNotes = await noteManager.getNotes?.(token) || [];
+      const allNotes = (await noteManager.getNotes?.(token)) || [];
       const queryLower = query.toLowerCase();
 
       return allNotes

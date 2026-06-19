@@ -108,7 +108,9 @@ When `graph.enabled` is false, the app works with SQLite only (useful for develo
 |------|---------|
 | `GraphInterface.js` | Abstraction layer, delegates to adapters |
 | `Neo4jAdapter.js` | Neo4j implementation (~1500 lines) |
-| `GraphEmbeddingManager.js` | Semantic search, mirrors ChromaManager |
+| `GraphEmbeddingManager.js` | Entity-level semantic search (primary vector store; ChromaDB removed) |
+| `VectorManager.js` | Book-chunk embed + search (RAG over book content) |
+| `EmbeddingService.js` | Builds the provider-backed embedding function |
 | `GraphLearningFeatures.js` | Learning paths, weak concepts, entity resolution |
 | `graphHandlers.js` | IPC handlers for all graph operations |
 | `graphApi.js` | Renderer-side API for components |

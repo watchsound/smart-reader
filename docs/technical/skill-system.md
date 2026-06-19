@@ -162,7 +162,7 @@ Detailed instructions for the AI on how to execute this skill.
 | `user-invocable` | boolean | No | Can be invoked via slash commands (default: `true`) |
 | `disable-model-invocation` | boolean | No | Prevent AI from calling this skill (default: `false`) |
 | `allowed-tools` | array | No | Tools this skill can use |
-| `context` | array | No | Required context: `selection`, `document`, `neo4j`, `chromadb` |
+| `context` | array | No | Required context: `selection`, `document`, `neo4j` / `graph`, `vector` |
 | `agent` | boolean | No | Enable agentic behavior (default: `false`) |
 
 **Parameter Definition:**

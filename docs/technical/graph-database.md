@@ -11,7 +11,9 @@ Neo4j integration provides knowledge graph features. Uses a hybrid architecture 
 |------|---------|
 | `GraphInterface.js` | Abstraction layer, delegates to adapters |
 | `Neo4jAdapter.js` | Neo4j implementation (~1500 lines) |
-| `GraphEmbeddingManager.js` | Semantic search, mirrors ChromaManager |
+| `GraphEmbeddingManager.js` | Entity-level semantic search facade (the primary vector store; replaces ChromaDB) |
+| `VectorManager.js` | Book-chunk embed + search (RAG) |
+| `EmbeddingService.js` | Builds the provider-backed embedding function |
 | `GraphLearningFeatures.js` | Learning paths, weak concepts, entity resolution |
 | `SummarizationGraphService.js` | Memory consolidation graph patterns (~700 lines) |
 | `ConsolidationService.js` | LLM-powered episode → memory consolidation |
@@ -26,7 +28,7 @@ Neo4j integration provides knowledge graph features. Uses a hybrid architecture 
 3. **Entity Resolution**: Link related concepts across notes automatically
 4. **Knowledge Graph Visualization**: Nodes and edges for graph visualization
 5. **Mastery Tracking**: Track concept mastery over time with progress analytics
-6. **Semantic Search**: Store embeddings in Neo4j (mirrors ChromaDB)
+6. **Semantic Search**: Store embeddings in the graph store and query via the adapter's native vector index — Kùzu HNSW (`QUERY_VECTOR_INDEX`) or Neo4j cosine. This is the sole vector store; ChromaDB has been removed.
 7. **Memory Consolidation Graph**: Episodes → ConsolidatedMemory → Concepts (see below)
 
 **Configuration (electron-store):**

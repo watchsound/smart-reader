@@ -92,7 +92,7 @@ SmartReader v2 is an Electron-based desktop application built on a hybrid archit
   "react-pdf-highlighter": "PDF rendering with annotations",
   "better-sqlite3": "Native SQLite bindings",
   "neo4j-driver": "Neo4j graph database",
-  "chromadb": "Vector embeddings",
+  "kuzu": "Embedded graph + vector database (default)",
   "@projectstorm/react-diagrams": "MoodBoard diagrams",
   "@tiptap/react": "Rich text editor",
   "survey-react-ui": "Quiz rendering"

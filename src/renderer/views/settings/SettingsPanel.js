@@ -376,7 +376,6 @@ export default function SettingsPanel() {
   const [aiProvider, setAiProvider] = useState('');
 
   const [serverUrl, setServerUrl] = useState('');
-  const [chromaUrl, setChromaUrl] = useState('');
   const [ollamaUrl, setOllamaUrl] = useState('');
   const [studyMode, setStudyMode] = useState(StudyMode.General);
   const [readerLevel, setReaderLevel] = useState(ReaderLevel.College);
@@ -413,7 +412,6 @@ export default function SettingsPanel() {
   const [showProgressBar, setShowProgressBar] = useState('off');
   const [showTimerPanel, setShowTimerPanel] = useState('none');
   const [useOpenAiImage, setUseOpenAiImage] = useState(false);
-  const [useChroma, setUseChroma] = useState(false);
   // Neo4j Graph Database settings
   const [useGraph, setUseGraph] = useState(false);
   const [graphUri, setGraphUri] = useState('bolt://localhost:7687');
@@ -539,14 +537,10 @@ export default function SettingsPanel() {
       if (ai) setAiProvider(ai);
       const url = await customStorage.getServerUrl();
       setServerUrl(url);
-      const curl = await customStorage.getChromaUrl();
-      setChromaUrl(curl);
       const ourl = await customStorage.getOllamaUrl();
       setOllamaUrl(ourl);
       const image = await customStorage.getOpenAiImage();
       setUseOpenAiImage(image === true || image === 'true');
-      const c = await customStorage.getUseChroma();
-      setUseChroma(c === true || c === 'true');
       // Load Neo4j settings (ensure boolean conversion)
       const graphEnabled = customStorage.getGraphEnabled();
       setUseGraph(graphEnabled === true || graphEnabled === 'true');
@@ -580,11 +574,6 @@ export default function SettingsPanel() {
   const toggleUseOpenAiImage = () => {
     setUseOpenAiImage(!useOpenAiImage);
     customStorage.setOpenAiImage(!useOpenAiImage);
-  };
-
-  const toggleUseChroma = () => {
-    setUseChroma(!useChroma);
-    customStorage.setUseChroma(!useChroma);
   };
 
   const toggleUseGraph = () => {
@@ -1788,36 +1777,6 @@ export default function SettingsPanel() {
               }}
             />
             <SaveButton onClick={() => customStorage.setServerUrl(serverUrl)}>
-              Save
-            </SaveButton>
-          </SettingControl>
-        </SettingRow>
-
-        <SettingRow>
-          <SettingLabel>
-            <SettingLabelText>ChromaDB URL</SettingLabelText>
-            <SettingLabelHint>
-              Vector database for semantic search
-            </SettingLabelHint>
-          </SettingLabel>
-          <SettingControl>
-            <Switch
-              checked={useChroma}
-              onChange={toggleUseChroma}
-              size="small"
-            />
-            <StyledTextField
-              size="small"
-              placeholder="http://localhost:8000"
-              value={chromaUrl}
-              disabled={!useChroma}
-              onChange={(e) => setChromaUrl(e.target.value)}
-              sx={{ width: '220px' }}
-            />
-            <SaveButton
-              disabled={!useChroma}
-              onClick={() => customStorage.setChromaUrl(chromaUrl)}
-            >
               Save
             </SaveButton>
           </SettingControl>

@@ -565,6 +565,79 @@ class GraphInterface {
   }
 
   // ===========================================================================
+  // BOOK CHUNK OPERATIONS (RAG / vector search over book content)
+  // ===========================================================================
+
+  /**
+   * Batch create Chunk nodes attached to a book, with optional embeddings.
+   * @param {string} bookId
+   * @param {Array<{id?:string, text:string, chunkIndex:number, pageNum?:number, cfi?:string, sectionTitle?:string}>} chunks
+   * @param {Array<number[]|null>} embeddings - Aligned with chunks; entries may be null
+   * @param {string} token
+   * @returns {Promise<number>} count created
+   */
+  async batchCreateChunks(bookId, chunks, embeddings, token) {
+    this._ensureAdapter();
+    if (typeof this.adapter.batchCreateChunks !== 'function') {
+      console.warn('[GraphInterface] Adapter does not support batchCreateChunks');
+      return 0;
+    }
+    return this.adapter.batchCreateChunks(bookId, chunks, embeddings, token);
+  }
+
+  /**
+   * Vector similarity search over book chunks.
+   * @param {number[]} queryEmbedding
+   * @param {{bookId?:string|number, userId?:string|number}} filters
+   * @param {number} limit
+   * @param {number} minSimilarity
+   * @returns {Promise<Array<{chunk:Object, similarity:number}>>}
+   */
+  async searchSimilarChunks(queryEmbedding, filters = {}, limit = 10, minSimilarity = 0.7) {
+    this._ensureAdapter();
+    if (typeof this.adapter.searchSimilarChunks !== 'function') {
+      console.warn('[GraphInterface] Adapter does not support searchSimilarChunks');
+      return [];
+    }
+    return this.adapter.searchSimilarChunks(queryEmbedding, filters, limit, minSimilarity);
+  }
+
+  async getChunksByBook(bookId, token) {
+    this._ensureAdapter();
+    if (typeof this.adapter.getChunksByBook !== 'function') return [];
+    return this.adapter.getChunksByBook(bookId, token);
+  }
+
+  async getChunksWithoutEmbeddings(bookId, token) {
+    this._ensureAdapter();
+    if (typeof this.adapter.getChunksWithoutEmbeddings !== 'function') return [];
+    return this.adapter.getChunksWithoutEmbeddings(bookId, token);
+  }
+
+  async updateChunkEmbedding(chunkId, embedding, model) {
+    this._ensureAdapter();
+    if (typeof this.adapter.updateChunkEmbedding !== 'function') return;
+    return this.adapter.updateChunkEmbedding(chunkId, embedding, model);
+  }
+
+  async deleteChunksByBook(bookId, token) {
+    this._ensureAdapter();
+    if (typeof this.adapter.deleteChunksByBook !== 'function') return 0;
+    return this.adapter.deleteChunksByBook(bookId, token);
+  }
+
+  /**
+   * Ensure any adapter-side index structures for chunk embeddings exist.
+   * On Kùzu this is a no-op (indexes created at schema time); on Neo4j
+   * it runs the index DDL.
+   */
+  async createChunkIndexes() {
+    this._ensureAdapter();
+    if (typeof this.adapter.createChunkIndexes !== 'function') return;
+    return this.adapter.createChunkIndexes();
+  }
+
+  // ===========================================================================
   // LEARNING PATH
   // ===========================================================================
 

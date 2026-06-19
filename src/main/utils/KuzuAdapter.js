@@ -2626,6 +2626,15 @@ class KuzuAdapter {
   }
 
   /**
+   * Chunk-index DDL hook. Kùzu builds the chunk vector index during schema
+   * setup (_createVectorIndexes), so this is a no-op kept for parity with
+   * Neo4jAdapter, which needs an explicit DDL pass.
+   */
+  async createChunkIndexes() {
+    return true;
+  }
+
+  /**
    * Vector search for similar chunks using native HNSW
    * @param {number[]} queryEmbedding - Query embedding
    * @param {Object} filters - Filters {bookId, userId}

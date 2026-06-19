@@ -14,8 +14,8 @@ const mockNoteManager = {
   create: jest.fn(),
 };
 
-const mockChromaManager = {
-  search: jest.fn(),
+const mockGraphEmbeddingManager = {
+  searchNotes: jest.fn(),
 };
 
 const mockGraphApi = {
@@ -38,12 +38,12 @@ const createMockContext = (overrides = {}) => ({
   userId: 1,
   token: 'test-token',
   noteManager: mockNoteManager,
-  chromaManager: mockChromaManager,
+  graphEmbeddingManager: mockGraphEmbeddingManager,
   graphApi: mockGraphApi,
   aiProvider: mockAiProvider,
   services: {
     noteManager: mockNoteManager,
-    chromaManager: mockChromaManager,
+    graphEmbeddingManager: mockGraphEmbeddingManager,
     graphApi: mockGraphApi,
   },
   ...overrides,
@@ -114,9 +114,9 @@ describe('Data Skills', () => {
     describe('Semantic Search', () => {
       it('should search notes semantically', async () => {
         const mockResults = [
-          { id: 1, score: 0.95, document: 'Relevant content', metadata: { title: 'Test', sourceType: 'book' } },
+          { id: 1, title: 'Test', content: 'Relevant content', score: 0.95, sourceType: 'book' },
         ];
-        mockChromaManager.search.mockResolvedValue(mockResults);
+        mockGraphEmbeddingManager.searchNotes.mockResolvedValue(mockResults);
 
         const skill = new SearchNotesSkill(createMockContext());
         const result = await skill.execute({
@@ -124,7 +124,7 @@ describe('Data Skills', () => {
           searchType: 'semantic',
         });
 
-        expect(mockChromaManager.search).toHaveBeenCalled();
+        expect(mockGraphEmbeddingManager.searchNotes).toHaveBeenCalled();
         expect(result.notes.length).toBe(1);
         expect(result.notes[0].id).toBe(1);
         expect(result.searchType).toBe('semantic');

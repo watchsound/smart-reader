@@ -965,14 +965,6 @@ const electronHandler = {
       const resp = ipcRenderer.sendSync('setStudyMode', { mode, token });
       return resp;
     },
-    getUseChroma(token: string) {
-      const resp = ipcRenderer.sendSync('getUseChroma', token);
-      return resp;
-    },
-    setUseChroma(key: boolean, token: string) {
-      const resp = ipcRenderer.sendSync('setUseChroma', { key, token });
-      return resp;
-    },
     getOpenAiImage(token: string) {
       const resp = ipcRenderer.sendSync('getOpenAiImage', token);
       return resp;
@@ -1175,15 +1167,6 @@ const electronHandler = {
 
     appMode: () => {
       return ipcRenderer.invoke('app-mode');
-    },
-
-    getChromaUrl() {
-      const resp = ipcRenderer.sendSync('getChromaUrl');
-      return resp;
-    },
-    setChromaUrl(url: string) {
-      const resp = ipcRenderer.sendSync('setChromaUrl', url);
-      return resp;
     },
 
     getOllamaUrl() {

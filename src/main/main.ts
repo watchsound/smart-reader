@@ -193,7 +193,9 @@ import checkLibreOfficeInstalled from './utils/checkLibreOfficeInstalled';
 
 import getBaiduAccessToken from './utils/baiduUtil';
 import markdownManager from './utils/MarkdownManager';
-import chromaManager from './utils/ChromaManager';
+import graphEmbeddingManager from './utils/GraphEmbeddingManager';
+import vectorManager from './utils/VectorManager';
+import { buildEmbeddingFunction } from './utils/EmbeddingService';
 import registerGraphHandlers from './ipc/graphHandlers';
 import {
   registerSkillHandlers,
@@ -387,8 +389,9 @@ async function setupThirdPartySetting(userId: number): Promise<void> {
   }
 
   aiProviderManager.setup(false, userId, provider, key, model);
-  await chromaManager.setupChroma(store);
-  await chromaManager.setupVectorDB(store, userId);
+  const embeddingFn = buildEmbeddingFunction(store, userId, provider);
+  await vectorManager.setup(store, embeddingFn);
+  await graphEmbeddingManager.setup(store, embeddingFn);
 }
 
 async function setupPathInfo() {
@@ -1249,26 +1252,6 @@ const createWindow = async () => {
       _.returnValue = true;
     }
   });
-  ipcMain.on('setUseChroma', (_, { key, token }) => {
-    const userId = getUserIdFromToken(token);
-    if (userId < 0) {
-      _.returnValue = false;
-    } else {
-      store.set(`useChroma_${userId}`, key || false);
-      _.returnValue = true;
-    }
-  });
-  ipcMain.on('getUseChroma', (_, token) => {
-    const userId = getUserIdFromToken(token);
-    if (userId < 0) {
-      _.returnValue = false;
-    } else {
-      // default value is true?
-      let key = store.get(`useChroma_${userId}`, undefined);
-      if (key === undefined) key = true;
-      _.returnValue = key;
-    }
-  });
   ipcMain.on('getOpenAiImage', (_, token) => {
     const userId = getUserIdFromToken(token);
     if (userId < 0) {
@@ -1703,18 +1686,13 @@ const createWindow = async () => {
   ipcMain.handle(
     'addContentToInMemoryVectorDB',
     async (_event, { content }) => {
-      await chromaManager.addContentToInMemoryVectorDB(content);
+      await graphEmbeddingManager.addContentToTempStorage(content);
       return true;
     },
   );
   ipcMain.handle('queryInMemoryVectorDB', async (_event, { content }) => {
     try {
-      const r = await chromaManager.inMemoryVectorDB.query({
-        nResults: 10,
-        queryTexts: [content],
-      });
-
-      return r && r.documents ? r.documents : [];
+      return await graphEmbeddingManager.queryTempStorage(content, 10);
     } catch (e) {
       return [];
     }
@@ -1762,12 +1740,12 @@ const createWindow = async () => {
   ipcMain.handle('getBooksByQuery', async (_event, { query, token }) => {
     try {
       const books = getBooksByQuery(query, token);
-      // Search ChromaDB for semantic matches (existing behavior)
-      if (query.indexOf(' ') > 0 && chromaManager.collection) {
-        const r = await chromaManager.getBooksByQuery(store, query, token);
+      // Semantic search via graph-backed vector store
+      if (query.indexOf(' ') > 0 && graphInterface.checkConnection()) {
+        const r = await graphEmbeddingManager.searchBooks(query, token);
         r.forEach((m) => books.push(m));
       }
-      // Also search graph database if available (new - parallel search)
+      // Also search graph database if available (text match over node properties)
       if (graphInterface.isReady()) {
         const graphBooks = await graphInterface.getBooksByUser(token);
         // Filter by query and merge results, avoiding duplicates by ID
@@ -1802,8 +1780,7 @@ const createWindow = async () => {
       console.log(
         ` bookKey = ${bookKey} bookType = ${bookType} query= ${query} token = ${token}`,
       );
-      return chromaManager.getBookContentByQuery(
-        store,
+      return graphEmbeddingManager.getBookContentByQuery(
         bookKey,
         bookType,
         query,
@@ -1825,12 +1802,8 @@ const createWindow = async () => {
     if (b) {
       try {
         if (typeof b.id !== 'undefined') {
-          // Add to ChromaDB vector store (existing behavior)
-          await chromaManager.AddBookmarkToVectorDB(store, b, token);
-          // Also add to graph database (new - parallel storage)
-          if (graphInterface.isReady()) {
-            await graphInterface.createBookmark(b, token);
-          }
+          // Add bookmark to graph + its embedding via the unified manager
+          await graphEmbeddingManager.addBookmark(b, token);
         }
       } catch (e) {
         console.log(e);
@@ -1930,12 +1903,12 @@ const createWindow = async () => {
   ipcMain.handle('getMessageByQuery', async (_event, { query, token }) => {
     try {
       const messages = getMessageByQuery(query, token);
-      // Search ChromaDB for semantic matches (existing behavior)
-      if (query.indexOf(' ') > 0 && chromaManager.collection) {
-        const r = await chromaManager.getMessageByQuery(store, query, token);
+      // Semantic search via graph-backed vector store
+      if (query.indexOf(' ') > 0 && graphInterface.checkConnection()) {
+        const r = await graphEmbeddingManager.searchMessages(query, token);
         r.forEach((m) => messages.push(m));
       }
-      // Also search graph database if available (new - parallel search)
+      // Also search graph database if available (text match over node properties)
       if (graphInterface.isReady()) {
         const graphMessages = await graphInterface.searchMessages(query, token);
         // Merge results avoiding duplicates by ID
@@ -1963,15 +1936,15 @@ const createWindow = async () => {
   ipcMain.on('createNote', (_, { note, token }) => {
     const n = createNote(note, token);
     _.returnValue = n;
-    // Best-effort vector + graph sync, fire-and-forget so sync IPC returns immediately.
+    // Best-effort graph sync + embedding storage, fire-and-forget so sync IPC returns immediately.
     if (typeof n.id !== 'undefined') {
-      chromaManager.addNodeToVecterDB(store, note, token).catch((e: unknown) => {
-        console.error('Failed to add note to Chroma:', e);
-      });
       if (graphInterface.isReady()) {
-        graphInterface.createNote(note, token).catch((e: unknown) => {
-          console.error('Failed to add note to graph:', e);
-        });
+        graphInterface
+          .createNote(note, token)
+          .then(() => graphEmbeddingManager.addNote(note, token))
+          .catch((e: unknown) => {
+            console.error('Failed to add note to graph:', e);
+          });
       }
     }
   });
@@ -2002,20 +1975,12 @@ const createWindow = async () => {
     async (_event, { query, tag, star, page, limit, token }) => {
       const notes = getNotesByQuery(query, tag, star, page, limit, token);
       try {
-        // Search ChromaDB for semantic matches (existing behavior)
-        if (query.indexOf(' ') > 0 && chromaManager.collection) {
-          const r = await chromaManager.getNotesByQuery(
-            store,
-            query,
-            tag,
-            star,
-            page,
-            limit,
-            token,
-          );
+        // Semantic search via graph-backed vector store
+        if (query.indexOf(' ') > 0 && graphInterface.checkConnection()) {
+          const r = await graphEmbeddingManager.searchNotes(query, token);
           r.forEach((m) => notes.data.push(m));
         }
-        // Also search graph database if available (new - parallel search)
+        // Also search graph database if available (text match over node properties)
         if (graphInterface.isReady()) {
           const graphNotes = await graphInterface.searchNotes(query, token);
           // Merge results, avoiding duplicates by ID
@@ -2170,22 +2135,46 @@ const createWindow = async () => {
   // response = { ids:[] documents:[]}
   ipcMain.handle(
     'semanticQuery',
-    async (_event, query, nResults, condition) => {
-      if (!chromaManager.collection) {
-        return [];
+    async (_event, query, nResults, _condition, token) => {
+      if (!graphInterface.checkConnection()) {
+        return { ids: [], documents: [] };
       }
       try {
-        if (condition) {
-          return await chromaManager.collection.query({
-            nResults: nResults || 10,
-            where: condition,
-            queryTexts: [query],
-          });
+        const limit = nResults || 10;
+        const embedding = await graphEmbeddingManager.generateEmbedding(query);
+        if (!embedding) return { ids: [], documents: [] };
+
+        const ids: string[] = [];
+        const documents: string[] = [];
+
+        const nodeHits = await graphInterface.findSimilar(
+          embedding,
+          ['Note', 'Bookmark', 'Message'],
+          limit,
+          0.7,
+          token,
+        );
+        for (const hit of nodeHits) {
+          const node = hit.node || {};
+          ids.push(String(node.id ?? hit.id ?? ''));
+          documents.push(
+            String(node.text || node.content || node.title || ''),
+          );
         }
-        return await chromaManager.collection.query({
-          nResults: nResults || 10,
-          queryTexts: [query],
-        });
+
+        const chunkHits = await graphInterface.searchSimilarChunks(
+          embedding,
+          {},
+          limit,
+          0.7,
+        );
+        for (const r of chunkHits) {
+          // BookChunk IDs preserve the `bookId|...` shape callers parse on.
+          ids.push(String(r.chunk?.id ?? ''));
+          documents.push(String(r.chunk?.text ?? ''));
+        }
+
+        return { ids, documents };
       } catch (e) {
         console.log(e.message ? e.message : e);
         return { ids: [], documents: [] };
@@ -2229,16 +2218,6 @@ const createWindow = async () => {
 
   ipcMain.on('setServerUrl', (_, url) => {
     store.set('server_url', url);
-    _.returnValue = true;
-  });
-
-  ipcMain.on('getChromaUrl', (_) => {
-    const url = store.get('chroma_url');
-    _.returnValue = url || 'http://127.0.0.1:8000';
-  });
-
-  ipcMain.on('setChromaUrl', (_, url) => {
-    store.set('chroma_url', url);
     _.returnValue = true;
   });
 
@@ -2297,15 +2276,7 @@ const createWindow = async () => {
         libreOfficeInstalled,
       );
       const book = await createBook(b, token);
-      // Add to ChromaDB vector store (existing behavior)
-      await chromaManager.addBookToVecterDB(
-        store,
-        mainWin,
-        event.sender,
-        book,
-        token,
-      );
-      // Also add to graph database (new - parallel storage)
+      // Create book node in graph (renderer ships chunks separately via addBookChunks)
       try {
         if (graphInterface.isReady()) {
           await graphInterface.createBook(book, token);
@@ -2339,15 +2310,7 @@ const createWindow = async () => {
         console.log(JSON.stringify(b));
         const book = await createBook(b, token);
         console.log(JSON.stringify(book));
-        // Add to ChromaDB vector store (existing behavior)
-        await chromaManager.addBookToVecterDB(
-          store,
-          mainWin,
-          event.sender,
-          book,
-          token,
-        );
-        // Also add to graph database (new - parallel storage)
+        // Create book node in graph (renderer ships chunks separately via addBookChunks)
         try {
           if (graphInterface.isReady()) {
             await graphInterface.createBook(book, token);

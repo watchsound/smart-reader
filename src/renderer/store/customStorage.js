@@ -977,14 +977,6 @@ class customStorage {
     return window.electron.ipcRenderer.setStoreValue(key, value);
   }
 
-  static getChromaUrl() {
-    return window.electron.ipcRenderer.getChromaUrl();
-  }
-
-  static setChromaUrl(url) {
-    return window.electron.ipcRenderer.setChromaUrl(url);
-  }
-
   static getOllamaUrl() {
     return window.electron.ipcRenderer.getOllamaUrl();
   }
@@ -1458,19 +1450,6 @@ class customStorage {
   static getModelDeepSeek() {
     if (!this.isLoggedIn()) return DeepSeekModel.DEEPSEEK_CHAT;
     return window.electron.ipcRenderer.getDeepSeekModel(this.getSessionToken());
-  }
-
-  static getUseChroma() {
-    if (!this.isLoggedIn()) return false;
-    return window.electron.ipcRenderer.getUseChroma(this.getSessionToken());
-  }
-
-  static setUseChroma(flag) {
-    if (!this.isLoggedIn()) return false;
-    return window.electron.ipcRenderer.setUseChroma(
-      flag,
-      this.getSessionToken(),
-    );
   }
 
   static getOpenAiImage() {

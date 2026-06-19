@@ -35,16 +35,27 @@ function createSkillFromDefinition(skillDef) {
   // conflicts with the built-in class 'name' property
   class FileBasedSkillInstance extends BaseSkill {
     static _skillDef = skillDef;
+
     static _skillName = name;
+
     static _description = description;
+
     static _parameters = parameters;
+
     static _requiredParams = requiredParams;
+
     static _category = category;
+
     static _sourcePath = sourcePath;
+
     static _instructions = instructions;
+
     static _userInvocable = userInvocable;
+
     static _disableModelInvocation = disableModelInvocation;
+
     static _allowedTools = allowedTools;
+
     static _contextRequirements = contextRequirements;
 
     // Use static getters that reference the stored values
@@ -115,9 +126,8 @@ function createSkillFromDefinition(skillDef) {
           case 'graph':
             if (!context.services?.graph?.isConnected) return false;
             break;
-          case 'chromadb':
           case 'vector':
-            if (!context.services?.chromadb) return false;
+            if (!context.services?.graphEmbeddingManager) return false;
             break;
           default:
             // Unknown requirement, allow by default
@@ -260,14 +270,18 @@ class FileBasedSkillLoader {
 
     for (const searchPath of this.searchPaths) {
       if (!fs.existsSync(searchPath)) {
-        console.log(`[FileBasedSkillLoader] Path does not exist: ${searchPath}`);
+        console.log(
+          `[FileBasedSkillLoader] Path does not exist: ${searchPath}`,
+        );
         continue;
       }
 
       this.scanDirectory(searchPath, fs, path, SkillMDParser);
     }
 
-    console.log(`[FileBasedSkillLoader] Loaded ${this.loadedSkills.size} file-based skills`);
+    console.log(
+      `[FileBasedSkillLoader] Loaded ${this.loadedSkills.size} file-based skills`,
+    );
     return this.loadedSkills;
   }
 
@@ -297,7 +311,10 @@ class FileBasedSkillLoader {
         }
       }
     } catch (err) {
-      console.error(`[FileBasedSkillLoader] Error scanning ${dirPath}:`, err.message);
+      console.error(
+        `[FileBasedSkillLoader] Error scanning ${dirPath}:`,
+        err.message,
+      );
     }
   }
 
@@ -312,16 +329,24 @@ class FileBasedSkillLoader {
       const validation = SkillMDParser.validate(skillDef);
 
       if (!validation.valid) {
-        console.warn(`[FileBasedSkillLoader] Invalid skill at ${filePath}:`, validation.errors);
+        console.warn(
+          `[FileBasedSkillLoader] Invalid skill at ${filePath}:`,
+          validation.errors,
+        );
         return;
       }
 
       const SkillClass = createSkillFromDefinition(skillDef);
       this.loadedSkills.set(skillDef.name, SkillClass);
 
-      console.log(`[FileBasedSkillLoader] Loaded skill: ${skillDef.name} from ${filePath}`);
+      console.log(
+        `[FileBasedSkillLoader] Loaded skill: ${skillDef.name} from ${filePath}`,
+      );
     } catch (err) {
-      console.error(`[FileBasedSkillLoader] Error loading ${filePath}:`, err.message);
+      console.error(
+        `[FileBasedSkillLoader] Error loading ${filePath}:`,
+        err.message,
+      );
     }
   }
 

@@ -183,7 +183,7 @@ class ContextManager {
    * @param {Object} services.aiProvider - AI provider instance
    * @param {Object} services.noteManager - Note manager
    * @param {Object} services.bookManager - Book manager
-   * @param {Object} services.chromaManager - ChromaDB manager
+   * @param {Object} services.graphEmbeddingManager - Graph-backed semantic search facade
    * @param {Object} services.graphApi - Neo4j graph API
    * @param {Object} services.customStorage - Settings storage
    * @returns {Object}
@@ -224,7 +224,7 @@ class ContextManager {
       aiProvider: services.aiProvider,
       noteManager: services.noteManager,
       bookManager: services.bookManager,
-      chromaManager: services.chromaManager,
+      graphEmbeddingManager: services.graphEmbeddingManager,
       graphApi: services.graphApi,
       customStorage,
 
@@ -268,7 +268,7 @@ class ContextManager {
     if (context.selectedText) {
       const preview =
         context.selectedText.length > 300
-          ? context.selectedText.substring(0, 300) + '...'
+          ? `${context.selectedText.substring(0, 300)}...`
           : context.selectedText;
       parts.push('');
       parts.push(`Currently selected text: "${preview}"`);
@@ -295,7 +295,7 @@ class ContextManager {
     const result = {};
     for (const [key, value] of Object.entries(params)) {
       if (typeof value === 'string' && value.length > 100) {
-        result[key] = value.substring(0, 100) + '...';
+        result[key] = `${value.substring(0, 100)}...`;
       } else {
         result[key] = value;
       }
@@ -370,9 +370,12 @@ function getContextManager() {
     instance = new ContextManager();
 
     // Setup periodic cleanup
-    setInterval(() => {
-      instance.cleanupSessions();
-    }, 5 * 60 * 1000); // Every 5 minutes
+    setInterval(
+      () => {
+        instance.cleanupSessions();
+      },
+      5 * 60 * 1000,
+    ); // Every 5 minutes
   }
   return instance;
 }

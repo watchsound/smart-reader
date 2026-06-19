@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-SmartReader v2 is an AI-powered e-reader desktop application built on Electron React Boilerplate. It combines document reading (EPUB, PDF, Word), note-taking with spaced repetition (Leitner system), AI-assisted learning across multiple LLM providers, semantic search through ChromaDB, and a knowledge graph backed by an embedded Kùzu database (default) with optional Neo4j support.
+SmartReader v2 is an AI-powered e-reader desktop application built on Electron React Boilerplate. It combines document reading (EPUB, PDF, Word), note-taking with spaced repetition (Leitner system), AI-assisted learning across multiple LLM providers, and a knowledge graph backed by an embedded Kùzu database (default) with optional Neo4j support. Semantic search lives in the same graph store via the adapter's native HNSW vector index.
 
 ## Development Commands
 
@@ -43,7 +43,7 @@ npm run test:smoke        # Boot Electron 12s + scan main-process logs for crash
 
 ### Process Model (Electron IPC)
 
-- **Main Process** (`src/main/main.ts`): ~2700 lines handling IPC events, window management, database operations, AI provider integration, and ChromaDB. All database and external service calls happen here.
+- **Main Process** (`src/main/main.ts`): ~2700 lines handling IPC events, window management, database operations, and AI provider integration. All database and external service calls happen here.
 - **Preload Script** (`src/main/preload.ts`): Bridges main/renderer with secure IPC API exposure.
 - **Renderer Process** (`src/renderer/`): React UI with Redux state management.
 
@@ -65,13 +65,18 @@ Manager pattern in `src/main/db/`:
 - `DatabaseInitializer.js` - Schema setup
 - Entity managers: `BookManager.js`, `BookmarkManager.js`, `ChatManager.js`, `MessageManager.js`, `NoteJsonManager.js`, `PromptManager.js`, `QuizProblemJsonManager.js`, `MoodBoardJsonManager.js`, `VocabularyManager.js`, etc.
 
-### Vector Database (ChromaDB)
+### Vector Search
 
-ChromaDB integration in `src/main/utils/ChromaManager.js` and `chromaUtil.js`. Requires separate Python ChromaDB server:
-```bash
-pip install chromadb
-chroma run --path chroma
-```
+Lives inside the graph database via the adapter's native HNSW vector index
+(`QUERY_VECTOR_INDEX` on Kùzu, cosine similarity on Neo4j). The two
+facades:
+
+- `src/main/utils/VectorManager.js` — book-chunk import / search (RAG over book content)
+- `src/main/utils/GraphEmbeddingManager.js` — entity-level (Note / Bookmark / Message) embed + search, plus the in-process temp-collection for session-scoped RAG.
+
+Both accept an `embeddingFunction(text) => Promise<number[]|null>` produced
+by `src/main/utils/EmbeddingService.js` from the active provider (OpenAI /
+Gemini / Ollama today; other providers degrade to text search).
 
 ### Graph Database (Kùzu / Neo4j)
 
@@ -105,7 +110,8 @@ src/
 │   │                  # MoodBoardOrganizerService + ProductionPromptService (Phase 8)
 │   ├── db/            # SQLite managers
 │   ├── ipc/           # IPC handlers (Phase 4-8 + earlier)
-│   └── utils/         # ChromaManager, GraphInterface, KuzuAdapter (default), Neo4jAdapter,
+│   └── utils/         # VectorManager + GraphEmbeddingManager + EmbeddingService,
+│                      # GraphInterface, KuzuAdapter (default), Neo4jAdapter,
 │                      # RereadQueueService (Phase 8), BookDiagnosticService (Phase 5),
 │                      # ComprehensionGradingService (Phase 6), MicroCardProposer (Phase 4),
 │                      # LearningPathPlannerService (Phase 7), LearningPointEnrichmentService,
@@ -139,13 +145,13 @@ src/
 
 ## Key Dependencies & Version Constraints
 
-- `chromadb@1.8.1` and `@google/generative-ai@0.1.3` must match for compatibility
+- `@google/generative-ai@0.1.3` for Gemini chat + embeddings
 - `better-sqlite3` is a native module - requires rebuild after Electron upgrades
+- `kuzu` ships platform prebuilts; required for the default graph + vector path
 - `ollama` package needs entry in both root and `release/app/package.json`
 
 ## External Runtime Requirements
 
-- **ChromaDB**: Python service for vector search (optional)
 - **Kùzu**: Embedded by default — no setup required, ships with the app
 - **Neo4j**: Optional alternative graph backend (enables remote/shared graph databases)
 - **LibreOffice** (optional): For Word document conversion

@@ -1,17 +1,12 @@
 /**
  * GraphEmbeddingManager.js
  *
- * Manages embeddings in Neo4j graph database, replacing ChromaManager functionality.
- * Stores document embeddings for semantic search across books, notes, bookmarks, and messages.
+ * Primary embedding/search facade for entity-level content (books, notes,
+ * messages, bookmarks). Replaces ChromaManager. Routes through GraphInterface
+ * so Kùzu / Neo4j swap is transparent.
  *
- * This manager is now the PRIMARY embedding store (replacing ChromaDB).
- *
- * Key Features:
- * - Book chunk storage with embeddings
- * - Key concept extraction and storage
- * - Concept-chunk relationship derivation
- * - Semantic search across all content types
- * - Learning point management for learning plans
+ * Also owns the in-process temp-collection used for session-scoped RAG —
+ * a tiny cosine ranker over chunks built from a single document.
  */
 
 import { getUserIdFromToken } from '../db/dbManager';
@@ -19,8 +14,8 @@ import { getBookById } from '../db/BookManager';
 import { getMessageById } from '../db/MessageManager';
 import { getNoteById } from '../db/NoteJsonManager';
 import graphInterface from './GraphInterface';
-import neo4jAdapter from './Neo4jAdapter';
 import { splitTextIntoChunks } from '../../commons/utils/CommonLangUtil';
+import { cosineSimilarity } from './EmbeddingService';
 
 class GraphEmbeddingManager {
   constructor() {
@@ -30,24 +25,23 @@ class GraphEmbeddingManager {
 
     this.embeddingFunction = null;
     this.store = null;
+    this._tempChunks = []; // [{text, embedding|null}]
     GraphEmbeddingManager.instance = this;
   }
 
   /**
-   * Initialize the manager with store and embedding function
    * @param {Object} store - electron-store instance
-   * @param {Function} embeddingFunction - Function that generates embeddings from text
+   * @param {Function|null} embeddingFunction - (text) => Promise<number[]|null>
    */
   async setup(store, embeddingFunction = null) {
     this.store = store;
     this.embeddingFunction = embeddingFunction;
   }
 
-  /**
-   * Check if graph embedding is enabled
-   * @param {string} token - User token
-   * @returns {boolean}
-   */
+  setEmbeddingFunction(fn) {
+    this.embeddingFunction = fn;
+  }
+
   isEnabled(token) {
     const userId = getUserIdFromToken(token);
     if (userId < 0) return false;
@@ -55,45 +49,28 @@ class GraphEmbeddingManager {
     return graphEnabled && graphInterface.checkConnection();
   }
 
-  /**
-   * Generate embedding for text (placeholder - requires AI provider integration)
-   * @param {string} text - Text to embed
-   * @returns {Array<number>|null} Embedding vector or null
-   */
   async generateEmbedding(text) {
-    if (!this.embeddingFunction) {
-      // Without an embedding function, we store text for full-text search
-      return null;
-    }
+    if (!this.embeddingFunction) return null;
     try {
       return await this.embeddingFunction(text);
     } catch (e) {
-      console.error('Error generating embedding:', e);
+      console.error('GraphEmbeddingManager: embedding error', e);
       return null;
     }
   }
 
   // ===========================================================================
-  // BOOKMARK OPERATIONS
+  // BOOKMARK
   // ===========================================================================
 
-  /**
-   * Add bookmark to graph with embedding
-   * @param {Object} bookmark - Bookmark data
-   * @param {string} token - User token
-   */
   async addBookmark(bookmark, token) {
     if (!this.isEnabled(token)) return;
-
     const doc = `${bookmark.title || ''} ${bookmark.description || ''}`.trim();
     if (doc.length < 10) return;
 
     try {
-      // Create bookmark node in graph
       const result = await graphInterface.createBookmark(bookmark, token);
       if (!result) return;
-
-      // Generate and store embedding
       const embedding = await this.generateEmbedding(doc);
       if (embedding) {
         await graphInterface.storeEmbedding(
@@ -103,102 +80,17 @@ class GraphEmbeddingManager {
           'default',
         );
       }
-
-      console.log('Added bookmark to graph with embedding');
     } catch (e) {
-      console.error('Error adding bookmark to graph:', e);
+      console.error('GraphEmbeddingManager: addBookmark error', e);
     }
   }
 
   // ===========================================================================
-  // BOOK OPERATIONS
+  // NOTE
   // ===========================================================================
 
-  /**
-   * Add book content chunks to graph with embeddings
-   * @param {Object} book - Book data
-   * @param {string} token - User token
-   */
-  async addBook(book, token) {
-    if (!this.isEnabled(token)) return;
-
-    try {
-      // Create book node in graph
-      const result = await graphInterface.createBook(book, token);
-      if (!result) return;
-
-      // Book content is handled via processBookContent for EPUB/PDF
-      console.log('Added book to graph');
-    } catch (e) {
-      console.error('Error adding book to graph:', e);
-    }
-  }
-
-  /**
-   * Process book content and store chunks with embeddings
-   * Called from renderer after parsing EPUB/PDF content
-   * @param {number} bookId - Book ID
-   * @param {Array<{id: string, content: string, metadata: Object}>} chunks - Content chunks
-   * @param {string} token - User token
-   */
-  async processBookContent(bookId, chunks, token) {
-    if (!this.isEnabled(token)) return;
-
-    try {
-      for (const chunk of chunks) {
-        // Create a BookChunk node linked to the book
-        const session = graphInterface.adapter?.session;
-        if (!session) return;
-
-        const chunkId = chunk.id || `${bookId}|${Date.now()}`;
-        await session.run(
-          `
-          MATCH (b:Book {id: $bookId})
-          MERGE (c:BookChunk {id: $chunkId})
-          SET c.content = $content,
-              c.metadata = $metadata,
-              c.createdAt = datetime()
-          MERGE (b)-[:HAS_CHUNK]->(c)
-          RETURN c
-          `,
-          {
-            bookId,
-            chunkId,
-            content: chunk.content,
-            metadata: JSON.stringify(chunk.metadata || {}),
-          },
-        );
-
-        // Generate and store embedding for chunk
-        const embedding = await this.generateEmbedding(chunk.content);
-        if (embedding) {
-          await graphInterface.storeEmbedding(
-            chunkId,
-            'BookChunk',
-            embedding,
-            'default',
-          );
-        }
-      }
-
-      console.log(`Processed ${chunks.length} chunks for book ${bookId}`);
-    } catch (e) {
-      console.error('Error processing book content:', e);
-    }
-  }
-
-  // ===========================================================================
-  // NOTE OPERATIONS
-  // ===========================================================================
-
-  /**
-   * Add note to graph with embedding
-   * @param {Object} noteObj - Note data
-   * @param {string} token - User token
-   */
   async addNote(noteObj, token) {
     if (!this.isEnabled(token)) return;
-
     let doc = noteObj.title || '';
     if (noteObj.cards) {
       if (noteObj.cards[0]) doc += ` ${noteObj.cards[0].text || ''}`;
@@ -209,7 +101,6 @@ class GraphEmbeddingManager {
     if (doc.length < 10) return;
 
     try {
-      // Note is already created via SQLite, just store embedding
       const embedding = await this.generateEmbedding(doc);
       if (embedding) {
         await graphInterface.storeEmbedding(
@@ -219,55 +110,23 @@ class GraphEmbeddingManager {
           'default',
         );
       }
-
-      console.log('Added note embedding to graph');
     } catch (e) {
-      console.error('Error adding note to graph:', e);
-    }
-  }
-
-  /**
-   * Sync note to graph (create node and store embedding)
-   * @param {Object} noteObj - Note data from SQLite
-   * @param {string} token - User token
-   */
-  async syncNote(noteObj, token) {
-    if (!this.isEnabled(token)) return;
-
-    try {
-      // Create note in graph
-      const result = await graphInterface.createNote(noteObj, token);
-      if (!result) return;
-
-      // Add embedding
-      await this.addNote(noteObj, token);
-    } catch (e) {
-      console.error('Error syncing note to graph:', e);
+      console.error('GraphEmbeddingManager: addNote error', e);
     }
   }
 
   // ===========================================================================
-  // MESSAGE OPERATIONS
+  // MESSAGE
   // ===========================================================================
 
-  /**
-   * Add message to graph with embedding
-   * @param {Object} message - Message data
-   * @param {number} chatId - Chat ID
-   * @param {string} token - User token
-   */
   async addMessage(message, chatId, token) {
     if (!this.isEnabled(token)) return;
-
     const doc = message.content || '';
     if (doc.length < 10) return;
 
     try {
-      // Create message node in graph
       const result = await graphInterface.addMessage(message, chatId, token);
       if (!result) return;
-
-      // Generate and store embedding
       const embedding = await this.generateEmbedding(doc);
       if (embedding) {
         await graphInterface.storeEmbedding(
@@ -277,33 +136,22 @@ class GraphEmbeddingManager {
           'default',
         );
       }
-
-      console.log('Added message to graph with embedding');
     } catch (e) {
-      console.error('Error adding message to graph:', e);
+      console.error('GraphEmbeddingManager: addMessage error', e);
     }
   }
 
   // ===========================================================================
-  // SEARCH OPERATIONS
+  // SEARCH
   // ===========================================================================
 
-  /**
-   * Semantic search for books
-   * @param {string} query - Search query
-   * @param {string} token - User token
-   * @returns {Array} Matching books
-   */
   async searchBooks(query, token) {
     if (!this.isEnabled(token)) return [];
-
     try {
       const embedding = await this.generateEmbedding(query);
       if (!embedding) {
-        // Fall back to text search
         return graphInterface.searchNotes(query, token);
       }
-
       const results = await graphInterface.findSimilar(
         embedding,
         ['Book', 'BookChunk'],
@@ -311,49 +159,32 @@ class GraphEmbeddingManager {
         0.7,
         token,
       );
-
-      // Extract unique books from results
-      const bookIds = new Set();
+      const seen = new Set();
       const books = [];
-
-      for (const result of results) {
-        let bookId = result.id;
-        if (result.nodeType === 'BookChunk') {
-          // Extract book ID from chunk
+      for (const r of results) {
+        let bookId = r.id;
+        if (r.nodeType === 'BookChunk') {
           const pos = bookId.indexOf('|');
           bookId = pos > 0 ? bookId.substring(0, pos) : bookId;
         }
-
-        if (!bookIds.has(bookId)) {
-          bookIds.add(bookId);
+        if (!seen.has(bookId)) {
+          seen.add(bookId);
           const book = getBookById(bookId);
           if (book) books.push(book);
         }
       }
-
       return books;
     } catch (e) {
-      console.error('Error searching books in graph:', e);
+      console.error('GraphEmbeddingManager: searchBooks error', e);
       return [];
     }
   }
 
-  /**
-   * Semantic search for notes
-   * @param {string} query - Search query
-   * @param {string} token - User token
-   * @returns {Array} Matching notes
-   */
   async searchNotes(query, token) {
     if (!this.isEnabled(token)) return [];
-
     try {
       const embedding = await this.generateEmbedding(query);
-      if (!embedding) {
-        // Fall back to text search
-        return graphInterface.searchNotes(query, token);
-      }
-
+      if (!embedding) return graphInterface.searchNotes(query, token);
       const results = await graphInterface.findSimilar(
         embedding,
         ['Note'],
@@ -361,36 +192,23 @@ class GraphEmbeddingManager {
         0.7,
         token,
       );
-
       const notes = [];
-      for (const result of results) {
-        const note = getNoteById(result.id, token);
+      for (const r of results) {
+        const note = getNoteById(r.id, token);
         if (note) notes.push(note);
       }
-
       return notes;
     } catch (e) {
-      console.error('Error searching notes in graph:', e);
+      console.error('GraphEmbeddingManager: searchNotes error', e);
       return [];
     }
   }
 
-  /**
-   * Semantic search for messages
-   * @param {string} query - Search query
-   * @param {string} token - User token
-   * @returns {Array} Matching messages
-   */
   async searchMessages(query, token) {
     if (!this.isEnabled(token)) return [];
-
     try {
       const embedding = await this.generateEmbedding(query);
-      if (!embedding) {
-        // Fall back to text search
-        return graphInterface.searchMessages(query, token);
-      }
-
+      if (!embedding) return graphInterface.searchMessages(query, token);
       const results = await graphInterface.findSimilar(
         embedding,
         ['Message'],
@@ -398,36 +216,23 @@ class GraphEmbeddingManager {
         0.7,
         token,
       );
-
       const messages = [];
-      for (const result of results) {
-        const message = getMessageById(result.id, token);
-        if (message) messages.push(message);
+      for (const r of results) {
+        const msg = getMessageById(r.id, token);
+        if (msg) messages.push(msg);
       }
-
       return messages;
     } catch (e) {
-      console.error('Error searching messages in graph:', e);
+      console.error('GraphEmbeddingManager: searchMessages error', e);
       return [];
     }
   }
 
-  /**
-   * Semantic search for bookmarks
-   * @param {string} query - Search query
-   * @param {string} token - User token
-   * @returns {Array} Matching bookmarks
-   */
   async searchBookmarks(query, token) {
     if (!this.isEnabled(token)) return [];
-
     try {
       const embedding = await this.generateEmbedding(query);
-      if (!embedding) {
-        // Fall back to text search
-        return graphInterface.searchBookmarks(query, token);
-      }
-
+      if (!embedding) return graphInterface.searchBookmarks(query, token);
       const results = await graphInterface.findSimilar(
         embedding,
         ['Bookmark'],
@@ -435,75 +240,55 @@ class GraphEmbeddingManager {
         0.7,
         token,
       );
-
-      return results.map((r) => ({
-        ...r,
-        similarity: r.similarity,
-      }));
+      return results.map((r) => ({ ...r, similarity: r.similarity }));
     } catch (e) {
-      console.error('Error searching bookmarks in graph:', e);
+      console.error('GraphEmbeddingManager: searchBookmarks error', e);
       return [];
     }
   }
 
   /**
-   * Get book content by semantic query
-   * @param {number} bookKey - Book ID
-   * @param {string} bookType - 'epub' or 'pdf'
-   * @param {string} query - Search query
-   * @param {string} token - User token
-   * @returns {Array} Matching content sections
+   * Semantic search over a specific book's chunks. Returns hits in the shape
+   * the renderer expects for in-context RAG (epub: bookKey+cfi+excerpt; pdf: id+position+content).
    */
   async getBookContentByQuery(bookKey, bookType, query, token) {
     if (!this.isEnabled(token)) return [];
-
     try {
       const embedding = await this.generateEmbedding(query);
       if (!embedding) return [];
 
-      const session = graphInterface.adapter?.session;
-      if (!session) return [];
-
-      const result = await session.run(
-        `
-        MATCH (b:Book {id: $bookKey})-[:HAS_CHUNK]->(c:BookChunk)
-        WHERE c.embedding IS NOT NULL
-        WITH c,
-             reduce(dot = 0.0, i IN range(0, size(c.embedding)-1) |
-               dot + c.embedding[i] * $embedding[i]) /
-             (sqrt(reduce(a = 0.0, i IN range(0, size(c.embedding)-1) |
-               a + c.embedding[i] * c.embedding[i])) *
-              sqrt(reduce(b = 0.0, i IN range(0, size($embedding)-1) |
-               b + $embedding[i] * $embedding[i]))) AS similarity
-        WHERE similarity > 0.7
-        RETURN c.id AS id, c.content AS content, c.metadata AS metadata, similarity
-        ORDER BY similarity DESC
-        LIMIT 10
-        `,
-        { bookKey, embedding },
+      const userId = getUserIdFromToken(token);
+      const results = await graphInterface.searchSimilarChunks(
+        embedding,
+        { bookId: String(bookKey), userId: String(userId) },
+        10,
+        0.7,
       );
 
-      return result.records.map((record) => {
-        const id = record.get('id');
-        const content = record.get('content');
-        const metadata = JSON.parse(record.get('metadata') || '{}');
-
+      return results.map((r) => {
+        const id = r.chunk.id || '';
+        const content = r.chunk.text || '';
         if (bookType === 'epub') {
           const pos = id.indexOf('|');
           return {
             data: {
-              bookKey: id.substring(0, pos),
-              cfi: id.substring(pos + 1),
+              bookKey: pos > 0 ? id.substring(0, pos) : id,
+              cfi: pos > 0 ? id.substring(pos + 1) : '',
               excerpt: content,
               type: bookType,
             },
           };
-        } else if (bookType === 'pdf') {
+        }
+        if (bookType === 'pdf') {
           const pos = id.indexOf('|');
           const pos2 = id.indexOf('|', pos + 2);
+          const pageNum =
+            pos > 0 && pos2 > 0
+              ? parseInt(id.substring(pos + 1, pos2), 10) || 1
+              : 1;
           return {
             data: {
-              id: id.substring(0, pos),
+              id: pos > 0 ? id.substring(0, pos) : id,
               position: {
                 boundingRect: {
                   x1: 0,
@@ -512,457 +297,85 @@ class GraphEmbeddingManager {
                   y2: 10,
                   width: 10,
                   height: 10,
-                  pageNumber: parseInt(id.substring(pos + 1, pos2)) || 1,
+                  pageNumber: pageNum,
                 },
-                rects: [{ x1: 0, y1: 0, x2: 10, y2: 10, width: 10, height: 10 }],
-                pageNumber: parseInt(id.substring(pos + 1, pos2)) || 1,
+                rects: [
+                  { x1: 0, y1: 0, x2: 10, y2: 10, width: 10, height: 10 },
+                ],
+                pageNumber: pageNum,
               },
               content: { text: content },
               type: bookType,
             },
           };
         }
-        return { data: { content, metadata } };
+        return { data: { content } };
       });
     } catch (e) {
-      console.error('Error getting book content by query:', e);
+      console.error('GraphEmbeddingManager: getBookContentByQuery error', e);
       return [];
     }
   }
 
   // ===========================================================================
-  // IN-MEMORY TEMPORARY COLLECTION (for RAG context)
+  // IN-PROCESS TEMP COLLECTION (session-scoped RAG)
+  //
+  // Replaces Chroma's `my_temp_collection`. Chunks the document, embeds each
+  // chunk if an embedding function is available, then ranks by cosine
+  // similarity at query time. Falls back to substring filtering when no
+  // embedder is configured.
   // ===========================================================================
 
-  /**
-   * Add content to temporary in-memory storage for RAG
-   * @param {string} content - Content to store
-   * @returns {boolean} Success
-   */
   async addContentToTempStorage(content) {
-    // For temporary storage, we use the existing ChromaDB approach
-    // or a simple in-memory cache since Neo4j persists data
-    // This is typically for RAG context during a session
-    this._tempContent = splitTextIntoChunks(content, 500);
+    const chunks = splitTextIntoChunks(content || '', 500);
+    if (this.embeddingFunction) {
+      const embeddings = await Promise.all(
+        chunks.map((c) => this.generateEmbedding(c).catch(() => null)),
+      );
+      this._tempChunks = chunks.map((text, i) => ({
+        text,
+        embedding: embeddings[i],
+      }));
+    } else {
+      this._tempChunks = chunks.map((text) => ({ text, embedding: null }));
+    }
     return true;
   }
 
   /**
-   * Query temporary storage
-   * @param {string} query - Search query
-   * @returns {Array} Matching chunks
+   * @param {string} query
+   * @param {number} limit
+   * @returns {Promise<string[]>} top matching chunk texts
    */
-  async queryTempStorage(query) {
-    if (!this._tempContent) return [];
+  async queryTempStorage(query, limit = 5) {
+    if (!this._tempChunks.length) return [];
 
-    // Simple keyword matching for temp storage
-    const queryLower = query.toLowerCase();
-    return this._tempContent.filter((chunk) =>
-      chunk.toLowerCase().includes(queryLower),
-    );
-  }
-
-  // ===========================================================================
-  // BOOK CHUNK OPERATIONS (New - replaces ChromaDB book storage)
-  // ===========================================================================
-
-  /**
-   * Import book content as chunks with embeddings
-   * This is the main method for ingesting books into vector storage
-   *
-   * @param {string} bookId - Book ID from SQLite
-   * @param {Array} chunks - Array of {text, chunkIndex, pageNum?, cfi?, sectionTitle?}
-   * @param {Object} options - Options {generateEmbeddings: boolean}
-   * @param {string} token - User token
-   * @returns {Object} Result {chunksCreated, hasEmbeddings}
-   */
-  async importBookChunks(bookId, chunks, options = {}, token) {
-    if (!this.isEnabled(token)) {
-      return { chunksCreated: 0, error: 'Graph embedding not enabled' };
-    }
-
-    const { generateEmbeddings = true } = options;
-
-    try {
-      // Generate embeddings if requested and function available
-      let embeddings = [];
-      if (generateEmbeddings && this.embeddingFunction) {
-        console.log(`GraphEmbeddingManager: Generating embeddings for ${chunks.length} chunks`);
-        embeddings = await this.batchGenerateEmbeddings(chunks.map(c => c.text));
-      }
-
-      // Store chunks in Neo4j
-      const chunksCreated = await neo4jAdapter.batchCreateChunks(
-        bookId,
-        chunks,
-        embeddings,
-        token
-      );
-
-      console.log(`GraphEmbeddingManager: Imported ${chunksCreated} chunks for book ${bookId}`);
-
-      return {
-        chunksCreated,
-        hasEmbeddings: embeddings.length > 0 && embeddings[0] !== null,
-      };
-    } catch (error) {
-      console.error('GraphEmbeddingManager: Error importing book chunks:', error);
-      return { chunksCreated: 0, error: error.message };
-    }
-  }
-
-  /**
-   * Batch generate embeddings for multiple texts
-   * @param {string[]} texts - Array of texts to embed
-   * @returns {(number[]|null)[]} Array of embeddings
-   */
-  async batchGenerateEmbeddings(texts) {
-    if (!this.embeddingFunction) {
-      return texts.map(() => null);
-    }
-
-    try {
-      // If embedding function supports batch, use it
-      if (this.embeddingFunction.batch) {
-        return await this.embeddingFunction.batch(texts);
-      }
-
-      // Otherwise generate one by one with progress logging
-      const embeddings = [];
-      const batchSize = 10;
-
-      for (let i = 0; i < texts.length; i += batchSize) {
-        const batch = texts.slice(i, i + batchSize);
-        const batchEmbeddings = await Promise.all(
-          batch.map(text => this.generateEmbedding(text))
-        );
-        embeddings.push(...batchEmbeddings);
-
-        if (i > 0 && i % 100 === 0) {
-          console.log(`GraphEmbeddingManager: Generated ${i}/${texts.length} embeddings`);
-        }
-      }
-
-      return embeddings;
-    } catch (error) {
-      console.error('GraphEmbeddingManager: Error batch generating embeddings:', error);
-      return texts.map(() => null);
-    }
-  }
-
-  /**
-   * Search book chunks by semantic similarity
-   * @param {string} query - Search query
-   * @param {string} bookId - Optional book ID to filter
-   * @param {number} limit - Max results
-   * @param {string} token - User token
-   * @returns {Array} Matching chunks with similarity
-   */
-  async searchBookChunks(query, bookId, limit = 10, token) {
-    if (!this.isEnabled(token)) return [];
-
-    try {
+    if (this.embeddingFunction && this._tempChunks.some((c) => c.embedding)) {
       const queryEmbedding = await this.generateEmbedding(query);
-      if (!queryEmbedding) {
-        console.warn('GraphEmbeddingManager: Cannot search without embedding');
-        return [];
-      }
-
-      const userId = getUserIdFromToken(token);
-      const filters = { userId };
-      if (bookId) {
-        filters.bookId = bookId;
-      }
-
-      const results = await neo4jAdapter.searchSimilarChunks(
-        queryEmbedding,
-        filters,
-        limit,
-        0.7
-      );
-
-      return results.map(r => ({
-        text: r.chunk.text,
-        bookId: r.chunk.bookId,
-        chunkIndex: r.chunk.chunkIndex,
-        pageNum: r.chunk.pageNum,
-        cfi: r.chunk.cfi,
-        sectionTitle: r.chunk.sectionTitle,
-        similarity: r.similarity,
-      }));
-    } catch (error) {
-      console.error('GraphEmbeddingManager: Error searching book chunks:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Get all chunks for a book
-   * @param {string} bookId - Book ID
-   * @param {string} token - User token
-   * @returns {Array} Chunks
-   */
-  async getBookChunks(bookId, token) {
-    if (!this.isEnabled(token)) return [];
-
-    try {
-      return await neo4jAdapter.getChunksByBook(bookId, token);
-    } catch (error) {
-      console.error('GraphEmbeddingManager: Error getting book chunks:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Delete all chunks for a book
-   * @param {string} bookId - Book ID
-   * @param {string} token - User token
-   */
-  async deleteBookChunks(bookId, token) {
-    if (!this.isEnabled(token)) return;
-
-    try {
-      await neo4jAdapter.deleteChunksByBook(bookId, token);
-      console.log(`GraphEmbeddingManager: Deleted chunks for book ${bookId}`);
-    } catch (error) {
-      console.error('GraphEmbeddingManager: Error deleting book chunks:', error);
-    }
-  }
-
-  /**
-   * Ensure embeddings exist for all chunks (lazy generation)
-   * @param {string} bookId - Book ID
-   * @param {string} token - User token
-   * @returns {number} Number of embeddings generated
-   */
-  async ensureBookChunkEmbeddings(bookId, token) {
-    if (!this.isEnabled(token) || !this.embeddingFunction) {
-      return 0;
-    }
-
-    try {
-      const chunks = await neo4jAdapter.getChunksWithoutEmbeddings(bookId, token);
-
-      if (chunks.length === 0) {
-        return 0;
-      }
-
-      console.log(`GraphEmbeddingManager: Generating embeddings for ${chunks.length} chunks`);
-
-      let generated = 0;
-      for (const chunk of chunks) {
-        const embedding = await this.generateEmbedding(chunk.text);
-        if (embedding) {
-          await neo4jAdapter.updateChunkEmbedding(chunk.id, embedding);
-          generated++;
-        }
-      }
-
-      return generated;
-    } catch (error) {
-      console.error('GraphEmbeddingManager: Error ensuring chunk embeddings:', error);
-      return 0;
-    }
-  }
-
-  // ===========================================================================
-  // KEY CONCEPT OPERATIONS
-  // ===========================================================================
-
-  /**
-   * Store key concepts extracted from book metadata
-   * @param {string} bookId - Book ID
-   * @param {Array} concepts - Array of {name, description, category, importance}
-   * @param {string} token - User token
-   * @returns {number} Number created
-   */
-  async storeKeyConcepts(bookId, concepts, token) {
-    if (!this.isEnabled(token)) return 0;
-
-    try {
-      // Assign IDs to concepts if not present
-      const conceptsWithIds = concepts.map((c, idx) => ({
-        ...c,
-        id: c.id || `concept_${Date.now()}_${idx}_${Math.random().toString(36).slice(2, 8)}`,
-      }));
-
-      // Create concept nodes in Neo4j
-      const created = await neo4jAdapter.createKeyConcepts(bookId, conceptsWithIds, token);
-
-      // Generate and store embeddings for concepts
-      if (this.embeddingFunction && conceptsWithIds.length > 0) {
-        const conceptTexts = conceptsWithIds.map(c =>
-          `${c.name}${c.description ? ': ' + c.description : ''}`
-        );
-        const embeddings = await this.batchGenerateEmbeddings(conceptTexts);
-
-        const conceptEmbeddings = conceptsWithIds
-          .map((c, idx) => ({
-            conceptId: c.id,
-            embedding: embeddings[idx],
+      if (queryEmbedding) {
+        const scored = this._tempChunks
+          .filter((c) => c.embedding)
+          .map((c) => ({
+            text: c.text,
+            score: cosineSimilarity(queryEmbedding, c.embedding),
           }))
-          .filter(ce => ce.embedding !== null);
-
-        if (conceptEmbeddings.length > 0) {
-          await neo4jAdapter.storeConceptEmbeddings(bookId, conceptEmbeddings);
-        }
+          .sort((a, b) => b.score - a.score)
+          .slice(0, limit);
+        return scored.map((s) => s.text);
       }
-
-      console.log(`GraphEmbeddingManager: Stored ${created} key concepts for book ${bookId}`);
-      return created;
-    } catch (error) {
-      console.error('GraphEmbeddingManager: Error storing key concepts:', error);
-      return 0;
     }
+
+    const q = (query || '').toLowerCase();
+    return this._tempChunks
+      .filter((c) => c.text.toLowerCase().includes(q))
+      .slice(0, limit)
+      .map((c) => c.text);
   }
 
-  /**
-   * Get key concepts for a book
-   * @param {string} bookId - Book ID
-   * @param {string} token - User token
-   * @returns {Array} Concepts
-   */
-  async getKeyConcepts(bookId, token) {
-    if (!this.isEnabled(token)) return [];
-
-    try {
-      return await neo4jAdapter.getKeyConceptsByBook(bookId, token);
-    } catch (error) {
-      console.error('GraphEmbeddingManager: Error getting key concepts:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Tag chunks with matching concepts and derive relationships
-   * This builds the concept graph from chunk-concept similarities
-   *
-   * @param {string} bookId - Book ID
-   * @param {string} token - User token
-   */
-  async buildConceptGraph(bookId, token) {
-    if (!this.isEnabled(token)) return;
-
-    try {
-      // Tag chunks with concepts based on embedding similarity
-      await neo4jAdapter.tagChunksWithConcepts(bookId, 0.75, token);
-
-      // Derive relationships from co-occurrence
-      await neo4jAdapter.deriveConceptRelationships(bookId, 2, token);
-
-      console.log(`GraphEmbeddingManager: Built concept graph for book ${bookId}`);
-    } catch (error) {
-      console.error('GraphEmbeddingManager: Error building concept graph:', error);
-    }
-  }
-
-  // ===========================================================================
-  // LEARNING POINT OPERATIONS
-  // ===========================================================================
-
-  /**
-   * Create learning points for a topic
-   * @param {string} topicId - Learning topic ID
-   * @param {Array} learningPoints - Array of learning point data
-   * @param {string} token - User token
-   * @returns {number} Number created
-   */
-  async createLearningPoints(topicId, learningPoints, token) {
-    if (!this.isEnabled(token)) return 0;
-
-    try {
-      return await neo4jAdapter.createLearningPoints(topicId, learningPoints, token);
-    } catch (error) {
-      console.error('GraphEmbeddingManager: Error creating learning points:', error);
-      return 0;
-    }
-  }
-
-  /**
-   * Get learning points for a topic
-   * @param {string} topicId - Topic ID
-   * @param {Object} filters - Optional filters
-   * @param {string} token - User token
-   * @returns {Array} Learning points
-   */
-  async getLearningPoints(topicId, filters = {}, token) {
-    if (!this.isEnabled(token)) return [];
-
-    try {
-      return await neo4jAdapter.getLearningPointsByTopic(topicId, filters, token);
-    } catch (error) {
-      console.error('GraphEmbeddingManager: Error getting learning points:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Update learning point after review
-   * @param {string} learningPointId - Learning point ID
-   * @param {Object} reviewResult - Review result
-   * @returns {Object} Updated learning point
-   */
-  async updateLearningPointAfterReview(learningPointId, reviewResult) {
-    try {
-      return await neo4jAdapter.updateLearningPointAfterReview(learningPointId, reviewResult);
-    } catch (error) {
-      console.error('GraphEmbeddingManager: Error updating learning point:', error);
-      return null;
-    }
-  }
-
-  /**
-   * Get learning points due for review
-   * @param {string} topicId - Optional topic ID
-   * @param {number} limit - Max items
-   * @param {string} token - User token
-   * @returns {Array} Due learning points
-   */
-  async getLearningPointsDue(topicId, limit = 20, token) {
-    if (!this.isEnabled(token)) return [];
-
-    try {
-      return await neo4jAdapter.getLearningPointsDueForReview(topicId, limit, token);
-    } catch (error) {
-      console.error('GraphEmbeddingManager: Error getting due learning points:', error);
-      return [];
-    }
-  }
-
-  // ===========================================================================
-  // STATISTICS
-  // ===========================================================================
-
-  /**
-   * Get vector storage statistics
-   * @param {string} token - User token
-   * @returns {Object} Stats
-   */
-  async getStats(token) {
-    if (!this.isEnabled(token)) {
-      return { enabled: false };
-    }
-
-    try {
-      const stats = await neo4jAdapter.getMigrationStats();
-      return {
-        enabled: true,
-        hasEmbeddingFunction: !!this.embeddingFunction,
-        chunks: stats.Chunk || 0,
-        keyConcepts: stats.KeyConcept || 0,
-        learningPoints: stats.LearningPoint || 0,
-        notes: stats.Note || 0,
-        messages: stats.Message || 0,
-        books: stats.Book || 0,
-        bookmarks: stats.Bookmark || 0,
-      };
-    } catch (error) {
-      console.error('GraphEmbeddingManager: Error getting stats:', error);
-      return { enabled: true, error: error.message };
-    }
+  clearTempStorage() {
+    this._tempChunks = [];
   }
 }
 
-// Export singleton instance
 const graphEmbeddingManager = new GraphEmbeddingManager();
 export default graphEmbeddingManager;
