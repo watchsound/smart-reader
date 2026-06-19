@@ -724,3 +724,71 @@ CREATE UNIQUE INDEX IF NOT EXISTS "idx_brain_anomaly_kind_key"
   ON "brain_anomaly" ("kind", "key");
 CREATE INDEX IF NOT EXISTS "idx_brain_anomaly_last_seen"
   ON "brain_anomaly" ("last_seen_ts");
+
+-- ============================================================================
+-- Graph layer in SQLite (replaces Kuzu/Neo4j as the default backend).
+--
+-- Three tables carry what was previously stored as graph nodes + edges:
+--   graph_embedding — vector embeddings for any entity (Note, Bookmark,
+--                     Message, Concept, etc.). Lookups are by (node_type,
+--                     node_id, user_id). Vector data lives in a BLOB,
+--                     interpreted as Float32Array; cosine similarity is
+--                     computed JS-side at query time (fine up to ~10k
+--                     vectors per user; replace with sqlite-vec if needed).
+--   graph_chunk     — book content chunks used for RAG. Embedding is
+--                     inline so a single SELECT scan covers similarity.
+--   graph_edge      — typed relationships between entities (Note→Concept
+--                     MENTIONS, Note→Note LINKS_TO, etc.). The Knowledge
+--                     Web backlinks query lives here.
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS "graph_embedding" (
+  "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+  "node_id" TEXT NOT NULL,
+  "node_type" TEXT NOT NULL,
+  "user_id" INTEGER,
+  "embedding" BLOB NOT NULL,
+  "model" TEXT,
+  "updated_at" TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "idx_graph_embedding_node"
+  ON "graph_embedding" ("node_type", "node_id");
+CREATE INDEX IF NOT EXISTS "idx_graph_embedding_user_type"
+  ON "graph_embedding" ("user_id", "node_type");
+
+CREATE TABLE IF NOT EXISTS "graph_chunk" (
+  "id" TEXT PRIMARY KEY,
+  "book_id" TEXT NOT NULL,
+  "user_id" INTEGER,
+  "text" TEXT NOT NULL,
+  "chunk_index" INTEGER NOT NULL,
+  "page_num" INTEGER,
+  "cfi" TEXT,
+  "section_title" TEXT,
+  "embedding" BLOB,
+  "embedding_model" TEXT,
+  "created_at" TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS "idx_graph_chunk_book"
+  ON "graph_chunk" ("book_id", "chunk_index");
+CREATE INDEX IF NOT EXISTS "idx_graph_chunk_user"
+  ON "graph_chunk" ("user_id");
+
+CREATE TABLE IF NOT EXISTS "graph_edge" (
+  "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+  "source_id" TEXT NOT NULL,
+  "source_type" TEXT NOT NULL,
+  "target_id" TEXT NOT NULL,
+  "target_type" TEXT NOT NULL,
+  "edge_type" TEXT NOT NULL,
+  "weight" REAL,
+  "props_json" TEXT,
+  "user_id" INTEGER,
+  "created_at" TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "idx_graph_edge_unique"
+  ON "graph_edge" ("source_type", "source_id", "edge_type", "target_type", "target_id");
+CREATE INDEX IF NOT EXISTS "idx_graph_edge_target"
+  ON "graph_edge" ("target_type", "target_id", "edge_type");
+CREATE INDEX IF NOT EXISTS "idx_graph_edge_source"
+  ON "graph_edge" ("source_type", "source_id", "edge_type");

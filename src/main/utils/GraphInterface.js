@@ -19,8 +19,13 @@
  *   const note = await graphInterface.createNote(noteData, token);
  */
 
-// Default adapter type - Kùzu is preferred as it's embedded (no external server)
-const DEFAULT_ADAPTER_TYPE = 'kuzu';
+// Default adapter type — SQLite as of D3. Kùzu's prebuilt segfaults Electron
+// on Windows (confirmed; see test-smoke IGNORE_PATTERNS history). Neo4j stays
+// available as an opt-in for users who explicitly want an external graph
+// server. SqliteAdapter shares the existing better-sqlite3 connection and
+// stores the graph layer in three tables (graph_embedding / graph_chunk /
+// graph_edge — see db.sql).
+const DEFAULT_ADAPTER_TYPE = 'sqlite';
 
 /**
  * @typedef {Object} GraphAdapter
@@ -86,6 +91,14 @@ class GraphInterface {
 
     try {
       switch (adapterType) {
+        case 'sqlite':
+          // D3 default: SQLite-backed graph layer (Kùzu's prebuilt segfaults
+          // Electron; Neo4j needs an external server). Shares the existing
+          // better-sqlite3 connection; schema lives in db.sql.
+          // eslint-disable-next-line global-require
+          this.adapter = require('./SqliteAdapter').default;
+          break;
+
         case 'neo4j':
           const Neo4jAdapter = require('./Neo4jAdapter').default;
           this.adapter = Neo4jAdapter;
