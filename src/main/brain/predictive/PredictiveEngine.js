@@ -25,6 +25,54 @@ function writeCache(payload) {
   fs.renameSync(tmp, cachePath());
 }
 
+// Module-level memo of the parsed cache + derived lookup maps. Shared across
+// every PredictiveEngine instance so a Quest pacing pass over 50 concepts
+// pays one parse + one Map build, not fifty. Re-parse is gated on file mtime
+// — fs.statSync is ~1ms vs readFileSync+JSON.parse on the typical model file.
+let _modelMemo = null;
+
+function buildModel(file, mtime) {
+  return {
+    mtime,
+    computedAt: file.computedAt,
+    surfaceBoxMap: new Map(file.surfaceBox),
+    surfaceMap: new Map(file.surface),
+    // Composite-key index replaces the per-call `cells.find(...)` linear scan
+    // (O(1) lookup for the rest of the pacing fan-out).
+    cellsByKey: new Map(
+      (file.cells || []).map((c) => [
+        `${c.featureSurface}|${c.currentBox}|${c.domain}`,
+        c,
+      ]),
+    ),
+    global: file.global,
+    cost: file.cost,
+  };
+}
+
+function getCachedModel() {
+  let mtime;
+  try {
+    mtime = fs.statSync(cachePath()).mtimeMs;
+  } catch {
+    _modelMemo = null;
+    return null;
+  }
+  if (_modelMemo && _modelMemo.mtime === mtime) return _modelMemo;
+  const file = readCache();
+  if (!file) {
+    _modelMemo = null;
+    return null;
+  }
+  _modelMemo = buildModel(file, mtime);
+  return _modelMemo;
+}
+
+// Test seam — lets unit tests reset the module-level memo between cases.
+function _resetCacheMemoForTests() {
+  _modelMemo = null;
+}
+
 function aggToParent(agg, fallback = { mean: 0, var: 1 }) {
   if (!agg || !agg.n) return fallback;
   const m = agg.sumDelta / agg.n;
@@ -37,24 +85,20 @@ class PredictiveEngine {
     if (EXCLUDED_SURFACES.includes(featureSurface)) {
       throw new Error(`predict: featureSurface "${featureSurface}" is excluded`);
     }
-    let cache = readCache();
-    if (!cache || Date.now() - cache.computedAt > REFRESH_INTERVAL_MS) {
+    let model = getCachedModel();
+    if (!model || Date.now() - model.computedAt > REFRESH_INTERVAL_MS) {
       await this.refreshModel({ force: true });
-      cache = readCache();
+      model = getCachedModel();
     }
 
-    const sbMap = new Map(cache.surfaceBox);
-    const sMap = new Map(cache.surface);
-    const globalAgg = cache.global;
-
-    const globalParent = aggToParent(globalAgg);
-    const surfaceAgg = sMap.get(featureSurface);
+    const globalParent = aggToParent(model.global);
+    const surfaceAgg = model.surfaceMap.get(featureSurface);
     const surfaceParent = aggToParent(surfaceAgg, globalParent);
-    const sbAgg = sbMap.get(`${featureSurface}|${currentBox}`);
+    const sbAgg = model.surfaceBoxMap.get(`${featureSurface}|${currentBox}`);
     const sbParent = aggToParent(sbAgg, surfaceParent);
 
-    const cell = cache.cells.find(
-      (c) => c.featureSurface === featureSurface && c.currentBox === currentBox && c.domain === domain,
+    const cell = model.cellsByKey.get(
+      `${featureSurface}|${currentBox}|${domain}`,
     );
 
     let level;
@@ -79,7 +123,7 @@ class PredictiveEngine {
       { alpha: ALPHA_0, beta: BETA_0 },
     );
 
-    const costRow = (cache.cost || []).find((r) => r.featureSurface === featureSurface);
+    const costRow = (model.cost || []).find((r) => r.featureSurface === featureSurface);
     const expectedCost = costRow ? costRow.meanCost : 0;
     const p95Cost = costRow ? costRow.p95Cost : 0;
 
@@ -91,7 +135,7 @@ class PredictiveEngine {
       p95Cost,
       n: cellInput.n,
       shrinkageLevel: level,
-      computedAt: cache.computedAt,
+      computedAt: model.computedAt,
     };
   }
 
@@ -143,3 +187,4 @@ class PredictiveEngine {
 
 module.exports = PredictiveEngine;
 module.exports.PredictiveEngine = PredictiveEngine;
+module.exports._resetCacheMemoForTests = _resetCacheMemoForTests;
