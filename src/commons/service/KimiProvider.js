@@ -51,6 +51,20 @@ export default class KimiProvider extends AIProviderInterface {
     return chatCompletion.choices[0].message?.content;
   }
 
+  async generateJsonMode(prompt) {
+    const openai = new OpenAI({
+      apiKey: this.apiKey,
+      baseURL: 'https://api.moonshot.cn/v1',
+      dangerouslyAllowBrowser: true,
+    });
+    const chatCompletion = await openai.chat.completions.create({
+      messages: [{ role: 'user', content: prompt }],
+      model: this.model,
+      response_format: { type: 'json_object' },
+    });
+    return chatCompletion.choices[0].message?.content;
+  }
+
   /**
    *
    * @param {*} prompt
@@ -103,7 +117,7 @@ export default class KimiProvider extends AIProviderInterface {
       baseURL: "https://api.moonshot.cn/v1",
       dangerouslyAllowBrowser: true});
     const filteredHistory = history.filter((h) => h.role !== 'assistant' || !!h.content )
-    const newHistory = message ? [...filteredHistory, { 'user' : message }] : filteredHistory;
+    const newHistory = message ? [...filteredHistory, { role: 'user', content: message }] : filteredHistory;
     const chatCompletion = await openai.chat.completions.create({
       messages: newHistory,
       model: this.model,

@@ -10,7 +10,7 @@ const CHAT_URL = 'https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/c
 export default class BaiduProvider extends AIProviderInterface {
   static capabilities = {
     maxContext: 32000,
-    structuredOutput: 'json-mode',
+    structuredOutput: 'prompt-only',
     toolUse: true,
     promptCaching: false,
     extendedThinking: false,
@@ -26,16 +26,15 @@ export default class BaiduProvider extends AIProviderInterface {
   async generateContent(prompt) {
     try {
       const res = await axios.post(
-          `${CHAT_URL}?access_token=${this.accessToken}`,
-          JSON.stringify({'prompt': prompt}),
+        `${CHAT_URL}?access_token=${this.accessToken}`,
+        JSON.stringify({ messages: [{ role: 'user', content: prompt }] }),
+        { headers: { 'Content-Type': 'application/json' } },
       );
-      const { data } = res;
-      return data;
+      return res.data?.result ?? '';
     } catch (e) {
       console.log(e);
       return '';
     }
-
   }
 
   /**
@@ -90,8 +89,7 @@ export default class BaiduProvider extends AIProviderInterface {
             }
           }
       );
-      const { data } = res;
-      return data;
+      return res.data?.result ?? '';
     } catch (e) {
       console.log(e);
       return '';

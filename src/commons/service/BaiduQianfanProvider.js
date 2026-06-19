@@ -7,7 +7,7 @@ import { AIProviderInterface } from './AIProviderInterface';
 export default class BaiduQianfanProvider extends AIProviderInterface {
   static capabilities = {
     maxContext: 32000,
-    structuredOutput: 'json-mode',
+    structuredOutput: 'prompt-only',
     toolUse: true,
     promptCaching: false,
     extendedThinking: false,
@@ -73,7 +73,7 @@ export default class BaiduQianfanProvider extends AIProviderInterface {
    */
   async sendChatMessage(history, message, configs) {
     const client = new ChatCompletion({ QIANFAN_AK: this.apiKey, QIANFAN_SK: this.apiSecret });
-    const newHistory = message ? [...history, { 'user' : message }] : history;
+    const newHistory = message ? [...history, { role: 'user', content: message }] : history;
     try {
       const resp = await client.chat({
         messages: newHistory,
@@ -110,7 +110,7 @@ export default class BaiduQianfanProvider extends AIProviderInterface {
 
   async generateChatStream(history, message) {
    const client = new ChatCompletion({ QIANFAN_AK: this.apiKey, QIANFAN_SK: this.apiSecret });
-    const newHistory = message ? [...history, { 'user' : message }] : history;
+    const newHistory = message ? [...history, { role: 'user', content: message }] : history;
     const resp = await client.chat({
       messages: newHistory,
       stream: true,

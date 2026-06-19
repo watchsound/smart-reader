@@ -69,6 +69,16 @@ export default class DoubaoProvider extends AIProviderInterface {
     return chatCompletion.choices[0].message?.content;
   }
 
+  async generateJsonMode(prompt) {
+    const client = this.createClient();
+    const chatCompletion = await client.chat.completions.create({
+      messages: [{ role: 'user', content: prompt }],
+      model: this.model,
+      response_format: { type: 'json_object' },
+    });
+    return chatCompletion.choices[0].message?.content;
+  }
+
   /**
    * Generate content with image input (multimodal)
    * @param {string} prompt - Text prompt

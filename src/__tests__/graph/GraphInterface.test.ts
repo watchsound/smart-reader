@@ -102,6 +102,16 @@ describe('GraphInterface', () => {
       );
     });
 
+    test('should throw for kuzu adapter type (kuzu removed in D3, main.ts coerces to sqlite)', async () => {
+      // Kùzu's win32-x64 prebuilt segfaults Electron at require() time; the
+      // adapter was deleted in commit dfbce34. main.ts coerces any stored
+      // 'kuzu' preference to 'sqlite' before calling initialize(), so this
+      // throw path is only hit if something bypasses that coercion.
+      await expect(graphInterface.initialize('kuzu' as any, mockStore)).rejects.toThrow(
+        'Unknown adapter type: kuzu',
+      );
+    });
+
     test('should not re-initialize if already initialized with same adapter', async () => {
       await graphInterface.initialize('neo4j', mockStore);
       mockNeo4jAdapter.connect.mockClear();

@@ -2519,15 +2519,17 @@ app
   .then(async () => {
     createWindow();
 
-    // Initialize GraphInterface (Kùzu embedded by default, no external server required)
+    // Initialize GraphInterface (SQLite embedded by default, no external server required)
     try {
-      // Default to Kùzu - embedded database, MIT license, no external server needed
       const graphConfig = store.get('graph', {
         enabled: true,
-        adapterType: 'kuzu',
+        adapterType: 'sqlite',
       });
       if (graphConfig.enabled) {
-        const adapterType = graphConfig.adapterType || 'kuzu';
+        // Kùzu was retired in D3 — its win32-x64 prebuilt segfaults Electron.
+        // Any install that stored 'kuzu' before the migration falls back to 'sqlite'.
+        const raw = graphConfig.adapterType || 'sqlite';
+        const adapterType = raw === 'kuzu' ? 'sqlite' : raw;
         await graphInterface.initialize(adapterType, store);
         const status = graphInterface.getStatus();
         console.log(`[main] GraphInterface initialized with ${adapterType}:`, {

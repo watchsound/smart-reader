@@ -73,7 +73,10 @@ const SidebarSection = styled(Box)(({ theme }) => ({
   borderBottom: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
 }));
 
-const StepItem = styled(Box)(({ theme, active, completed, colors }) => ({
+const StepItem = styled(Box, {
+  shouldForwardProp: (prop) =>
+    !['active', 'completed', 'colors'].includes(prop),
+})(({ theme, active, completed, colors }) => ({
   display: 'flex',
   alignItems: 'center',
   gap: theme.spacing(1.5),
@@ -102,7 +105,10 @@ const StepItem = styled(Box)(({ theme, active, completed, colors }) => ({
     : {},
 }));
 
-const StepIconWrapper = styled(Box)(({ theme, colors, active, completed }) => ({
+const StepIconWrapper = styled(Box, {
+  shouldForwardProp: (prop) =>
+    !['active', 'completed', 'colors'].includes(prop),
+})(({ theme, colors, active, completed }) => ({
   width: 36,
   height: 36,
   borderRadius: '50%',

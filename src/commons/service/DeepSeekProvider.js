@@ -67,6 +67,16 @@ export default class DeepSeekProvider extends AIProviderInterface {
     return chatCompletion.choices[0].message?.content;
   }
 
+  async generateJsonMode(prompt) {
+    const client = this.createClient();
+    const chatCompletion = await client.chat.completions.create({
+      messages: [{ role: 'user', content: prompt }],
+      model: this.model,
+      response_format: { type: 'json_object' },
+    });
+    return chatCompletion.choices[0].message?.content;
+  }
+
   async generateMultimodalContent(prompt, imageParts) {
     // DeepSeek-VL exists but is a separate model line not supported here.
     // Fall back to text-only with a warning.

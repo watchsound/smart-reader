@@ -7,13 +7,9 @@
  * that returns parsed JSON regardless of the underlying provider's native
  * structured-output capability. Routes by the provider's capability flag:
  *
- *   structuredOutput: 'native'      → use provider.generateStructured()      [TODO — providers don't expose this yet]
- *   structuredOutput: 'json-mode'   → use provider.generateJsonMode()        [TODO — providers don't expose this yet]
+ *   structuredOutput: 'native'      → use provider.generateStructured()      [TODO — providers don't expose this yet; falls through to prompt-only]
+ *   structuredOutput: 'json-mode'   → use provider.generateJsonMode()        [implemented: DeepSeek, Kimi, Qwen, Doubao, OllamaMain]
  *   structuredOutput: 'prompt-only' → append schema instruction, parse with retry
- *
- * For now the native and json-mode branches fall through to the prompt-only
- * polyfill, so callers can adopt this API today and benefit automatically
- * when providers grow native methods later.
  *
  * This module is the long-term replacement for the ad-hoc
  * `AIProviderManager.generateContentWithJson` + `processResponseJsonData`
@@ -61,7 +57,7 @@ export async function getStructured(provider, prompt, schema, options = {}) {
   }
   const { startTag, maxRetries = 1 } = options;
   const level =
-    typeof provider.supports === 'function'
+    typeof provider.capabilities === 'function'
       ? provider.capabilities().structuredOutput
       : 'prompt-only';
 
@@ -71,12 +67,16 @@ export async function getStructured(provider, prompt, schema, options = {}) {
   //   return provider.generateStructured(prompt, schema);
   // }
 
-  // TODO json-mode branch: once providers expose generateJsonMode(prompt),
-  // route here (Ollama format=json, OpenAI json_object, Qwen response_format).
-  // if (level === 'json-mode' && typeof provider.generateJsonMode === 'function') {
-  //   const raw = await provider.generateJsonMode(prompt + buildSchemaInstruction(schema, options));
-  //   return AIProviderManager.processResponseJsonData(raw, startTag);
-  // }
+  if (level === 'json-mode' && typeof provider.generateJsonMode === 'function') {
+    const raw = await provider.generateJsonMode(prompt + buildSchemaInstruction(schema, options));
+    const parsed = AIProviderManager.processResponseJsonData(raw, startTag);
+    if (!parsed || typeof parsed !== 'object') {
+      console.warn(
+        `[polyfill:getStructured] json-mode parse failed on provider with structuredOutput=${level}`,
+      );
+    }
+    return parsed;
+  }
 
   // Prompt-only fallback path — works on any instruction-following model.
   // Reuses the existing multi-strategy JSON parser in AIProviderManager.

@@ -59,6 +59,22 @@ export default class OllamaMainProvider extends AIProviderInterface {
     }
   }
 
+  async generateJsonMode(prompt) {
+    try {
+      const ollama = new Ollama({ host: 'http://127.0.0.1:11434' });
+      const response = await ollama.chat({
+        model: this.model,
+        temperature: 0,
+        format: 'json',
+        messages: [{ role: 'user', content: prompt }],
+      });
+      return response.message.content;
+    } catch (error) {
+      console.error('Error generating JSON-mode content with Ollama:', error);
+      return '';
+    }
+  }
+
   // Build multi-turn conversations (chat)
   async sendChatMessage(history, message, configs = {}) {
     try {

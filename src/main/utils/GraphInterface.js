@@ -3,17 +3,20 @@
  *
  * Abstract interface for graph database operations.
  * This abstraction layer allows swapping between different graph backends:
- * - Kùzu (default - embedded, MIT license, no external server)
- * - Neo4j (external server required)
- * - Graphiti (future - Python-based graph memory layer)
+ * - SQLite (default — embedded, shares the existing better-sqlite3 connection)
+ * - Neo4j (external server required, opt-in)
+ *
+ * Kùzu was the previous default but was removed in D3: its win32-x64 prebuilt
+ * segfaults Electron at require() time (confirmed via diagnostic); the adapter
+ * was deleted in commit dfbce34. main.ts coerces stored 'kuzu' → 'sqlite'.
  *
  * All graph operations should go through this interface, not directly to the adapter.
  *
  * Usage:
  *   import graphInterface from './GraphInterface';
  *
- *   // Initialize with desired adapter (defaults to 'kuzu')
- *   await graphInterface.initialize('kuzu', store);
+ *   // Initialize with desired adapter (defaults to 'sqlite')
+ *   await graphInterface.initialize('sqlite', store);
  *
  *   // Use the interface (adapter-agnostic)
  *   const note = await graphInterface.createNote(noteData, token);

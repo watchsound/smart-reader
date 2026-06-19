@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { TextField, Box, InputBase } from '@mui/material';
 import { styled, useTheme, alpha } from '@mui/material/styles';
 
-const StyledContainer = styled(Box)(({ theme, colors, minimal }) => ({
+const StyledContainer = styled(Box, {
+  shouldForwardProp: (prop) => !['colors', 'minimal'].includes(prop),
+})(({ theme, colors, minimal }) => ({
   backgroundColor: minimal ? 'transparent' : theme.palette.background.paper,
   borderRadius: minimal ? 8 : 16,
   border: minimal ? 'none' : `1px solid ${alpha(theme.palette.divider, 0.08)}`,

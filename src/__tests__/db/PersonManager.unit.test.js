@@ -41,6 +41,11 @@ const { isHashed, hashPassword } = require('../../main/db/passwordHash');
 beforeEach(() => {
   jest.clearAllMocks();
   sqlBehavior = null;
+  jest.spyOn(console, 'error').mockImplementation(() => {});
+  jest.spyOn(console, 'warn').mockImplementation(() => {});
+});
+afterEach(() => {
+  jest.restoreAllMocks();
 });
 
 describe('PersonManager (unit, mocked db)', () => {
