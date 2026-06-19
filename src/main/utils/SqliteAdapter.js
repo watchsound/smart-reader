@@ -21,6 +21,10 @@
 import { getUserIdFromToken, getDb } from '../db/dbManager';
 import { cosineSimilarity } from './EmbeddingService';
 
+function safeParse(json) {
+  try { return JSON.parse(json); } catch { return null; }
+}
+
 // ---------------------------------------------------------------------------
 // Embedding BLOB packing. We store a Float32Array's underlying bytes in the
 // BLOB column (4 bytes per dim) — about 3 KB for a 768-dim model. JSON would
@@ -150,9 +154,179 @@ class SqliteAdapter {
   // CONCEPT + RELATIONSHIPS — Pass 3 uses graph_edge.
   // ===========================================================================
 
-  async upsertConcept(/* concept, token */) { return null; }
-  async createMentionsRelationship(/* noteId, conceptId, frequency, importance */) {
-    return undefined;
+  /**
+   * Concepts have no dedicated table; we treat them as edge endpoints.
+   * Returns a minimal envelope so callers that expect an id keep working.
+   */
+  async upsertConcept(concept /* , token */) {
+    return concept && concept.id ? { id: concept.id, name: concept.name } : null;
+  }
+
+  /**
+   * Note → Concept "MENTIONS_CONCEPT" edge with frequency + importance in
+   * props_json. Idempotent via the unique index on
+   * (source_type, source_id, edge_type, target_type, target_id).
+   */
+  async createMentionsRelationship(noteId, conceptId, frequency, importance) {
+    if (!this.isConnected || noteId == null || conceptId == null) return;
+    try {
+      this._upsertEdge({
+        sourceType: 'Note',
+        sourceId: noteId,
+        targetType: 'Concept',
+        targetId: conceptId,
+        edgeType: 'MENTIONS_CONCEPT',
+        props: { frequency: frequency || 1, importance: importance ?? null },
+      });
+    } catch (e) {
+      console.error('[SqliteAdapter] createMentionsRelationship:', e.message);
+    }
+  }
+
+  /**
+   * Replace all LINKS_TO edges from a note with the supplied list.
+   * Used by the [[wiki-link]] parser whenever a note is saved.
+   *
+   * @param {string|number} noteId
+   * @param {Array<{targetType:string, targetId:string|number, anchor?:string, position?:number}>} links
+   */
+  async syncNoteLinks(noteId, links, token) {
+    if (!this.isConnected || noteId == null) {
+      return { success: false, error: 'not connected' };
+    }
+    const db = getDb();
+    const userId = token ? getUserIdFromToken(token) : null;
+    const tx = db.transaction(() => {
+      db.prepare(
+        `DELETE FROM graph_edge
+         WHERE source_type = 'Note' AND source_id = ? AND edge_type = 'LINKS_TO'`,
+      ).run(String(noteId));
+      const insert = db.prepare(
+        `INSERT OR IGNORE INTO graph_edge
+           (source_id, source_type, target_id, target_type, edge_type,
+            weight, props_json, user_id, created_at)
+         VALUES (?, 'Note', ?, ?, 'LINKS_TO', ?, ?, ?, ?)`,
+      );
+      const now = new Date().toISOString();
+      for (const link of links || []) {
+        const props = JSON.stringify({
+          anchor: link.anchor ?? null,
+          position: link.position ?? null,
+        });
+        insert.run(
+          String(noteId),
+          String(link.targetId),
+          link.targetType || 'Note',
+          link.weight ?? null,
+          props,
+          userId,
+          now,
+        );
+      }
+    });
+    try {
+      tx();
+      return { success: true, count: (links || []).length };
+    } catch (e) {
+      console.error('[SqliteAdapter] syncNoteLinks:', e.message);
+      return { success: false, error: e.message };
+    }
+  }
+
+  /**
+   * Notes (or anything) linking TO the given (targetType, targetId).
+   * Returns minimal envelopes — callers fetch full entity data themselves.
+   */
+  async getBacklinks(targetId, targetType, token) {
+    if (!this.isConnected || targetId == null) return [];
+    try {
+      const rows = getDb()
+        .prepare(
+          `SELECT source_id AS sourceId, source_type AS sourceType,
+                  edge_type AS edgeType, props_json AS propsJson, created_at AS createdAt
+           FROM graph_edge
+           WHERE target_id = ? AND target_type = ?
+           ORDER BY created_at DESC`,
+        )
+        .all(String(targetId), targetType || 'Note');
+      return rows.map((r) => ({
+        sourceId: r.sourceId,
+        sourceType: r.sourceType,
+        edgeType: r.edgeType,
+        props: r.propsJson ? safeParse(r.propsJson) : null,
+        createdAt: r.createdAt,
+      }));
+    } catch (e) {
+      console.error('[SqliteAdapter] getBacklinks:', e.message);
+      return [];
+    }
+  }
+
+  /** Outgoing edges from a note (or any source). */
+  async getOutgoingLinks(noteId, token) {
+    if (!this.isConnected || noteId == null) return [];
+    try {
+      const rows = getDb()
+        .prepare(
+          `SELECT target_id AS targetId, target_type AS targetType,
+                  edge_type AS edgeType, props_json AS propsJson, created_at AS createdAt
+           FROM graph_edge
+           WHERE source_id = ? AND source_type = 'Note'
+           ORDER BY created_at DESC`,
+        )
+        .all(String(noteId));
+      return rows.map((r) => ({
+        targetId: r.targetId,
+        targetType: r.targetType,
+        edgeType: r.edgeType,
+        props: r.propsJson ? safeParse(r.propsJson) : null,
+        createdAt: r.createdAt,
+      }));
+    } catch (e) {
+      console.error('[SqliteAdapter] getOutgoingLinks:', e.message);
+      return [];
+    }
+  }
+
+  /**
+   * Reuses findSimilar to surface semantically-near notes, then strips out
+   * the source note itself. Matches the contract callers expect.
+   */
+  async findSemanticallySimilarNotes(noteId, embedding, threshold, token) {
+    if (!embedding?.length) return [];
+    const hits = await this.findSimilar(embedding, ['Note'], 20, threshold ?? 0.7, token);
+    return hits.filter((r) => String(r.id) !== String(noteId));
+  }
+
+  /**
+   * Generic upsert into graph_edge. Internal helper — keeps the SQL in one
+   * place so the unique-index conflict policy stays consistent across edge
+   * types (MENTIONS_CONCEPT, LINKS_TO, …).
+   * @private
+   */
+  _upsertEdge({ sourceType, sourceId, targetType, targetId, edgeType, weight, props, userId }) {
+    getDb()
+      .prepare(
+        `INSERT INTO graph_edge
+           (source_id, source_type, target_id, target_type, edge_type,
+            weight, props_json, user_id, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(source_type, source_id, edge_type, target_type, target_id)
+         DO UPDATE SET
+           weight = excluded.weight,
+           props_json = excluded.props_json`,
+      )
+      .run(
+        String(sourceId),
+        sourceType,
+        String(targetId),
+        targetType,
+        edgeType,
+        weight ?? null,
+        props ? JSON.stringify(props) : null,
+        userId ?? null,
+        new Date().toISOString(),
+      );
   }
 
   // ===========================================================================
