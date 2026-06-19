@@ -7,7 +7,7 @@ import { ClaudeModel } from '../model/DataTypes';
 export default class ClaudeProvider extends AIProviderInterface {
   static capabilities = {
     maxContext: 200000,
-    structuredOutput: 'native',
+    structuredOutput: 'prompt-only',
     toolUse: true,
     promptCaching: true,
     extendedThinking: true,

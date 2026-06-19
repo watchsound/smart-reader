@@ -7,7 +7,7 @@ import { ChatGPTModel } from '../model/DataTypes';
 export default class ChatGPTProvider extends AIProviderInterface {
   static capabilities = {
     maxContext: 128000,
-    structuredOutput: 'native',
+    structuredOutput: 'json-mode',
     toolUse: true,
     promptCaching: true,
     extendedThinking: false,
@@ -28,6 +28,16 @@ export default class ChatGPTProvider extends AIProviderInterface {
     const chatCompletion = await openai.chat.completions.create({
       messages: [{ role: 'user', content: prompt }],
       model: this.model,
+    });
+    return chatCompletion.choices[0].message?.content;
+  }
+
+  async generateJsonMode(prompt) {
+    const openai = new OpenAI({ apiKey: this.apiKey, dangerouslyAllowBrowser: true });
+    const chatCompletion = await openai.chat.completions.create({
+      messages: [{ role: 'user', content: prompt }],
+      model: this.model,
+      response_format: { type: 'json_object' },
     });
     return chatCompletion.choices[0].message?.content;
   }
@@ -77,7 +87,7 @@ export default class ChatGPTProvider extends AIProviderInterface {
    */
   async sendChatMessage(history, message, configs) {
     const openai = new OpenAI({ apiKey: this.apiKey, dangerouslyAllowBrowser: true });
-    const newHistory = message ? [...history, { 'user' : message }] : history;
+    const newHistory = message ? [...history, { role: 'user', content: message }] : history;
     const chatCompletion = await openai.chat.completions.create({
       messages: newHistory,
       model: this.model,

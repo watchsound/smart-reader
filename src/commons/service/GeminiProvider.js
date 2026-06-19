@@ -6,7 +6,7 @@ import { AIProviderInterface } from './AIProviderInterface';
 export default class GeminiProvider extends AIProviderInterface {
   static capabilities = {
     maxContext: 1000000,
-    structuredOutput: 'native',
+    structuredOutput: 'prompt-only',
     toolUse: true,
     promptCaching: true,
     extendedThinking: true,
