@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Toaster } from 'react-hot-toast';
 import { styled } from '@mui/material/styles';
 import {
   Box,
@@ -182,7 +181,6 @@ export default function HomePage() {
 
   return (
     <Box sx={{ minHeight: '100%', bgcolor: '#f5f7fa', pb: 4 }}>
-      <Toaster />
       <Container maxWidth="xl" sx={{ pt: 3 }}>
         {/* Welcome Section */}
         <WelcomeSection sx={{ mb: 4 }}>

@@ -67,6 +67,8 @@ import FlowCoordinator from '../components/brainShell/FlowCoordinator';
 import OrbQuestMenu from '../components/brainShell/OrbQuestMenu';
 import useBrainState from '../brain/useBrainState';
 import triggerBus from '../brain/triggerBus';
+import useBookIndexingToasts from '../hooks/useBookIndexingToasts';
+import { Toaster } from 'react-hot-toast';
 
 const drawerWidth = 260;
 
@@ -195,6 +197,7 @@ const navItems = {
 };
 
 export default function Root() {
+  useBookIndexingToasts();
   const [serverUrl, setServerUrl] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState({
@@ -562,6 +565,9 @@ export default function Root() {
           {isAuthPage ? <Index /> : <Outlet />}
         </Box>
       </MainContent>
+
+      {/* Global toast surface — book-indexing progress, etc. */}
+      <Toaster position="bottom-right" />
 
       {/* Brain-driven shell: active Flow renders here (floating overlay). */}
       <FlowCoordinator proposal={activeProposal} />

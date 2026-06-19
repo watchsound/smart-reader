@@ -196,7 +196,7 @@ import markdownManager from './utils/MarkdownManager';
 import graphEmbeddingManager from './utils/GraphEmbeddingManager';
 import vectorManager from './utils/VectorManager';
 import { buildEmbeddingFunction } from './utils/EmbeddingService';
-import { chunkBookForVector } from './utils/BookChunker';
+import { indexBookWithProgress } from './utils/BookIndexer';
 import registerGraphHandlers from './ipc/graphHandlers';
 import {
   registerSkillHandlers,
@@ -2274,23 +2274,13 @@ const createWindow = async () => {
         libreOfficeInstalled,
       );
       const book = await createBook(b, token);
-      // Create book node in graph + auto-index chunks for RAG. Chunking is
-      // fire-and-forget so the import IPC doesn't wait on parsing a large book.
+      // Create book node in graph + auto-index chunks for RAG. Indexing is
+      // fire-and-forget; it emits progress events the renderer toasts on.
       try {
         if (graphInterface.isReady()) {
           await graphInterface.createBook(book, token);
         }
-        if (book && book.path && book.format) {
-          chunkBookForVector(mainWin, book)
-            .then((chunks) =>
-              chunks.length > 0
-                ? vectorManager.addBookChunks(book.id, chunks, token)
-                : null,
-            )
-            .catch((err) =>
-              console.error('Failed to index book chunks:', err),
-            );
-        }
+        void indexBookWithProgress(mainWin, book, token);
       } catch (graphError) {
         console.error('Failed to add book to graph:', graphError);
       }
@@ -2320,23 +2310,13 @@ const createWindow = async () => {
         console.log(JSON.stringify(b));
         const book = await createBook(b, token);
         console.log(JSON.stringify(book));
-        // Create book node in graph + auto-index chunks for RAG. Chunking is
-        // fire-and-forget so the import IPC doesn't wait on parsing a large book.
+        // Create book node in graph + auto-index chunks for RAG. Indexing is
+        // fire-and-forget; it emits progress events the renderer toasts on.
         try {
           if (graphInterface.isReady()) {
             await graphInterface.createBook(book, token);
           }
-          if (book && book.path && book.format) {
-            chunkBookForVector(mainWin, book)
-              .then((chunks) =>
-                chunks.length > 0
-                  ? vectorManager.addBookChunks(book.id, chunks, token)
-                  : null,
-              )
-              .catch((err) =>
-                console.error('Failed to index book chunks:', err),
-              );
-          }
+          void indexBookWithProgress(mainWin, book, token);
         } catch (graphError) {
           console.error('Failed to add book to graph:', graphError);
         }
