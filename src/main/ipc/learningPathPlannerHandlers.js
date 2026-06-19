@@ -43,8 +43,10 @@ function registerLearningPathPlannerHandlers(services = {}) {
       // Fetch all books for this user — diagnostic_data column is included
       // in the returned objects from BookManager.dbRowToBook via getBooksByCategory.
       const books = getBooksByCategory('', token);
+      const userId = getUserIdFromToken(token);
+      const resolvedUserId = userId > 0 ? userId : 1;
 
-      const result = await learningPathPlannerService.plan(goal, books);
+      const result = await learningPathPlannerService.plan(goal, books, { userId: resolvedUserId });
 
       // Brain-driven shell: a successful path auto-creates a Quest record
       // (so the user sees it in the Orb menu) and emits a multi-surface-flow
@@ -75,7 +77,6 @@ function registerLearningPathPlannerHandlers(services = {}) {
               }))
           : [];
         try {
-          const userId = token ? getUserIdFromToken(token) : 1;
           const quest = questService.create({
             name: goal.length > 60 ? `${goal.slice(0, 57)}\u2026` : goal,
             goal,
@@ -85,7 +86,7 @@ function registerLearningPathPlannerHandlers(services = {}) {
               pathSteps: persistedSteps,
               summary: result.summary || '',
             },
-            userId: userId > 0 ? userId : 1,
+            userId: resolvedUserId,
           });
           if (quest && !quest.error) {
             createdQuest = quest;
