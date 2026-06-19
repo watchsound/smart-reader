@@ -13,7 +13,6 @@ import SendIcon from '@mui/icons-material/Send';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 
 
-import { createBook } from '../../api/booksApi';
 import customStorage from '../../store/customStorage';
 import SmallButton from '../Button/SmallButton';
 import { Button } from '@mui/material';
@@ -46,7 +45,6 @@ function ImportFileAsBook({importFileCallback}) {
   async function tryImportFile() {
     const book = await customStorage.importBookFromFile();
     if( book ){
-      // createBook(book);
       importFileCallback(book);
     } else {
       importFileCallback(null);

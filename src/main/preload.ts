@@ -204,10 +204,6 @@ const electronHandler = {
       return ipcRenderer.sendSync('getBookshelfById', { bookshelfId, token });
     },
 
-    createBook: (book: any, token: string) => {
-      return ipcRenderer.sendSync('createBook', { book, token });
-    },
-
     getBookById: (bookId: number, token: string) => {
       return ipcRenderer.sendSync('getBookById', { bookId, token });
     },

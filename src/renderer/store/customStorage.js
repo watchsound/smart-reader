@@ -382,11 +382,6 @@ class customStorage {
   }
 
   // book related
-  static createBook(book) {
-    if (!this.isLoggedIn()) return null;
-    return window.electron.ipcRenderer.createBook(book, this.getSessionToken());
-  }
-
   static getBooksByCategory(category) {
     if (!this.isLoggedIn()) return null;
     return window.electron.ipcRenderer.getBooksByCategory(

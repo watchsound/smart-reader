@@ -2,7 +2,6 @@ import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import {
   getBooksByQuery,
   getBooksByCategory,
-  createBook,
   // saveBooksToDB,
   getBookById,
   updateBook,
@@ -81,25 +80,6 @@ export const bookApi = createApi({
     //   },
     //   invalidatesTags: ['Book'],
     // }),
-    createBook: build.mutation({
-      queryFn: async (book) => {
-        try {
-          const r = await createBook(book);
-          return { data: r };
-        } catch (error) {
-          return { error };
-        }
-      },
-      async onQueryStarted(book, { dispatch, queryFulfilled }) {
-        try {
-          const r = await queryFulfilled;
-          dispatch(bookAdded(r));
-        } catch (err) {
-          console.log(err);
-        }
-      },
-      invalidatesTags: ['Book'],
-    }),
     getBookById: build.query({
       queryFn: async (id) => {
         try {
@@ -199,7 +179,6 @@ export const {
   useGetBooksByCategoryQuery,
   // useSaveBooksToDBMutation,
   useGetBookByIdQuery,
-  useCreateBookMutation,
   useUpdateBookMutation,
   // useDeleteBookMutation,
   useClearAllBooksMutation,

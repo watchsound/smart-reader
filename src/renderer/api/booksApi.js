@@ -94,16 +94,6 @@ export async function getBooksByCategory(query) {
   // return books.sort(sortBy("createdAt"));
 }
 
-export async function createBook(book) {
-  const r =  await customStorage.createBook(book);
-  return r?? null;
-  // if (typeof book.id === 'undefined')
-  //   book.id = uuid();
-  // if (typeof book.createdAt === 'undefined')
-  //   book.createdAt = `${new Date().getTime()}`;
-  // const b = await customStorage.upsertCollectionInStore('books', 'id', book.id, book);
-  // return b;
-}
 // export async function saveBooksToDB(books) {
 //   await customStorage.setItem('books', books);
 //   return books;

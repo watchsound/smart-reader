@@ -1620,9 +1620,6 @@ const createWindow = async () => {
   ipcMain.on('deleteAllQuizProblem', async (_, { token }) => {
     _.returnValue = deleteAllQuizProblem(token);
   });
-  ipcMain.on('createBook', async (_, { book, token }) => {
-    _.returnValue = createBook(book, token);
-  });
   ipcMain.on('getBooks', async (_, { token }) => {
     _.returnValue = getBooks(token);
   });
