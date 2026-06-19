@@ -239,13 +239,21 @@ export class AIProviderManager {
     }
   }
 
-  async generateContent(prompt) {
-    if (!this.currentProvider) {
+  /**
+   * @param {string} prompt
+   * @param {object} [providerOverride] — when present, the call routes
+   * through this instance instead of currentProvider. Used by the Phase
+   * 15a-1 failover chain to redirect a single call to a fallback provider
+   * without mutating singleton state.
+   */
+  async generateContent(prompt, providerOverride) {
+    const target = providerOverride || this.currentProvider;
+    if (!target) {
       console.error('AIProviderManager: No provider configured. Please set up an AI provider in Settings.');
       return null;
     }
     await this.checkInvokeTime();
-    return this.currentProvider.generateContent(prompt);
+    return target.generateContent(prompt);
   }
 
   // Generate text from text-and-image input (multimodal)
@@ -382,15 +390,22 @@ export class AIProviderManager {
     }
   }
 
-  async generateContentWithJson(data, useJson, startTag) {
-    if (!this.currentProvider) {
+  /**
+   * @param {string} data — prompt
+   * @param {boolean} useJson
+   * @param {string} [startTag]
+   * @param {object} [providerOverride] — see generateContent.
+   */
+  async generateContentWithJson(data, useJson, startTag, providerOverride) {
+    const target = providerOverride || this.currentProvider;
+    if (!target) {
       console.error('AIProviderManager: No provider configured. Please set up an AI provider in Settings.');
       return null;
     }
     await this.checkInvokeTime();
     const that = this;
     const response = await executeCommandWithRetry(() =>
-      that.generateContent(data),
+      that.generateContent(data, providerOverride),
     );
     if (!response) return response;
     if (useJson) {

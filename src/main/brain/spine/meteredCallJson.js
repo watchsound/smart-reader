@@ -4,7 +4,12 @@ const costEstimator = require('./costEstimator');
 const {
   instanceInMain: aiProviderManager,
 } = require('../../../commons/service/AIProviderManager');
-const { executeWithFailover, classifyError } = require('./providerFailover');
+const {
+  executeWithFailover,
+  classifyError,
+  buildChain,
+  DEFAULT_CHAIN,
+} = require('./providerFailover');
 
 function summarize(out) {
   if (out == null) return null;
@@ -46,27 +51,47 @@ async function meteredCallJson(prompt, schema, options = {}) {
     } catch (_e) { /* never let ledger failure mask call error */ }
   };
 
-  // Phase 15: JSON path uses the same failover wrapping. Schema/parse errors
-  // are classified 'fatal' by classifyError (no failover) — that's the right
-  // call, because the structured-output polyfill already handles same-prompt
-  // retry, and a different provider won't help if the prompt is broken.
+  // Phase 15: JSON path now matches meteredCall — cross-provider failover
+  // via the AIProviderManager registry. Schema/parse errors remain
+  // 'fatal' per classifyError because the structured-output polyfill
+  // already handles same-prompt retry; switching providers can't rescue
+  // a broken prompt.
+  const chain = buildChain(providerName, DEFAULT_CHAIN, (n) =>
+    aiProviderManager.hasRegisteredProvider(n),
+  );
+
   const t0 = Date.now();
-  const { result: output, attempts } = await executeWithFailover({
-    chain: [providerName],
-    // Same-provider retry only in v1 (see meteredCall.js for the extension
-    // point that expands the chain across providers).
-    fn: async (_name) => aiProviderManager.generateContentWithJson(prompt, true, schema),
+  const {
+    result: output,
+    attempts,
+    provider: usedName,
+  } = await executeWithFailover({
+    chain,
+    fn: async (name) => {
+      const p =
+        name === providerName
+          ? provider
+          : aiProviderManager.getProviderByName(name);
+      if (!p) {
+        throw new Error(`providerFailover: no provider registered for ${name}`);
+      }
+      // Pass the fallback as an override so generateContentWithJson
+      // routes through it without touching aiProviderManager.currentProvider.
+      return aiProviderManager.generateContentWithJson(prompt, true, schema, p);
+    },
     onAttemptFailed,
   });
   const duration_ms = Date.now() - t0;
 
   const completion_tokens = costEstimator.estimateTokens(output);
-  const cost_usd = costEstimator.estimate(providerName, { prompt_tokens, completion_tokens });
+  // Bill against the provider that actually succeeded — failing over from
+  // cheap to expensive must show up truthfully in Economics.
+  const cost_usd = costEstimator.estimate(usedName, { prompt_tokens, completion_tokens });
 
   const callId = CallLedgerStore.record({
     intent,
     ts: Date.now(),
-    provider: providerName,
+    provider: usedName,
     context_keys: [],
     prompt_tokens,
     completion_tokens,

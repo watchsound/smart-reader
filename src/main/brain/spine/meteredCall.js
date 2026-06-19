@@ -12,26 +12,14 @@
  */
 const CallLedgerStore = require('../../db/CallLedgerStore');
 const costEstimator = require('./costEstimator');
-const { executeWithFailover, DEFAULT_CHAIN } = require('./providerFailover');
+const {
+  executeWithFailover,
+  buildChain,
+  DEFAULT_CHAIN,
+} = require('./providerFailover');
 const {
   instanceInMain: aiProviderManager,
 } = require('../../../commons/service/AIProviderManager');
-
-/**
- * Build the failover chain for a primary provider: primary first, then any
- * DEFAULT_CHAIN entry that's been registered in AIProviderManager. Empty
- * registry → degenerate single-entry chain (same as pre-Phase-15a behavior).
- */
-function buildFailoverChain(primaryName) {
-  const chain = [primaryName];
-  for (const fallback of DEFAULT_CHAIN) {
-    if (fallback === primaryName) continue;
-    if (aiProviderManager.hasRegisteredProvider(fallback)) {
-      chain.push(fallback);
-    }
-  }
-  return chain;
-}
 
 function summarize(out) {
   if (out == null) return null;
@@ -75,7 +63,9 @@ async function meteredCall(provider, prompt, options = {}) {
     } catch (_e) { /* never let ledger failure mask call error */ }
   };
 
-  const chain = buildFailoverChain(providerName);
+  const chain = buildChain(providerName, DEFAULT_CHAIN, (n) =>
+    aiProviderManager.hasRegisteredProvider(n),
+  );
 
   const t0 = Date.now();
   const {

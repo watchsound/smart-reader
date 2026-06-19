@@ -142,10 +142,28 @@ async function executeWithFailover({ chain = DEFAULT_CHAIN, fn, onAttemptFailed 
   throw failed;
 }
 
+/**
+ * Build a failover chain rooted at `primaryName`. Iterates `defaultChain`
+ * and appends each entry that the caller's `isAvailable(name)` predicate
+ * accepts (typically `aiProviderManager.hasRegisteredProvider`). When no
+ * fallback is registered the result is `[primaryName]`, which is the
+ * pre-Phase-15a behavior (same-provider retry only).
+ */
+function buildChain(primaryName, defaultChain, isAvailable) {
+  const chain = [primaryName];
+  if (!Array.isArray(defaultChain)) return chain;
+  for (const fallback of defaultChain) {
+    if (fallback === primaryName) continue;
+    if (isAvailable(fallback)) chain.push(fallback);
+  }
+  return chain;
+}
+
 module.exports = {
   executeWithFailover,
   classifyError,
   nextProvider,
+  buildChain,
   DEFAULT_CHAIN,
   SAME_PROVIDER_RETRY_DELAY_MS,
 };
