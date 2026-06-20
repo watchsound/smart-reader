@@ -8,7 +8,7 @@
  * structured-output capability. Routes by the provider's capability flag:
  *
  *   structuredOutput: 'native'      → use provider.generateStructured()      [TODO — providers don't expose this yet; falls through to prompt-only]
- *   structuredOutput: 'json-mode'   → use provider.generateJsonMode()        [implemented: DeepSeek, Kimi, Qwen, Doubao, OllamaMain]
+ *   structuredOutput: 'json-mode'   → use provider.generateJsonMode()        [implemented: ChatGPT, DeepSeek, Kimi, Qwen, Doubao, OllamaMain]
  *   structuredOutput: 'prompt-only' → append schema instruction, parse with retry
  *
  * This module is the long-term replacement for the ad-hoc
