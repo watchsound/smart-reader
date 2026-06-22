@@ -75,4 +75,26 @@ export class FrameNodeModel extends NodeModel<NodeModelGenerics> {
       ? [...d.containedNodeIds]
       : [];
   }
+
+  /**
+   * Translate every contained node by (dx, dy). Caller supplies a lookup
+   * fn that resolves a nodeId to a node-like object exposing
+   * `getX() / getY() / setPosition()` — matches the storm NodeModel surface.
+   * Missing ids are silently skipped so a deleted child doesn't break drag.
+   */
+  translateContainedBy(
+    dx: number,
+    dy: number,
+    lookup: (id: string) => null | {
+      getX(): number;
+      getY(): number;
+      setPosition(x: number, y: number): void;
+    },
+  ) {
+    for (const id of this.containedNodeIds) {
+      const child = lookup(id);
+      if (!child) continue;
+      child.setPosition(child.getX() + dx, child.getY() + dy);
+    }
+  }
 }
