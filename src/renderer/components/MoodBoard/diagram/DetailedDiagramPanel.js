@@ -169,6 +169,11 @@ function DetailedDiagramPanel({ curMoodBoard }) {
 
   const handleUpdate = () => {
     forceUpdate((n) => n + 1); // increment state to trigger re-render
+    // Also bump nodeListVersion so the diagram useMemo invalidates and
+    // LassoSelection receives the fresh allNodes array. handleUpdate is the
+    // shared "the model changed" hook for add-node paths (drag-drop note,
+    // AI Layout). Without this bump, lasso silently misses programmatic adds.
+    setNodeListVersion((v) => v + 1);
   };
   const dispatch = useDispatch();
 
