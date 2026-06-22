@@ -3,9 +3,9 @@ import React from 'react';
 import { RELATION_STYLES } from './types';
 
 function ArrowMarker({ id, color, side }) {
-  // SVG marker pointing toward the path direction (forward) or opposite (backward).
-  // Path direction in storm = parametric t increasing from source → target.
-  const rotate = side === 'backward' ? 'rotate(180 5 5)' : '';
+  // SVG marker pointing toward the path direction. orient="auto-start-reverse"
+  // handles both directions: at markerEnd the arrow points toward the target;
+  // at markerStart it auto-flips to point toward the source.
   return (
     <marker
       id={id}
@@ -20,7 +20,6 @@ function ArrowMarker({ id, color, side }) {
       <path
         d="M 0 0 L 10 5 L 0 10 z"
         fill={color}
-        transform={rotate}
       />
     </marker>
   );
