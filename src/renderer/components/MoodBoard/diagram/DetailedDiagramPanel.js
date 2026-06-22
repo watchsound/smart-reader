@@ -142,6 +142,7 @@ function DetailedDiagramPanel({ curMoodBoard }) {
   // const [model, setModel] = useState('');
   const [inProcess, setInProcess] = useState(false);
   const [size, setSize] = useState({ width: 0, height: 0 });
+  const [nodeListVersion, setNodeListVersion] = useState(0);
 
   const curDiagramNote = useSelector((state) => state.moodBoard.curDiagramNote);
   const curEditState = useSelector((state) => state.moodBoard.editState);
@@ -455,6 +456,7 @@ function DetailedDiagramPanel({ curMoodBoard }) {
     const offset = existingFrames.length * 24;
     frame.setPosition(100 + offset, 100 + offset);
     engineRef.current.getModel().addNode(frame);
+    setNodeListVersion((v) => v + 1);
     engineRef.current.repaintCanvas();
   };
 
@@ -471,7 +473,22 @@ function DetailedDiagramPanel({ curMoodBoard }) {
     ).filter((n) => n.getType && n.getType() === 'sticky');
     const offset = existingStickies.length * 20;
     sticky.setPosition(200 + offset, 200 + offset);
+
+    // Attach containment listener before adding to the model. This mirrors the
+    // per-node setup in the board-load useEffect (which only fires at mount and
+    // misses runtime-added nodes). Frames don't need this — updateContainmentForNode
+    // early-returns for frame nodes, so only stickies require the listener.
+    sticky.registerListener({
+      positionChanged: () => {
+        const frames = Object.values(
+          engineRef.current.getModel().getNodes(),
+        ).filter((n) => n.getType && n.getType() === 'frame');
+        updateContainmentForNode(sticky, frames);
+      },
+    });
+
     engineRef.current.getModel().addNode(sticky);
+    setNodeListVersion((v) => v + 1);
     engineRef.current.repaintCanvas();
   };
 
@@ -498,7 +515,10 @@ function DetailedDiagramPanel({ curMoodBoard }) {
         </DemoCanvasWidget>
       </div>
     );
-  }, [canvasBackground]);
+  // nodeListVersion forces re-render when addFrame/addSticky add nodes at
+  // runtime so allNodes (computed just above this memo) is captured fresh.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canvasBackground, nodeListVersion]);
 
   // Props spreading for simplicity, consider enumerating specific props as best practice.
   return (
