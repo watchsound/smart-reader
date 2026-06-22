@@ -105,6 +105,10 @@ import {
 
 import { NoteNodeModel } from './NoteNodeModel';
 import { NoteNodeFactory } from './NoteNodeFactory';
+import { FrameNodeFactory } from './FrameNodeFactory';
+import { StickyNoteNodeFactory } from './StickyNoteNodeFactory';
+import LassoSelection from './selection/LassoSelection';
+import { useMultiSelectDrag } from './selection/useMultiSelectDrag';
 import { SimplePortFactory } from './SimplePortFactory';
 import { NotePortModel } from './NotePortModel';
 import { DemoCanvasWidget } from './DemoCanvasWidget';
@@ -257,6 +261,8 @@ function DetailedDiagramPanel({ curMoodBoard }) {
     //   }),
     // );
     eng.getNodeFactories().registerFactory(new NoteNodeFactory());
+    eng.getNodeFactories().registerFactory(new FrameNodeFactory());
+    eng.getNodeFactories().registerFactory(new StickyNoteNodeFactory());
 
     eng.getLinkFactories().registerFactory(ballLinkFactoryRef.current);
     eng.getLinkFactories().registerFactory(linkFactoryRef.current);
@@ -411,11 +417,20 @@ function DetailedDiagramPanel({ curMoodBoard }) {
     if (c) dispatch(moodBoardUpdated(c));
   };
 
+  const allNodes = engineRef.current
+    ? Object.values(engineRef.current.getModel().getNodes())
+    : [];
+  const selectedDriver = allNodes.find((n) => n.isSelected()) || null;
+  useMultiSelectDrag(selectedDriver, allNodes, engineRef.current);
+
   const diagramPanel = useMemo(() => {
     return (
       <div ref={componentRef} style={{ height: 'calc(100vh - 65px)' }}>
         <DemoCanvasWidget background={canvasBackground}>
-          <CanvasWidget engine={engineRef.current} />
+          <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+            <CanvasWidget engine={engineRef.current} />
+            <LassoSelection nodes={allNodes} engine={engineRef.current} />
+          </div>
         </DemoCanvasWidget>
       </div>
     );
