@@ -126,6 +126,10 @@ import {
   captureElementAsPng,
   triggerDownload,
 } from './canvas/exportBoard';
+import {
+  shouldEmitDragEpisode,
+  emitBoardArrangedEpisode,
+} from '../../../views/reading/hooks/useBoardEpisodes';
 import { DEFAULT_BOARD_THEME } from './types';
 import { SimplePortFactory } from './SimplePortFactory';
 import { NotePortModel } from './NotePortModel';
@@ -376,19 +380,42 @@ function DetailedDiagramPanel({ curMoodBoard }) {
   // curMoodBoard changes). Phase 1 limitation: listeners are only attached to
   // nodes present at model-load time; nodes added at runtime won't be tracked
   // until the next board switch.
+  // Phase 3 addition: also emits BOARD_ARRANGED episode when a drag exceeds 50px.
   useEffect(() => {
-    if (!engineRef.current) return;
+    if (!engineRef.current) return undefined;
     const model = engineRef.current.getModel();
     const nodes = Object.values(model.getNodes());
+    const lastPositions = new Map();
     const handles = nodes.map((node) => {
       // Only listen to non-frame nodes; frames don't contain themselves.
       if (node.getType && node.getType() === 'frame') return null;
+      lastPositions.set(node.getID(), { x: node.getX(), y: node.getY() });
       return node.registerListener({
         positionChanged: () => {
-          const frames = Object.values(
+          // Existing Phase 1 behavior: update frame containment
+          const allNodes = Object.values(
             engineRef.current.getModel().getNodes(),
-          ).filter((n) => n.getType && n.getType() === 'frame');
+          );
+          const frames = allNodes.filter(
+            (n) => n.getType && n.getType() === 'frame',
+          );
           updateContainmentForNode(node, frames);
+
+          // Phase 3 telemetry: emit BOARD_ARRANGED on >50px drags
+          const last = lastPositions.get(node.getID());
+          const now = { x: node.getX(), y: node.getY() };
+          if (last && shouldEmitDragEpisode(last, now)) {
+            emitBoardArrangedEpisode({
+              boardId: moodBoard?.id ?? curMoodBoard?.id ?? 'unknown',
+              nodeCount: allNodes.length,
+              frameCount: frames.length,
+              linkCount: Object.keys(
+                engineRef.current.getModel().getLinks(),
+              ).length,
+              durationMs: 0,
+            });
+            lastPositions.set(node.getID(), now);
+          }
         },
       });
     });
