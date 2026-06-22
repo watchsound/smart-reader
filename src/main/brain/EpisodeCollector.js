@@ -500,6 +500,12 @@ EpisodeCollector.EVENT_TYPES = {
   ORGANIZE_SUGGESTED: 'ORGANIZE_SUGGESTED',
   ORGANIZE_ACCEPTED: 'ORGANIZE_ACCEPTED',
   ORGANIZE_DISMISSED: 'ORGANIZE_DISMISSED',
+
+  // MoodBoard Arrange Events (Phase 3)
+  // Emitted when the user re-arranges cards on a MoodBoard (drag-reorder,
+  // grid resize, layout change). Lets the Brain track engagement depth with
+  // organized knowledge beyond creation alone.
+  BOARD_ARRANGED: 'BOARD_ARRANGED',
 };
 
 module.exports = EpisodeCollector;
