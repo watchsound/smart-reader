@@ -70,3 +70,73 @@ export interface Point {
   x: number;
   y: number;
 }
+
+// ---------------------------------------------------------------------------
+// Phase 2 — Aesthetic primitives
+// ---------------------------------------------------------------------------
+
+// Built-in palette identifiers. Add new entries to themes.ts in lockstep
+// with this union; 'custom' means the board carries its own palette values.
+export const PALETTE_IDS = [
+  'warm-roman',
+  'cold-noir',
+  'austere-mono',
+  'golden-vellum',
+  'paper-and-ink',
+  'custom',
+] as const;
+
+export type PaletteId = (typeof PALETTE_IDS)[number];
+
+// CSS color literals — the 4 slots every palette must define.
+export interface Palette {
+  accent: string;  // primary accent color
+  bg: string;      // canvas background base color
+  ink: string;     // primary text color
+  muted: string;   // secondary / meta text color
+}
+
+// Typography family choices for board-wide typography override.
+export const FONT_FAMILIES = ['serif', 'sans', 'mono', 'display'] as const;
+export type FontFamilyChoice = (typeof FONT_FAMILIES)[number];
+
+// Background layer rendering modes.
+export type BackgroundMode = 'none' | 'image' | 'pattern';
+
+// Spec for the background canvas underlay.
+export interface BackgroundLayerSpec {
+  mode: BackgroundMode;
+  // For mode='image' — customStorage asset id of the user-uploaded image.
+  imageAssetId?: string;
+  // For mode='pattern' — built-in pattern key. v1 ships one ('dot-grid');
+  // additional patterns may be added without breaking existing boards.
+  patternKey?: 'dot-grid' | 'paper-grain';
+  // Opacity 0..1 applied to the background layer; default 0.1.
+  opacity?: number;
+}
+
+// Full board theme record persisted on the MoodBoard JSON.
+export interface BoardTheme {
+  paletteId: PaletteId;
+  customPalette?: Palette;            // populated only when paletteId === 'custom'
+  fontFamily?: FontFamilyChoice;      // optional override of system default
+  backgroundLayer?: BackgroundLayerSpec;
+}
+
+// Default theme assigned to boards that pre-date the field.
+export const DEFAULT_BOARD_THEME: BoardTheme = {
+  paletteId: 'paper-and-ink',
+};
+
+// A color zone: a translucent labeled rectangle drawn below cards but above
+// the background. Lighter weight than a Frame; no containment semantics.
+export interface ColorZone {
+  id: string;
+  color: string;
+  opacity: number;   // 0..1
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  label?: string;
+}
