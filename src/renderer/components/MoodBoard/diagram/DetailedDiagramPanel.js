@@ -112,6 +112,15 @@ import { StickyNoteNodeModel } from './StickyNoteNodeModel';
 import { updateContainmentForNode } from './containment';
 import LassoSelection from './selection/LassoSelection';
 import { useMultiSelectDrag } from './selection/useMultiSelectDrag';
+import { ImageNodeFactory } from './ImageNodeFactory';
+import { ImageNodeModel } from './ImageNodeModel';
+import BoardThemeProvider from './canvas/BoardThemeProvider';
+import BackgroundLayer from './canvas/BackgroundLayer';
+import ColorZoneLayer from './canvas/ColorZoneLayer';
+import ThemePicker from './canvas/ThemePicker';
+import BackgroundPicker from './canvas/BackgroundPicker';
+import { createColorZone } from './canvas/colorZoneDraw';
+import { DEFAULT_BOARD_THEME } from './types';
 import { SimplePortFactory } from './SimplePortFactory';
 import { NotePortModel } from './NotePortModel';
 import { DemoCanvasWidget } from './DemoCanvasWidget';
@@ -143,6 +152,12 @@ function DetailedDiagramPanel({ curMoodBoard }) {
   const [inProcess, setInProcess] = useState(false);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [nodeListVersion, setNodeListVersion] = useState(0);
+  const [boardTheme, setBoardTheme] = useState(
+    curMoodBoard?.theme || DEFAULT_BOARD_THEME,
+  );
+  const [colorZones, setColorZones] = useState(
+    curMoodBoard?.colorZones || [],
+  );
 
   const curDiagramNote = useSelector((state) => state.moodBoard.curDiagramNote);
   const curEditState = useSelector((state) => state.moodBoard.editState);
@@ -187,6 +202,11 @@ function DetailedDiagramPanel({ curMoodBoard }) {
     setCurNote(curDiagramNote);
     setOpenNoteModal(true);
   }, [curDiagramNote]);
+
+  useEffect(() => {
+    if (curMoodBoard?.theme) setBoardTheme(curMoodBoard.theme);
+    if (curMoodBoard?.colorZones) setColorZones(curMoodBoard.colorZones);
+  }, [curMoodBoard]);
 
   const ballLinkFactoryRef = useRef(null);
   if (!ballLinkFactoryRef.current) {
@@ -272,6 +292,7 @@ function DetailedDiagramPanel({ curMoodBoard }) {
     eng.getNodeFactories().registerFactory(new NoteNodeFactory());
     eng.getNodeFactories().registerFactory(new FrameNodeFactory());
     eng.getNodeFactories().registerFactory(new StickyNoteNodeFactory());
+    eng.getNodeFactories().registerFactory(new ImageNodeFactory());
 
     eng.getLinkFactories().registerFactory(ballLinkFactoryRef.current);
     eng.getLinkFactories().registerFactory(linkFactoryRef.current);
@@ -512,18 +533,23 @@ function DetailedDiagramPanel({ curMoodBoard }) {
   const diagramPanel = useMemo(() => {
     return (
       <div ref={componentRef} style={{ height: 'calc(100vh - 65px)' }}>
-        <DemoCanvasWidget background={canvasBackground}>
-          <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-            <CanvasWidget engine={engineRef.current} />
-            <LassoSelection nodes={allNodes} engine={engineRef.current} />
-          </div>
-        </DemoCanvasWidget>
+        <BoardThemeProvider theme={boardTheme}>
+          <DemoCanvasWidget background={canvasBackground}>
+            <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+              <BackgroundLayer spec={boardTheme.backgroundLayer || { mode: 'none' }} />
+              <ColorZoneLayer zones={colorZones} />
+              <CanvasWidget engine={engineRef.current} />
+              <LassoSelection nodes={allNodes} engine={engineRef.current} />
+            </div>
+          </DemoCanvasWidget>
+        </BoardThemeProvider>
       </div>
     );
-  // nodeListVersion forces re-render when addFrame/addSticky add nodes at
+  // nodeListVersion forces re-render when addFrame/addSticky/addImage add nodes at
   // runtime so allNodes (computed just above this memo) is captured fresh.
+  // boardTheme + colorZones are Phase 2 additions that also drive visual output.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canvasBackground, nodeListVersion]);
+  }, [canvasBackground, nodeListVersion, boardTheme, colorZones]);
 
   // Props spreading for simplicity, consider enumerating specific props as best practice.
   return (
@@ -612,6 +638,67 @@ function DetailedDiagramPanel({ curMoodBoard }) {
               }}
             >
               + Sticky
+            </ActionButton>
+          </Tooltip>
+
+          <ToolbarDivider orientation="vertical" flexItem />
+
+          <Tooltip title="Theme">
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <ThemePicker
+                theme={boardTheme}
+                onChange={(next) => setBoardTheme(next)}
+              />
+            </Box>
+          </Tooltip>
+          <Tooltip title="Background">
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <BackgroundPicker
+                spec={boardTheme.backgroundLayer || { mode: 'none' }}
+                onChange={(next) =>
+                  setBoardTheme((t) => ({ ...t, backgroundLayer: next }))
+                }
+              />
+            </Box>
+          </Tooltip>
+          <Tooltip title="Add a color zone">
+            <ActionButton
+              variant="outlined"
+              onClick={() => {
+                const z = createColorZone(
+                  { x: 60, y: 60 },
+                  { x: 240, y: 180 },
+                  '#ffcc80',
+                );
+                if (z) setColorZones((prev) => [...prev, z]);
+              }}
+              sx={{
+                borderColor: 'rgba(0,0,0,0.2)',
+                color: theme.palette.text.secondary,
+              }}
+            >
+              + Zone
+            </ActionButton>
+          </Tooltip>
+          <Tooltip title="Add an image node">
+            <ActionButton
+              variant="outlined"
+              onClick={() => {
+                const node = new ImageNodeModel({ src: '', width: 240, height: 180 });
+                const existing = Object.values(
+                  engineRef.current.getModel().getNodes(),
+                ).filter((n) => n.getType && n.getType() === 'image');
+                node.setPosition(300 + existing.length * 24, 100 + existing.length * 24);
+                engineRef.current.getModel().addNode(node);
+                setNodeListVersion((v) => v + 1);
+                engineRef.current.repaintCanvas();
+              }}
+              sx={{
+                borderColor: 'rgba(0,0,0,0.2)',
+                color: theme.palette.text.secondary,
+              }}
+            >
+              + Image
             </ActionButton>
           </Tooltip>
         </ToolbarSection>
