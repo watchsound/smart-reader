@@ -1,7 +1,7 @@
 // src/renderer/components/MoodBoard/diagram/selection/useMultiSelectDrag.ts
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
-interface DragNode {
+export interface DragNode {
   getID(): string;
   getX(): number;
   getY(): number;
@@ -28,8 +28,12 @@ export function translateSelectedExcept(
 
 /**
  * React hook: subscribe to a node's `positionChanged` event; when it fires,
- * translate other selected nodes by the same delta. Caller owns the
- * unsubscribe-on-unmount lifecycle via the returned hook's effect.
+ * translate other selected nodes by the same delta.
+ *
+ * `allNodes` is read through a ref so a new array reference on each render
+ * does not retrigger the effect (which would deregister mid-drag and reset
+ * the delta-tracking state). Only `driver` and `engine` identity changes
+ * cause re-subscription.
  */
 export function useMultiSelectDrag(
   driver: DragNode & {
@@ -40,6 +44,11 @@ export function useMultiSelectDrag(
   allNodes: DragNode[],
   engine: { repaintCanvas?: () => void },
 ) {
+  const allNodesRef = useRef(allNodes);
+  // Sync the ref every render so the listener always sees the latest array
+  // without needing to re-subscribe.
+  allNodesRef.current = allNodes;
+
   useEffect(() => {
     if (!driver) return undefined;
     let lastX = driver.getX();
@@ -53,12 +62,12 @@ export function useMultiSelectDrag(
         lastX = nx;
         lastY = ny;
         if (dx === 0 && dy === 0) return;
-        translateSelectedExcept(driver.getID(), dx, dy, allNodes);
+        translateSelectedExcept(driver.getID(), dx, dy, allNodesRef.current);
         if (engine && typeof engine.repaintCanvas === 'function') {
           engine.repaintCanvas();
         }
       },
     });
     return () => handle.deregister();
-  }, [driver, allNodes, engine]);
+  }, [driver, engine]); // allNodes intentionally omitted; read via ref
 }
