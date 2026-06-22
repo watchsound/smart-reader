@@ -106,7 +106,9 @@ import {
 import { NoteNodeModel } from './NoteNodeModel';
 import { NoteNodeFactory } from './NoteNodeFactory';
 import { FrameNodeFactory } from './FrameNodeFactory';
+import { FrameNodeModel } from './FrameNodeModel';
 import { StickyNoteNodeFactory } from './StickyNoteNodeFactory';
+import { StickyNoteNodeModel } from './StickyNoteNodeModel';
 import { updateContainmentForNode } from './containment';
 import LassoSelection from './selection/LassoSelection';
 import { useMultiSelectDrag } from './selection/useMultiSelectDrag';
@@ -439,6 +441,40 @@ function DetailedDiagramPanel({ curMoodBoard }) {
     dispatch(editStateChanged(state));
   };
 
+  const addFrame = () => {
+    if (!engineRef.current) return;
+    const frame = new FrameNodeModel({
+      label: 'New frame',
+      accentColor: '#9e9e9e',
+      width: 400,
+      height: 300,
+    });
+    const existingFrames = Object.values(
+      engineRef.current.getModel().getNodes()
+    ).filter((n) => n.getType && n.getType() === 'frame');
+    const offset = existingFrames.length * 24;
+    frame.setPosition(100 + offset, 100 + offset);
+    engineRef.current.getModel().addNode(frame);
+    engineRef.current.repaintCanvas();
+  };
+
+  const addSticky = () => {
+    if (!engineRef.current) return;
+    const sticky = new StickyNoteNodeModel({
+      text: '',
+      color: '#fff59d',
+      width: 160,
+      height: 120,
+    });
+    const existingStickies = Object.values(
+      engineRef.current.getModel().getNodes()
+    ).filter((n) => n.getType && n.getType() === 'sticky');
+    const offset = existingStickies.length * 20;
+    sticky.setPosition(200 + offset, 200 + offset);
+    engineRef.current.getModel().addNode(sticky);
+    engineRef.current.repaintCanvas();
+  };
+
   const onSaveGridLayout = () => {
     const str = JSON.stringify(engineRef.current.getModel().serialize());
     const c = updateMoodBoard(moodBoard.id, 'react_diagram', str);
@@ -516,6 +552,42 @@ function DetailedDiagramPanel({ curMoodBoard }) {
             >
               <SettingsIcon sx={{ fontSize: 18 }} />
             </ToolbarButton>
+          </Tooltip>
+
+          <ToolbarDivider orientation="vertical" flexItem />
+
+          {/* Add Frame / Add Sticky */}
+          <Tooltip title="Add a new frame container">
+            <ActionButton
+              variant="outlined"
+              onClick={addFrame}
+              sx={{
+                borderColor: alpha(theme.palette.text.secondary, 0.3),
+                color: theme.palette.text.secondary,
+                '&:hover': {
+                  borderColor: theme.palette.text.primary,
+                  bgcolor: alpha(theme.palette.text.primary, 0.05),
+                },
+              }}
+            >
+              + Frame
+            </ActionButton>
+          </Tooltip>
+          <Tooltip title="Add a new sticky note">
+            <ActionButton
+              variant="outlined"
+              onClick={addSticky}
+              sx={{
+                borderColor: alpha(theme.palette.warning.main, 0.4),
+                color: theme.palette.warning.dark,
+                '&:hover': {
+                  borderColor: theme.palette.warning.main,
+                  bgcolor: alpha(theme.palette.warning.main, 0.05),
+                },
+              }}
+            >
+              + Sticky
+            </ActionButton>
           </Tooltip>
         </ToolbarSection>
 
