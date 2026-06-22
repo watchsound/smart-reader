@@ -1,59 +1,65 @@
-import React, { useEffect, useRef, useState } from 'react';
+// src/renderer/components/MoodBoard/diagram/CustomLinkSegment.js
+import React from 'react';
+import { RELATION_STYLES } from './types';
 
-function CustomLinkSegment({ model, path }) {
-  const pathRef = useRef(null);
-  const circleRef = useRef(null);
-  const [percent, setPercent] = useState(0);
-  const [mounted, setMounted] = useState(false);
-  // const [stroke, setStroke] = useState('rgba(255,0,0,0.5)');
+function ArrowMarker({ id, color, side }) {
+  // SVG marker pointing toward the path direction (forward) or opposite (backward).
+  // Path direction in storm = parametric t increasing from source → target.
+  const rotate = side === 'backward' ? 'rotate(180 5 5)' : '';
+  return (
+    <marker
+      id={id}
+      viewBox="0 0 10 10"
+      refX="9"
+      refY="5"
+      markerWidth="6"
+      markerHeight="6"
+      orient="auto-start-reverse"
+      data-testid={`arrow-${side}`}
+    >
+      <path
+        d="M 0 0 L 10 5 L 0 10 z"
+        fill={color}
+        transform={rotate}
+      />
+    </marker>
+  );
+}
 
-  // useEffect(() => {
-  //   if (model && model.color) setStroke(model.color);
-  // }, [model]);
+function CustomLinkSegment({ link, path }) {
+  const relationType = link.relationType || 'supports';
+  const style = RELATION_STYLES[relationType] || RELATION_STYLES.supports;
+  const id = link.getID ? link.getID() : 'link';
 
-  useEffect(() => {
-    setMounted(true);
-    const callback = () => {
-      if (!circleRef.current || !pathRef.current) {
-        return;
-      }
+  const fwdId = `arrow-fwd-${id}`;
+  const bwdId = `arrow-bwd-${id}`;
 
-      let newPercent = percent + 2;
-      if (newPercent > 100) {
-        newPercent = 0;
-      }
-      setPercent(newPercent);
-
-      const point = pathRef.current.getPointAtLength(
-        pathRef.current.getTotalLength() * (newPercent / 100.0),
-      );
-
-      circleRef.current.setAttribute('cx', `${point.x}`);
-      circleRef.current.setAttribute('cy', `${point.y}`);
-
-      if (mounted) {
-        requestAnimationFrame(callback);
-      }
-    };
-
-    requestAnimationFrame(callback);
-
-    return () => {
-      setMounted(false);
-    };
-  }, [percent, mounted]); // This effect depends on `percent` and `mounted`.
+  const showFwd =
+    style.arrowhead === 'forward' || style.arrowhead === 'both';
+  const showBwd =
+    style.arrowhead === 'backward' || style.arrowhead === 'both';
 
   return (
-    <>
+    <g>
+      <defs>
+        {showFwd && (
+          <ArrowMarker id={fwdId} color={style.stroke} side="forward" />
+        )}
+        {showBwd && (
+          <ArrowMarker id={bwdId} color={style.stroke} side="backward" />
+        )}
+      </defs>
       <path
-        fill="none"
-        ref={pathRef}
-        strokeWidth={model.getOptions().width}
-        stroke={model.color ? model.color : 'rgba(255,0,0,0.5)'}
+        data-testid="link-stroke"
         d={path}
+        fill="none"
+        stroke={style.stroke}
+        strokeWidth={style.strokeWidth}
+        strokeDasharray={style.dash}
+        markerEnd={showFwd ? `url(#${fwdId})` : undefined}
+        markerStart={showBwd ? `url(#${bwdId})` : undefined}
       />
-      <circle ref={circleRef} r={10} fill="orange" />
-    </>
+    </g>
   );
 }
 
