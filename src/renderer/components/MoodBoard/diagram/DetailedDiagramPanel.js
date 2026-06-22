@@ -25,6 +25,7 @@ import createEngine, {
   DefaultLinkFactory,
 } from '@projectstorm/react-diagrams';
 import SaveIcon from '@mui/icons-material/Save';
+import DownloadIcon from '@mui/icons-material/Download';
 import PausePresentationIcon from '@mui/icons-material/PausePresentation';
 import SlideshowIcon from '@mui/icons-material/Slideshow';
 import GridViewIcon from '@mui/icons-material/GridView';
@@ -120,6 +121,11 @@ import ColorZoneLayer from './canvas/ColorZoneLayer';
 import ThemePicker from './canvas/ThemePicker';
 import BackgroundPicker from './canvas/BackgroundPicker';
 import { createColorZone } from './canvas/colorZoneDraw';
+import {
+  buildExportFilename,
+  captureElementAsPng,
+  triggerDownload,
+} from './canvas/exportBoard';
 import { DEFAULT_BOARD_THEME } from './types';
 import { SimplePortFactory } from './SimplePortFactory';
 import { NotePortModel } from './NotePortModel';
@@ -536,6 +542,17 @@ function DetailedDiagramPanel({ curMoodBoard }) {
     if (c) dispatch(moodBoardUpdated(c));
   };
 
+  const onExportPng = async () => {
+    if (!componentRef.current) return;
+    try {
+      const dataUrl = await captureElementAsPng(componentRef.current, 2);
+      const filename = buildExportFilename(moodBoard?.name, 'png');
+      triggerDownload(dataUrl, filename);
+    } catch (e) {
+      console.error('Export failed:', e);
+    }
+  };
+
   const allNodes = engineRef.current
     ? Object.values(engineRef.current.getModel().getNodes())
     : [];
@@ -783,6 +800,13 @@ function DetailedDiagramPanel({ curMoodBoard }) {
             >
               Present
             </ActionButton>
+          </Tooltip>
+
+          {/* Export PNG Button */}
+          <Tooltip title="Export board as PNG">
+            <ToolbarButton onClick={onExportPng}>
+              <DownloadIcon fontSize="small" />
+            </ToolbarButton>
           </Tooltip>
 
           {/* Save Button */}
