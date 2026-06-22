@@ -152,11 +152,16 @@ function DetailedDiagramPanel({ curMoodBoard }) {
   const [inProcess, setInProcess] = useState(false);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [nodeListVersion, setNodeListVersion] = useState(0);
+  // Persisted theme/colorZones live inside react_diagram JSON (Option A save
+  // path), which `MoodBoardJsonManager.recordToObject` parses into the
+  // `diagram` field. Read from there directly on first render so the saved
+  // theme applies immediately — without this, the panel would flash
+  // DEFAULT_BOARD_THEME for one tick before the sync effect corrected it.
   const [boardTheme, setBoardTheme] = useState(
-    curMoodBoard?.theme || DEFAULT_BOARD_THEME,
+    curMoodBoard?.diagram?.theme || DEFAULT_BOARD_THEME,
   );
   const [colorZones, setColorZones] = useState(
-    curMoodBoard?.colorZones || [],
+    curMoodBoard?.diagram?.colorZones || [],
   );
 
   const curDiagramNote = useSelector((state) => state.moodBoard.curDiagramNote);
@@ -204,10 +209,11 @@ function DetailedDiagramPanel({ curMoodBoard }) {
   }, [curDiagramNote]);
 
   useEffect(() => {
-    // Top-level fields (future schema columns) take priority; fall back to the
-    // values embedded inside diagramData by the Option-A save path.
-    const savedTheme = curMoodBoard?.theme ?? curMoodBoard?.diagram?.theme;
-    const savedZones = curMoodBoard?.colorZones ?? curMoodBoard?.diagram?.colorZones;
+    // Sync theme + colorZones when the user opens a different board.
+    // Canonical location is `diagram.theme` / `diagram.colorZones` (Option-A
+    // storage inside react_diagram JSON; no separate DB columns).
+    const savedTheme = curMoodBoard?.diagram?.theme;
+    const savedZones = curMoodBoard?.diagram?.colorZones;
     if (savedTheme) setBoardTheme(savedTheme);
     if (savedZones) setColorZones(savedZones);
   }, [curMoodBoard]);
