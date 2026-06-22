@@ -37,12 +37,28 @@ function normalize(x1: number, y1: number, x2: number, y2: number): Rect {
 
 function LassoSelection({ nodes, engine }: LassoSelectionProps) {
   const [dragging, setDragging] = React.useState(false);
+  const [shiftHeld, setShiftHeld] = React.useState(false);
   const [start, setStart] = React.useState<{ x: number; y: number } | null>(
     null,
   );
   const [current, setCurrent] = React.useState<{ x: number; y: number } | null>(
     null,
   );
+
+  React.useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') setShiftHeld(true);
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') setShiftHeld(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    };
+  }, []);
 
   const rect =
     start && current ? normalize(start.x, start.y, current.x, current.y) : null;
@@ -89,9 +105,9 @@ function LassoSelection({ nodes, engine }: LassoSelectionProps) {
       style={{
         position: 'absolute',
         inset: 0,
-        // Both branches are 'auto' intentionally — canvas pass-through is
-        // handled by storm. Placeholder for a future shift-key-only intercept.
-        pointerEvents: dragging ? 'auto' : 'auto',
+        // Active only while Shift is held or a lasso drag is in progress so
+        // the overlay doesn't swallow canvas clicks during normal interaction.
+        pointerEvents: (shiftHeld || dragging) ? 'auto' : 'none',
         zIndex: 5,
       }}
     >

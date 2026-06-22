@@ -107,6 +107,7 @@ import { NoteNodeModel } from './NoteNodeModel';
 import { NoteNodeFactory } from './NoteNodeFactory';
 import { FrameNodeFactory } from './FrameNodeFactory';
 import { StickyNoteNodeFactory } from './StickyNoteNodeFactory';
+import { updateContainmentForNode } from './containment';
 import LassoSelection from './selection/LassoSelection';
 import { useMultiSelectDrag } from './selection/useMultiSelectDrag';
 import { SimplePortFactory } from './SimplePortFactory';
@@ -323,6 +324,33 @@ function DetailedDiagramPanel({ curMoodBoard }) {
       aModel.deserializeModel(curMoodBoard.diagram, engineRef.current);
     }
     engineRef.current.setModel(aModel);
+  }, [curMoodBoard]);
+
+  // Attach positionChanged listeners so that moving a non-frame node updates
+  // frame containment. Runs once per model (re-runs on board switch because
+  // curMoodBoard changes). Phase 1 limitation: listeners are only attached to
+  // nodes present at model-load time; nodes added at runtime won't be tracked
+  // until the next board switch.
+  useEffect(() => {
+    if (!engineRef.current) return;
+    const model = engineRef.current.getModel();
+    const nodes = Object.values(model.getNodes());
+    const handles = nodes.map((node) => {
+      // Only listen to non-frame nodes; frames don't contain themselves.
+      if (node.getType && node.getType() === 'frame') return null;
+      return node.registerListener({
+        positionChanged: () => {
+          const frames = Object.values(
+            engineRef.current.getModel().getNodes(),
+          ).filter((n) => n.getType && n.getType() === 'frame');
+          updateContainmentForNode(node, frames);
+        },
+      });
+    });
+    return () => {
+      handles.forEach((h) => h && h.deregister && h.deregister());
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [curMoodBoard]);
 
   const onDrop = (layout, item, e) => {
