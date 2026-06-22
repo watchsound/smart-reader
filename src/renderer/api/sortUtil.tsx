@@ -18,7 +18,7 @@ const getAuthorName = (books: BookModel[]) => {
       return { id: item.id, author: item.author };
     }),
     'author',
-  ).map((item) => item.id);
+  ).map((item: { id: string; author: string }) => item.id);
 };
 const getBookKey = (books: BookModel[]) => {
   return books.map((item) => item.id);
@@ -46,25 +46,25 @@ const getBookIndex = (nameArr: string[], oldNameArr: string[]) => {
 };
 const getDurationArr = () => {
   const durationObj = ReadingTime.getAllTime();
-  const sortable: any[] = [];
+  const sortable: [string, number][] = [];
   for (const obj in durationObj) {
-    sortable.push([obj, durationObj[obj]]);
+    sortable.push([obj, (durationObj as unknown as Record<string, number>)[obj]]);
   }
-  sortable.sort(function (a, b) {
+  sortable.sort(function (a: [string, number], b: [string, number]) {
     return a[1] - b[1];
   });
   return Object.keys(durationObj);
 };
 const getPercentageArr = () => {
   const locationObj = RecordLocation.getAllCfi();
-  const sortable: any = [];
+  const sortable: [string, number][] = [];
   for (const obj in locationObj) {
-    sortable.push([obj, locationObj[obj].percentage || 0]);
+    sortable.push([obj, ((locationObj as unknown as Record<string, { percentage?: number }>)[obj].percentage) || 0]);
   }
-  sortable.sort(function (a, b) {
+  sortable.sort(function (a: [string, number], b: [string, number]) {
     return a[1] - b[1];
   });
-  return sortable.map((item) => item[0]);
+  return sortable.map((item: [string, number]) => item[0]);
 };
 class SortUtil {
   static sortBooks(
@@ -152,11 +152,11 @@ class SortUtil {
       }
       // 得到以日期为键，书摘为值的对象
       const noteObj: { [id: string]: any } = {};
-      dateArr.forEach((date) => {
+      dateArr.forEach((date: string) => {
         noteObj[date] = [];
       });
-      noteArr.forEach((note) => {
-        dateArr.forEach((date) => {
+      noteArr.forEach((note: NoteModel) => {
+        dateArr.forEach((date: string) => {
           if (
             date === `${note.date.year}-${note.date.month}-${note.date.day}`
           ) {
@@ -186,11 +186,11 @@ class SortUtil {
       }
       // 得到以日期为键，书摘为值的对象
       const noteObj: { [id: string]: any } = {};
-      nameArr.forEach((name) => {
+      nameArr.forEach((name: string) => {
         noteObj[name] = [];
       });
-      noteArr.forEach((note) => {
-        nameArr.forEach((name) => {
+      noteArr.forEach((note: NoteModel) => {
+        nameArr.forEach((name: string) => {
           if (
             name ===
             books[

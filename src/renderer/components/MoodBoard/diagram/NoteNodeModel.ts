@@ -2,6 +2,7 @@ import {
   NodeModel,
   NodeModelGenerics,
   PortModelAlignment,
+  DeserializeEvent,
 } from '@projectstorm/react-diagrams';
 import { NotePortModel } from './NotePortModel';
 import Note from '../../../../commons/model/Note';
