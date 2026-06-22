@@ -204,8 +204,12 @@ function DetailedDiagramPanel({ curMoodBoard }) {
   }, [curDiagramNote]);
 
   useEffect(() => {
-    if (curMoodBoard?.theme) setBoardTheme(curMoodBoard.theme);
-    if (curMoodBoard?.colorZones) setColorZones(curMoodBoard.colorZones);
+    // Top-level fields (future schema columns) take priority; fall back to the
+    // values embedded inside diagramData by the Option-A save path.
+    const savedTheme = curMoodBoard?.theme ?? curMoodBoard?.diagram?.theme;
+    const savedZones = curMoodBoard?.colorZones ?? curMoodBoard?.diagram?.colorZones;
+    if (savedTheme) setBoardTheme(savedTheme);
+    if (savedZones) setColorZones(savedZones);
   }, [curMoodBoard]);
 
   const ballLinkFactoryRef = useRef(null);
@@ -519,7 +523,9 @@ function DetailedDiagramPanel({ curMoodBoard }) {
   };
 
   const onSaveGridLayout = () => {
-    const str = JSON.stringify(engineRef.current.getModel().serialize());
+    const serialized = engineRef.current.getModel().serialize();
+    const payload = { ...serialized, theme: boardTheme, colorZones };
+    const str = JSON.stringify(payload);
     const c = updateMoodBoard(moodBoard.id, 'react_diagram', str);
     if (c) dispatch(moodBoardUpdated(c));
   };
