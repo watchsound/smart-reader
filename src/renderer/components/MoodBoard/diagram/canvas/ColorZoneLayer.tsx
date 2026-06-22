@@ -39,8 +39,11 @@ function ColorZoneLayer({ zones }: ColorZoneLayerProps) {
                 left: 8,
                 fontSize: 11,
                 fontWeight: 600,
-                color: 'var(--mb-ink, #1a1a1a)',
-                opacity: 0.7,
+                // Don't use `opacity` here — it would stack multiplicatively
+                // with the parent zone's opacity, making the label nearly
+                // invisible at typical zone opacities (e.g. 0.2 × 0.7 = 0.14).
+                // Alpha must bake into the color value instead.
+                color: 'color-mix(in srgb, var(--mb-ink, #1a1a1a) 80%, transparent)',
               }}
             >
               {z.label}
