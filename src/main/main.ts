@@ -1895,6 +1895,17 @@ const createWindow = async () => {
       _.returnValue = getMoodBoardsByQuery(query, page, limit, token);
     },
   );
+  ipcMain.on('getActiveMoodBoardId', (_, { token }) => {
+    _.returnValue = store.get(`active_moodboard_${token}`, null);
+  });
+  ipcMain.on('setActiveMoodBoardId', (_, { id, token }) => {
+    if (id == null) {
+      store.delete(`active_moodboard_${token}`);
+    } else {
+      store.set(`active_moodboard_${token}`, id);
+    }
+    _.returnValue = true;
+  });
 
   ipcMain.on('createImage', async (_, { image }) => {
     _.returnValue = createImage(image);

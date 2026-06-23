@@ -37,8 +37,10 @@ import { recordEvent } from '../../api/brainApi';
 import {
   moodBoardAdded,
   moodBoardHandled,
+  activeMoodBoardIdSet,
   noteAdded,
 } from '../../store/reducers/moodBoardSlice';
+import customStorage from '../../store/customStorage';
 
 import DetailedDiagramPanel from '../../components/MoodBoard/diagram/DetailedDiagramPanel';
 import MoodBoardItemCard from './MoodBoardItemCard';
@@ -172,6 +174,8 @@ function MoodBoardView({ moodBoard }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState('boards'); // 'boards', 'notes', 'create'
   const [noteQueryStr, setNoteQueryStr] = useState('');
+  // Active board: the persistent "inbox" board for cross-page note adds.
+  const [activeMoodBoardId, setActiveMoodBoardIdLocal] = useState(null);
   // Phase 8 organize loop: cluster the brain wants us to organize, if any.
   const [organizeSuggestion, setOrganizeSuggestion] = useState(null);
 
@@ -181,6 +185,49 @@ function MoodBoardView({ moodBoard }) {
   useEffect(() => {
     loadMoodBoards();
   }, [searchQuery, page]);
+
+  // On mount: auto-create Default Board if none exist; restore persistent active board.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const initActiveBoard = async () => {
+      const result = await getMoodBoardsByQuery('', 1, 100);
+      let boards = result?.data || [];
+
+      if (boards.length === 0) {
+        const created = await createMoodBoard({
+          name: 'Default Board',
+          description: '',
+          gridLayout: { layout: { lg: [] } },
+          diagram: {},
+          pinned: false,
+        });
+        if (created) {
+          boards = [created];
+          dispatch(moodBoardAdded(created));
+          customStorage.setActiveMoodBoardId(created.id);
+          setActiveMoodBoardIdLocal(created.id);
+          dispatch(activeMoodBoardIdSet(created.id));
+          setCurMoodBoard(created);
+          dispatch(moodBoardHandled(created));
+        }
+        return;
+      }
+
+      const savedId = customStorage.getActiveMoodBoardId();
+      const active = (savedId && boards.find((b) => String(b.id) === String(savedId)))
+        || boards[0];
+      if (active) {
+        setActiveMoodBoardIdLocal(active.id);
+        dispatch(activeMoodBoardIdSet(active.id));
+        if (!curMoodBoard) {
+          setCurMoodBoard(active);
+          dispatch(moodBoardHandled(active));
+        }
+      }
+    };
+
+    initActiveBoard();
+  }, []);
 
   useEffect(() => {
     if (!moodBoard) return;
@@ -332,6 +379,12 @@ function MoodBoardView({ moodBoard }) {
     dispatch(moodBoardHandled(board));
   };
 
+  const handleSetActiveMoodBoard = (board) => {
+    setActiveMoodBoardIdLocal(board.id);
+    dispatch(activeMoodBoardIdSet(board.id));
+    customStorage.setActiveMoodBoardId(board.id);
+  };
+
   const noteSelected = (note) => {
     dispatch(noteAdded(null));
     dispatch(noteAdded(note));
@@ -366,7 +419,8 @@ function MoodBoardView({ moodBoard }) {
     <Box
       sx={{
         display: 'flex',
-        height: '100vh',
+        flex: 1,
+        minHeight: 0,
         bgcolor: theme.palette.background.default,
         overflow: 'hidden',
       }}
@@ -376,7 +430,7 @@ function MoodBoardView({ moodBoard }) {
         sx={{
           width: sidebarCollapsed ? 0 : 300,
           minWidth: sidebarCollapsed ? 0 : 300,
-          height: '100vh',
+          height: '100%',
           bgcolor: theme.palette.background.paper,
           borderRight: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
           display: 'flex',
@@ -570,7 +624,9 @@ function MoodBoardView({ moodBoard }) {
                       key={board.id}
                       moodBoard={board}
                       isActive={curMoodBoard && curMoodBoard.id === board.id}
+                      isActivePinned={String(activeMoodBoardId) === String(board.id)}
                       onSelect={handleSelectMoodBoard}
+                      onSetActive={handleSetActiveMoodBoard}
                       onUpdate={loadMoodBoards}
                     />
                   ))}
@@ -659,6 +715,8 @@ function MoodBoardView({ moodBoard }) {
       <Box
         sx={{
           flex: 1,
+          minWidth: 0,
+          minHeight: 0,
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',

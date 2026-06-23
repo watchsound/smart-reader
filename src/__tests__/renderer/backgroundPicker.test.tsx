@@ -4,31 +4,31 @@ import { render, fireEvent } from '@testing-library/react';
 import BackgroundPicker from '../../renderer/components/MoodBoard/diagram/canvas/BackgroundPicker';
 
 describe('BackgroundPicker', () => {
-  test('renders 3 mode buttons: none / pattern / image', () => {
+  test('renders a single button showing the current mode', () => {
     const { container } = render(
       <BackgroundPicker spec={{ mode: 'none' }} onChange={() => {}} />,
     );
-    expect(container.querySelector('[data-mode="none"]')).toBeTruthy();
-    expect(container.querySelector('[data-mode="pattern"]')).toBeTruthy();
-    expect(container.querySelector('[data-mode="image"]')).toBeTruthy();
+    const btn = container.querySelector('[data-testid="background-picker"]');
+    expect(btn).toBeTruthy();
+    expect(btn?.getAttribute('data-mode')).toBe('none');
   });
 
-  test('clicking "pattern" emits onChange with mode pattern', () => {
+  test('clicking cycles from none → pattern and calls onChange', () => {
     const onChange = jest.fn();
     const { container } = render(
       <BackgroundPicker spec={{ mode: 'none' }} onChange={onChange} />,
     );
-    fireEvent.click(container.querySelector('[data-mode="pattern"]') as HTMLElement);
+    fireEvent.click(container.querySelector('[data-testid="background-picker"]') as HTMLElement);
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({ mode: 'pattern' }),
     );
   });
 
-  test('currently-selected mode has data-selected="true"', () => {
+  test('button reflects current mode via data-mode attribute', () => {
     const { container } = render(
       <BackgroundPicker spec={{ mode: 'pattern' }} onChange={() => {}} />,
     );
-    const selected = container.querySelector('[data-mode="pattern"][data-selected="true"]');
-    expect(selected).toBeTruthy();
+    const btn = container.querySelector('[data-testid="background-picker"]');
+    expect(btn?.getAttribute('data-mode')).toBe('pattern');
   });
 });

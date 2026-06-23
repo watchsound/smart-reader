@@ -728,6 +728,21 @@ class customStorage {
     );
   }
 
+  static getActiveMoodBoardId() {
+    if (!this.isLoggedIn()) return null;
+    return window.electron.ipcRenderer.getActiveMoodBoardId(
+      this.getSessionToken(),
+    );
+  }
+
+  static setActiveMoodBoardId(id) {
+    if (!this.isLoggedIn()) return null;
+    return window.electron.ipcRenderer.setActiveMoodBoardId(
+      id,
+      this.getSessionToken(),
+    );
+  }
+
   // prompt
   static createPrompt(prompt) {
     if (!this.isLoggedIn()) return null;

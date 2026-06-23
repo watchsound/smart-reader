@@ -332,6 +332,12 @@ const electronHandler = {
     deleteAllMoodBoards: (token: string) => {
       return ipcRenderer.sendSync('deleteAllMoodBoards', { token });
     },
+    getActiveMoodBoardId: (token: string) => {
+      return ipcRenderer.sendSync('getActiveMoodBoardId', { token });
+    },
+    setActiveMoodBoardId: (id: number | null, token: string) => {
+      return ipcRenderer.sendSync('setActiveMoodBoardId', { id, token });
+    },
 
     createChat: (chat: any, token: string) => {
       return ipcRenderer.sendSync('createChat', { chat, token });

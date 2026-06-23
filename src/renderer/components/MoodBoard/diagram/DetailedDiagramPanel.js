@@ -47,16 +47,17 @@ import store from '../../../store/store';
 // Styled components for the toolbar
 const ToolbarContainer = styled(Box)(({ theme }) => ({
   display: 'flex',
+  flexWrap: 'wrap',
   alignItems: 'center',
-  justifyContent: 'space-between',
-  padding: '8px 16px',
+  padding: '6px 12px',
   backgroundColor: theme.palette.background.paper,
   borderBottom: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
-  gap: theme.spacing(1),
+  gap: theme.spacing(0.5),
 }));
 
 const ToolbarSection = styled(Box)(({ theme }) => ({
   display: 'flex',
+  flexWrap: 'wrap',
   alignItems: 'center',
   gap: theme.spacing(0.5),
 }));
@@ -81,9 +82,10 @@ const ToolbarButton = styled(IconButton, {
   },
 }));
 
-const ToolbarDivider = styled(Divider)(({ theme }) => ({
+const ToolbarDivider = styled(Divider)(() => ({
   height: 24,
-  margin: '0 8px',
+  alignSelf: 'center',
+  margin: '0 4px',
 }));
 
 const ActionButton = styled(Button)(({ theme }) => ({
@@ -588,7 +590,7 @@ function DetailedDiagramPanel({ curMoodBoard }) {
 
   const diagramPanel = useMemo(() => {
     return (
-      <div ref={componentRef} style={{ height: 'calc(100vh - 65px)' }}>
+      <div ref={componentRef} style={{ height: '100%' }}>
         <BoardThemeProvider theme={boardTheme}>
           <DemoCanvasWidget background={canvasBackground}>
             <div style={{ position: 'relative', width: '100%', height: '100%' }}>
@@ -609,7 +611,7 @@ function DetailedDiagramPanel({ curMoodBoard }) {
 
   // Props spreading for simplicity, consider enumerating specific props as best practice.
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       {/* Professional Toolbar */}
       <ToolbarContainer>
         {/* Left Section - Zoom & View Controls */}
@@ -707,16 +709,12 @@ function DetailedDiagramPanel({ curMoodBoard }) {
               />
             </Box>
           </Tooltip>
-          <Tooltip title="Background">
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <BackgroundPicker
-                spec={boardTheme.backgroundLayer || { mode: 'none' }}
-                onChange={(next) =>
-                  setBoardTheme((t) => ({ ...t, backgroundLayer: next }))
-                }
-              />
-            </Box>
-          </Tooltip>
+          <BackgroundPicker
+            spec={boardTheme.backgroundLayer || { mode: 'none' }}
+            onChange={(next) =>
+              setBoardTheme((t) => ({ ...t, backgroundLayer: next }))
+            }
+          />
           <Tooltip title="Add a color zone">
             <ActionButton
               variant="outlined"
@@ -789,7 +787,7 @@ function DetailedDiagramPanel({ curMoodBoard }) {
         </Box>
 
         {/* Right Section - Actions */}
-        <ToolbarSection>
+        <ToolbarSection sx={{ marginLeft: 'auto' }}>
           {/* AI Layout Button */}
           <Tooltip title="Auto-arrange with AI">
             <ActionButton
@@ -856,7 +854,7 @@ function DetailedDiagramPanel({ curMoodBoard }) {
       </ToolbarContainer>
 
       {/* Diagram Canvas */}
-      <Box sx={{ flex: 1, position: 'relative' }}>
+      <Box sx={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden' }}>
         {diagramPanel}
       </Box>
 

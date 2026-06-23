@@ -23,6 +23,8 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import EditIcon from '@mui/icons-material/Edit';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import FlashOnIcon from '@mui/icons-material/FlashOn';
+import FlashOffIcon from '@mui/icons-material/FlashOff';
 
 import { useDispatch } from 'react-redux';
 import { updateMoodBoard } from '../../api/moodBoardApi';
@@ -97,7 +99,7 @@ function formatDate(dateString) {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-function MoodBoardItemCard({ moodBoard, isActive, onSelect, onUpdate }) {
+function MoodBoardItemCard({ moodBoard, isActive, isActivePinned, onSelect, onSetActive, onUpdate }) {
   const theme = useTheme();
   const dispatch = useDispatch();
   const isDark = theme.palette.mode === 'dark';
@@ -245,6 +247,17 @@ function MoodBoardItemCard({ moodBoard, isActive, onSelect, onUpdate }) {
             >
               {moodBoard.name || 'Untitled Board'}
             </Typography>
+            {isActivePinned && (
+              <Tooltip title="Active board — notes from other pages go here">
+                <FlashOnIcon
+                  sx={{
+                    fontSize: 14,
+                    color: 'success.main',
+                    flexShrink: 0,
+                  }}
+                />
+              </Tooltip>
+            )}
             {isPinned && !isHovered && (
               <PushPinIcon
                 sx={{
@@ -364,13 +377,27 @@ function MoodBoardItemCard({ moodBoard, isActive, onSelect, onUpdate }) {
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         PaperProps={{
           sx: {
-            minWidth: 160,
+            minWidth: 180,
             boxShadow: `0 4px 20px ${alpha('#000', isDark ? 0.4 : 0.15)}`,
             borderRadius: 2,
             border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
           },
         }}
       >
+        <MenuItem
+          onClick={() => {
+            handleMenuClose();
+            if (onSetActive) onSetActive(moodBoard);
+          }}
+          sx={{ color: isActivePinned ? 'success.main' : undefined }}
+        >
+          <ListItemIcon>
+            {isActivePinned
+              ? <FlashOnIcon fontSize="small" sx={{ color: 'success.main' }} />
+              : <FlashOffIcon fontSize="small" />}
+          </ListItemIcon>
+          <ListItemText>{isActivePinned ? 'Active board ✓' : 'Set as active board'}</ListItemText>
+        </MenuItem>
         <MenuItem onClick={handleTogglePin}>
           <ListItemIcon>
             {isPinned ? (

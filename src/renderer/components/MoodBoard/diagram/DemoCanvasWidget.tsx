@@ -13,7 +13,7 @@ export interface DemoCanvasWidgetProps {
 
 namespace S {
   export const Container = styled.div<{ color: string; background: string }>`
-    height:  calc(100vh - 65px) ;
+    height: 100%;
     background-color: ${(p) => p.background};
     background-size: 50px 50px;
     display: flex;
@@ -54,7 +54,7 @@ namespace S {
     html,
     body,
     #root {
-      height:800px;
+      height: 100%;
     }
   `;
 }
