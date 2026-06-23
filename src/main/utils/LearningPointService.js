@@ -67,6 +67,7 @@ const SOURCE_TYPES = {
   MANUAL: 'manual',
   IMPORT: 'import',
   MIGRATION: 'migration',
+  MINDMAP: 'mindmap',
 };
 
 /**

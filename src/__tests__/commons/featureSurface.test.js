@@ -6,7 +6,7 @@ const {
 } = require('../../commons/model/featureSurface');
 
 describe('featureSurface enum', () => {
-  it('exports closed set of 8 values', () => {
+  it('exports closed set of 9 values', () => {
     expect(FEATURE_SURFACES).toEqual([
       'reading-microcard',
       'director-session',
@@ -14,6 +14,7 @@ describe('featureSurface enum', () => {
       'production-prompt',
       'pre-reading-diagnostic',
       'manual-review',
+      'mindmap-study',
       'backfill',
       'unknown',
     ]);

@@ -221,6 +221,7 @@ import { registerRereadQueueHandlers } from './ipc/rereadQueueHandlers';
 import { registerMoodBoardOrganizerHandlers } from './ipc/moodBoardOrganizerHandlers';
 import { registerProductionPromptHandlers } from './ipc/productionPromptHandlers';
 import { registerLearningPathPlannerHandlers } from './ipc/learningPathPlannerHandlers';
+import { registerMindmapIpc } from './ipc/mindmapIpc';
 import graphInterface from './utils/GraphInterface';
 import { initializeLearningBrain, shutdownLearningBrain } from './brain';
 
@@ -2644,6 +2645,11 @@ app
     // Phase 8: production-prompt IPC handlers (renderer side of the brain
     // heartbeat's `schedulePromptForProduction` task).
     registerProductionPromptHandlers(store);
+
+    // Mindmap (Commit 5): node -> learning-point persistence + mastery
+    // snapshot IPC. Reads the live SQLite db + the LearningPointService
+    // singleton internally, so no args at registration.
+    registerMindmapIpc();
 
     // Register skill-based AI IPC handlers
     registerSkillHandlers(store, {

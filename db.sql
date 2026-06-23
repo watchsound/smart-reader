@@ -792,3 +792,22 @@ CREATE INDEX IF NOT EXISTS "idx_graph_edge_target"
   ON "graph_edge" ("target_type", "target_id", "edge_type");
 CREATE INDEX IF NOT EXISTS "idx_graph_edge_source"
   ON "graph_edge" ("source_type", "source_id", "edge_type");
+
+-- ============================================================================
+-- MINDMAP -> LEARNING POINT LINK TABLE
+-- ============================================================================
+-- Idempotent mapping (mindmapId, nodeId) -> lpId. Lets a re-save of the same
+-- mindmap reuse existing learning_point rows rather than create duplicates,
+-- and lets reopen hydrate per-node mastery from the lp_id back-reference.
+-- ON DELETE CASCADE on lp_id keeps the link table clean if the underlying
+-- learning_point is hard-deleted.
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS mindmap_node_lp_link (
+  mindmap_id TEXT NOT NULL,
+  node_id    TEXT NOT NULL,
+  lp_id      TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (mindmap_id, node_id),
+  FOREIGN KEY (lp_id) REFERENCES learning_point(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_mindmap_link_lp ON mindmap_node_lp_link(lp_id);

@@ -15,6 +15,7 @@ const FEATURE_SURFACES = [
   'production-prompt',
   'pre-reading-diagnostic',
   'manual-review',
+  'mindmap-study',
   'backfill',
   'unknown',
 ];
@@ -23,24 +24,31 @@ const ATTENTION_STATE = {
   'reading-microcard': 'while-reading',
   'pre-reading-diagnostic': 'while-reading',
   'director-session': 'focused-session',
-  'comprehension': 'focused-session',
+  comprehension: 'focused-session',
   'production-prompt': 'focused-session',
   'manual-review': 'focused-session',
-  'backfill': 'historical',
-  'unknown': 'historical',
+  'mindmap-study': 'focused-session',
+  backfill: 'historical',
+  unknown: 'historical',
 };
 
 const PHASE_GROUP = {
   'reading-microcard': 'reading-loop',
   'pre-reading-diagnostic': 'diagnostics',
   'director-session': 'director',
-  'comprehension': 'comprehension',
+  comprehension: 'comprehension',
   'production-prompt': 'production-prompts',
   'manual-review': 'manual-review',
-  'backfill': 'historical',
-  'unknown': 'historical',
+  'mindmap-study': 'production-prompts',
+  backfill: 'historical',
+  unknown: 'historical',
 };
 
 const isValidFeatureSurface = (s) => FEATURE_SURFACES.includes(s);
 
-module.exports = { FEATURE_SURFACES, ATTENTION_STATE, PHASE_GROUP, isValidFeatureSurface };
+module.exports = {
+  FEATURE_SURFACES,
+  ATTENTION_STATE,
+  PHASE_GROUP,
+  isValidFeatureSurface,
+};
