@@ -85,6 +85,7 @@ import SoundSettingsSection from './SoundSettingsSection';
 import BrainSettingsSection from './BrainSettingsSection';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import PsychologyIcon from '@mui/icons-material/Psychology';
+import PublicIcon from '@mui/icons-material/Public';
 
 // Styled Components
 const PageContainer = styled(Box)(({ theme }) => ({
@@ -423,6 +424,7 @@ export default function SettingsPanel() {
   const [emojiData, setEmojiData] = useState(null);
   const [commonEmoji, setCommonEmoji] = useState([]);
   const [showPasswords, setShowPasswords] = useState({});
+  const [inMainlandChina, setInMainlandChina] = useState(false);
 
   const cellRef = useRef();
   const [openSampleColorDialog, setOpenSampleColorDialog] = useState(false);
@@ -559,6 +561,7 @@ export default function SettingsPanel() {
       setEmojiData(d);
       const ce = (await customStorage.getItem('common_emoji')) || [];
       setCommonEmoji(ce);
+      setInMainlandChina(customStorage.getInMainlandChina());
     }
     loadSettings();
   }, []);
@@ -574,6 +577,12 @@ export default function SettingsPanel() {
   const toggleUseOpenAiImage = () => {
     setUseOpenAiImage(!useOpenAiImage);
     customStorage.setOpenAiImage(!useOpenAiImage);
+  };
+
+  const toggleInMainlandChina = () => {
+    const next = !inMainlandChina;
+    setInMainlandChina(next);
+    customStorage.setInMainlandChina(next);
   };
 
   const toggleUseGraph = () => {
@@ -2284,6 +2293,31 @@ export default function SettingsPanel() {
               <MenuItem value="bottom">Bottom</MenuItem>
               <MenuItem value="none">Hidden</MenuItem>
             </StyledSelect>
+          </SettingControl>
+        </SettingRow>
+      </SettingsSectionWrapper>
+
+      {/* Region & Network */}
+      <SettingsSectionWrapper
+        icon={<PublicIcon />}
+        title="Region & Network"
+        color="#1565c0"
+        defaultExpanded={false}
+      >
+        <SettingRow>
+          <SettingLabel>
+            <SettingLabelText>Mainland China Mode</SettingLabelText>
+            <SettingLabelHint>
+              Use China-accessible sources (Baidu, cn.bing.com, baike.baidu.com …)
+              in Learn About instead of Google, Wikipedia, and other blocked sites
+            </SettingLabelHint>
+          </SettingLabel>
+          <SettingControl>
+            <Switch
+              checked={inMainlandChina}
+              onChange={toggleInMainlandChina}
+              size="small"
+            />
           </SettingControl>
         </SettingRow>
       </SettingsSectionWrapper>

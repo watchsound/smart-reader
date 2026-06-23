@@ -98,6 +98,7 @@ import StringPicker from '../../components/Picker/StringPicker';
 
 import scrapeGoogle from '../../components/web-based-search/google-direct-query';
 import scrapeBing from '../../components/web-based-search/bing-direct-query';
+import scrapeBaidu from '../../components/web-based-search/baidu-direct-query';
 import { useCreateNoteMutation } from '../../store/api/noteApiSlice';
 import { NoteType } from '../../../commons/model/Note';
 
@@ -109,6 +110,7 @@ import {
   constructContextPrompt,
   getMatchedCategoryAndDomains,
   getClassificationForUI,
+  site_categories_cn,
 } from '../../components/web-based-search/web-query-utils';
 
 import {
@@ -121,6 +123,7 @@ import {
   getComparisonChartPrompt,
   getMindMapPrompt,
   queryOllamaWithReturnJson,
+  queryAdvancedWithReturnJson,
   getMatchImagesToTimelinePrompt,
   getMatchImagesToNumberedStepsPrompt,
   getMatchImagesToMindMapPrompt,
@@ -625,7 +628,7 @@ function RelatedTopicsCard({ topics, onTopicClick }) {
         </SectionHeader>
 
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-          {topics.map((topic, index) => (
+          {(topics || []).map((topic, index) => (
             <TopicChip
               key={index}
               label={topic}
@@ -992,9 +995,12 @@ function LearnAboutDetailPanel({ chatId }) {
       setMessages(messagesCached);
       setContent('');
 
-      // first query against google and bing
-      const g1 = await scrapeGoogle(content, 2);
-      const b1 = await scrapeBing(content, 2);
+      // first query — pick sources based on region setting
+      const isChina = customStorage.getInMainlandChina();
+      const g1 = isChina
+        ? await scrapeBaidu(content, 2)
+        : await scrapeGoogle(content, 2);
+      const b1 = await scrapeBing(content, 2, isChina);
       const searchResults = mergeSearchResults(g1, b1);
 
       // image query
@@ -1018,12 +1024,15 @@ function LearnAboutDetailPanel({ chatId }) {
       });
       await Promise.all(b1p);
 
-      // get special sites
-      const result = await getMatchedCategoryAndDomains(content);
+      // get special sites — use China-local categories and engines when flagged
+      const siteCategories = isChina ? site_categories_cn : undefined;
+      const result = await getMatchedCategoryAndDomains(content, siteCategories);
       if (result.category) {
         async function t(query) {
-          const b2 = await scrapeBing(query, 1);
-          const g2 = await scrapeGoogle(query, 1);
+          const b2 = await scrapeBing(query, 1, isChina);
+          const g2 = isChina
+            ? await scrapeBaidu(query, 1)
+            : await scrapeGoogle(query, 1);
           const m2 = mergeSearchResults(g2, b2);
           const b2p = m2.map(async (r) => {
             if (!r || !r.link) return false;
@@ -1078,10 +1087,11 @@ function LearnAboutDetailPanel({ chatId }) {
         (image) => image.title && image.title.length > 0,
       );
 
-      // create report
+      // create report — use advanced model: this is the longest, most
+      // quality-sensitive generation in the pipeline (summary + sections).
       let webContents = await fetchAndExtractTextFromCache(urlToHtml);
       const prompt = constructContextPrompt(content, webContents);
-      const summarySections = await queryOllamaWithReturnJson(prompt);
+      const summarySections = await queryAdvancedWithReturnJson(prompt);
 
       if (summarySections) {
         const sectionsWithImages = await matchImagesToSections(
@@ -1091,7 +1101,10 @@ function LearnAboutDetailPanel({ chatId }) {
         const r = { title: summarySections.summary, items: [] };
 
         const used = [];
-        (sectionsWithImages.data || sectionsWithImages).forEach((element) => {
+        const sectionList = sectionsWithImages
+          ? (sectionsWithImages.data || sectionsWithImages)
+          : summarySections.sections;
+        sectionList.forEach((element) => {
           if (used.includes(element.title)) return;
           used.push(element.title);
 
@@ -1123,7 +1136,7 @@ function LearnAboutDetailPanel({ chatId }) {
       }
 
       // add some tap-to-reveal
-      const ttrp = getTapToRevealPrompt(content, webContents);
+      const ttrp = getTapToRevealPrompt(content, webContents.map((c) => c.text).join('\n\n'));
       const ttrpResponse = await queryOllamaWithReturnJson(ttrp);
       if (ttrpResponse) {
         const ttrps = (ttrpResponse.data || ttrpResponse).map(async (r) => {
@@ -1173,37 +1186,47 @@ function LearnAboutDetailPanel({ chatId }) {
         ];
       }
 
-      // add mindmap view
-      const mindmapPrompt = getMindMapChatHistoryPrompt(webContents[0].text);
-      // mindmapPrompt is an array [{role, content}], use sendChatMessage properly
-      const mindmapHistory = mindmapPrompt.slice(0, -1);
-      const mindmapUserMessage = mindmapPrompt[mindmapPrompt.length - 1]?.content || '';
-      const mindmap = await aiProviderManager.sendChatMessage(
-        mindmapHistory,
-        mindmapUserMessage,
-        { maxOutputTokens: 8192 },
-      );
-      if (mindmap) {
-        const mindmapContent = removeStartEndSymbolLines(mindmap);
-        const mindmapObj = parseMindmapToReactFlow(mindmapContent);
-        const mMessage = await createMessage({
-          chatId: curChatId,
-          content: JSON.stringify(mindmapObj),
-          type: 'mindmap',
-          role: 'user',
-          createdAt: new Date(),
-        });
-        messagesCached.push(mMessage);
-        setMessages([...messagesCached]);
+      // add mindmap view — route through the advanced provider; structuring
+      // a coherent map across an article rewards a stronger model.
+      const mindmapSourceText = webContents[0]?.text || '';
+      if (mindmapSourceText) {
+        const mindmapPrompt = getMindMapChatHistoryPrompt(mindmapSourceText);
+        // mindmapPrompt is an array [{role, content}], use sendChatMessage properly
+        const mindmapHistory = mindmapPrompt.slice(0, -1);
+        const mindmapUserMessage = mindmapPrompt[mindmapPrompt.length - 1]?.content || '';
+        const mindmapTarget = aiProviderManager.getAdvanced();
+        const mindmap = mindmapTarget
+          ? await mindmapTarget.sendChatMessage(
+              mindmapHistory,
+              mindmapUserMessage,
+              { maxOutputTokens: 8192 },
+            )
+          : null;
+        if (mindmap) {
+          const mindmapContent = removeStartEndSymbolLines(mindmap);
+          const mindmapObj = parseMindmapToReactFlow(mindmapContent);
+          const mMessage = await createMessage({
+            chatId: curChatId,
+            content: JSON.stringify(mindmapObj),
+            type: 'mindmap',
+            role: 'user',
+            createdAt: new Date(),
+          });
+          messagesCached.push(mMessage);
+          setMessages([...messagesCached]);
+        }
       }
 
       // add related topics
       const relatedTopicPrompt = getRelatedTopicsPrompt(content);
-      const relatedTopics = await aiProviderManager.sendChatMessage(
+      const relatedTopicsRaw = await aiProviderManager.sendChatMessage(
         [],
         relatedTopicPrompt,
         { maxOutputTokens: 4096 },
       );
+      const relatedTopics = relatedTopicsRaw
+        ? await parseJsonFromLLM(relatedTopicsRaw)
+        : null;
       if (relatedTopics) {
         const vMessage = await createMessage({
           chatId: curChatId,

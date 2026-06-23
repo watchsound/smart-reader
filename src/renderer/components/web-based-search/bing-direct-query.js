@@ -1,8 +1,14 @@
 import axios from "axios";
 import { load as cheerio_load } from "cheerio";
 
-export default async function scrapeBing(query, topN = 3) {
-  const url = `https://www.bing.com/search?q=${encodeURIComponent(query)}`;
+/**
+ * @param {string} query
+ * @param {number} topN
+ * @param {boolean} useChinaBing - use cn.bing.com (accessible from mainland China)
+ */
+export default async function scrapeBing(query, topN = 3, useChinaBing = false) {
+  const host = useChinaBing ? 'cn.bing.com' : 'www.bing.com';
+  const url = `https://${host}/search?q=${encodeURIComponent(query)}`;
   const { data: html } = await axios.get(url, {
    //  headers: { "User-Agent": "Mozilla/5.0" },
   });

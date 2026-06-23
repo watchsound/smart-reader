@@ -66,25 +66,36 @@ class customStorage {
       apiKeyDeepSeek,
     );
     let model = '';
+    let advancedModel = '';
     if (provider === AIProvider.ChatGPT) {
       model = await this.getChatGPTModel();
+      advancedModel = await this.getChatGPTAdvancedModel();
     } else if (provider === AIProvider.Gemini) {
       model = await this.getGeminiModel();
+      advancedModel = await this.getGeminiAdvancedModel();
     } else if (provider === AIProvider.Claude) {
       model = await this.getClaudeModel();
+      advancedModel = await this.getClaudeAdvancedModel();
     } else if (provider === AIProvider.Baidu) {
       model = await this.getBaiduAccessToken(); // ugly but....
+      advancedModel = await this.getBaiduAdvancedModel();
     } else if (provider === AIProvider.Ollama) {
       model = await this.getOllamaModel(); // ugly but....
+      advancedModel = await this.getOllamaAdvancedModel();
     } else if (provider === AIProvider.Doubao) {
       model = await this.getDoubaoModel();
+      advancedModel = await this.getDoubaoAdvancedModel();
     } else if (provider === AIProvider.Qwen) {
       model = await this.getQwenModel();
+      advancedModel = await this.getQwenAdvancedModel();
+    } else if (provider === AIProvider.Kimi) {
+      advancedModel = await this.getKimiAdvancedModel();
     } else if (provider === AIProvider.DeepSeek) {
       model = await this.getModelDeepSeek();
     }
 
     aiProviderManager.setup(true, userId, provider, key, model);
+    aiProviderManager.setupAdvanced(true, provider, key, advancedModel);
   }
 
   static async login(email, password) {
@@ -985,6 +996,15 @@ class customStorage {
 
   static setItem(key, value) {
     return window.electron.ipcRenderer.setStoreValue(key, value);
+  }
+
+  static getInMainlandChina() {
+    const v = this.getItem('in_mainland_china');
+    return v === true || v === 'true';
+  }
+
+  static setInMainlandChina(value) {
+    return this.setItem('in_mainland_china', value);
   }
 
   static getOllamaUrl() {

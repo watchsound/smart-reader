@@ -27,6 +27,11 @@ export class AIProviderManager {
 
     this.currentProvider = null; // Default provider
     this.currentProviderName = '';
+    // Optional companion provider configured with the user's "advanced" model
+    // for the same vendor. Heavy / quality-sensitive call sites (e.g. Learn
+    // About summary + mindmap) target this; light structured calls keep using
+    // currentProvider. Falls back to currentProvider when not set up.
+    this.advancedProvider = null;
     this.invokeTime = Date.now();
     // Registry of every provider the user has configured a key for, keyed
     // by AIProvider enum value. Populated by registerProvider() from the
@@ -148,6 +153,36 @@ export class AIProviderManager {
     if (this.currentProvider) {
       this.currentProvider.name = this.currentProviderName;
     }
+  }
+
+  /**
+   * Configure a companion provider using the same vendor as currentProvider
+   * but with the user's "advanced" model. Call sites that prefer the heavier
+   * model (Learn About summary + mindmap, deep analysis tasks) target this via
+   * getAdvanced(). Safe to skip — getAdvanced() falls back to currentProvider.
+   */
+  setupAdvanced(isInRender, provider, key, advancedModel) {
+    if (!provider || !advancedModel) {
+      this.advancedProvider = null;
+      return;
+    }
+    const built = this._constructProvider(
+      provider,
+      key,
+      advancedModel,
+      isInRender,
+    );
+    if (!built) {
+      this.advancedProvider = null;
+      return;
+    }
+    built.name = provider;
+    this.advancedProvider = built;
+  }
+
+  /** Returns the advanced provider when configured, else currentProvider. */
+  getAdvanced() {
+    return this.advancedProvider || this.currentProvider;
   }
 
   /**

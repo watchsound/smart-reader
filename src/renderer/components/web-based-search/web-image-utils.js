@@ -182,9 +182,9 @@ export async function decomposeContent(html) {
 export async function matchImagesToSections(images, sections) {
   const query = getMatchImagesToSectionsPrompt(sections, images);
   console.log(' matchImagesToSections query = ' + query);
-  const r = queryOllamaWithReturnJson(query);
+  const r = await queryOllamaWithReturnJson(query);
   if (r) return r;
-  return sections; //sections.map((section) => ({ ...section, images: [] }));
+  return sections;
 }
 
 export function getSurroundingText(imgElement) {

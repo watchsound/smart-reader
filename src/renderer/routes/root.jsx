@@ -248,6 +248,11 @@ export default function Root() {
       });
     }
 
+    // Initialize renderer-side AI provider from saved settings so that
+    // components using instanceInRender directly (e.g. Learn About) work
+    // immediately on startup without requiring a fresh login or settings save.
+    customStorage.setupAiProvider(localUserInfo?.id);
+
     const handleCustomLink = (event) => {
       console.log('Received in renderer view:', event.data);
     };
@@ -557,6 +562,8 @@ export default function Root() {
             height: 'calc(100vh - 64px)',
             width: '100%',
             overflow: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
             '&::-webkit-scrollbar': { width: 0, background: 'transparent' },
             scrollbarWidth: 'none',
           }}

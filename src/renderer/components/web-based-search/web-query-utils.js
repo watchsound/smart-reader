@@ -15,6 +15,42 @@ import {
 } from './utils.js';
 import customStorage from '../../store/customStorage';
 
+// Alternative authoritative sources accessible from mainland China
+export const site_categories_cn = [
+  {
+    category: 'General Knowledge and Education',
+    sites: ['baike.baidu.com', 'baike.sogou.com', 'baike.wiki'],
+  },
+  {
+    category: 'Science and Technology',
+    sites: ['guokr.com', 'zhihu.com'],
+  },
+  {
+    category: 'Health and Medicine',
+    sites: ['39.net', 'dxy.cn'],
+  },
+  {
+    category: 'History and Culture',
+    sites: ['cctv.com', 'kaogu.cn'],
+  },
+  {
+    category: 'Environment and Nature',
+    sites: ['cenews.com.cn', 'nea.gov.cn'],
+  },
+  {
+    category: 'Finance and Economics',
+    sites: ['eastmoney.com', 'xueqiu.com'],
+  },
+  {
+    category: 'Technology and Innovation',
+    sites: ['36kr.com', 'sspai.com'],
+  },
+  {
+    category: 'Mathematics and Programming',
+    sites: ['csdn.net', 'juejin.cn'],
+  },
+];
+
 export const site_categories = [
   {
     category: 'General Knowledge and Education',
@@ -246,11 +282,11 @@ async function processQuery(userQuery, matchedResults) {
  * @param {string} userQuery - The user's query.
  * @returns {Promise<{category: string, sites: string[]}>} - Matched category and domains.
  */
-export async function getMatchedCategoryAndDomains(userQuery) {
+export async function getMatchedCategoryAndDomains(userQuery, categories = site_categories) {
   try {
     // Construct the prompt for the LLM
     const prompt = `You are a category classifier. Determine which category the following query belongs to. Here are the available categories:\n
-${site_categories
+${categories
   .map((cat, index) => `${index + 1}. ${cat.category}`)
   .join('\n')}\n
 Query: "${userQuery}"\n
@@ -264,7 +300,7 @@ Return only category name.`;
     console.log(`matchedCategory = ${matchedCategory}`);
     matchedCategory = stripNumberAndDot(matchedCategory);
     // Find the category and domains
-    const matched = site_categories.find(
+    const matched = categories.find(
       (cat) => cat.category === matchedCategory,
     );
 

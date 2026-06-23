@@ -68,6 +68,30 @@ export async function queryOllamaWithReturnJson(prompt) {
   return null;
 }
 
+/**
+ * Same shape as queryOllamaWithReturnJson but routes through the configured
+ * "advanced" model (falls back to currentProvider when no advanced model is
+ * set). Use this for quality-sensitive long-form generation; keep the regular
+ * helper for short structured calls.
+ */
+export async function queryAdvancedWithReturnJson(prompt) {
+  try {
+    const target = aiProviderManager.getAdvanced();
+    if (!target) return null;
+    const history = [{ role: 'system', content: JSON_SYSTEM_PROMPT }];
+    const response = await target.sendChatMessage(
+      history,
+      prompt,
+      { maxOutputTokens: 8192 },
+    );
+    const r = await parseJsonFromLLM(response);
+    if (r) return r;
+  } catch (error) {
+    console.error('Error querying advanced model:', error.message);
+  }
+  return null;
+}
+
 // Example usage:
 // const inputString = "2. Science and Technology";
 // const outputString = stripNumberAndDot(inputString);
