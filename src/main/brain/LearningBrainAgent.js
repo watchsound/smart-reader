@@ -16,6 +16,12 @@ const ConsolidationService = require('../utils/ConsolidationService');
 const MoodBoardOrganizerService = require('./MoodBoardOrganizerService');
 const ProductionPromptService = require('./ProductionPromptService');
 const {
+  getLastCurationBonusFor,
+  getLearningPointsForBoard,
+  applyCurationBonus,
+} = require('../db/LearningPointManager');
+const EpisodeCollector = require('./EpisodeCollector');
+const {
   createNotification,
   NOTIFICATION_TYPES,
   NOTIFICATION_PRIORITIES,
@@ -281,6 +287,12 @@ class LearningBrainAgent {
       // 8. Production loop: ask the user to explain one well-mastered point
       const production = await this.schedulePromptForProduction(userId, token);
       results.checklistResults.push(production);
+
+      // 9. MoodBoard curation bonus: reward users who actively arrange a
+      // board across multiple sessions (Phase 3). Reads BOARD_ARRANGED
+      // episodes from the last 7d, grants +3 mastery to contained learning
+      // points, capped at 1 bonus per board per week.
+      await this.checkBoardCurationBonus(userId);
 
       // === GENERATE INSIGHTS ===
 
@@ -765,6 +777,63 @@ class LearningBrainAgent {
         '[LearningBrainAgent] schedulePromptForProduction error:',
         error,
       );
+      return { task: taskName, success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Phase 3 — MoodBoard curation bonus.
+   *
+   * Reads BOARD_ARRANGED episodes from the last 7 days, groups by boardId,
+   * and grants a small mastery bonus to learning points contained in any
+   * board that has sustained curation activity (≥3 events across ≥2 distinct
+   * days). Cap: one bonus per board per 7 days, enforced by querying the
+   * most recent moodboard-curation mastery_event for that board.
+   *
+   * Failures are caught and logged — telemetry must not break the heartbeat.
+   */
+  async checkBoardCurationBonus(userId) {
+    const taskName = 'board_curation_bonus';
+    try {
+      if (!this.episodeCollector) return { task: taskName, success: true, result: { skipped: 'no collector' } };
+      const recent = await this.episodeCollector.getEpisodesByType(
+        EpisodeCollector.EVENT_TYPES.BOARD_ARRANGED,
+        500,
+      );
+      if (!recent || recent.length === 0) {
+        return { task: taskName, success: true, result: { episodes: 0 } };
+      }
+
+      const cutoff = Date.now() - 7 * 24 * 3600 * 1000;
+      const byBoard = new Map();
+      for (const ep of recent) {
+        const tsRaw = ep?.timestamp ?? ep?.created_at ?? ep?.ts;
+        const ts = typeof tsRaw === 'number' ? tsRaw : new Date(tsRaw).getTime();
+        if (!ts || ts < cutoff) continue;
+        const boardId = ep?.eventData?.boardId ?? ep?.data?.boardId ?? ep?.payload?.boardId;
+        if (boardId === undefined || boardId === null || boardId === 'unknown') continue;
+        if (!byBoard.has(boardId)) byBoard.set(boardId, []);
+        byBoard.get(boardId).push(ts);
+      }
+
+      let bonusesApplied = 0;
+      for (const [boardId, tsList] of byBoard.entries()) {
+        if (tsList.length < 3) continue;
+        const days = new Set(
+          tsList.map((t) => new Date(t).toISOString().slice(0, 10)),
+        );
+        if (days.size < 2) continue;
+        const last = getLastCurationBonusFor(boardId);
+        if (last && Date.now() - last < 7 * 24 * 3600 * 1000) continue;
+        const lps = getLearningPointsForBoard(boardId, userId);
+        for (const lp of lps) {
+          applyCurationBonus(lp.id, 3, boardId);
+          bonusesApplied += 1;
+        }
+      }
+      return { task: taskName, success: true, result: { bonusesApplied } };
+    } catch (error) {
+      console.warn('[LearningBrainAgent] checkBoardCurationBonus error:', error);
       return { task: taskName, success: false, error: error.message };
     }
   }

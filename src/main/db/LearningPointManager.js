@@ -1378,6 +1378,88 @@ export const recentlyAccepted = (userId, n = 10) => {
 };
 
 // =============================================================================
+// PHASE 3 — MoodBoard curation bonus
+// =============================================================================
+
+/**
+ * Returns the timestamp (ms) of the most recent moodboard-curation bonus
+ * applied to the given board, or null if none.
+ */
+export const getLastCurationBonusFor = (boardId) => {
+  const row = db
+    .prepare(
+      `SELECT MAX(ts) AS ts
+       FROM mastery_event
+       WHERE source = 'moodboard-curation' AND source_ref = ?`,
+    )
+    .get(String(boardId));
+  return row?.ts ?? null;
+};
+
+/**
+ * Map a moodboard → its contained notes' learning points.
+ * Parses the board's react_diagram JSON, extracts noteIds embedded in
+ * nodes, and looks up learning_points whose (source_type='note', source_id)
+ * matches.
+ */
+export const getLearningPointsForBoard = (boardId, userId) => {
+  const board = db
+    .prepare('SELECT react_diagram FROM moodboard WHERE id = ?')
+    .get(boardId);
+  if (!board?.react_diagram) return [];
+  let diagram;
+  try {
+    diagram = JSON.parse(board.react_diagram);
+  } catch (e) {
+    return [];
+  }
+  const noteIds = Object.values(diagram?.nodes ?? {})
+    .map((n) => n?.noteId)
+    .filter((v) => v !== undefined && v !== null && v !== 0);
+  if (noteIds.length === 0) return [];
+  const placeholders = noteIds.map(() => '?').join(',');
+  return db
+    .prepare(
+      `SELECT * FROM learning_point
+       WHERE source_type = 'note'
+         AND source_id IN (${placeholders})
+         AND user_id = ?`,
+    )
+    .all(...noteIds.map(String), userId);
+};
+
+/**
+ * Apply a curation mastery bonus to one learning_point (cap at 100), and
+ * write a mastery_event row keyed by source_ref=boardId so successive
+ * bonuses on the same board within the same ms collapse via the dedup index.
+ */
+export const applyCurationBonus = (learningPointId, delta, boardId) => {
+  const lp = db
+    .prepare('SELECT * FROM learning_point WHERE id = ?')
+    .get(learningPointId);
+  if (!lp) return;
+  const prev = lp.mastery_level ?? 0;
+  const next = Math.min(100, prev + delta);
+  db.prepare('UPDATE learning_point SET mastery_level = ? WHERE id = ?').run(
+    next,
+    learningPointId,
+  );
+  db.prepare(
+    `INSERT OR IGNORE INTO mastery_event
+       (learning_point_id, user_id, ts, event_type, prev_mastery, new_mastery,
+        source, source_ref, feature_surface)
+     VALUES (?, ?, ?, 'curation-bonus', ?, ?, 'moodboard-curation', ?, 'manual-review')`,
+  ).run(
+    learningPointId,
+    lp.user_id,
+    Date.now(),
+    prev,
+    next,
+    String(boardId),
+  );
+};
+
+// =============================================================================
 // EXPORTS
 // =============================================================================
 
