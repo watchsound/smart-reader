@@ -37,7 +37,7 @@ import skillApi from '../../api/skillApi';
 import customStorage from '../../store/customStorage';
 
 /**
- * Convert MindmapSkill result to ReactFlow format for MyMindMap component
+ * Convert MindmapSkill result to ReactFlow format for MindmapSurface
  * @param {Object} skillResult - The result from mindmap skill { title, root, nodes, edges }
  * @returns {Object} - { keywordMap, descriptionMap } with ReactFlow format
  */
@@ -272,7 +272,7 @@ function CreatePDFAnnotationDialog({ bookId, onConfirm, animationApi, onOpenPres
               const skillData = result.result;
               console.log('[MindMap] Skill data:', skillData);
 
-              // Convert skill result to ReactFlow format for MyMindMap component
+              // Convert skill result to ReactFlow format for MindmapSurface
               const reactFlowData = convertSkillResultToReactFlow(skillData);
               console.log('[MindMap] ReactFlow data:', reactFlowData);
 

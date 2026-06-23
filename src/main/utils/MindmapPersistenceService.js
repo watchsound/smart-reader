@@ -107,8 +107,9 @@ class MindmapPersistenceService {
     }));
     if (linkRows.length > 0) linkTx(linkRows);
 
+    const newIdByNodeId = new Map(toCreate.map((n, i) => [n.id, newIds[i]]));
     const allLpIds = nodes.map(
-      (n) => existingByNode.get(n.id) || newIds[toCreate.indexOf(n)] || null,
+      (n) => existingByNode.get(n.id) || newIdByNodeId.get(n.id) || null,
     );
 
     return {
