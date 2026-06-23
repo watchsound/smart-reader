@@ -13,6 +13,7 @@ import {
   Close as CloseIcon,
   ArrowForward as NextIcon,
 } from '@mui/icons-material';
+import MindmapSurface from '../mindmap/MindmapSurface';
 
 /**
  * Load MathJax if needed
@@ -457,18 +458,18 @@ function MindmapModeRenderer({ item, side, domainColor }) {
     );
   }
 
-  // Back side - could render mindmap or show text description
+  // Back side: render the actual mindmap if available, else fall back to text.
+  if (mindmapData) {
+    return (
+      <Box sx={{ width: '100%' }}>
+        <MindmapSurface data={mindmapData} mode="card" readOnly />
+      </Box>
+    );
+  }
   return (
-    <Box>
-      <Typography sx={{ fontSize: '1rem', lineHeight: 1.7 }}>
-        {getTextContent(item.back)}
-      </Typography>
-      {mindmapData && (
-        <Typography variant="body2" sx={{ mt: 1, color: 'text.secondary' }}>
-          (Mindmap visualization coming soon)
-        </Typography>
-      )}
-    </Box>
+    <Typography sx={{ fontSize: '1rem', lineHeight: 1.7 }}>
+      {getTextContent(item.back)}
+    </Typography>
   );
 }
 

@@ -72,7 +72,7 @@ import { buildTutorContext, composeTutorContextString } from '../../utils/tutorC
 import JsonSchemaManager from '../../utils/json/JsonSchemaManager';
 import mindMapSchema, {mindMapSchema0} from '../../utils/json/mindmapSchema';
 import { convertToReactFlow, convertToReactFlow0 } from '../../../commons/utils/content/mindmapUtil';
-import MyMindMap from "../mindmap";
+import MindmapSurface from '../mindmap/MindmapSurface';
 import { StudyMode } from '../../../commons/model/DataTypes';
 import { instanceInRender as aiProviderManager } from '../../../commons/service/AIProviderManager';
 import skillApi from '../../api/skillApi';
@@ -1161,9 +1161,11 @@ function InContextChatPanel({ articleStr, curBook, selectedText = '', onRef }) {
                   {/* Mind Map rendering */}
                   {message.skillResult.skillName === 'mindmap' && message.skillResult.data && (
                     <Box sx={{ width: '100%', height: 220 }}>
-                      <MyMindMap
-                        keywordMap={message.skillResult.data.keywordMap}
-                        descriptionMap={message.skillResult.data.descriptionMap}
+                      <MindmapSurface
+                        data={message.skillResult.data.descriptionMap || message.skillResult.data.keywordMap}
+                        mode="inline"
+                        bookId={curBook?.id}
+                        readOnly
                       />
                     </Box>
                   )}
@@ -1216,9 +1218,10 @@ function InContextChatPanel({ articleStr, curBook, selectedText = '', onRef }) {
                 height: '260px',
               }}
             >
-              <MyMindMap
-                keywordMap={mindMapData}
-                descriptionMap={mindMapDataLarge}
+              <MindmapSurface
+                data={mindMapDataLarge || mindMapData}
+                mode="inline"
+                bookId={curBook?.id}
               />
             </CardContent>
           )}

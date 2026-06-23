@@ -80,7 +80,7 @@ import { mapToNewJsonSchema, createReaderLevelPrompt } from '../../../commons/ut
 import JsonSchemaManager from '../../utils/json/JsonSchemaManager';
 import mindMapSchema, {mindMapSchema0} from '../../utils/json/mindmapSchema';
 import { convertToReactFlow, convertToReactFlow0 } from '../../../commons/utils/content/mindmapUtil';
-import MyMindMap from '../../components/mindmap';
+import MindmapSurface from '../../components/mindmap/MindmapSurface';
 import { AIProvider, StudyMode } from '../../../commons/model/DataTypes';
 import { instanceInRender as aiProviderManager } from '../../../commons/service/AIProviderManager';
 import StringPicker from '../../components/Picker/StringPicker';
@@ -1347,10 +1347,7 @@ function ChatDetailPanel({ chatId }) {
                 boxShadow: `0 4px 20px ${alpha('#000', isDark ? 0.3 : 0.08)}`,
               }}
             >
-              <MyMindMap
-                keywordMap={mindMapData}
-                descriptionMap={mindMapDataLarge}
-              />
+              <MindmapSurface data={mindMapDataLarge || mindMapData} mode="inline" />
             </Box>
           </Fade>
         )}

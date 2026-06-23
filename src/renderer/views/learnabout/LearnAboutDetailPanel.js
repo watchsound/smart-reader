@@ -91,7 +91,7 @@ import parseMindmapToReactFlow, {
   convertToReactFlow0,
   removeStartEndSymbolLines,
 } from '../../../commons/utils/content/mindmapUtil';
-import MyMindMap from '../../components/mindmap';
+import MindmapSurface from '../../components/mindmap/MindmapSurface';
 import { AIProvider, StudyMode } from '../../../commons/model/DataTypes';
 import { instanceInRender as aiProviderManager } from '../../../commons/service/AIProviderManager';
 import StringPicker from '../../components/Picker/StringPicker';
@@ -1431,9 +1431,9 @@ function LearnAboutDetailPanel({ chatId }) {
                             </SectionHeader>
                           </Box>
                           <Box sx={{ height: 400, p: 1 }}>
-                            <MyMindMap
-                              keywordMap={jsonObj.keywordMap}
-                              descriptionMap={jsonObj.descriptionMap}
+                            <MindmapSurface
+                              data={jsonObj.descriptionMap || jsonObj.keywordMap}
+                              mode="expanded"
                             />
                           </Box>
                         </CardContent>

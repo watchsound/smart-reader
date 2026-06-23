@@ -3,7 +3,7 @@ import { CardContent, CardMedia } from '@mui/material';
 import { styled } from '@mui/material/styles';
 
 import { CardType } from '../../../commons/model/Note';
-import MyMindMap from '../mindmap';
+import MindmapSurface from '../mindmap/MindmapSurface';
 import CardContentPanel from '../cardsetting/CardContentPanel';
 import FlipCard from '../FlipCard';
 
@@ -72,9 +72,10 @@ function CardContentSwitcherNormal({
             miniHeight: useMiniHeight ?  cardHeight : undefined,
           }}
         >
-          <MyMindMap
-            keywordMap={data.keywordMap}
-            descriptionMap={data.descriptionMap}
+          <MindmapSurface
+            data={data.descriptionMap || data.keywordMap}
+            mode="card"
+            readOnly
           />
         </CardContent>
       );
@@ -91,9 +92,10 @@ function CardContentSwitcherNormal({
         >
           <FullImage src={imageCode} />
           <TextOverlayBottom>
-            <MyMindMap
-              keywordMap={data.keywordMap}
-              descriptionMap={data.descriptionMap}
+            <MindmapSurface
+              data={data.descriptionMap || data.keywordMap}
+              mode="card"
+              readOnly
             />
           </TextOverlayBottom>
         </Container>
