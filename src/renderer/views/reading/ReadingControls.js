@@ -1,5 +1,5 @@
 /* eslint-disable react/prop-types */
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTheme, alpha, styled } from '@mui/material/styles';
 import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
@@ -18,18 +18,21 @@ import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
 import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
-import ListIcon from '@mui/icons-material/List';
 import SearchIcon from '@mui/icons-material/Search';
 import SettingsIcon from '@mui/icons-material/Settings';
 import TextFieldsIcon from '@mui/icons-material/TextFields';
 import FormatLineSpacingIcon from '@mui/icons-material/FormatLineSpacing';
+import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 
-// Styled floating container
+// Styled floating container. Position is centered by default; the parent's
+// inline `style` adds the user's drag offset via an extra translate, so the
+// hover-translate from the previous design is dropped (it would fight the
+// drag offset). The drag handle is the only pointer-down target — clicking
+// any button inside the toolbar must not start a drag.
 const FloatingToolbar = styled(Box)(({ theme }) => ({
   position: 'absolute',
   bottom: 24,
   left: '50%',
-  transform: 'translateX(-50%)',
   display: 'flex',
   alignItems: 'center',
   gap: 4,
@@ -41,10 +44,25 @@ const FloatingToolbar = styled(Box)(({ theme }) => ({
     theme.palette.mode === 'dark'
       ? '0 4px 24px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.08)'
       : '0 4px 24px rgba(0,0,0,0.12), 0 0 0 1px rgba(29,28,29,0.08)',
-  transition: 'opacity 0.2s ease, transform 0.2s ease',
+  transition: 'opacity 0.2s ease',
   zIndex: 100,
+}));
+
+const DragHandle = styled(IconButton)(({ theme }) => ({
+  width: 24,
+  height: 36,
+  borderRadius: 6,
+  padding: 0,
+  marginRight: 2,
+  color: alpha(theme.palette.text.secondary, 0.6),
+  cursor: 'grab',
+  touchAction: 'none',
   '&:hover': {
-    transform: 'translateX(-50%) translateY(-2px)',
+    color: theme.palette.text.secondary,
+    backgroundColor: alpha(theme.palette.primary.main, 0.06),
+  },
+  '&:active': {
+    cursor: 'grabbing',
   },
 }));
 
@@ -85,7 +103,6 @@ function ReadingControls({
   page,
   onPrevPage,
   onNextPage,
-  onTocToggle,
   onSearch,
   onZoomIn,
   onZoomOut,
@@ -98,6 +115,51 @@ function ReadingControls({
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
   const [settingsAnchor, setSettingsAnchor] = useState(null);
+
+  // Drag state: relative offset applied on top of the centering translateX.
+  // pointerdown lives only on the drag handle so button clicks aren't
+  // hijacked. pointermove/up bind to window so the cursor can leave the
+  // handle mid-drag without losing the gesture.
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const dragStartRef = useRef(null);
+
+  const onDragMove = useCallback((e) => {
+    const s = dragStartRef.current;
+    if (!s) return;
+    setDragOffset({
+      x: s.initialX + (e.clientX - s.startX),
+      y: s.initialY + (e.clientY - s.startY),
+    });
+  }, []);
+
+  const onDragEnd = useCallback(() => {
+    dragStartRef.current = null;
+    window.removeEventListener('pointermove', onDragMove);
+    window.removeEventListener('pointerup', onDragEnd);
+  }, [onDragMove]);
+
+  const onDragStart = useCallback(
+    (e) => {
+      e.preventDefault();
+      dragStartRef.current = {
+        startX: e.clientX,
+        startY: e.clientY,
+        initialX: dragOffset.x,
+        initialY: dragOffset.y,
+      };
+      window.addEventListener('pointermove', onDragMove);
+      window.addEventListener('pointerup', onDragEnd);
+    },
+    [dragOffset.x, dragOffset.y, onDragMove, onDragEnd],
+  );
+
+  // Belt-and-braces: if the component unmounts mid-drag, drop the listeners.
+  useEffect(() => {
+    return () => {
+      window.removeEventListener('pointermove', onDragMove);
+      window.removeEventListener('pointerup', onDragEnd);
+    };
+  }, [onDragMove, onDragEnd]);
 
   const handleSettingsOpen = (event) => {
     setSettingsAnchor(event.currentTarget);
@@ -114,16 +176,25 @@ function ReadingControls({
   return (
     <>
       <FloatingToolbar
+        data-testid="reading-controls-toolbar"
+        style={{
+          // Centering translateX(-50%) + user drag offset, plus vertical drag.
+          transform: `translate(calc(-50% + ${dragOffset.x}px), ${dragOffset.y}px)`,
+        }}
         sx={{
           opacity: visible ? 1 : 0,
           pointerEvents: visible ? 'auto' : 'none',
         }}
       >
-        {/* Table of Contents */}
-        <Tooltip title="Table of Contents">
-          <ControlButton onClick={onTocToggle}>
-            <ListIcon sx={{ fontSize: 20 }} />
-          </ControlButton>
+        {/* Drag handle — only pointer target that starts a drag. */}
+        <Tooltip title="Drag to move">
+          <DragHandle
+            data-testid="reading-controls-drag-handle"
+            onPointerDown={onDragStart}
+            disableRipple
+          >
+            <DragIndicatorIcon sx={{ fontSize: 18 }} />
+          </DragHandle>
         </Tooltip>
 
         {/* Search */}

@@ -285,6 +285,7 @@ function BookNotesPanel({ sourceKey, width }) {
                   setOpenQuizModal(true);
                 }}
                 compactView
+                compactMenu
                 customAction={() => {}}
                 customActionName=""
                 cardWidth={width - 24}

@@ -72,10 +72,14 @@ import { recordEvent } from '../../api/brainApi';
 import './Reading.css';
 
 // ===== Main Container Styles =====
+// Root.jsx renders us inside a Box already sized to 'calc(100vh - 64px)'
+// (fixed AppBar + Toolbar spacer). Claiming '100vh' here would push the
+// bottom — and the absolutely-positioned ReadingControls toolbar inside
+// it — past the viewport. Fill the parent instead.
 const ReadingViewContainer = styled(Box)(({ theme }) => ({
   display: 'flex',
   flexDirection: 'column',
-  height: '100vh',
+  height: '100%',
   backgroundColor: theme.palette.background.default,
   position: 'relative',
   overflow: 'hidden',
@@ -257,19 +261,36 @@ function CustomTabPanel(props) {
   const { children, value, index, alwaysMount = false, ...other } = props;
   const isActive = value === index;
 
+  // Propagate `height: 100%` + flex column down the wrapper chain so the
+  // inner panels (BookNotesPanel et al.) — which use `flex:1 + overflowY:
+  // auto` for their own scroll regions — have a definite parent height
+  // to size against. Without this, the chain collapses to content height
+  // and the inner scroll never activates.
   return (
     <div
       role="tabpanel"
       hidden={!isActive}
       id={`simple-tabpanel-${index}`}
       aria-labelledby={`simple-tab-${index}`}
-      style={{ display: isActive ? 'block' : 'none' }}
+      style={{
+        display: isActive ? 'flex' : 'none',
+        flexDirection: 'column',
+        height: '100%',
+        minHeight: 0,
+      }}
       {...other}
     >
       {/* Always mount if alwaysMount is true, otherwise only when active */}
       {(isActive || alwaysMount) && (
-        <Box>
-          <Typography component="div">{children}</Typography>
+        <Box
+          sx={{
+            flex: 1,
+            minHeight: 0,
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          {children}
         </Box>
       )}
     </div>
@@ -817,6 +838,46 @@ function EReaderPage() {
   const { book, note } = useLoaderData();
   const dispatch = useDispatch();
 
+  // Reading-controls plumbing: capture the epub.js rendition so the
+  // floating toolbar's prev/next/zoom/font controls can actually drive it.
+  // Held in a ref so font-size useEffect doesn't re-render on every change.
+  const renditionRef = useRef(null);
+  const handleRenditionReady = useCallback((rendition) => {
+    renditionRef.current = rendition;
+  }, []);
+
+  const handlePrevPage = useCallback(() => {
+    renditionRef.current?.prev?.();
+  }, []);
+  const handleNextPage = useCallback(() => {
+    renditionRef.current?.next?.();
+  }, []);
+
+  const handleZoomIn = useCallback(() => {
+    setFontSize((v) => Math.min(150, (v || 100) + 10));
+  }, []);
+  const handleZoomOut = useCallback(() => {
+    setFontSize((v) => Math.max(75, (v || 100) - 10));
+  }, []);
+
+  // Apply font size to the EPUB rendition. epub.js' themes.fontSize takes
+  // any CSS length — '%' keeps proportional sizing in the reader's own theme.
+  useEffect(() => {
+    const r = renditionRef.current;
+    if (!r?.themes?.fontSize) return;
+    try {
+      r.themes.fontSize(`${fontSize || 100}%`);
+    } catch (_) {
+      /* rendition may have been torn down between event + effect */
+    }
+  }, [fontSize]);
+
+  const handleSearchClick = useCallback(() => {
+    // Switch the right panel to the Search tab; the user types into the
+    // search input there. Redux owns the actual search dispatch.
+    setTabValue(1);
+  }, []);
+
   // Handle selection changes from child views
   const handleSelectionChange = useCallback((text) => {
     setSelectedText(text || '');
@@ -1340,6 +1401,7 @@ function EReaderPage() {
           onParagraphAnchor={handleParagraphAnchor}
           onTocReady={handleTocReady}
           onMindMapResult={handleMindMapResult}
+          onRenditionReady={handleRenditionReady}
         />
       ) : (
         <ErrorBoundary fallback={<p>Something went wrong</p>}>
@@ -1362,6 +1424,11 @@ function EReaderPage() {
         onFullscreen={handleFullscreen}
         fontSize={fontSize}
         onFontSizeChange={setFontSize}
+        onPrevPage={handlePrevPage}
+        onNextPage={handleNextPage}
+        onZoomIn={handleZoomIn}
+        onZoomOut={handleZoomOut}
+        onSearch={handleSearchClick}
       />
 
       {/* Phase 4b: in-reading micro-card proposal chip (EPUB only). */}
@@ -1420,6 +1487,7 @@ function EReaderPage() {
           rightPanel={rightPanel}
           mainPanel={mainContent}
           rightPanelWidth="340"
+          heightAdjust="128px"
         />
       </ReadingContentWrapper>
 

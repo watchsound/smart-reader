@@ -73,8 +73,110 @@ import {
 import { classify } from '../../utils/srsHaloClassifier';
 import { analyzeParagraph } from '../../api/argumentXrayApi';
 import { classify as classifyXray } from '../../utils/argumentXrayClassifier';
+import { createSelectionCommitter } from './selectionCommitter';
+import { clampPopupPosition } from './popupClamp';
+import toast from 'react-hot-toast';
+
+// CreateAnnotationPanel width (matches the styled PanelContainer at 320px)
+// and the height the panel can reach in its expanded Quick Note state
+// (Quick Actions + Style + Color + Emoji + textarea section + Save ≈ 600).
+const POPUP_PANEL_WIDTH = 320;
+const POPUP_PANEL_MAX_HEIGHT = 600;
 
 const cardWidth = 360;
+
+// Load an image URL (blob: / file: / http:) into an <img>, draw it onto
+// a canvas resized to `targetWidth` preserving aspect ratio, and return
+// a PNG data URL. Returns null on load or canvas-readback failure.
+// Avoids fetch() so the CSP `connect-src * file:` (which doesn't include
+// blob:) isn't an issue — <img> goes through img-src instead.
+function imageUrlToResizedDataUrl(srcUrl, targetWidth) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const ratio = targetWidth / img.width;
+        const targetHeight = Math.round(img.height * ratio);
+        const canvas = document.createElement('canvas');
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+        canvas
+          .getContext('2d')
+          .drawImage(img, 0, 0, targetWidth, targetHeight);
+        resolve(canvas.toDataURL('image/png'));
+      } catch (_) {
+        // SecurityError if the canvas got tainted somehow.
+        resolve(null);
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = srcUrl;
+  });
+}
+
+// Fallback cover capture for EPUBs that lack a `cover-image` OPF manifest
+// entry: rasterize the first rendered page via html2canvas, validate it
+// isn't blank, resize to `targetWidth`, and return a PNG data URL.
+// Mediocre quality vs the real cover, but better than no cover at all.
+async function capturePageFallback(rendition, targetWidth) {
+  try {
+    // Initial settle: locationChanged fires when the iframe DOM is
+    // attached but CSS layout + image loading can still be in flight.
+    // Capturing too early gives a partial render that either fails the
+    // blank-page check or — worse — barely passes and saves a poor
+    // cover that sticks (gate prevents retry within the session).
+    await new Promise((resolve) => {
+      setTimeout(resolve, 1000);
+    });
+
+    const views = rendition.views?.();
+    const view = views?._views?.[0];
+    const iframe = view?.iframe || view?.element?.querySelector('iframe');
+    if (!iframe) return null;
+
+    const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!iframeDoc?.body) return null;
+
+    if (iframe.contentWindow) iframe.contentWindow.scrollTo(0, 0);
+    // Let the new scroll position settle before rasterizing.
+    await new Promise((resolve) => {
+      setTimeout(resolve, 300);
+    });
+
+    const canvas = await html2canvas(iframeDoc.body, {
+      useCORS: true,
+      allowTaint: true,
+      logging: false,
+      scale: 1,
+    });
+
+    if (canvas.width < 50 || canvas.height < 50) return null;
+
+    // Blank-page check: require at least 1% of pixels to be visibly non-
+    // white. The old threshold (any single sub-250 pixel) let pure-text
+    // anti-aliasing pass and saved blurry placeholder-looking captures.
+    const ctx = canvas.getContext('2d');
+    const { data: pixels } = ctx.getImageData(
+      0,
+      0,
+      canvas.width,
+      canvas.height,
+    );
+    let nonWhite = 0;
+    const totalPixels = pixels.length / 4;
+    for (let i = 0; i < pixels.length; i += 4) {
+      if (pixels[i] < 240 || pixels[i + 1] < 240 || pixels[i + 2] < 240) {
+        nonWhite += 1;
+      }
+    }
+    if (nonWhite / totalPixels < 0.01) return null;
+
+    return imageUrlToResizedDataUrl(canvas.toDataURL('image/png'), targetWidth);
+  } catch (err) {
+    console.log('EPubView: fallback capture failed:', err?.message || err);
+    return null;
+  }
+}
 
 // Phase 4b: extract visible paragraph-like text from the rendered view(s).
 // Called on each page change so the parent can feed the micro-card proposer.
@@ -134,6 +236,7 @@ function EPubView({
   onParagraphAnchor,
   onTocReady,
   onMindMapResult,
+  onRenditionReady,
 }) {
   const [selections, setSelections] = useState([]);
   const [rendition, setRendition] = useState(null);
@@ -272,8 +375,15 @@ function EPubView({
   // const [showImpressjs, setShowImpressjs] = useState(false);
   // const [renditionInitialized, setRenditionInitialized] = useState(false);
   const epubElement = useRef();
-  const mouseDownLoc = useRef();
-  const endSelection = useRef();
+  // Deferred-selection state machine. Mid-drag `selected` events only
+  // update `pending` here; the actual highlight + dialog work happens
+  // when the matching `mouseup` arrives. Fixes the bug where pausing
+  // during a drag-select would lock in a partial selection and orphan
+  // intermediate highlight annotations.
+  const selectionCommitterRef = useRef(null);
+  if (!selectionCommitterRef.current) {
+    selectionCommitterRef.current = createSelectionCommitter();
+  }
   // Phase 4b: pending page-text extraction timeout. Cancelled on every new
   // locationChanged so rapid page-flips don't fire a stale timeout that
   // would extract the NEW page's text but emit it labeled with the OLD
@@ -391,8 +501,9 @@ function EPubView({
 
       let markClassName = styles.mtype ? styles.mtype : 'underline';
       markClassName = capitalizeFirstLetter(markClassName);
-      if (markClassName === 'Highlight') markClassName = 'HighlightMark';
-      console.log(`markClassName = ${markClassName}`);
+      // The rendition is set up with `Highlightmark` (single capital) at
+      // ~L493; the translation here must match that exact casing.
+      if (markClassName === 'Highlight') markClassName = 'Highlightmark';
       const attributes = {
         stroke: 'black',
         'stroke-opacity': '0.3',
@@ -485,77 +596,94 @@ function EPubView({
     rendition.Highlightmark = Highlightmark;
   }
 
-  function setRenderSelection(cfiRange, contents) {
-    if (rendition) {
-      const selectedText = rendition.getRange(cfiRange).toString();
-      setSelections((list) =>
-        list.concat({
-          text: selectedText,
-          cfiRange,
-        }),
-      );
-      setCfiRange(cfiRange);
-      // Notify parent of selection change for skill quick actions
-      if (onSelectionChange) {
-        onSelectionChange(selectedText);
-      }
-      setImageData('');
-      endSelection.current = true;
-      rendition.annotations.add('highlight', cfiRange, {}, undefined, 'hl', {
-        fill: 'red',
-        'fill-opacity': '0.5',
-        'mix-blend-mode': 'multiply',
-      });
+  // Commits one finalized selection: adds the temporary red highlight,
+  // updates React state, clears the native browser selection, and opens
+  // the annotation dialog. Only ever called from the mouseup handler
+  // below after the committer says we actually have a selection worth
+  // acting on.
+  const commitSelection = (cfiRange, contents, mouseUpEvent) => {
+    if (!rendition) return;
+    const selectedText = rendition.getRange(cfiRange).toString();
+    setSelections((list) =>
+      list.concat({
+        text: selectedText,
+        cfiRange,
+      }),
+    );
+    setCfiRange(cfiRange);
+    if (onSelectionChange) {
+      onSelectionChange(selectedText);
+    }
+    setImageData('');
+    rendition.annotations.add('highlight', cfiRange, {}, undefined, 'hl', {
+      fill: 'red',
+      'fill-opacity': '0.5',
+      'mix-blend-mode': 'multiply',
+    });
+    const sel = contents?.window?.getSelection?.();
+    if (sel) sel.removeAllRanges();
 
-      const selection = contents.window.getSelection();
-      if (selection) selection.removeAllRanges();
-    }
-  }
+    setTimeout(() => {
+      const containerRect = epubElement.current?.getBoundingClientRect();
+      if (!containerRect) return;
+      // Clamp against viewport so selections near the bottom (or right)
+      // don't push the panel off-screen — and so the expanded Quick Note
+      // state stays visible. Computed against MAX panel size, not the
+      // current size, because the user may click expand after the popup
+      // opens and MUI Popover won't reposition automatically.
+      const popupLocClamped = clampPopupPosition({
+        desiredTop: mouseUpEvent.y + containerRect.y,
+        desiredLeft: mouseUpEvent.x + containerRect.x,
+        panelMaxHeight: POPUP_PANEL_MAX_HEIGHT,
+        panelWidth: POPUP_PANEL_WIDTH,
+        viewportHeight: window.innerHeight,
+        viewportWidth: window.innerWidth,
+      });
+      setPopupLoc(popupLocClamped);
+      setOpenDialog(true);
+    }, 500);
+  };
+
   useEffect(() => {
-    if (rendition) {
-      setupRendererCustomized(rendition);
-      rendition.on('markClicked', (e) => {
-        // return
-        console.log(`mark clicked ${e}`);
-        console.log(typeof e);
-        rendition.annotations.checkAnnotations((id, item) => {
-          if (item.cfiRange === e) {
-            console.log('found');
-            if (item.data && item.data.annotationsId) {
-              // from server
-              dispatch(communityNoteSelected(item.data.annotationsId));
-            }
+    if (!rendition) return undefined;
+    const committer = selectionCommitterRef.current;
+
+    setupRendererCustomized(rendition);
+
+    const onMarkClicked = (e) => {
+      rendition.annotations.checkAnnotations((id, item) => {
+        if (item.cfiRange === e) {
+          if (item.data && item.data.annotationsId) {
+            dispatch(communityNoteSelected(item.data.annotationsId));
           }
-        });
+        }
       });
-      rendition.on('mousedown', (e) => {
-        // return
-        mouseDownLoc.current = { x: e.x, y: e.y };
-      });
-      rendition.on('mouseup', (e) => {
-        // return
-        const loc = mouseDownLoc.current;
-        if (
-          !loc ||
-          (loc.x - e.x) * (loc.x - e.x) + (loc.y - e.y) * (loc.y - e.y) < 8
-        )
-          return;
-        setTimeout(function () {
-          if (!endSelection.current) return;
-          endSelection.current = false;
-          const containerRect = epubElement.current.getBoundingClientRect();
-          //  alert( containerRect )
-          setPopupLoc({
-            left: e.x + containerRect.x,
-            top: e.y + containerRect.y,
-          });
-          setOpenDialog(true);
-        }, 500);
-      });
-    }
-    if (rendition) rendition.on('selected', setRenderSelection);
+    };
+    const onMouseDown = (e) => {
+      committer.onMouseDown({ x: e.x, y: e.y });
+    };
+    const onMouseUp = (e) => {
+      // 8 = the original drag-distance threshold (squared px). Anything
+      // less and we treat the gesture as a click, not a drag-select.
+      const committed = committer.onMouseUp({ x: e.x, y: e.y }, 8);
+      if (committed) {
+        commitSelection(committed.cfiRange, committed.contents, e);
+      }
+    };
+    const onSelected = (cfiRange, contents) => {
+      committer.onSelected(cfiRange, contents);
+    };
+
+    rendition.on('markClicked', onMarkClicked);
+    rendition.on('mousedown', onMouseDown);
+    rendition.on('mouseup', onMouseUp);
+    rendition.on('selected', onSelected);
+
     return () => {
-      if (rendition) rendition.off('selected', setRenderSelection);
+      rendition.off('markClicked', onMarkClicked);
+      rendition.off('mousedown', onMouseDown);
+      rendition.off('mouseup', onMouseUp);
+      rendition.off('selected', onSelected);
     };
   }, [rendition]);
 
@@ -635,6 +763,15 @@ function EPubView({
         }}
         getRendition={(_rendition) => {
           setRendition(_rendition);
+          // Surface the rendition once so the parent (EReaderPage) can
+          // wire prev/next/fontSize controls. Called once per book load.
+          if (onRenditionReady) {
+            try {
+              onRenditionReady(_rendition);
+            } catch (_) {
+              /* ignore */
+            }
+          }
         }}
         showToc={showToc}
         epubOptions={{
@@ -790,8 +927,8 @@ function EPubView({
     type,
     color,
     emoji,
+    quickNoteText,
   ) => {
-    console.log(`type = ${type}`);
     rendition.annotations.remove(cfiRange, 'highlight');
 
     if (selectionType === SelectionType.Cancel) {
@@ -857,23 +994,57 @@ function EPubView({
     if (selectionType === SelectionType.ArgumentXray) {
       setOpenDialog(false);
       const text = rendition.getRange(cfiRange).toString() || '';
-      if (text.length > 20 && animations.isReady && animations.applySrsHalo) {
-        (async () => {
-          try {
-            const token = customStorage.getToken();
-            const analysis = await analyzeParagraph(text, token);
-            if (analysis?.error) {
-              console.warn('[ArgumentXray]', analysis.error);
-              return;
-            }
-            const items = classifyXray(analysis);
-            if (items.length === 0) return;
-            await animations.applySrsHalo(items);
-          } catch (err) {
-            console.warn('[ArgumentXray] failed:', err?.message || err);
-          }
-        })();
+      // Every failure path here surfaces a toast so the user knows the
+      // click was received and what happened. Pre-fix this branch had
+      // five silent returns — users had no idea why nothing rendered.
+      if (text.length <= 20) {
+        toast.error(
+          'Select a longer passage (20+ characters) for argument analysis.',
+        );
+        return;
       }
+      if (!animations.isReady || !animations.applySrsHalo) {
+        toast.error('Reader is still initializing — try again in a moment.');
+        return;
+      }
+      const xrayToastId = 'argument-xray';
+      toast.loading('Analyzing argument structure…', { id: xrayToastId });
+      (async () => {
+        try {
+          const token = customStorage.getToken();
+          const analysis = await analyzeParagraph(text, token);
+          if (analysis?.error) {
+            console.warn('[ArgumentXray]', analysis.error);
+            toast.error(`Argument analysis failed: ${analysis.error}`, {
+              id: xrayToastId,
+            });
+            return;
+          }
+          const items = classifyXray(analysis);
+          if (items.length === 0) {
+            toast(
+              'No clear claims or evidence found in this passage.',
+              { id: xrayToastId, icon: 'ℹ️' },
+            );
+            return;
+          }
+          await animations.applySrsHalo(items);
+          const claimCount = items.filter((i) => i.state === 'claim').length;
+          const evidenceCount = items.filter(
+            (i) => i.state === 'evidence',
+          ).length;
+          toast.success(
+            `Highlighted ${claimCount} claim · ${evidenceCount} evidence`,
+            { id: xrayToastId },
+          );
+        } catch (err) {
+          console.warn('[ArgumentXray] failed:', err?.message || err);
+          toast.error(
+            `Argument analysis failed: ${err?.message || 'unknown error'}`,
+            { id: xrayToastId },
+          );
+        }
+      })();
       return;
     }
 
@@ -1009,45 +1180,59 @@ function EPubView({
       return;
     }
 
-    const aType = type === 'highlight' ? 'highlight' : 'underline';
-    const className = type === 'highlight' ? 'hl' : 'ul';
-    const style =
+    // Route every annotation type — highlight included — through the
+    // custom `View.prototype.underline` override (mtype = mark subclass).
+    // The default epub.js 'highlight' path doesn't consume `data.emoji`,
+    // so highlights silently lost their emoji before this change.
+    const mtype = type === 'highlight' ? 'Highlight' : type;
+    const colorStyle =
       type === 'highlight'
         ? { fill: color, 'fill-opacity': '0.5', 'mix-blend-mode': 'multiply' }
-        : { mtype: type, stroke: color };
+        : { stroke: color };
+    const className = type === 'highlight' ? 'hl' : 'ul';
     rendition.annotations.add(
-      aType,
+      'underline',
       cfiRange,
       { emoji },
-      undefined, // (e) =>{ console.log("highlight clicked", e.target); },
+      undefined,
       className,
-      style,
+      { mtype, ...colorStyle },
     );
-    // text: rendition.getRange(cfiRange).toString(),
     const highlightText = rendition.getRange(cfiRange).toString() || '';
+    // QuickNote attaches the user's typed text to the note's html field
+    // and flips `highlightOnly` off — the note is a real note, not just
+    // a highlight marker. Plain highlight saves leave html empty.
+    const isQuickNote =
+      selectionType === SelectionType.QuickNote &&
+      typeof quickNoteText === 'string' &&
+      quickNoteText.length > 0;
     const newNote = {
       sourceKey: book.id,
       title: '',
       cards: [
         {
           text: highlightText,
-          html: '',
+          html: isQuickNote ? quickNoteText : '',
         },
       ],
       chapter: '',
       chapterIndex: -1,
-      cfi: cfiRange, // cfi
-      range: '', // range
-      percentage: 0, /// percentage
-      sourceType: 'book', // type
-      color, // color
+      cfi: cfiRange,
+      range: '',
+      percentage: 0,
+      sourceType: 'book',
+      color,
       tags: [],
       rate: 0,
-      hasQuiz: false, // bug, if create quiz failed?
+      hasQuiz: false,
       position: [],
       emoji,
-      highlightOnly: true,
-      highlightType: aType,
+      highlightOnly: !isQuickNote,
+      // Persist the specific style (highlight/underline/strikeline/dashline)
+      // so reload via note2rendition can pick the right Mark subclass.
+      // Before this, `highlightType` collapsed to just 'highlight'/'underline'
+      // and strike/dash distinction was lost across reopens.
+      highlightType: type,
     };
 
     await CreateNote(newNote);
@@ -1059,7 +1244,7 @@ function EPubView({
         bookId: book.id,
         bookTitle: book.title || book.name,
         highlightText: highlightText.substring(0, 200),
-        highlightType: aType,
+        highlightType: type,
         color,
         chapter: page.curChapter,
         cfi: cfiRange,
@@ -1079,129 +1264,59 @@ function EPubView({
   // Track if we've already attempted cover capture for this book
   const coverCaptureAttempted = useRef(false);
 
-  // create book cover image - capture from the epub rendition's iframe
-  const handlePageChange = (pageNumber) => {
-    // Only attempt capture once per book session, and only if book has no cover
+  // Extract a real cover image from the EPUB's OPF manifest and persist it.
+  //
+  // Previous version did an html2canvas screen-grab of the first rendered
+  // page, which for most EPUBs is a near-blank title page — the capture
+  // came out as a blurry placeholder-looking image.
+  //
+  // epub.js's Book.coverUrl() resolves to the actual cover bundled in
+  // the EPUB (cover-image item in the OPF manifest). When it's available
+  // the cover is high-quality; when it's not (no cover-image entry), we
+  // leave book.cover empty and the bookshelf's GeneratedBookCover fills in.
+  const handlePageChange = async () => {
     if (coverCaptureAttempted.current) return;
     if (!book || book.cover) return;
-    if (!rendition) return;
+    if (!rendition?.book) return;
 
-    // Mark as attempted to prevent multiple captures
     coverCaptureAttempted.current = true;
 
-    // Get the iframe from the rendition's views
-    // epub.js stores views in rendition.views()._views array
-    const views = rendition.views();
-    if (!views || !views._views || views._views.length === 0) {
-      coverCaptureAttempted.current = false; // Allow retry
-      return;
-    }
+    try {
+      await rendition.book.ready;
+      const coverUrl = await rendition.book.coverUrl();
 
-    const view = views._views[0];
-    const iframe = view?.iframe || view?.element?.querySelector('iframe');
-    if (!iframe) {
-      coverCaptureAttempted.current = false;
-      return;
-    }
-
-    // Wait for content to fully render (longer timeout for reliability)
-    setTimeout(() => {
-      try {
-        // Try to access iframe content
-        const iframeDoc =
-          iframe.contentDocument || iframe.contentWindow?.document;
-        if (!iframeDoc || !iframeDoc.body) {
-          console.log(
-            'EPubView: Cannot access iframe content for cover capture',
-          );
-          return;
-        }
-
-        // Scroll to top to capture the beginning of the content
-        if (iframe.contentWindow) {
-          iframe.contentWindow.scrollTo(0, 0);
-        }
-
-        // Additional delay after scroll for rendering
-        setTimeout(() => {
-          html2canvas(iframeDoc.body, {
-            useCORS: true,
-            allowTaint: true,
-            logging: false,
-            scale: 1, // Lower scale for performance
-          })
-            .then((canvas) => {
-              // Validate the captured canvas has actual content
-              const ctx = canvas.getContext('2d');
-              const imageData = ctx.getImageData(
-                0,
-                0,
-                canvas.width,
-                canvas.height,
-              );
-              const pixels = imageData.data;
-
-              // Check if image is not blank (has non-white pixels)
-              let hasContent = false;
-              for (let i = 0; i < pixels.length; i += 4) {
-                // Check if pixel is not white/transparent
-                if (
-                  pixels[i] < 250 ||
-                  pixels[i + 1] < 250 ||
-                  pixels[i + 2] < 250
-                ) {
-                  hasContent = true;
-                  break;
-                }
-              }
-
-              if (!hasContent || canvas.width < 50 || canvas.height < 50) {
-                console.log(
-                  'EPubView: Captured image appears blank or too small',
-                );
-                return;
-              }
-
-              const originalDataURL = canvas.toDataURL('image/png');
-              const imageObj = new Image();
-              imageObj.onload = async function () {
-                // Create a new canvas with the desired card dimensions
-                const ratio = cardWidth / imageObj.width;
-                const cardHeight = imageObj.height * ratio;
-                const newCanvas = document.createElement('canvas');
-                newCanvas.width = cardWidth;
-                newCanvas.height = cardHeight;
-
-                const newCtx = newCanvas.getContext('2d');
-                newCtx.drawImage(imageObj, 0, 0, cardWidth, cardHeight);
-
-                const dataUrl = newCanvas.toDataURL('image/png');
-                const r = await createImage(dataUrl);
-                const imageId = r.id;
-
-                if (imageId && imageId !== -1) {
-                  updateBook({
-                    id: book.id,
-                    field: 'cover',
-                    value: imageId,
-                  });
-                  setBook({ ...book, cover: imageId });
-                  console.log('EPubView: Cover image captured successfully');
-                }
-              };
-              imageObj.onerror = () => {
-                console.log('EPubView: Failed to load captured image');
-              };
-              imageObj.src = originalDataURL;
-            })
-            .catch((e) => {
-              console.log('EPubView: html2canvas failed:', e.message);
-            });
-        }, 300); // Additional delay after scroll
-      } catch (e) {
-        console.log('EPubView: Cover capture error:', e.message);
+      // Primary path: load the real EPUB cover (from the OPF manifest)
+      // via <img>/canvas. Direct fetch(blobUrl) is blocked by this app's
+      // CSP (`connect-src * file:` does not include `blob:`); <img> goes
+      // through img-src which is permissive, and the canvas readback
+      // works because epub.js's blob URLs are same-origin.
+      let resizedDataUrl = null;
+      if (coverUrl) {
+        resizedDataUrl = await imageUrlToResizedDataUrl(coverUrl, cardWidth);
       }
-    }, 1000); // Initial delay for content rendering
+
+      // Fallback: rasterize the first rendered page via html2canvas. Used
+      // when the EPUB has no `cover-image` manifest entry (common for
+      // Project Gutenberg titles). Quality is mediocre but the user gets
+      // *something* persisted; they can swap it via the bookshelf
+      // Change/Remove Cover menu.
+      if (!resizedDataUrl) {
+        resizedDataUrl = await capturePageFallback(rendition, cardWidth);
+      }
+
+      if (!resizedDataUrl) return;
+
+      const r = await createImage(resizedDataUrl);
+      const imageId = r?.id;
+      if (imageId && imageId !== -1) {
+        await updateBook({ id: book.id, field: 'cover', value: imageId });
+        setBook({ ...book, cover: imageId });
+      }
+    } catch (err) {
+      console.log('EPubView: Cover extraction failed:', err?.message || err);
+      // Allow retry on next page change if the failure was transient.
+      coverCaptureAttempted.current = false;
+    }
   };
 
   // this is the entry point

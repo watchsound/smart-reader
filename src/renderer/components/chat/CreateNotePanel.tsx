@@ -740,7 +740,7 @@ function CreateNotePanel({
             <ImagePreview elevation={0}>
               <CardMedia
                 component="img"
-                height="160"
+                height="100"
                 image={effectiveImage}
                 sx={{ objectFit: 'cover' }}
               />

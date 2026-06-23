@@ -182,7 +182,10 @@ class EPUBAdapter {
     // Re-setup for new page content
     setTimeout(() => {
       this._setupDocument();
-      if (this.currentDocument && this.animationCore) {
+      // Guard against the resize race: iframe.contentDocument can be truthy
+      // mid-rebuild while body is still null. Setting container = null
+      // would poison animationCore until the next 'rendered' event fires.
+      if (this.currentDocument && this.currentDocument.body && this.animationCore) {
         this.animationCore.options.container = this.currentDocument.body;
         this._injectStyles();
       }
@@ -195,7 +198,7 @@ class EPUBAdapter {
    */
   _handleContentsLoaded(section, view) {
     this._setupDocument();
-    if (this.currentDocument && this.animationCore) {
+    if (this.currentDocument && this.currentDocument.body && this.animationCore) {
       this.animationCore.options.container = this.currentDocument.body;
       this._injectStyles();
     }
@@ -212,6 +215,12 @@ class EPUBAdapter {
    */
   _injectStyles() {
     if (!this.currentDocument) return;
+
+    // On resize, epub.js rebuilds its iframe and fires 'rendered' /
+    // 'locationChanged' mid-rebuild — `contentDocument` exists but its
+    // <head> isn't attached yet. Bail; the next 'rendered' event after
+    // rebuild completion will re-inject.
+    if (!this.currentDocument.head) return;
 
     // Check if styles already exist
     if (this.currentDocument.getElementById('epub-ac-styles')) return;

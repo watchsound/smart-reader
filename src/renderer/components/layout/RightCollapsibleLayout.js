@@ -40,10 +40,13 @@ function RightCollapsibleLayout({ mainPanel, rightPanel, heightAdjust, rightPane
    // width:  open ? `calc(100% -${rightPanelWidth}px)` : '100%',
   };
 
+  // When closed, leave 24px (button thickness post-rotation) so the rotated
+  // body lands inside the container's right edge — otherwise overflow:hidden
+  // on the ancestor wrapper clips the only handle for reopening the panel.
   const toggleButtonStyle = {
     position: 'absolute',
     top: '70%',
-    right:  open ? `${rightPanelWidth}px` : '0',
+    right:  open ? `${rightPanelWidth}px` : '24px',
     transform: 'translateY(-50%) rotate(-90deg)',
     transformOrigin: 'right top',
     backgroundColor: '#ECF0F1FF',

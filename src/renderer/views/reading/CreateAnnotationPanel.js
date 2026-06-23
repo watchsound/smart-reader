@@ -6,6 +6,7 @@ import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import Collapse from '@mui/material/Collapse';
+import TextField from '@mui/material/TextField';
 
 // Icons
 import EditNoteIcon from '@mui/icons-material/EditNote';
@@ -28,6 +29,9 @@ import EmojiList from '../../components/emoji/EmojiList';
 
 export const SelectionType = Object.freeze({
   Note: 'note',
+  // Inline note created via the expand-in-place flow: saved alongside the
+  // highlight without opening CreateNoteModal. Carries only the typed text.
+  QuickNote: 'quick-note',
   Image: 'image',
   Highlight: 'highlight',
   Presentation: 'presentation',
@@ -38,8 +42,11 @@ export const SelectionType = Object.freeze({
 });
 
 // Professional styled container
+// 320 fits the 6-icon Quick Actions row (6×40 + 5×8 gap = 280, plus
+// 14×2 Section padding = 308). The previous 280 left the rightmost
+// Argument X-ray icon clipped against the panel edge.
 const PanelContainer = styled(Box)(({ theme }) => ({
-  width: 280,
+  width: 320,
   borderRadius: 12,
   backgroundColor: theme.palette.background.paper,
   boxShadow: theme.palette.mode === 'dark'
@@ -180,6 +187,12 @@ function CreateAnnotationPanel({
   const [selectedColor, setSelectedColor] = useState(HIGHLIGHT_COLORS[0]);
   const [selectedEmoji, setSelectedEmoji] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
+  // Quick Note expand-in-place state. When `noteExpanded` is true the
+  // panel grows downward with a textarea; saving with non-empty text
+  // dispatches SelectionType.QuickNote (annotation + inline note, no
+  // modal). When false the save button behaves as plain "Save Highlight".
+  const [noteExpanded, setNoteExpanded] = useState(false);
+  const [noteText, setNoteText] = useState('');
 
   const handleStyleSelect = (style) => {
     setSelectedStyle(style);
@@ -197,8 +210,32 @@ function CreateAnnotationPanel({
     setEmoji(emojiChar);
   };
 
-  const handleClose = (selectionType) => {
-    handleWindowClose(selectionType, selectedStyle, selectedColor, selectedEmoji);
+  const handleClose = (selectionType, extraText) => {
+    handleWindowClose(
+      selectionType,
+      selectedStyle,
+      selectedColor,
+      selectedEmoji,
+      extraText,
+    );
+  };
+
+  // Note quick-action: toggle the expanded textarea instead of immediately
+  // opening the modal. The "Open full editor →" link inside the expanded
+  // section provides the modal escape hatch.
+  const handleNoteIconClick = () => {
+    setNoteExpanded((v) => !v);
+  };
+
+  // Save button: dispatches QuickNote when the panel is expanded and the
+  // user has typed something; otherwise behaves as Save Highlight.
+  const handleSaveClick = () => {
+    const text = noteText.trim();
+    if (noteExpanded && text) {
+      handleClose(SelectionType.QuickNote, text);
+    } else {
+      handleClose(SelectionType.Highlight);
+    }
   };
 
   const styles = [
@@ -225,8 +262,12 @@ function CreateAnnotationPanel({
 
         {/* Primary Actions */}
         <Box sx={{ display: 'flex', gap: 1, mb: 1.5 }}>
-          <Tooltip title="Create Note">
-            <QuickAction actioncolor="#2196F3" onClick={() => handleClose(SelectionType.Note)}>
+          <Tooltip title={noteExpanded ? 'Hide note' : 'Add a note'}>
+            <QuickAction
+              data-testid="quick-note-toggle"
+              actioncolor="#2196F3"
+              onClick={handleNoteIconClick}
+            >
               <EditNoteIcon sx={{ fontSize: 20 }} />
             </QuickAction>
           </Tooltip>
@@ -269,6 +310,53 @@ function CreateAnnotationPanel({
         </Box>
       </Section>
 
+      {/* Quick Note Section — placed directly under the Quick Actions row
+          so the textarea appears right next to the Note icon click target.
+          Collapsed by default; expanded when the user clicks the Note
+          quick-action. Save Highlight commits both. */}
+      <Collapse in={noteExpanded} unmountOnExit>
+        <Section>
+          <SectionLabel>Your note</SectionLabel>
+          <TextField
+            data-testid="quick-note-textarea"
+            multiline
+            minRows={3}
+            fullWidth
+            value={noteText}
+            onChange={(e) => setNoteText(e.target.value)}
+            placeholder="Add a note (optional)"
+            inputProps={{ 'aria-label': 'Add a note (optional)' }}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                fontSize: '0.85rem',
+              },
+            }}
+          />
+          <Box sx={{ textAlign: 'right', mt: 0.75 }}>
+            <Box
+              component="button"
+              type="button"
+              data-testid="quick-note-full-editor"
+              onClick={() => handleClose(SelectionType.Note)}
+              sx={{
+                background: 'transparent',
+                border: 'none',
+                padding: 0,
+                cursor: 'pointer',
+                fontSize: '0.75rem',
+                color: theme.palette.text.secondary,
+                '&:hover': {
+                  color: theme.palette.primary.main,
+                  textDecoration: 'underline',
+                },
+              }}
+            >
+              Open full editor →
+            </Box>
+          </Box>
+        </Section>
+      </Collapse>
+
       {/* Highlight Style Section */}
       <Section>
         <SectionLabel>Style</SectionLabel>
@@ -276,6 +364,7 @@ function CreateAnnotationPanel({
           {styles.map((style) => (
             <Tooltip key={style.id} title={style.label}>
               <StyleButton
+                data-testid={`style-${style.id}`}
                 selected={selectedStyle === style.id}
                 onClick={() => handleStyleSelect(style.id)}
               >
@@ -325,16 +414,22 @@ function CreateAnnotationPanel({
         </Box>
       </Section>
 
-      {/* Save Highlight Button */}
+      {/* Save Button — label tracks the currently selected style so the
+          user knows whether they're saving a highlight, underline, etc.
+          When the Quick Note section is expanded with text typed, the
+          label reads "+ Note" to signal the inline save will include it. */}
       <Section sx={{ pt: 1 }}>
         <ActionButton
+          data-testid="save-annotation"
           variant="primary"
-          onClick={() => handleClose(SelectionType.Highlight)}
+          onClick={handleSaveClick}
           sx={{ width: '100%', justifyContent: 'center' }}
         >
           <CheckIcon sx={{ fontSize: 18 }} />
           <Typography variant="body2" sx={{ fontWeight: 600 }}>
-            Save Highlight
+            Save{' '}
+            {styles.find((s) => s.id === selectedStyle)?.label || 'Highlight'}
+            {noteExpanded && noteText.trim() ? ' + Note' : ''}
           </Typography>
         </ActionButton>
       </Section>

@@ -29,32 +29,58 @@ export function useEPUBAnimations(rendition) {
   const [isReady, setIsReady] = useState(false);
   const [activeEffects, setActiveEffects] = useState([]);
 
-  // Initialize adapter when rendition changes
+  // Initialize adapter when rendition changes.
+  //
+  // adapter.initialize() can return false when the iframe views aren't
+  // attached yet (slow load, large EPUB, cold cache). The hook used to
+  // give up after a single 500ms attempt — leaving `isReady` false
+  // forever and silently blocking features like Argument X-ray. Now
+  // we retry every 500ms up to ~5s before giving up.
   useEffect(() => {
     if (!rendition) {
       setIsReady(false);
-      return;
+      return undefined;
     }
+
+    let cancelled = false;
+    let timeoutId = null;
+    const MAX_ATTEMPTS = 10; // 10 × 500ms = 5s total
+    let attempts = 0;
+
+    const tryInit = async () => {
+      if (cancelled || !adapterRef.current) return;
+      attempts += 1;
+      const success = await adapterRef.current.initialize();
+      if (cancelled) return;
+      if (success) {
+        setIsReady(true);
+        return;
+      }
+      if (attempts < MAX_ATTEMPTS) {
+        timeoutId = setTimeout(tryInit, 500);
+      } else {
+        console.warn(
+          `useEPUBAnimations: adapter still not ready after ${attempts} attempts`,
+        );
+      }
+    };
 
     const initAdapter = async () => {
       // Clean up previous adapter if exists
       if (adapterRef.current) {
         await adapterRef.current.destroy();
       }
+      if (cancelled) return;
 
-      // Create new adapter
       adapterRef.current = new EPUBAdapter(rendition);
-
-      // Wait a bit for rendition to be fully ready
-      setTimeout(async () => {
-        const success = await adapterRef.current.initialize();
-        setIsReady(success);
-      }, 500);
+      timeoutId = setTimeout(tryInit, 500);
     };
 
     initAdapter();
 
     return () => {
+      cancelled = true;
+      if (timeoutId) clearTimeout(timeoutId);
       if (adapterRef.current) {
         adapterRef.current.destroy();
         adapterRef.current = null;

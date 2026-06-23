@@ -1,26 +1,27 @@
 import * as React from 'react';
-import { useState } from 'react';
 
 import Popover from '@mui/material/Popover';
 
 import CreateAnnotationPanel from './CreateAnnotationPanel';
+
 /**
- * onOpen and onConfirm is for react-pdf-highlighter
- * @param {*} param0
- * @returns
+ * Popover wrapper around CreateAnnotationPanel. The panel owns its own
+ * style/color/emoji state and invokes `handleWindowClose` directly with
+ * its own selection — this wrapper doesn't need to mirror that state.
  */
-function CreateAnnotationDialog({ handleWindowClose, popupLoc, open, showImageOption, showPresentOption }) {
-  const [markColor, setMarkColor] = useState('primary');
-  const [markType, setMarkType] = useState('underline');
-  const [emoji, setEmoji] = useState('');
-
-  const handleClose = (useNote) => {
-    handleWindowClose(useNote, markType, markColor, emoji, false);
-  };
-
+function CreateAnnotationDialog({
+  handleWindowClose,
+  popupLoc,
+  open,
+  showImageOption,
+  showPresentOption,
+}) {
+  // No-op stubs satisfy the panel's prop expectations without resurrecting
+  // the dead mirrored state the wrapper used to hold.
+  const noop = () => {};
   return (
     <Popover
-      onClose={() => handleClose(undefined)}
+      onClose={() => handleWindowClose(undefined)}
       open={open}
       anchorReference="anchorPosition"
       anchorPosition={popupLoc}
@@ -37,9 +38,9 @@ function CreateAnnotationDialog({ handleWindowClose, popupLoc, open, showImageOp
         handleWindowClose={handleWindowClose}
         showImageOption={showImageOption}
         showPresentOption={showPresentOption}
-        setMarkColor={setMarkColor}
-        setMarkType={setMarkType}
-        setEmoji={setEmoji}
+        setMarkColor={noop}
+        setMarkType={noop}
+        setEmoji={noop}
       />
     </Popover>
   );
