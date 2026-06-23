@@ -17,7 +17,7 @@ class Book {
     charset,
     createdAt,
     favorite,
-    bookShelfId,
+    bookshelfId,
   ) {
     this.id = id;
     this.keyInStorage = keyInStorage;
@@ -35,7 +35,7 @@ class Book {
     this.charset = charset;
     this.createdAt = createdAt;
     this.favorite = !!favorite;
-    this.bookShelfId = bookShelfId || -1;
+    this.bookshelfId = typeof bookshelfId === 'undefined' ? -1 : bookshelfId;
   }
 }
 

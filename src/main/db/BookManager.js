@@ -164,7 +164,7 @@ export const createBook = (book, token) => {
     const size = book.size || '';
     const path = book.path || '';
     const charset = book.charset || '';
-    const favorite = book.favorite || 0;
+    const favorite = book.favorite ? 1 : 0;
     const bookshelfId = typeof book.bookshelfId === 'undefined' ? -1 : book.bookshelfId;
     const createdAt = book.createdAt || '';
 

@@ -28,9 +28,7 @@ class BookUtil {
       window.electron.ipcRenderer.invoke('open-book', {
         url: `${window.location.href.split('#')[0]}#/${ref}/${book.id}?title=${book.name}`,
         isMergeWord:
-          book.format === 'PDF' || book.format === 'DJVU'
-            ? 'no'
-            : isMergeWord,
+          ref === 'pdf' || ref === 'djvu' ? 'no' : isMergeWord,
         isFullscreen,
         isPreventSleep,
       });

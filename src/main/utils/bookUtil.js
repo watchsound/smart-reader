@@ -28,6 +28,42 @@ import BookModel from '../../commons/model/Book';
 import { createImage } from '../db/ImageManager';
 
 /**
+ * Server-download metadata fields (author, publisher) arrive in whatever
+ * shape the configured server's /download/:id endpoint chooses to send.
+ * Historically the code assumed `[{name: 'X'}]` and silently dropped any
+ * other shape — strings, plain object, array-of-strings — into '' because
+ * `'X'.length > 0 → true` but `'X'[0].name` is undefined.
+ *
+ * Returns the first usable name string, or '' if none found.
+ */
+export const normalizeMetadataField = (value) => {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) {
+    if (value.length === 0) return '';
+    const first = value[0];
+    if (typeof first === 'string') return first;
+    if (first && typeof first === 'object' && typeof first.name === 'string') {
+      return first.name;
+    }
+    return '';
+  }
+  if (typeof value === 'object' && typeof value.name === 'string') {
+    return value.name;
+  }
+  return '';
+};
+
+/**
+ * Plain text field (description, name, …) at the server boundary. Returns
+ * the value if it's a string, '' otherwise. Same crash class as `favorite`
+ * leaking a boolean — better-sqlite3 rejects objects, so any non-string
+ * silently corrupting one of these fields would fail at INSERT time.
+ */
+export const coerceStringField = (value) =>
+  typeof value === 'string' ? value : '';
+
+/**
  * // Example usage:
 FileHasher.createMD5('example.txt')
   .then((hash) => {
@@ -310,20 +346,27 @@ class BookUtil {
         if (!fs.existsSync(path.join(dataPath, 'book'))) {
           fs.mkdirSync(path.join(dataPath, 'book'), { recursive: true });
         }
-        const outPath = path.join(
+        let outPath = path.join(
           dataPath,
           `book`,
           `${keyInStorage}.${extension}`,
         );
         // fs.mkdirSync(path.dirname(outPath), { recursive: true });
-        const data = fs.readFileSync(filePath);
+        let data = fs.readFileSync(filePath);
         fs.writeFileSync(outPath, data);
         console.log(`File saved successfully! ${outPath}`);
 
-        // convert doc to pdf
+        // convert doc to pdf/epub — must await so the post-conversion path
+        // and buffer are used by createBookModel below. Without await, ext
+        // is a Promise, extension becomes a Promise object, and the book
+        // is stored as docx with an orphaned converted file on disk.
         if (extension.startsWith('doc')) {
-          const ext = this.handleDocFile(outPath, dataPath, keyInStorage);
-          if (ext) extension = ext;
+          const ext = await this.handleDocFile(outPath, dataPath, keyInStorage);
+          if (ext) {
+            extension = ext;
+            outPath = path.join(dataPath, `book`, `${keyInStorage}.${extension}`);
+            data = fs.readFileSync(outPath);
+          }
         }
         // unzip file
         let cover = '';
@@ -400,9 +443,9 @@ class BookUtil {
       // console.log('Headers:', response.headers);
       // console.log('Data:', response.data);
       // console.log('Data:', JSON.stringify(response.data));
-      let extension = book.filePath.substring(
-        book.filePath.lastIndexOf('.') + 1,
-      );
+      let extension = book.filePath
+        .substring(book.filePath.lastIndexOf('.') + 1)
+        .toLocaleLowerCase();
 
       const keyInStorage = uuid();
       let dataPath = await global.shared.store.get('storageLocation');
@@ -411,7 +454,7 @@ class BookUtil {
         fs.mkdirSync(path.join(dataPath, 'book'), { recursive: true });
       }
 
-      const outPath = path.join(
+      let outPath = path.join(
         dataPath,
         `book`,
         `${keyInStorage}.${extension}`,
@@ -420,10 +463,13 @@ class BookUtil {
       fs.writeFileSync(outPath, response.data);
       console.log(`File saved successfully! ${outPath}`);
 
-      // convert doc to pdf
+      // convert doc to pdf/epub — must await; see importBookFromFile comment.
       if (extension.startsWith('doc')) {
-        const ext = this.handleDocFile(outPath, dataPath, keyInStorage);
-        if (ext) extension = ext;
+        const ext = await this.handleDocFile(outPath, dataPath, keyInStorage);
+        if (ext) {
+          extension = ext;
+          outPath = path.join(dataPath, `book`, `${keyInStorage}.${extension}`);
+        }
       }
 
       if (extension === 'r9') {
@@ -466,17 +512,13 @@ class BookUtil {
         id: -1,
         keyInStorage,
         idFromServer: book.id,
-        name: book.name,
+        name: coerceStringField(book.name),
         subtitle: '',
-        author:
-          book.author && book.author.length > 0 ? book.author[0].name : '',
-        description: book.description,
+        author: normalizeMetadataField(book.author),
+        description: coerceStringField(book.description),
         cover,
         format: extension,
-        publisher:
-          book.publishers && book.publishers.length > 0
-            ? book.publishers[0].name
-            : '',
+        publisher: normalizeMetadataField(book.publishers),
         category: '',
         size,
         path: outPath,
@@ -508,9 +550,13 @@ class BookUtil {
   static async createBookModel(keyInStorage, filePath, outPath, data) {
     const md5 = await BookUtil.createMD5(outPath);
     const fileName = path.basename(filePath);
-    const extension = fileName.split('.').reverse()[0].toLocaleLowerCase();
-    const bookName = fileName.substr(0, fileName.length - extension.length - 1);
-    const fileSize = BookUtil.getFileSize(filePath);
+    const sourceExt = fileName.split('.').reverse()[0].toLocaleLowerCase();
+    const bookName = fileName.substr(0, fileName.length - sourceExt.length - 1);
+    // Derive the canonical format from the saved file's path, not the source
+    // filename — handles doc→pdf/epub conversion where filePath has the
+    // source extension but outPath has the converted one.
+    const extension = path.extname(outPath).slice(1).toLocaleLowerCase() || sourceExt;
+    const fileSize = BookUtil.getFileSize(outPath);
     const result = await BookUtil.generateBook(
       keyInStorage,
       bookName,
@@ -755,8 +801,8 @@ class BookUtil {
           -1,
           keyInStorage ?? uuid(),
           -1,
-          bookName,
           name,
+          '',
           author,
           description,
           cover,
@@ -767,7 +813,7 @@ class BookUtil {
           path,
           charset,
           createdAt,
-          -1,
+          0,
         ),
       );
     });
