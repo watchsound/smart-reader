@@ -6,6 +6,7 @@ const moodBoardSlice = createSlice({
   initialState: {
     moodBoards: [],
     curMoodBoard: null,
+    activeMoodBoardId: null,
     addedNote: null,
     curDiagramNote: null,
     editState: true,
@@ -36,6 +37,9 @@ const moodBoardSlice = createSlice({
     moodBoardHandled: (state, action) => {
       const moodBoard = action.payload || null;
       state.curMoodBoard = moodBoard;
+    },
+    activeMoodBoardIdSet: (state, action) => {
+      state.activeMoodBoardId = action.payload ?? null;
     },
     moodBoardQueried: (state, action) => {
       const ms = action.payload || [];
@@ -68,6 +72,7 @@ export const {
   showControlChanged,
   linkModelChanged,
   moodBoardHandled,
+  activeMoodBoardIdSet,
   moodBoardQueried,
   moodBoardAdded,
   moodBoardUpdated,

@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import SearchIcon from '@mui/icons-material/Search';
-import TextField from '@mui/material/TextField';
+import InputBase from '@mui/material/InputBase';
 import IconButton from '@mui/material/IconButton';
 import Box from '@mui/material/Box';
-import Grid from '@mui/material/Grid';
-import CreateNewFolderIcon from '@mui/icons-material/CreateNewFolder';
 import Tooltip from '@mui/material/Tooltip';
-import InputAdornment from '@mui/material/InputAdornment';
+import { useTheme, alpha } from '@mui/material/styles';
+
+import SearchIcon from '@mui/icons-material/Search';
+import CloseIcon from '@mui/icons-material/Close';
+import CreateNewFolderIcon from '@mui/icons-material/CreateNewFolder';
 import ConnectedTvIcon from '@mui/icons-material/ConnectedTv';
 
 function TextSearchRow({
@@ -21,73 +22,97 @@ function TextSearchRow({
   thirdAction,
   thirdButton,
   thirdTip,
+  sx,
 }) {
+  const theme = useTheme();
   const [filterKey, setFilterKey] = useState('');
 
+  const handleSearch = () => {
+    if (searchAction) searchAction(filterKey);
+  };
+
+  const handleClear = () => {
+    setFilterKey('');
+    if (searchAction) searchAction('');
+  };
+
   return (
-    <Box sx={{ flexGrow: 1, borderStyle: 'none  none solid none',  borderWidth: '1px', }}>
-      <TextField
-        variant="outlined"
-        size="small"
-        label={label}
-        placeholder={placeHolder}
+    <Box
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 0.5,
+        bgcolor: 'transparent',
+        border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+        borderRadius: '20px',
+        px: 1.25,
+        py: 0.4,
+        transition: 'all 0.18s ease',
+        '&:focus-within': {
+          bgcolor: theme.palette.background.paper,
+          borderColor: alpha(theme.palette.primary.main, 0.35),
+          boxShadow: `0 0 0 3px ${alpha(theme.palette.primary.main, 0.08)}`,
+        },
+        ...sx,
+      }}
+    >
+      <SearchIcon sx={{ fontSize: 17, color: 'text.disabled', flexShrink: 0 }} />
+
+      <InputBase
+        placeholder={placeHolder || label || 'Search…'}
         value={filterKey}
         onChange={(e) => setFilterKey(e.target.value)}
-        sx={{ height: '35px', marginBottom: '5px' }}
-        fullWidth
-        InputProps={{
-          endAdornment: (
-            <InputAdornment position="end">
-              <Tooltip title={searchTip ?? 'search'}>
-                <IconButton
-                  size="small"
-                  onClick={() => {
-                    searchAction(filterKey);
-                  }}
-                  aria-label="search"
-                >
-                  {searchButton !== undefined && searchButton}
-                  {searchButton === undefined && (
-                    <SearchIcon fontSize="small" />
-                  )}
-                </IconButton>
-              </Tooltip>
-              {createAction && (
-                <Tooltip title={createTip ?? 'create'}>
-                  <IconButton
-                    size="small"
-                    onClick={() => {
-                      createAction(filterKey);
-                    }}
-                    aria-label="create"
-                  >
-                    {createButton !== undefined && createButton}
-                    {createButton === undefined && (
-                      <CreateNewFolderIcon fontSize="small" />
-                    )}
-                  </IconButton>
-                </Tooltip>
-              )}
-              {thirdAction && (
-                <Tooltip title={thirdTip ?? 'create'}>
-                  <IconButton
-                    size="small"
-                    onClick={() => {
-                      thirdAction(filterKey);
-                    }}
-                    aria-label="create"
-                  >
-                    {thirdButton !== undefined && thirdButton}
-                    {thirdButton === undefined && (
-                      <ConnectedTvIcon fontSize="small" />
-                    )}
-                  </IconButton>
-                </Tooltip>
-              )}
-            </InputAdornment>
-          ),
+        onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+        sx={{
+          flex: 1,
+          fontSize: '0.85rem',
+          '& input': { padding: 0 },
         }}
       />
+
+      {filterKey && (
+        <Tooltip title="Clear">
+          <IconButton size="small" onClick={handleClear} sx={{ p: 0.25 }}>
+            <CloseIcon sx={{ fontSize: 15, color: 'text.disabled' }} />
+          </IconButton>
+        </Tooltip>
+      )}
+
+      {(createAction || thirdAction) && (
+        <Box
+          sx={{
+            width: '1px',
+            height: 16,
+            bgcolor: alpha(theme.palette.divider, 0.3),
+            mx: 0.25,
+            flexShrink: 0,
+          }}
+        />
+      )}
+
+      {createAction && (
+        <Tooltip title={createTip ?? 'create'}>
+          <IconButton
+            size="small"
+            onClick={() => createAction(filterKey)}
+            sx={{ p: 0.25, color: 'text.disabled', '&:hover': { color: 'primary.main' } }}
+          >
+            {createButton ?? <CreateNewFolderIcon sx={{ fontSize: 16 }} />}
+          </IconButton>
+        </Tooltip>
+      )}
+
+      {thirdAction && (
+        <Tooltip title={thirdTip ?? 'action'}>
+          <IconButton
+            size="small"
+            onClick={() => thirdAction(filterKey)}
+            sx={{ p: 0.25, color: 'text.disabled', '&:hover': { color: 'primary.main' } }}
+          >
+            {thirdButton ?? <ConnectedTvIcon sx={{ fontSize: 16 }} />}
+          </IconButton>
+        </Tooltip>
+      )}
     </Box>
   );
 }

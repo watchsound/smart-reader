@@ -2,15 +2,20 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { Card, Grid, Typography, Pagination, Divider } from '@mui/material';
+import { Typography, Pagination, Divider, Box } from '@mui/material';
+import { useTheme, alpha } from '@mui/material/styles';
+import Tab from '@mui/material/Tab';
+import TabContext from '@mui/lab/TabContext';
+import TabList from '@mui/lab/TabList';
+import TabPanel from '@mui/lab/TabPanel';
+import NoteAddIcon from '@mui/icons-material/NoteAdd';
+import ArticleIcon from '@mui/icons-material/Article';
 
+import NoteCard from './NoteCard';
 import CreateNoteCell from './CreateNoteCell';
 import NoteUI from '../../components/note/NoteUI';
-// import NotesContext from './NotesContext';
 import CustomizedFilterBase from '../../components/CustomizedFilterBase';
-// import { useGetNotesByQueryQuery } from '../../store/api/noteApiSlice';
 import {
-  NoteFilterType,
   noteDeleted,
   notesQueried,
 } from '../../store/reducers/noteSlice';
@@ -21,25 +26,23 @@ import QuizModal from '../../components/surveyjs/QuizModal';
 import { deleteNoteById, getNotesByQuery } from '../../api/notesApi';
 
 function NotesUI() {
-  // states
-
+  const theme = useTheme();
   const [bookmarkItems, setBookmarkItems] = useState([]);
-  // const [notesFiltered, setNotesFiltered] = useState([]);
   const [openQuizModal, setOpenQuizModal] = useState(false);
   const [quizProblems, setQuizProblems] = useState([]);
-
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(10);
+  const [limit] = useState(20);
   const [notes, setNotes] = useState([]);
-  const navigate = useNavigate();
+  const [selectedNoteId, setSelectedNoteId] = useState(null);
+  const [rightTab, setRightTab] = useState('1');
 
+  const navigate = useNavigate();
   const filterKey = useSelector((state) => state.note.filterKey);
   const filterStars = useSelector((state) => state.note.filterStars);
   const filterTags = useSelector((state) => state.note.filterTags);
-
-  // const notes = useSelector((state) => state.note.notes);
   const dispatch = useDispatch();
+
   useEffect(() => {
     async function t() {
       const result = await getNotesByQuery({
@@ -56,9 +59,6 @@ function NotesUI() {
     t();
   }, []);
 
-  // Bumped on every doQuery call. Each async branch checks myGen against
-  // the latest after every await and bails if it's been superseded — so a
-  // slow earlier request can't overwrite a faster later one's results.
   const queryGenRef = useRef(0);
 
   const doQuery = async () => {
@@ -74,7 +74,6 @@ function NotesUI() {
         for (let i = 0; i < r.ids.length; i++) {
           const pos = r.ids[i].indexOf('|');
           if (pos < 0) {
-            // it is a bad design .. use | to mark epub
             noteIds.push(r.ids[i]);
           } else {
             const bookKey = r.ids[i].substring(0, pos);
@@ -114,121 +113,190 @@ function NotesUI() {
     setPage(value);
   };
 
-  // const filterLocalNotes = (notes) => {
-  //   // notes = notes || [];
-  //   if (filterBy === NoteFilterType.KEYWORD) {
-  //     if (!filterKey) return notes;
-  //     return notes.filter((item) => {
-  //       for (let i = 0; i < item.cards.length; i++) {
-  //         const card = item.cards[i];
-  //         if (card && card.text && card.text.indexOf(filterKey) >= 0)
-  //           return true;
-  //       }
-  //       return false;
-  //     });
-  //   }
-  //   if (filterBy === NoteFilterType.STARS) {
-  //     return notes.filter((item) => item.rate >= filterStars);
-  //   }
-  //   if (filterBy === NoteFilterType.TAGS) {
-  //     return notes.filter((item) => {
-  //       for (const i in filterTags) {
-  //         if (!item.tags.includes(filterTags[i])) {
-  //           return false;
-  //         }
-  //       }
-  //       return true;
-  //     });
-  //   }
-  //   // if none of above return all todos
-  //   return notes;
-  // };
-
   const deleteNote = (note) => {
     deleteNoteById(note.id);
     dispatch(noteDeleted(note));
     const localNotes = notes.filter((m) => m.id !== note.id);
     setNotes(localNotes);
+    if (selectedNoteId === note.id) {
+      setSelectedNoteId(null);
+      setRightTab('1');
+    }
   };
 
   const noteAdded = (note) => {
     const localNotes = [note, ...notes];
     setNotes(localNotes);
+    setSelectedNoteId(note.id);
+    setRightTab('2');
   };
 
-  const bookmarkItemSelectHandler = (bookKey, cfi) => {
+  const handleNoteClick = (note) => {
+    setSelectedNoteId(note.id);
+    setRightTab('2');
+  };
+
+  const bookmarkItemSelectHandler = (bookKey) => {
     navigate(`/reading/${bookKey}`);
   };
 
+  const pageCount = Math.ceil(total / limit);
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-      <div className="note_header">
-        <div className="note__bottom_row">
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+      {/* Filter bar */}
+      <Box className="note_header">
+        <Box className="note__bottom_row">
           <CustomizedFilterBase
             useForSidePane={false}
             queryActionCallback={doQuery}
           />
-        </div>
-      </div>
-      <div style={{ flex: 1, overflow: 'auto', padding: '10px' }}>
-        {bookmarkItems.length > 0 && (
-          <div
-            className="notes"
-            style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '10px' }}
-          >
-            {bookmarkItems.map((note) => (
-              <BookmarkUI
-                key={note.bookKey + note.cfi}
-                content={note.content}
-                bookKey={note.bookKey}
-                cfi={note.cfi}
-                selectHandler={bookmarkItemSelectHandler}
-              />
-            ))}
-          </div>
-        )}
-        <div
-          className="notes"
-          style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}
+        </Box>
+      </Box>
+
+      {/* Main body: left list + right detail */}
+      <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+
+        {/* Left panel — note list */}
+        <Box
+          sx={{
+            width: 320,
+            minWidth: 280,
+            display: 'flex',
+            flexDirection: 'column',
+            borderRight: `1px solid ${theme.palette.divider}`,
+            overflow: 'hidden',
+          }}
         >
-          <CreateNoteCell noteCreationHandler={(note) => noteAdded(note)} />
-          {notes.map((note) => (
-            <NoteUI
-              key={note.id}
-              selectedNoteKey={note.id}
-              selectHandler={() => {}}
-              showQuizHandler={(quizList) => {
-                setQuizProblems(quizList);
-                setOpenQuizModal(true);
-              }}
-              customAction={() => {}}
-              customActionName=""
-              deleteAction={(n) => deleteNote(n)}
-              deleteActionName="Delete"
-              cardWidth="360"
-              cardHeight="450"
-              isInNotesUIView
-            />
-          ))}
-        </div>
-      </div>
-      <Divider />
-      <Pagination
-        count={Math.ceil(total / limit)}
-        page={page}
-        size="small"
-        onChange={handlePageChange}
-        variant="outlined"
-        color="secondary"
-        sx={{ margin: '10px' }}
-      />
+          {/* Scrollable list */}
+          <Box sx={{ flex: 1, overflow: 'auto', px: 1, py: 1 }}>
+            {bookmarkItems.length > 0 && (
+              <>
+                <Typography variant="caption" color="text.secondary" sx={{ px: 0.5, pb: 0.5, display: 'block' }}>
+                  Semantic matches
+                </Typography>
+                {bookmarkItems.map((bm) => (
+                  <Box key={bm.bookKey + bm.cfi} sx={{ mb: 1 }}>
+                    <BookmarkUI
+                      content={bm.content}
+                      bookKey={bm.bookKey}
+                      cfi={bm.cfi}
+                      selectHandler={bookmarkItemSelectHandler}
+                    />
+                  </Box>
+                ))}
+                <Divider sx={{ my: 1 }} />
+              </>
+            )}
+
+            {notes.length === 0 && (
+              <Typography
+                variant="body2"
+                color="text.disabled"
+                sx={{ textAlign: 'center', mt: 4 }}
+              >
+                No notes yet
+              </Typography>
+            )}
+
+            {notes.map((note) => (
+              <Box key={note.id} sx={{ mb: 1 }}>
+                <NoteCard
+                  note={note}
+                  viewMode="list"
+                  selected={note.id === selectedNoteId}
+                  onClick={handleNoteClick}
+                  onDelete={deleteNote}
+                  onShowQuiz={(quizList) => {
+                    setQuizProblems(quizList);
+                    setOpenQuizModal(true);
+                  }}
+                />
+              </Box>
+            ))}
+          </Box>
+
+          {/* Pagination anchored at bottom of list panel */}
+          {pageCount > 1 && (
+            <>
+              <Divider />
+              <Pagination
+                count={pageCount}
+                page={page}
+                size="small"
+                onChange={handlePageChange}
+                variant="outlined"
+                color="secondary"
+                sx={{ p: 1, display: 'flex', justifyContent: 'center' }}
+              />
+            </>
+          )}
+        </Box>
+
+        {/* Right panel — create / detail tabs */}
+        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <TabContext value={rightTab}>
+            <Box sx={{ borderBottom: `1px solid ${theme.palette.divider}` }}>
+              <TabList
+                onChange={(_, val) => setRightTab(val)}
+                variant="fullWidth"
+              >
+                <Tab
+                  icon={<NoteAddIcon fontSize="small" />}
+                  iconPosition="start"
+                  label="New Note"
+                  value="1"
+                  sx={{ minHeight: 44, fontSize: '0.8rem' }}
+                />
+                <Tab
+                  icon={<ArticleIcon fontSize="small" />}
+                  iconPosition="start"
+                  label="View Note"
+                  value="2"
+                  disabled={!selectedNoteId}
+                  sx={{ minHeight: 44, fontSize: '0.8rem' }}
+                />
+              </TabList>
+            </Box>
+
+            <TabPanel
+              value="1"
+              sx={{ flex: 1, overflow: 'auto', p: 2 }}
+            >
+              <CreateNoteCell noteCreationHandler={(note) => noteAdded(note)} />
+            </TabPanel>
+
+            <TabPanel
+              value="2"
+              sx={{ flex: 1, overflow: 'auto', p: 2 }}
+            >
+              {selectedNoteId && (
+                <NoteUI
+                  selectedNoteKey={selectedNoteId}
+                  selectHandler={() => {}}
+                  showQuizHandler={(quizList) => {
+                    setQuizProblems(quizList);
+                    setOpenQuizModal(true);
+                  }}
+                  customAction={() => {}}
+                  customActionName=""
+                  deleteAction={(n) => deleteNote(n)}
+                  deleteActionName="Delete"
+                  isInNotesUIView
+                />
+              )}
+            </TabPanel>
+          </TabContext>
+        </Box>
+      </Box>
+
       <QuizModal
         open={openQuizModal}
         quizProblems={quizProblems}
         callback={() => setOpenQuizModal(false)}
         sx={{ minWidth: '360px' }}
       />
-    </div>
+    </Box>
   );
 }
 

@@ -23,6 +23,17 @@ Canonical names for domain concepts. One source of truth — code, docs, and con
 - **Pull** — explicit user action invoking the Brain for a proposal (clicking the Orb). Contrast with **Push** (Brain-initiated proposal via trigger).
 - **Escape Hatch** — direct user navigation to one of the 21 existing routes via the manual menu, bypassing Brain orchestration.
 
+## Note UI (2026-06-22 Editorial Premium upgrade)
+
+- **Editorial Premium** — the v1 visual language for the Note card, shipped 2026-06-22. Replaces MUI's default Card chrome. Defining traits: 14px rounded soft-elevation surface with hairline border, **accent stripe** (4px solid left edge in the note's color) + 30%-width gradient fade, serif highlight quote as the visual hero, monospace meta caption, hover lift (3px translateY + shadow deepen), entry stagger via CSS keyframes. *Not "premium theme", not "card v2".*
+- **NoteCardSurface** — the React component that owns Editorial Premium chrome. Wraps the inner `CardHeader / CardContent / CardActions` of `NoteUI`. Replaces the prior `StyledCard`. Accepts `accentColor` + optional `entryDelay` for staggered list entry. Used in all `NoteUI` render paths except inline-edit mode (which keeps the legacy `StyledCard` to avoid editor conflicts).
+- **Accent stripe** — the 4px solid left edge bar + fading gradient overlay that gives each Note its color signature on the new card. Replaces the prior flat `backgroundColor: note.color` fill, which washed out text. *Not "color bar", not "left border".*
+
+## Note creation (2026-06-21 inline-note design)
+
+- **Quick Note** — inline note created from `CreateAnnotationPanel` via the expand-in-place flow. Saves a Note record alongside the highlight annotation without opening `CreateNoteModal`. Carries only the typed text — no title, tags, image, or summary. *Not "Inline Note", not "Quick Capture".*
+- **Full Note** — note created via the existing `CreateNoteModal` (the `CreateNotePanel` form). Has title / tags / image / summary fields. Reachable from `CreateAnnotationPanel` via the "Open full editor →" link when the panel is in expanded state.
+
 ## Existing concepts (referenced — not redefined here)
 
 - **Phase 0–8 Loops** — the sequenced learning loops documented in [CLAUDE.md](CLAUDE.md#brain-driven-learning-loops-phase-08).

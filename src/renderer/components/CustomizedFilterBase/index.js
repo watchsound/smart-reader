@@ -1,28 +1,24 @@
-import { useState, useRef, useEffect } from 'react';
-import Paper from '@mui/material/Paper';
+import { useState, useEffect } from 'react';
 import InputBase from '@mui/material/InputBase';
-import Divider from '@mui/material/Divider';
 import IconButton from '@mui/material/IconButton';
-import MenuIcon from '@mui/icons-material/Menu';
-import SearchIcon from '@mui/icons-material/Search';
-import TextField from '@mui/material/TextField';
-import Rating from '@mui/material/Rating';
-import BuildCircleIcon from '@mui/icons-material/BuildCircle';
-import Checkbox from '@mui/material/Checkbox';
-import FormControlLabel from '@mui/material/FormControlLabel';
-import InputAdornment from '@mui/material/InputAdornment';
-import { useSelector, useDispatch } from 'react-redux';
 import Box from '@mui/material/Box';
-import Grid from '@mui/material/Grid';
+import Tooltip from '@mui/material/Tooltip';
+import Rating from '@mui/material/Rating';
+import Collapse from '@mui/material/Collapse';
+import { useTheme, alpha } from '@mui/material/styles';
+import { styled } from '@mui/material/styles';
+import TagsInput from 'react-tagsinput';
+import { useSelector, useDispatch } from 'react-redux';
 import isEqual from 'is-equal';
 import watch from 'redux-watch';
-import Tooltip from '@mui/material/Tooltip';
-import TagsInput from 'react-tagsinput';
-import { styled } from '@mui/material/styles';
-import store from '../../store/store';
 
+import SearchIcon from '@mui/icons-material/Search';
+import CloseIcon from '@mui/icons-material/Close';
+import TuneIcon from '@mui/icons-material/Tune';
+import StarIcon from '@mui/icons-material/Star';
+
+import store from '../../store/store';
 import 'react-tagsinput/react-tagsinput.css';
-import './nodefilter-styles.module.css';
 
 import {
   filterByKeyHandled,
@@ -30,171 +26,156 @@ import {
   filterByTagsHandled,
   showTextOnlyHandled,
 } from '../../store/reducers/noteSlice';
-import { isEmpty } from '../../../commons/utils/commonUtil';
 
-const TagsInputNoBorder = styled(TagsInput)({
-  backgroundColor: '#fff0',
-  border: '1px solid #0000 !important',
-  overflow: 'hidden',
-  paddingLeft: '5px',
-  alignItems: 'center',
-});
+const TagsInputClean = styled(TagsInput)(({ theme }) => ({
+  backgroundColor: 'transparent',
+  border: 'none !important',
+  padding: '0 4px',
+  fontSize: '0.775rem',
+  minHeight: 0,
+  '& .react-tagsinput-tag': {
+    backgroundColor: alpha(theme.palette.primary.main, 0.12),
+    color: theme.palette.primary.main,
+    borderRadius: '4px',
+    border: 'none',
+    fontSize: '0.72rem',
+    padding: '1px 6px',
+    margin: '2px',
+  },
+  '& .react-tagsinput-input': {
+    fontSize: '0.775rem',
+    color: theme.palette.text.primary,
+    width: 80,
+  },
+}));
 
 function CustomizedFilterBase({ useForSidePane, queryActionCallback }) {
-  // const filterBy = useSelector((state) => state.note.filterBy);
+  const theme = useTheme();
   const [filterKey, setFilterKey] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+
   const cachedFilterKey = useSelector((state) => state.note.filterKey);
   const filterStars = useSelector((state) => state.note.filterStars);
   const filterTags = useSelector((state) => state.note.filterTags);
-  const showTextOnly = useSelector((state) => state.note.showTextOnly);
-  // const inputRef = useRef();
   const dispatch = useDispatch();
 
   useEffect(() => {
     const w = watch(store.getState, 'note.filterKey', isEqual);
     const unsubscribe = store.subscribe(
-      w((newVal, oldVal, objectPath) => {
-        setTimeout(() => {
-          // if (!isEmpty(newVal))
-          setFilterKey(newVal);
-        }, 0.5);
+      w((newVal) => {
+        setTimeout(() => setFilterKey(newVal), 0.5);
       }),
     );
     return () => unsubscribe();
   }, []);
 
-  function search() {
+  const search = () => {
     dispatch(filterByKeyHandled(filterKey));
     if (cachedFilterKey === filterKey && queryActionCallback)
       queryActionCallback(filterKey);
-  }
+  };
 
-  if (useForSidePane)
-    return (
+  const clearSearch = () => {
+    setFilterKey('');
+    dispatch(filterByKeyHandled(''));
+    if (queryActionCallback) queryActionCallback('');
+  };
+
+  const hasActiveFilter = filterStars > 0 || (filterTags && filterTags.length > 0);
+
+  return (
+    <Box sx={{ width: '100%', px: 1.5, py: 1 }}>
+      {/* Search pill */}
       <Box
         sx={{
-          flexGrow: 1,
-          width: '100%',
-          borderStyle: 'none  none solid none',
-          borderWidth: '1px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 0.5,
+          bgcolor: 'transparent',
+          border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+          borderRadius: '20px',
+          px: 1.25,
+          py: 0.4,
+          transition: 'all 0.18s ease',
+          '&:focus-within': {
+            bgcolor: theme.palette.background.paper,
+            borderColor: alpha(theme.palette.primary.main, 0.35),
+            boxShadow: `0 0 0 3px ${alpha(theme.palette.primary.main, 0.08)}`,
+          },
         }}
       >
-        <div className="two_end_container">
-          <div className="two_end_start" style={{ border: 'none' }}>
-            <TextField
-              variant="outlined"
-              size="small"
-              label="Search Notes"
-              // sx={{ ml: 1, flex: 1 }}
-              value={filterKey}
-              sx={{ height: '35px', marginBottom: '5px' }}
-              onChange={(e) => setFilterKey(e.target.value)}
-              InputProps={{
-                'aria-label': 'Search Notes By Keywords',
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <Tooltip title="Search">
-                      <IconButton
-                        size="small"
-                        onClick={() => {
-                          search();
-                        }}
-                        aria-label="search"
-                      >
-                        <SearchIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Toggle Controls">
-                      <IconButton
-                        size="small"
-                        onClick={() => {
-                          dispatch(showTextOnlyHandled(!showTextOnly));
-                        }}
-                        aria-label="search"
-                      >
-                        <BuildCircleIcon
-                          fontSize="small"
-                          color={showTextOnly ? 'primary' : 'action'}
-                        />
-                      </IconButton>
-                    </Tooltip>
-                  </InputAdornment>
-                ),
-              }}
-            />
-          </div>
-        </div>
-      </Box>
-    );
-  return (
-    <Box sx={{ flexGrow: 1, width: '100%', border: 'none' }}>
-      <div className="two_end_container">
-        <div className="two_end_start" style={{ border: 'none' }}>
-          <TextField
-            variant="outlined"
+        <SearchIcon sx={{ fontSize: 17, color: 'text.disabled', flexShrink: 0 }} />
+
+        <InputBase
+          placeholder="Search notes…"
+          value={filterKey}
+          onChange={(e) => setFilterKey(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && search()}
+          sx={{
+            flex: 1,
+            fontSize: '0.85rem',
+            '& input': { padding: 0 },
+          }}
+        />
+
+        {filterKey && (
+          <IconButton size="small" onClick={clearSearch} sx={{ p: 0.25 }}>
+            <CloseIcon sx={{ fontSize: 15, color: 'text.disabled' }} />
+          </IconButton>
+        )}
+
+        <Box
+          sx={{
+            width: '1px',
+            height: 16,
+            bgcolor: alpha(theme.palette.divider, 0.3),
+            mx: 0.25,
+          }}
+        />
+
+        <Tooltip title="Filters">
+          <IconButton
             size="small"
-            label="Search Notes"
-            // sx={{ ml: 1, flex: 1 }}
-            value={filterKey}
-            sx={{ height: '35px', marginBottom: '5px', border: 'none' }}
-            onChange={(e) => setFilterKey(e.target.value)}
-            InputProps={{
-              'aria-label': 'Search Notes By Keywords',
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton
-                    size="small"
-                    onClick={() => {
-                      search();
-                    }}
-                    aria-label="search"
-                  >
-                    <SearchIcon fontSize="small" />
-                  </IconButton>
-                  <IconButton
-                    size="small"
-                    onClick={() => {
-                      dispatch(showTextOnlyHandled(!showTextOnly));
-                    }}
-                    aria-label="search"
-                  >
-                    <BuildCircleIcon
-                      fontSize="small"
-                      color={showTextOnly ? 'primary' : 'action'}
-                    />
-                  </IconButton>
-                </InputAdornment>
-              ),
+            onClick={() => setShowFilters((v) => !v)}
+            sx={{
+              p: 0.25,
+              color: hasActiveFilter ? 'primary.main' : 'text.disabled',
             }}
+          >
+            <TuneIcon sx={{ fontSize: 16 }} />
+          </IconButton>
+        </Tooltip>
+      </Box>
+
+      {/* Collapsible filter row */}
+      <Collapse in={showFilters}>
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1.5,
+            mt: 0.75,
+            px: 1,
+          }}
+        >
+          <StarIcon sx={{ fontSize: 15, color: 'text.disabled' }} />
+          <Rating
+            name="note-rate"
+            size="small"
+            value={filterStars}
+            onChange={(_, newValue) => dispatch(filterByStarsHandled(newValue || 0))}
+            sx={{ '& .MuiRating-icon': { fontSize: 16 } }}
           />
-        </div>
-        <div className="two_end_end" style={{ border: 'none' }}>
-          <div className="two_end_container">
-            <div className="two_end_start" style={{ border: 'none' }}>
-              <TagsInputNoBorder
-                tags={[]}
-                value={filterTags}
-                onChange={(tags) => {
-                  dispatch(filterByTagsHandled(tags));
-                }}
-              />
-            </div>
-            <div
-              className="two_end_end"
-              style={{ display: 'flex', alignItems: 'center', border: 'none' }}
-            >
-              <Rating
-                name="note-rate"
-                size="small"
-                value={filterStars}
-                onChange={(event, newValue) => {
-                  dispatch(filterByStarsHandled(newValue || 0));
-                }}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <TagsInputClean
+              tags={[]}
+              value={filterTags}
+              inputProps={{ placeholder: 'tags…' }}
+              onChange={(tags) => dispatch(filterByTagsHandled(tags))}
+            />
+          </Box>
+        </Box>
+      </Collapse>
     </Box>
   );
 }

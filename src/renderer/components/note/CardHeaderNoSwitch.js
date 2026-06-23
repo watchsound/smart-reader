@@ -16,25 +16,40 @@ import TuneIcon from '@mui/icons-material/Tune';
 import DeleteIcon from '@mui/icons-material/Delete';
 import LayersIcon from '@mui/icons-material/Layers';
 import { useNavigate } from 'react-router-dom';
-import {  useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import LocalLibraryIcon from '@mui/icons-material/LocalLibrary';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import EditNoteTwoToneIcon from '@mui/icons-material/EditNoteTwoTone';
 import DeleteForeverOutlinedIcon from '@mui/icons-material/DeleteForeverOutlined';
+import FlashOnIcon from '@mui/icons-material/FlashOn';
 
 import ColorPicker from '../ColorPicker';
 import { NoteType } from '../../../commons/model/Note';
 import customStorage from '../../store/customStorage';
 import { noteToLeitnerAdded } from '../../store/reducers/noteSlice';
+import { noteAdded } from '../../store/reducers/moodBoardSlice';
 import RichTextActionMenu from '../richtext/RichTextActionMenu';
 
 
-const TopRightButton = styled(IconButton)({
+// Smaller IconButton chrome — 28×28 vs MUI's default 40×40 — so the
+// ⋮ menu trigger doesn't occupy a chunky top-right corner of every
+// card. Subtle hover background hints at affordance without persistent
+// visual weight.
+const TopRightButton = styled(IconButton)(({ theme }) => ({
   position: 'absolute',
-  top: 0,
-  right: 0,
+  top: 4,
+  right: 4,
   zIndex: 10,
-});
+  width: 28,
+  height: 28,
+  padding: 4,
+  '& .MuiSvgIcon-root': {
+    fontSize: 18,
+  },
+  '&:hover': {
+    backgroundColor: theme.palette.action.hover,
+  },
+}));
 
 /**
  * Pure: derive the route path for "Jump to source" from a note's source
@@ -80,10 +95,17 @@ function CardHeaderNoSwitch({
   setEditMode,
   deleteNoteAction,
   compact,
+  // Hides the "Layout" menu item when explicitly false. Defaults to
+  // visible so existing callers (main Notes view, MoodBoard, Leitner,
+  // slider) keep the full menu. Reading sidebars (BookNotesPanel,
+  // BrowserSidebar) opt out by passing `showLayout={false}` — the
+  // Layout/CarSetting modal is for card-design contexts, not browsing.
+  showLayout = true,
 }) {
   const [anchorEl, setAnchorEl] = useState(null);
   const navigate = useNavigate();
   const dispatch = useDispatch();
+  const activeMoodBoardId = useSelector((state) => state.moodBoard.activeMoodBoardId);
 
   const handleMenuOpen = (event) => {
     setAnchorEl(event.currentTarget);
@@ -183,6 +205,22 @@ function CardHeaderNoSwitch({
           </MenuItem>
         )}
 
+        <MenuItem
+          onClick={() => {
+            handleMenuClose();
+            dispatch(noteAdded(null));
+            dispatch(noteAdded(selectedNote));
+            navigate('/moodboard');
+          }}
+        >
+          <ListItemIcon>
+            <FlashOnIcon fontSize="small" sx={{ color: activeMoodBoardId ? 'success.main' : 'text.disabled' }} />
+          </ListItemIcon>
+          <ListItemText>
+            {activeMoodBoardId ? 'Add to Active Board' : 'Add to Board (open MoodBoard first)'}
+          </ListItemText>
+        </MenuItem>
+
         {deleteActionName && (
           <MenuItem
             onClick={() => {
@@ -197,17 +235,19 @@ function CardHeaderNoSwitch({
           </MenuItem>
         )}
 
-        <MenuItem
-          onClick={() => {
-            handleMenuClose();
-            openCarSettingModal(true);
-          }}
-        >
-          <ListItemIcon>
-            <DashboardIcon />
-          </ListItemIcon>
-          <ListItemText>Layout</ListItemText>
-        </MenuItem>
+        {showLayout && (
+          <MenuItem
+            onClick={() => {
+              handleMenuClose();
+              openCarSettingModal(true);
+            }}
+          >
+            <ListItemIcon>
+              <DashboardIcon />
+            </ListItemIcon>
+            <ListItemText>Layout</ListItemText>
+          </MenuItem>
+        )}
 
         <MenuItem
           onClick={() => {

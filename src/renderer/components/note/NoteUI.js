@@ -6,6 +6,7 @@ import DeleteForeverOutlinedIcon from '@mui/icons-material/DeleteForeverOutlined
 import SaveIcon from '@mui/icons-material/Save';
 
 import Rating from '@mui/material/Rating';
+import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import { v4 as uuid } from 'uuid';
 import { styled } from '@mui/material/styles';
 import Card from '@mui/material/Card';
@@ -24,7 +25,7 @@ import 'react-tagsinput/react-tagsinput.css';
 import 'highlight.js/styles/github.css'; // Import the desired highlight.js CSS style
 
 import '../CustomizedFilterBase/nodefilter-styles.module.css';
-import { Grid } from '@mui/material';
+import { Box, Grid } from '@mui/material';
 import { getQuizProblemsBySourceKey } from '../../api/quizApi';
 
 // import { getNote as getNote } from '../../api/notesApi';
@@ -41,7 +42,11 @@ import CardSettingModal from '../cardsetting/CardSettingModal';
 import PageSwitcher from './PageSwitcher';
 import CardHeaderNoSwitch from './CardHeaderNoSwitch';
 import CardContentSwitcher from './CardContentSwitcher';
+import NoteCardSurface from './NoteCardSurface';
 
+// Kept for the legacy edit-mode card body where the gradient stripe + hover
+// effects would interfere with the inline editor. Edit mode falls back to a
+// minimal MUI Card. The two non-edit render paths use NoteCardSurface.
 const StyledCard = styled(Card)({
   position: 'relative',
   overflow: 'hidden',
@@ -92,6 +97,12 @@ function NoteUI({
   useBgColor,
   isInNotesUIView,
   noPadding, // When true, removes margin for use in diagram nodes
+  // When true, the ⋮ menu hides items that don't apply in a
+  // browsing-only context: Layout (card-design modal), Entry Effects,
+  // Emphasis Effects, Reset (all animation/presentation features).
+  // Used by reading sidebars (BookNotesPanel, BrowserSidebar) where
+  // notes are just viewed, not designed or animated.
+  compactMenu = false,
 }) {
   const [edit, setEdit] = useState(false);
   const [inputText, setInputText] = useState('');
@@ -335,8 +346,9 @@ function NoteUI({
           compact={!showAnnotation}
           useJumpToSource
           colorAction={(color) => updateColorForNote(color)}
-          setEmphasis={setEmphasis}
-          setEntry={setEntry}
+          {...(compactMenu
+            ? { showLayout: false }
+            : { setEmphasis, setEntry })}
           openCarSettingModal={setOpenCarSettingModal}
           deleteNoteAction={deleteNote}
         />
@@ -421,15 +433,16 @@ function NoteUI({
     );
   if (!showAnnotation)
     return (
-      <StyledCard
+      <NoteCardSurface
         ref={containerRef}
+        accentColor={selectedNote.color}
+        useFlatBackground={!!useBgColor}
+        dense={!!noPadding}
         sx={{
           margin: noPadding ? 0 : '6px 3px',
           height: noPadding ? '100%' : (useMiniHeight ? undefined : size.height),
-          miniHeight: useMiniHeight ? size.height : undefined,
+          minHeight: useMiniHeight ? size.height : undefined,
           width: noPadding ? '100%' : size.width,
-          backgroundColor: useBgColor ? selectedNote.color : 'white',
-          borderRadius: noPadding ? '12px' : undefined,
         }}
         onClick={selectHandler}
       >
@@ -440,8 +453,9 @@ function NoteUI({
           toggleAnnotation={() => setShowAnnotation(!showAnnotation)}
           customActionName={customActionName}
           customAction={customAction}
-          setEmphasis={setEmphasis}
-          setEntry={setEntry}
+          {...(compactMenu
+            ? { showLayout: false }
+            : { setEmphasis, setEntry })}
           openCarSettingModal={setOpenCarSettingModal}
           setEditMode={setEdit}
           deleteNoteAction={deleteNote}
@@ -484,19 +498,32 @@ function NoteUI({
             </Grid>
           )}
         </CardActions>
-      </StyledCard>
+      </NoteCardSurface>
     );
 
   return (
-    <StyledCard
+    <NoteCardSurface
       ref={containerRef}
+      accentColor={selectedNote.color}
+      useFlatBackground={!!useBgColor}
+      dense={!!noPadding}
       sx={{
-        width: noPadding ? '100%' : size.width,
-        height: noPadding ? '100%' : size.height,
-        backgroundColor: useBgColor ? selectedNote.color : 'white',
-        borderRadius: noPadding ? '12px' : undefined,
+        // useMiniHeight on Path 3 means "fill the parent (column / grid
+        // cell) horizontally and grow with content vertically, but never
+        // shrink below size.{width,height} as a minimum". This makes
+        // masonry-style layouts work correctly — the card uses the full
+        // column width instead of leaving ~70px empty when columns are
+        // wider than cardWidth, and short content doesn't get forced
+        // into oversized cards.
+        width: noPadding ? '100%' : (useMiniHeight ? '100%' : size.width),
+        minWidth: useMiniHeight ? size.width : undefined,
+        height: noPadding
+          ? '100%'
+          : (useMiniHeight ? undefined : size.height),
+        minHeight: useMiniHeight ? size.height : undefined,
+        display: 'flex',
+        flexDirection: 'column',
       }}
-      style={{ display: 'flex', flexDirection: 'column' }}
       onClick={selectHandler}
     >
       <CardHeaderNoSwitch
@@ -509,8 +536,9 @@ function NoteUI({
         customAction={customAction}
         deleteActionName={deleteActionName}
         deleteAction={deleteAction}
-        setEmphasis={setEmphasis}
-        setEntry={setEntry}
+        {...(compactMenu
+          ? { showLayout: false }
+          : { setEmphasis, setEntry })}
         openCarSettingModal={setOpenCarSettingModal}
         setEditMode={setEdit}
         deleteNoteAction={deleteNote}
@@ -521,9 +549,14 @@ function NoteUI({
             name="note-rate"
             size="small"
             sx={{
-              marginTop: '5px !important',
-              marginLeft: '15px !important',
+              marginTop: '2px !important',
+              marginLeft: '12px !important',
               padding: '0px !important',
+              // Shrink stars from MUI's default 18px → 14px so the
+              // rating row doesn't dominate the card's vertical space.
+              '& .MuiSvgIcon-root': {
+                fontSize: 14,
+              },
             }}
             value={selectedNote.rate}
             onChange={(event, newValue) => updateRateForNote(newValue)}
@@ -565,10 +598,39 @@ function NoteUI({
               </Grid>
             )}
             <Grid item justifyContent="flex-end">
-              <TagsInputNoBorder
-                value={tags}
-                onChange={(tags) => updateTagsForNote(tags)}
-              />
+              {/*
+                The original "Add a tag" copy was the input's placeholder
+                AND the click target — clicking the placeholder text
+                focused the input. Replacing the placeholder with an icon
+                broke that affordance.
+                Wrap both icon and input in a <label> so clicking
+                anywhere in the row focuses the nested input element
+                (native label-for-input behavior, no JS focus management).
+              */}
+              <Box
+                component="label"
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 0.5,
+                  paddingLeft: '8px',
+                  cursor: 'text',
+                  width: '100%',
+                }}
+              >
+                <LocalOfferIcon
+                  sx={{
+                    fontSize: 14,
+                    color: 'text.disabled',
+                    flexShrink: 0,
+                  }}
+                />
+                <TagsInputNoBorder
+                  value={tags}
+                  onChange={(tags) => updateTagsForNote(tags)}
+                  inputProps={{ placeholder: '+ tag' }}
+                />
+              </Box>
             </Grid>
           </Grid>
         </div>
@@ -582,7 +644,7 @@ function NoteUI({
           callback={handleNoteSettingChanged}
         />
       )}
-    </StyledCard>
+    </NoteCardSurface>
   );
 }
 

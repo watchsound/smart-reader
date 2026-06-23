@@ -15,10 +15,10 @@ import {
   ListItemText,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import { useSelector, useDispatch } from 'react-redux';
 
 // Icons
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
-import StarIcon from '@mui/icons-material/Star';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import LaunchIcon from '@mui/icons-material/Launch';
 import QuizIcon from '@mui/icons-material/Quiz';
@@ -28,7 +28,9 @@ import MenuBookIcon from '@mui/icons-material/MenuBook';
 import LinkIcon from '@mui/icons-material/Link';
 import ChatIcon from '@mui/icons-material/Chat';
 import FlipIcon from '@mui/icons-material/Flip';
+import FlashOnIcon from '@mui/icons-material/FlashOn';
 
+import { noteAdded } from '../../store/reducers/moodBoardSlice';
 import { getImage } from '../../api/booksApi';
 import { getQuizProblemsBySourceKey } from '../../api/quizApi';
 import { NoteType, CardType } from '../../../commons/model/Note';
@@ -117,10 +119,12 @@ function formatDate(dateObj) {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-function NoteCard({ note, viewMode, onDelete, onShowQuiz }) {
+function NoteCard({ note, viewMode, onDelete, onShowQuiz, onClick, selected }) {
   const theme = useTheme();
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const isDark = theme.palette.mode === 'dark';
+  const activeMoodBoardId = useSelector((state) => state.moodBoard.activeMoodBoardId);
 
   const [isHovered, setIsHovered] = useState(false);
   const [imageBase64, setImageBase64] = useState(null);
@@ -206,10 +210,10 @@ function NoteCard({ note, viewMode, onDelete, onShowQuiz }) {
   };
 
   const handleCardClick = () => {
-    // Could open edit modal or navigate to detail view
+    if (onClick) onClick(note);
   };
 
-  // List view layout (horizontal like BookmarkUI)
+  // List view — mirrors bookmarks/BookmarkUI: thumbnail when image exists, text-only otherwise
   if (isListView) {
     return (
       <Box
@@ -219,236 +223,149 @@ function NoteCard({ note, viewMode, onDelete, onShowQuiz }) {
         sx={{
           display: 'flex',
           alignItems: 'stretch',
-          height: 88,
-          borderRadius: '12px',
+          height: 72,
+          borderRadius: '10px',
           cursor: 'pointer',
-          position: 'relative',
           overflow: 'hidden',
-          bgcolor: theme.palette.background.paper,
-          border: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
-          transition: 'all 0.2s ease-in-out',
+          bgcolor: selected
+            ? alpha(colors.accent, isDark ? 0.14 : 0.08)
+            : theme.palette.background.paper,
+          border: `1px solid ${selected ? alpha(colors.accent, 0.45) : alpha(theme.palette.divider, 0.08)}`,
+          transition: 'all 0.18s ease',
           '&:hover': {
-            transform: 'translateX(4px)',
+            transform: selected ? 'none' : 'translateX(3px)',
             boxShadow: isDark
-              ? `0 4px 20px ${alpha('#000', 0.4)}`
-              : `0 4px 20px ${alpha('#000', 0.1)}`,
+              ? `0 3px 14px ${alpha('#000', 0.35)}`
+              : `0 3px 14px ${alpha('#000', 0.08)}`,
             borderColor: alpha(colors.accent, 0.4),
           },
         }}
       >
-        {/* Left ribbon/image section */}
-        <Box
-          sx={{
-            width: 88,
-            minWidth: 88,
-            height: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            position: 'relative',
-            overflow: 'hidden',
-            borderRadius: '12px 0 0 12px',
-            bgcolor: imageBase64 ? 'transparent' : colors.bg,
-          }}
-        >
-          {imageBase64 ? (
+        {/* Left thumbnail — only when image present; accent stripe otherwise */}
+        {imageBase64 ? (
+          <Box
+            sx={{
+              width: 72,
+              minWidth: 72,
+              height: '100%',
+              position: 'relative',
+              overflow: 'hidden',
+              borderRadius: '10px 0 0 10px',
+            }}
+          >
             <Box
               component="img"
               src={imageBase64}
               alt=""
-              sx={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-              }}
+              sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
             />
-          ) : (
             <Box
               sx={{
-                width: '100%',
-                height: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                position: 'relative',
+                position: 'absolute',
+                left: 0, top: 0, bottom: 0,
+                width: 3,
+                bgcolor: colors.accent,
               }}
-            >
-              <IconComponent
-                sx={{
-                  fontSize: 32,
-                  color: colors.icon,
-                }}
-              />
-              {/* Decorative fold */}
-              <Box
-                sx={{
-                  position: 'absolute',
-                  top: 0,
-                  right: 0,
-                  width: 0,
-                  height: 0,
-                  borderTop: `16px solid ${theme.palette.background.paper}`,
-                  borderLeft: '16px solid transparent',
-                }}
-              />
-            </Box>
-          )}
-
-          {/* Accent stripe */}
+            />
+          </Box>
+        ) : (
           <Box
             sx={{
-              position: 'absolute',
-              left: 0,
-              top: 0,
-              bottom: 0,
-              width: 4,
-              bgcolor: colors.accent,
-              borderRadius: '12px 0 0 12px',
+              width: 3,
+              minWidth: 3,
+              bgcolor: selected ? colors.accent : alpha(colors.accent, 0.4),
+              borderRadius: '10px 0 0 10px',
+              transition: 'background-color 0.18s ease',
             }}
           />
-        </Box>
+        )}
 
-        {/* Content section */}
+        {/* Text content */}
         <Box
           sx={{
             flex: 1,
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'center',
-            px: 2,
-            py: 1.5,
+            px: imageBase64 ? 1.5 : 1.75,
+            py: 1,
             minWidth: 0,
-            overflow: 'hidden',
           }}
         >
-          {/* Title row */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+          {note.title ? (
+            <>
+              {/* Title + date */}
+              <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, mb: 0.3 }}>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    fontWeight: selected ? 600 : 500,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    flex: 1,
+                    fontSize: '0.875rem',
+                    color: selected ? colors.accent : 'text.primary',
+                  }}
+                >
+                  {note.title}
+                </Typography>
+                {note.date && (
+                  <Typography
+                    variant="caption"
+                    sx={{ color: 'text.disabled', fontSize: '0.68rem', flexShrink: 0 }}
+                  >
+                    {formatDate(note.date)}
+                  </Typography>
+                )}
+              </Box>
+              {/* Content preview */}
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  fontSize: '0.775rem',
+                  lineHeight: 1.4,
+                  '& p, & h1, & h2, & h3': { display: 'inline', margin: 0 },
+                }}
+                dangerouslySetInnerHTML={{ __html: htmlContent }}
+              />
+            </>
+          ) : (
+            /* No title — single centred content row */
             <Typography
-              variant="subtitle2"
+              variant="body2"
+              color="text.secondary"
               sx={{
-                fontWeight: 600,
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
-                flex: 1,
-                fontSize: '0.95rem',
+                fontSize: '0.825rem',
+                lineHeight: 1.4,
+                '& p, & h1, & h2, & h3': { display: 'inline', margin: 0 },
               }}
-            >
-              {note.title || 'Untitled Note'}
-            </Typography>
-            {note.rate >= 4 && !isHovered && (
-              <StarIcon
-                sx={{
-                  fontSize: 16,
-                  color: theme.palette.warning.main,
-                  flexShrink: 0,
-                }}
-              />
-            )}
-          </Box>
-
-          {/* Content preview */}
-          <Typography
-            variant="body2"
-            color="text.secondary"
-            sx={{
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              fontSize: '0.8rem',
-              mb: 0.5,
-            }}
-            dangerouslySetInnerHTML={{ __html: htmlContent }}
-          />
-
-          {/* Meta row */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            {note.date && (
-              <Typography
-                variant="caption"
-                sx={{ color: theme.palette.text.disabled, fontSize: '0.7rem' }}
-              >
-                {formatDate(note.date)}
-              </Typography>
-            )}
-            {note.tags && note.tags.length > 0 && (
-              <Box sx={{ display: 'flex', gap: 0.5 }}>
-                {note.tags.slice(0, 2).map((tag, i) => (
-                  <Chip
-                    key={i}
-                    label={tag}
-                    size="small"
-                    sx={{
-                      height: 18,
-                      fontSize: '0.65rem',
-                      bgcolor: alpha(colors.accent, 0.1),
-                      color: colors.icon,
-                      '& .MuiChip-label': { px: 0.75 },
-                    }}
-                  />
-                ))}
-              </Box>
-            )}
-            {/* Feature badges */}
-            {hasMultipleSides && (
-              <Tooltip title="Multiple sides">
-                <FlipIcon sx={{ fontSize: 14, color: theme.palette.text.disabled }} />
-              </Tooltip>
-            )}
-            {hasMindmap && (
-              <Tooltip title="Has mindmap">
-                <AccountTreeIcon sx={{ fontSize: 14, color: theme.palette.text.disabled }} />
-              </Tooltip>
-            )}
-            {hasQuiz && (
-              <Tooltip title="Has quiz">
-                <QuizIcon sx={{ fontSize: 14, color: theme.palette.text.disabled }} />
-              </Tooltip>
-            )}
-          </Box>
+              dangerouslySetInnerHTML={{ __html: htmlContent }}
+            />
+          )}
         </Box>
 
-        {/* Right actions */}
+        {/* Hover: ⋮ menu */}
         <Box
           sx={{
             display: 'flex',
             alignItems: 'center',
-            gap: 0.5,
-            pr: 1.5,
+            pr: 0.5,
             opacity: isHovered ? 1 : 0,
             transition: 'opacity 0.15s ease',
           }}
         >
-          {hasMultipleSides && (
-            <Tooltip title="Flip card">
-              <IconButton size="small" onClick={handleFlipSide}>
-                <FlipIcon sx={{ fontSize: 18 }} />
-              </IconButton>
-            </Tooltip>
-          )}
-          <Rating
-            value={note.rate || 0}
-            readOnly
-            size="small"
-            sx={{ '& .MuiRating-icon': { fontSize: 16 } }}
-          />
           <IconButton size="small" onClick={handleMenuClick}>
-            <MoreVertIcon sx={{ fontSize: 18 }} />
+            <MoreVertIcon sx={{ fontSize: 16 }} />
           </IconButton>
         </Box>
-
-        {/* Right edge accent */}
-        <Box
-          sx={{
-            position: 'absolute',
-            right: 0,
-            top: 0,
-            bottom: 0,
-            width: 4,
-            bgcolor: colors.accent,
-            opacity: 0.4,
-          }}
-        />
 
         {/* Context Menu */}
         <Menu
@@ -460,27 +377,34 @@ function NoteCard({ note, viewMode, onDelete, onShowQuiz }) {
         >
           {note.sourceKey && (
             <MenuItem onClick={handleJumpToSource}>
-              <ListItemIcon>
-                <LaunchIcon fontSize="small" />
-              </ListItemIcon>
+              <ListItemIcon><LaunchIcon fontSize="small" /></ListItemIcon>
               <ListItemText>Jump to Source</ListItemText>
             </MenuItem>
           )}
           {hasQuiz && (
             <MenuItem onClick={handleShowQuiz}>
-              <ListItemIcon>
-                <QuizIcon fontSize="small" />
-              </ListItemIcon>
+              <ListItemIcon><QuizIcon fontSize="small" /></ListItemIcon>
               <ListItemText>Show Quiz</ListItemText>
             </MenuItem>
           )}
-          <MenuItem onClick={handleDelete}>
+          <MenuItem
+            onClick={() => {
+              handleMenuClose();
+              dispatch(noteAdded(null));
+              dispatch(noteAdded(note));
+              navigate('/moodboard');
+            }}
+          >
             <ListItemIcon>
-              <DeleteOutlineIcon fontSize="small" color="error" />
+              <FlashOnIcon fontSize="small" sx={{ color: activeMoodBoardId ? 'success.main' : 'text.disabled' }} />
             </ListItemIcon>
-            <ListItemText sx={{ color: theme.palette.error.main }}>
-              Delete
+            <ListItemText>
+              {activeMoodBoardId ? 'Add to Active Board' : 'Add to Board (open MoodBoard first)'}
             </ListItemText>
+          </MenuItem>
+          <MenuItem onClick={handleDelete}>
+            <ListItemIcon><DeleteOutlineIcon fontSize="small" color="error" /></ListItemIcon>
+            <ListItemText sx={{ color: theme.palette.error.main }}>Delete</ListItemText>
           </MenuItem>
         </Menu>
       </Box>
@@ -762,6 +686,21 @@ function NoteCard({ note, viewMode, onDelete, onShowQuiz }) {
             <ListItemText>Show Quiz</ListItemText>
           </MenuItem>
         )}
+        <MenuItem
+          onClick={() => {
+            handleMenuClose();
+            dispatch(noteAdded(null));
+            dispatch(noteAdded(note));
+            navigate('/moodboard');
+          }}
+        >
+          <ListItemIcon>
+            <FlashOnIcon fontSize="small" sx={{ color: activeMoodBoardId ? 'success.main' : 'text.disabled' }} />
+          </ListItemIcon>
+          <ListItemText>
+            {activeMoodBoardId ? 'Add to Active Board' : 'Add to Board (open MoodBoard first)'}
+          </ListItemText>
+        </MenuItem>
         <MenuItem onClick={handleDelete}>
           <ListItemIcon>
             <DeleteOutlineIcon fontSize="small" color="error" />
