@@ -56,16 +56,15 @@ describe('MindmapPersistenceService', () => {
     db.pragma('foreign_keys = OFF');
     db.exec(loadMinimalSchema());
 
-    const createdIds = [];
+    // Mock mirrors the real LearningPointManager.createLearningPointsBatch
+    // contract: it accepts points with caller-provided `id`, returns
+    // { created, errors } with NO `ids` array. The service pre-generates
+    // ids and never depends on the return value for id recovery.
     learningPointServiceMock = {
-      createLearningPointsBatch: jest.fn(async (points) => {
-        const ids = points.map(
-          (_, i) => `lp-mock-${createdIds.length + i}`,
-        );
-        ids.forEach((id) => createdIds.push(id));
-        return { created: points.length, ids };
-      }),
-      getBySource: jest.fn(async () => []),
+      createLearningPointsBatch: jest.fn(async (points) => ({
+        created: points.length,
+        errors: [],
+      })),
       getLearningPointById: jest.fn(async () => null),
     };
 
@@ -89,14 +88,29 @@ describe('MindmapPersistenceService', () => {
       token: 'tok',
     });
     expect(result.lpIds).toHaveLength(2);
+    expect(result.lpIds.every((id) => typeof id === 'string' && id.length > 0)).toBe(true);
     expect(
       learningPointServiceMock.createLearningPointsBatch,
     ).toHaveBeenCalledTimes(1);
+
+    // Service must pass pre-generated ids on the points it sends to the batch.
+    const passedPoints =
+      learningPointServiceMock.createLearningPointsBatch.mock.calls[0][0];
+    expect(passedPoints.every((p) => typeof p.id === 'string' && p.id.length > 0)).toBe(true);
+    expect(passedPoints[0].title).toBe('photosynthesis');
+    expect(passedPoints[0].sourceType).toBe('mindmap');
+    expect(passedPoints[0].sourceId).toBe('m1');
+    expect(passedPoints[0].bookId).toBe('b1');
+
     const linkRows = db
-      .prepare('SELECT * FROM mindmap_node_lp_link')
+      .prepare('SELECT * FROM mindmap_node_lp_link ORDER BY node_id')
       .all();
     expect(linkRows).toHaveLength(2);
     expect(linkRows[0].mindmap_id).toBe('m1');
+    // Link rows must reference the same ids the service handed to the batch.
+    expect(linkRows.map((r) => r.lp_id).sort()).toEqual(
+      passedPoints.map((p) => p.id).sort(),
+    );
   });
 
   it('is idempotent on re-save (no new LPs, no duplicate links)', async () => {

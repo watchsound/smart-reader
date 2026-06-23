@@ -11,7 +11,15 @@
 
 import { ipcMain } from 'electron';
 import { getDb } from '../db/dbManager';
-import { learningPointService } from '../utils/LearningPointService';
+// LearningPointManager (direct SQLite, function exports) is the working
+// write path on the default SqliteAdapter. LearningPointService's batch
+// call routes through GraphInterface, which silently no-ops on SQLite
+// (SqliteAdapter lacks createLearningPointsBatch). MindmapPersistenceService's
+// constructor takes any object matching the {createLearningPointsBatch,
+// getLearningPointById} interface, so the LearningPointManager module
+// namespace satisfies it directly.
+import * as learningPointManager from '../db/LearningPointManager';
+
 // Service is CommonJS; ESM-side default-import not needed because we
 // reach via require() within main.ts/IPC contexts that already mix both.
 // eslint-disable-next-line global-require
@@ -28,7 +36,7 @@ function registerMindmapIpc() {
   registered = true;
   svc = new MindmapPersistenceService({
     db: getDb(),
-    learningPointService,
+    learningPointService: learningPointManager,
   });
 
   ipcMain.handle('mindmap:save-as-learning-points', async (_e, payload) => {

@@ -6,21 +6,23 @@
  * Why a service + link table (not just sourceId='m1' on learning_point):
  *   - reopen needs O(1) node->lp lookup; without the link table we'd have
  *     to fetch every LP with sourceType='mindmap' & sourceId=mindmapId, then
- *     match by node-id heuristics (title? extras?). The link table makes the
- *     mapping explicit and stable across LP title edits.
+ *     match by node-id heuristics. The link table makes the mapping
+ *     explicit and stable across LP title edits.
  *   - re-save idempotency: same nodes saved twice MUST NOT create duplicate
  *     LPs. The link table is the dedup index.
  *
- * Contract with learningPointService.createLearningPointsBatch:
- *   The plan's reference template assumed the batch call returns `{ ids }`.
- *   In this codebase that is NOT guaranteed — graphInterface's SQLite path
- *   returns `{ created: 0, errors: [...] }` (the adapter lacks the method;
- *   the legacy LearningPointManager.createLearningPointsBatch returns no
- *   ids either). So we ALWAYS fall back to getBySource after the batch
- *   insert to recover ids, then match created LPs back to the input nodes
- *   by deterministic order (the batch was inserted in `toCreate` order, so
- *   the N most-recent mindmap LPs for this mindmapId are ours).
+ * Why we pre-generate UUIDs and inject them as `point.id`:
+ *   `LearningPointManager.createLearningPointsBatch` returns `{ created, errors }`
+ *   with no `ids` array; it accepts `point.id` and uses it verbatim when present
+ *   (LearningPointManager.js:380 — `point.id || uuidv4()`). Pre-generating ids
+ *   client-side lets us write link rows without a fallback round-trip.
+ *   (Investigation 2026-06-23: LearningPointService.createLearningPointsBatch
+ *   silently no-ops on the SQLite adapter — SqliteAdapter lacks the method —
+ *   so mindmapIpc injects LearningPointManager directly, whose function exports
+ *   match the same interface but write to SQLite reliably.)
  */
+
+const { randomUUID } = require('crypto');
 
 const LIVE_WRITABLE_DOMAINS = [
   'vocabulary',
@@ -64,39 +66,29 @@ class MindmapPersistenceService {
       };
     }
 
-    const points = toCreate.map((n) => ({
+    // Pre-generate ids so we don't depend on the batch call returning them.
+    const newIds = toCreate.map(() => randomUUID());
+
+    const points = toCreate.map((n, i) => ({
+      id: newIds[i],
+      title: n.data.text,
       front: n.data.text,
       back: n.data.detail || n.data.sourcePhrase || n.data.text,
       itemType: 'card',
       domainType: coerceDomain(n.data.domain),
       sourceType: 'mindmap',
       sourceId: mindmapId,
-      tags: bookId ? [`book:${bookId}`] : [],
+      bookId: bookId || null,
     }));
 
     const batchResult = await this.lps.createLearningPointsBatch(points, token);
-
-    // Recover the created ids. Preferred path: batch returned them
-    // explicitly (mock-driven test; future when GraphInterface impl lands).
-    // Fallback path: getBySource('mindmap', mindmapId) and take the rows
-    // matching this batch by insertion order. The fallback is what
-    // production currently needs — see service-level comment.
-    let createdIds = Array.isArray(batchResult?.ids) ? batchResult.ids : null;
-    if (!createdIds || createdIds.length !== toCreate.length) {
-      const fromSource = await this.lps.getBySource(
-        'mindmap',
-        mindmapId,
-        token,
-      );
-      // getBySource is expected to return newest-first or insertion-order
-      // dependent on adapter; rather than guess, take ALL rows for this
-      // mindmapId that are not already linked, and assume their order
-      // matches toCreate. If counts disagree we still write what we can.
-      const linkedSet = new Set(existingByNode.values());
-      const unlinked = (fromSource || [])
-        .map((lp) => lp.id)
-        .filter((id) => id && !linkedSet.has(id));
-      createdIds = unlinked.slice(0, toCreate.length);
+    if (batchResult?.error) {
+      return {
+        lpIds: [],
+        created: 0,
+        linked: 0,
+        error: batchResult.error,
+      };
     }
 
     const insert = this.db.prepare(
@@ -108,27 +100,20 @@ class MindmapPersistenceService {
       rows.forEach((r) => insert.run(r.mindmap_id, r.node_id, r.lp_id, now));
     });
 
-    const linkRows = [];
-    for (let i = 0; i < toCreate.length; i += 1) {
-      const lpId = createdIds[i];
-      if (lpId) {
-        linkRows.push({
-          mindmap_id: mindmapId,
-          node_id: toCreate[i].id,
-          lp_id: lpId,
-        });
-      }
-    }
+    const linkRows = toCreate.map((n, i) => ({
+      mindmap_id: mindmapId,
+      node_id: n.id,
+      lp_id: newIds[i],
+    }));
     if (linkRows.length > 0) linkTx(linkRows);
 
     const allLpIds = nodes.map(
-      (n) =>
-        existingByNode.get(n.id) || createdIds[toCreate.indexOf(n)] || null,
+      (n) => existingByNode.get(n.id) || newIds[toCreate.indexOf(n)] || null,
     );
 
     return {
       lpIds: allLpIds,
-      created: linkRows.length,
+      created: batchResult?.created ?? newIds.length,
       linked: linkRows.length,
     };
   }
