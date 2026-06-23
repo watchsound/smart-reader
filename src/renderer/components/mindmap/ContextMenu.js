@@ -1,6 +1,6 @@
 /* eslint-disable prettier/prettier */
 import React, { useState, useEffect, useCallback } from 'react';
-import { useReactFlow } from 'reactflow';
+import { useReactFlow } from '@xyflow/react';
 import { useDispatch } from 'react-redux';
 import { filterByKeyHandled } from '../../store/reducers/noteSlice';
 

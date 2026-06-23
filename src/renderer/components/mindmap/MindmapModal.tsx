@@ -5,16 +5,17 @@ import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
 
-import ReactFlow, {
+import {
+  ReactFlow,
   Background,
   Controls,
   MiniMap,
   useNodesState,
   useEdgesState,
   addEdge,
-} from 'reactflow';
+} from '@xyflow/react';
 
-import 'reactflow/dist/base.css';
+import '@xyflow/react/dist/base.css';
 import './style.css';
 import ContextMenu from './ContextMenu';
 import SmallButton from '../Button/SmallButton';

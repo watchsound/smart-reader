@@ -1,19 +1,20 @@
 /* eslint-disable prettier/prettier */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import ReactFlow, {
+import {
+  ReactFlow,
   Background,
   Controls,
   MiniMap,
   useNodesState,
   useEdgesState,
   addEdge,
-  updateEdge,
+  reconnectEdge as updateEdge,
   Position,
-} from 'reactflow';
+} from '@xyflow/react';
 import DisplaySettingsIcon from '@mui/icons-material/DisplaySettings';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
-import 'reactflow/dist/base.css';
+import '@xyflow/react/dist/base.css';
 import { styled } from '@mui/material/styles';
 
 import './mindmap.module.css';

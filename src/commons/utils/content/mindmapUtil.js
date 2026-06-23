@@ -1,5 +1,5 @@
 /* eslint-disable prettier/prettier */
-import { Position } from 'reactflow';
+import { Position } from '@xyflow/react';
 
 export function isSymbolLine(content) {
   const line = content.trim();
