@@ -2,6 +2,7 @@
  * Base webpack config used across other specific configs
  */
 
+import path from 'path';
 import webpack from 'webpack';
 import TsconfigPathsPlugins from 'tsconfig-paths-webpack-plugin';
 import webpackPaths from './webpack.paths';
@@ -60,6 +61,13 @@ const configuration: webpack.Configuration = {
   resolve: {
     extensions: ['.js', '.jsx', '.json', '.ts', '.tsx'],
     modules: [webpackPaths.srcPath, 'node_modules'],
+    // Force epubjs to resolve to a shim that guarantees the default export
+    // is the callable ePub function. Works around an interop bug where
+    // react-reader's compiled `(0, epubjs.default)(url, ...)` resolves to a
+    // non-function in this build.
+    alias: {
+      epubjs$: path.resolve(__dirname, '..', 'shims', 'epubjs-shim.js'),
+    },
     // There is no need to add aliases here, the paths in tsconfig get mirrored
     plugins: [new TsconfigPathsPlugins()],
     fallback: {
