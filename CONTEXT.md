@@ -99,3 +99,13 @@ Canonical names for domain concepts. One source of truth — code, docs, and con
 - **Brain Anomaly** — single persisted record `(id, kind, key, severity, evidence_json, since_ts, last_seen_ts, acknowledged_at)`. UNIQUE `(kind, key)` so rescan is idempotent. `key` is per-kind unique identifier: lpId for mastery/stalled, intent for spend, provider for errors, `<questId>:<lpId>` for stalled-quest-concept.
 - **Anomaly Severity** — `high` (rate ≥ 0.5 or drop ≥ 20 or cost ≥ $0.20), `medium` (above threshold), `low` (unused in v1). Drives card border color in HealthTab.
 - **Acknowledge** — Phase 15b action: mute an anomaly instance for `ANOMALY.ACK_TTL_DAYS = 7`. Stale rows (no longer triggering) drop EXCEPT those acknowledged within the window — keeps a soft tombstone so re-trigger inside the silence doesn't surface again.
+
+## Mindmap (2026-06-23 upgrade)
+
+- **MindmapSurface** — the single mindmap renderer (`src/renderer/components/mindmap/MindmapSurface.tsx`). Replaces `MyMindMap`, `MindmapModal`, and the `(coming soon)` placeholder. Used by every mindmap site in the app via `mode='inline' | 'expanded' | 'card'`. *Not "MindMap", not "MindmapView"*.
+- **MindNode** — the custom React node type rendered by MindmapSurface. Carries mastery shade (5-band alpha ramp on domain accent), domain icon + 4px accent stripe, collapse chevron. *Not "MindmapNode"*.
+- **MindmapData** — the canonical mindmap shape (`src/commons/model/MindmapData.ts`). One shape for every mindmap site; legacy v11 ReactFlow JSON converts via `legacyToCanonical`. Stored mindmaps carry no x/y; positions recomputed by elk on every render.
+- **Mastery Overlay** — node background tint reflecting `masteryLevel` (0-100), 5-band alpha ramp on the domain accent. Hydrated from `mindmap:mastery-snapshot` IPC on mount + on window focus.
+- **Save Concepts Bar** — bar above the canvas implementing C-confirm. Single click converts every unsaved node into a Learning Point via `MindmapPersistenceService.saveAsLearningPoints`. Dismissal is per-mindmap.
+- **mindmap_node_lp_link** — SQLite table joining `(mindmap_id, node_id) → lp_id`. Enables reopen-with-mastery-hydrated and the "Find in graph" reverse-lookup.
+- **`feature_surface: 'mindmap-study'`** — closed-enum value in `featureSurface.js`. Mastery moves caused by a mindmap-originated study session attribute to this surface in Phase 13 Spend & Returns.

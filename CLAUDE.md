@@ -144,6 +144,8 @@ src/
     │   ├── graph/           # Knowledge graph UI
     │   ├── knowledge/       # ConceptReviewPanel, RereadQueuePanel + ProductionPromptPanel
     │   │                    # + CrossBookPathPanel (Phase 7/8)
+    │   ├── mindmap/         # MindmapSurface — unified mindmap renderer
+    │   │                    # (spec: docs/superpowers/specs/2026-06-23-mindmap-upgrade-design.md)
     │   └── MoodBoard/       # Grid + diagram views
     ├── api/           # IPC clients (graphApi, brainApi, microCardApi, comprehensionApi,
     │                  #  bookDiagnosticApi, rereadQueueApi, moodBoardOrganizerApi,

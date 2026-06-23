@@ -1,7 +1,7 @@
 /* eslint-disable prettier/prettier */
 import { Position } from '@xyflow/react';
 
-export function isSymbolLine(content) {
+function isSymbolLine(content) {
   const line = content.trim();
   return (
     line === '"""' ||
@@ -32,35 +32,6 @@ export function removeStartEndSymbolLines(content) {
   return content;
 }
 
-function checkStartsWithRange(lines, includeFirstLine, startSymbol) {
-  let valid = true;
-  lines.forEach((line, index) => {
-    if (!includeFirstLine && index === 0) return;
-    const content = line.trim();
-    if (!content || content === 'mindmap') return;
-    if (content.indexOf(startSymbol) !== 0) valid = false;
-  });
-  return valid;
-}
-
-export function checkStartsWith(lines, startSymbol) {
-  const yes = checkStartsWithRange(lines, true, startSymbol);
-  if (yes) return yes;
-  return checkStartsWithRange(lines, false, startSymbol);
-}
-
-export function checkMindmapStartingSymbol(lines) {
-  let valid = checkStartsWith(lines, '--');
-  if (valid) return '--';
-  valid = checkStartsWith(lines, '-');
-  if (valid) return '-';
-  valid = checkStartsWith(lines, '##');
-  if (valid) return '##';
-  valid = checkStartsWith(lines, '#');
-  if (valid) return '#';
-  return '';
-}
-
 function isAlphaNumeric(code) {
   if (
     !(code > 47 && code < 58) && // numeric (0-9)
@@ -72,7 +43,7 @@ function isAlphaNumeric(code) {
   return true;
 }
 
-export function calculateMiniStepForMindmap(lines) {
+function calculateMiniStepForMindmap(lines) {
   // for each line
   // if line starts with alphanumeric, then it is not a mindmap, so skip it
   // calculate the position of the first non-space character, and keep track of the minimum
