@@ -459,6 +459,18 @@ class MoodBoardOrganizerService {
         i: noteId,
       }));
 
+      // Phase 3 — seed the diagram with a cluster-appropriate theme so the
+      // board opens with the right palette when the user switches to diagram
+      // view. Programmatic frame + node creation requires a storm engine
+      // (no DOM in main process) — deferred to Phase 3.5. For now the
+      // diagram view boots themed but empty, and the user populates it from
+      // the grid view's notes.
+      const { paletteForDomain } = require('../utils/clusterToBoard');
+      const seededDiagram = {
+        theme: { paletteId: paletteForDomain(domainType) },
+        colorZones: [],
+      };
+
       const board = createMoodBoard(
         {
           name: `${prettyDomain} from ${bookTitle}`,
@@ -466,7 +478,7 @@ class MoodBoardOrganizerService {
             points.length
           } ${domainType} concepts from "${bookTitle}".`,
           gridLayout: { layout: { lg: layoutItems } },
-          diagram: {},
+          diagram: seededDiagram,
           pinned: false,
         },
         token,
