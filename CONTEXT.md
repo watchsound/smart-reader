@@ -29,6 +29,11 @@ Canonical names for domain concepts. One source of truth — code, docs, and con
 - **NoteCardSurface** — the React component that owns Editorial Premium chrome. Wraps the inner `CardHeader / CardContent / CardActions` of `NoteUI`. Replaces the prior `StyledCard`. Accepts `accentColor` + optional `entryDelay` for staggered list entry. Used in all `NoteUI` render paths except inline-edit mode (which keeps the legacy `StyledCard` to avoid editor conflicts).
 - **Accent stripe** — the 4px solid left edge bar + fading gradient overlay that gives each Note its color signature on the new card. Replaces the prior flat `backgroundColor: note.color` fill, which washed out text. *Not "color bar", not "left border".*
 
+## Learn About (2026-06-23 embedded presentation)
+
+- **Embedded Presentation** — the live scaled-down Impress.js card embedded in a Learn About message feed. Shows slide 1 with its entrance animation; the iframe has `pointer-events: none` and a transparent click shield expands to the full-screen `ImpressModal`. Stored as `message.type = 'presentation'` with slide-data JSON (not pre-rendered HTML). *Not "Impress card", not "slide thumbnail".*
+- **buildImpressHTML** — the HTML-building half of the existing `generateImpressHTML`, extracted so render-time components (`EmbeddedPresentationCard`) can produce the impress.js HTML without re-invoking the AI. Takes pre-resolved slide data + deck metadata, returns the HTML string.
+
 ## Note creation (2026-06-21 inline-note design)
 
 - **Quick Note** — inline note created from `CreateAnnotationPanel` via the expand-in-place flow. Saves a Note record alongside the highlight annotation without opening `CreateNoteModal`. Carries only the typed text — no title, tags, image, or summary. *Not "Inline Note", not "Quick Capture".*

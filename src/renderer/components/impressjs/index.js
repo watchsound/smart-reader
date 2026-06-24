@@ -7,74 +7,34 @@ import { generateLayout, selectLayoutTheme } from './layoutGenerators';
 import { getRuntimeBundleString } from './effects/runtime';
 
 /**
- * Generate HTML content for impress.js presentation
- * @param {Object} options - Options object
- * @param {string|string[]} options.paragraph - Text to convert to slides
- * @returns {Promise<string|null>} - HTML content for the presentation, or null if no content
+ * Build the impress.js HTML document from already-resolved slide data.
+ * No AI call. Render-time consumers (EmbeddedPresentationCard) call this
+ * directly with stored slide data so the AI cost is paid only once.
+ *
+ * @param {Object} slideData
+ * @param {string|null} slideData.layout_theme
+ * @param {string|null} slideData.global_mood
+ * @param {string|null} slideData.background
+ * @param {Array<{content:string, role?:string, typography?:string, transition?:string, background?:string}>} slideData.data
+ * @returns {Promise<string|null>} HTML, or null if no slides.
  */
-const generateImpressHTML = async ({ paragraph }) => {
-  let sentences = [];
-  let suggestedTheme = null;
+const buildImpressHTML = async (slideData) => {
+  const slidesData = (slideData?.data || []).map((s) => ({
+    content: s.content,
+    role: s.role || null,
+    typography: s.typography || null,
+    transition: s.transition || null,
+    background: s.background || null,
+  }));
+  if (slidesData.length === 0) return null;
 
-  async function decomposeWithAI(input) {
-    const prompt = createDecomposeParagraphPrompt(input);
-    const r = await spineApi.generateContentWithJson(prompt, null, { label: 'impress-slide-decompose' });
-    const slides = [];
-    const deck = { layout_theme: null, global_mood: null, background: null };
-    if (r) {
-      deck.layout_theme = r.layout_theme || null;
-      deck.global_mood = r.global_mood || null;
-      deck.background = r.background || null;
-      if (Array.isArray(r.data)) {
-        r.data.forEach((item) => {
-          slides.push({
-            content: item.content,
-            role: item.role || null,
-            typography: item.typography || null,
-            transition: item.transition || null,
-            background: item.background || null,
-          });
-        });
-      }
-    }
-    return { slides, deck };
-  }
-
-  let slidesData = [];
-  let deckData = { layout_theme: null, global_mood: null, background: null };
-
-  if (Array.isArray(paragraph)) {
-    slidesData = paragraph.map((p) => ({
-      content: p,
-      role: null,
-      typography: null,
-      transition: null,
-      background: null,
-    }));
-    sentences = paragraph;
-  } else {
-    const result = await decomposeWithAI(paragraph);
-    sentences = result.slides.map((s) => s.content);
-    suggestedTheme = result.deck.layout_theme;
-    slidesData = result.slides;
-    deckData = result.deck;
-
-    if (!sentences || sentences.length === 0) {
-      sentences = await customStorage.sentenceTokenizer(paragraph);
-      slidesData = sentences.map((p) => ({
-        content: p,
-        role: null,
-        typography: null,
-        transition: null,
-        background: null,
-      }));
-    }
-  }
-
-  if (sentences.length === 0) return null;
-
-  console.log(`sentences ${sentences.length} = ${sentences}`);
-  console.log(`AI suggested theme: ${suggestedTheme}`);
+  const deckData = {
+    layout_theme: slideData?.layout_theme || null,
+    global_mood: slideData?.global_mood || null,
+    background: slideData?.background || null,
+  };
+  const suggestedTheme = deckData.layout_theme;
+  const sentences = slidesData.map((s) => s.content);
 
   // Select layout theme based on AI suggestion and content analysis
   const layoutTheme = selectLayoutTheme(
@@ -153,61 +113,95 @@ const generateImpressHTML = async ({ paragraph }) => {
         <link href="${css1Path}" rel="stylesheet" />
         <link href="${css2Path}" rel="stylesheet" />
         <style>
-          /* Slide visibility - fade non-active slides to very light color */
-          .step {
-            opacity: 1;
-            color: rgba(200, 200, 200, 0.08);
-            transition: color 0.5s ease-in-out;
-          }
-          .step.active {
-            color: inherit;
-          }
-          /* Past and future slides should have very light text */
-          .step.past, .step.future {
-            color: rgba(200, 200, 200, 0.08);
+          /* Cinema dark base — overrides demo.css grey radial gradient */
+          html, body {
+            background: #0d0d0d !important;
+            color: #e4e4e4;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif !important;
+            min-height: 100%;
           }
 
-          /* Enhanced styles for HTML content in slides */
-          .step h3, .step h4 {
-            margin: 0 0 0.5em 0;
-            color: #fff;
+          /* Slide visibility: inactive nearly invisible, active full */
+          .step {
+            opacity: 1;
+            color: rgba(255, 255, 255, 0.06);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif !important;
+            font-size: 44px;
+            line-height: 1.55;
+            letter-spacing: -0.01em;
+            text-align: center;
+            transition: color 0.6s ease-in-out;
           }
+          .step.active {
+            color: #e4e4e4;
+          }
+          .step.past, .step.future {
+            color: rgba(255, 255, 255, 0.06);
+          }
+
+          /* Headings inside slides */
+          .step h3, .step h4 {
+            margin: 0 0 0.45em 0;
+            color: #fff;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+          }
+          .step.active h3, .step.active h4 {
+            text-shadow: 0 0 40px rgba(255, 215, 0, 0.25);
+          }
+
+          /* Lists */
           .step ul, .step ol {
             margin: 0.5em 0;
-            padding-left: 1.5em;
+            padding-left: 1.4em;
             text-align: left;
+            font-size: 0.85em;
           }
           .step li {
-            margin: 0.3em 0;
+            margin: 0.35em 0;
+            line-height: 1.5;
           }
+
+          /* Tables */
           .step table {
             border-collapse: collapse;
             margin: 0.5em auto;
           }
           .step td, .step th {
-            border: 1px solid rgba(255,255,255,0.3);
+            border: 1px solid rgba(255,255,255,0.15);
             padding: 0.4em 0.8em;
+            font-size: 0.8em;
           }
           .step th {
-            background: rgba(255,255,255,0.1);
+            background: rgba(255,255,255,0.08);
+            font-weight: 600;
           }
           .step p {
             margin: 0.3em 0;
           }
+
+          /* Inline emphasis — gold / sky blue */
           .step strong, .step b {
             color: #ffd700;
+            font-weight: 600;
           }
           .step em, .step i {
-            color: #87ceeb;
+            color: #7ec8e3;
+            font-style: italic;
           }
+
+          /* Navigation hint — bottom center, fades on first advance */
           .hint {
             position: fixed;
-            bottom: 20px;
+            bottom: 24px;
             left: 50%;
             transform: translateX(-50%);
-            color: rgba(255,255,255,0.5);
-            font-size: 14px;
-            transition: opacity 0.5s;
+            color: rgba(255,255,255,0.35);
+            font-size: 12px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            transition: opacity 0.6s;
+            pointer-events: none;
           }
         </style>
       </head>
@@ -218,8 +212,7 @@ const generateImpressHTML = async ({ paragraph }) => {
           data-height="768"
           data-max-scale="3"
           data-min-scale="0"
-          data-perspective="1000"
-          data-autoplay="7">
+          data-perspective="1000">
          ${steps}
         </div>
         <div id="impress-toolbar"></div>
@@ -271,6 +264,77 @@ const generateImpressHTML = async ({ paragraph }) => {
 };
 
 /**
+ * Resolve raw paragraph input (string or string[]) into the slideData shape
+ * that buildImpressHTML expects. For string input this calls the AI; for
+ * array input it wraps each item as a plain slide.
+ *
+ * @param {string|string[]} paragraph
+ * @returns {Promise<Object>} slideData
+ */
+const resolveSlideData = async (paragraph) => {
+  if (Array.isArray(paragraph)) {
+    return {
+      layout_theme: null,
+      global_mood: null,
+      background: null,
+      data: paragraph.map((p) => ({
+        content: p,
+        role: null,
+        typography: null,
+        transition: null,
+        background: null,
+      })),
+    };
+  }
+
+  const prompt = createDecomposeParagraphPrompt(paragraph);
+  const r = await spineApi.generateContentWithJson(prompt, null, {
+    label: 'impress-slide-decompose',
+  });
+
+  if (r && Array.isArray(r.data) && r.data.length > 0) {
+    return {
+      layout_theme: r.layout_theme || null,
+      global_mood: r.global_mood || null,
+      background: r.background || null,
+      data: r.data.map((item) => ({
+        content: item.content,
+        role: item.role || null,
+        typography: item.typography || null,
+        transition: item.transition || null,
+        background: item.background || null,
+      })),
+    };
+  }
+
+  // Fallback: tokenize raw text into sentences when AI gives nothing usable
+  const sentences = await customStorage.sentenceTokenizer(paragraph);
+  return {
+    layout_theme: null,
+    global_mood: null,
+    background: null,
+    data: sentences.map((p) => ({
+      content: p,
+      role: null,
+      typography: null,
+      transition: null,
+      background: null,
+    })),
+  };
+};
+
+/**
+ * Generate HTML content for impress.js presentation
+ * @param {Object} options - Options object
+ * @param {string|string[]} options.paragraph - Text to convert to slides
+ * @returns {Promise<string|null>} - HTML content for the presentation, or null if no content
+ */
+const generateImpressHTML = async ({ paragraph }) => {
+  const slideData = await resolveSlideData(paragraph);
+  return buildImpressHTML(slideData);
+};
+
+/**
  * Open impress.js presentation in a new window
  * @param {Object} options - Options object
  * @param {string|string[]} options.paragraph - Text to convert to slides
@@ -306,5 +370,5 @@ const openImpressWindow = async ({ paragraph }) => {
   }
 };
 
-export { generateImpressHTML, openImpressWindow };
+export { buildImpressHTML, resolveSlideData, generateImpressHTML, openImpressWindow };
 export default openImpressWindow;

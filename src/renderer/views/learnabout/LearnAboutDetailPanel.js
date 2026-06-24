@@ -59,7 +59,11 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import TurnedInIcon from '@mui/icons-material/TurnedIn';
+import BookmarkAddIcon from '@mui/icons-material/BookmarkAdd';
+import BookmarkAddedIcon from '@mui/icons-material/BookmarkAdded';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import NoteAddIcon from '@mui/icons-material/NoteAdd';
+import AddToPhotosIcon from '@mui/icons-material/AddToPhotos';
 
 import customStorage from '../../store/customStorage';
 import MessageItem from '../../components/chat/MessageItem';
@@ -72,6 +76,7 @@ import {
   createChat,
 } from '../../api/chatApi';
 import SmallButton from '../../components/Button/SmallButton';
+import QuickNoteDialog from '../../components/header/QuickNoteDialog';
 
 import {
   learnAboutHandled,
@@ -83,15 +88,19 @@ import {
   mapToNewJsonSchema,
   createReaderLevelPrompt,
   getMindMapChatHistoryPrompt,
+  createDecomposeParagraphPrompt,
 } from '../../../commons/utils/AIPrompts';
+import spineApi from '../../api/spineApi';
+import EmbeddedPresentationCard from '../../components/impressjs/EmbeddedPresentationCard';
 import JsonSchemaManager from '../../utils/json/JsonSchemaManager';
-import mindMapSchema, { mindMapSchema0 } from '../../utils/json/mindmapSchema';
 import parseMindmapToReactFlow, {
   convertToReactFlow,
   convertToReactFlow0,
   removeStartEndSymbolLines,
 } from '../../../commons/utils/content/mindmapUtil';
 import MindmapSurface from '../../components/mindmap/MindmapSurface';
+import { saveMindmap as apiSaveMindmap } from '../../api/mindmapApi';
+import { legacyToCanonical } from '../../../commons/utils/content/mindmapMigration';
 import { AIProvider, StudyMode } from '../../../commons/model/DataTypes';
 import { instanceInRender as aiProviderManager } from '../../../commons/service/AIProviderManager';
 import StringPicker from '../../components/Picker/StringPicker';
@@ -101,6 +110,7 @@ import scrapeBing from '../../components/web-based-search/bing-direct-query';
 import scrapeBaidu from '../../components/web-based-search/baidu-direct-query';
 import { useCreateNoteMutation } from '../../store/api/noteApiSlice';
 import { NoteType } from '../../../commons/model/Note';
+import { noteAdded } from '../../store/reducers/moodBoardSlice';
 
 import {
   site_categories,
@@ -193,20 +203,45 @@ const TopicChip = styled(Chip)(({ theme }) => ({
   },
 }));
 
+function AnimatedText({ text, triggered }) {
+  if (!text) return null;
+  const words = text.split(/\s+/);
+  const stagger = Math.min(0.04, 0.8 / Math.max(words.length, 1));
+  return (
+    <>
+      {words.map((word, i) => (
+        <Box
+          key={i}
+          component="span"
+          sx={{
+            display: 'inline-block',
+            opacity: triggered ? 1 : 0,
+            transform: triggered ? 'none' : 'translateY(3px)',
+            transition: `opacity 0.3s ease ${(i * stagger).toFixed(3)}s, transform 0.3s ease ${(i * stagger).toFixed(3)}s`,
+            mr: '0.25em',
+          }}
+        >
+          {word}
+        </Box>
+      ))}
+    </>
+  );
+}
+
 // Interactive List Component (redesigned)
-function InteractiveListCard({ title, items }) {
+function InteractiveListCard({ title, items, onAddToBoard }) {
   const theme = useTheme();
   const [expandedIndex, setExpandedIndex] = useState(-1);
   const [CreateNote] = useCreateNoteMutation();
 
-  const createNoteByItem = async (item) => {
+  const createNoteByItem = async (item, addToBoard = false) => {
     const { title: itemTitle, content, image } = item;
     let imageId = '';
     if (image) {
       const m = await customStorage.createImage(image);
       imageId = m.id;
     }
-    await CreateNote({
+    const result = await CreateNote({
       sourceKey: '',
       title: itemTitle,
       cards: [{ text: content || '', html: '', image: imageId, templateId: 0 }],
@@ -225,6 +260,7 @@ function InteractiveListCard({ title, items }) {
       highlightType: '',
       hasQuiz: false,
     });
+    if (addToBoard && onAddToBoard) onAddToBoard(result?.data, itemTitle);
   };
 
   return (
@@ -328,6 +364,22 @@ function InteractiveListCard({ title, items }) {
                         <BookmarkAddIcon sx={{ fontSize: 16 }} />
                       </IconButton>
                     </Tooltip>
+                    <Tooltip title="Save & add to MoodBoard">
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          createNoteByItem(item, true);
+                        }}
+                        sx={{
+                          '&:hover': {
+                            color: theme.palette.secondary.main,
+                          },
+                        }}
+                      >
+                        <AddToPhotosIcon sx={{ fontSize: 16 }} />
+                      </IconButton>
+                    </Tooltip>
                     {expandedIndex === index ? (
                       <ExpandLessIcon sx={{ fontSize: 18, color: theme.palette.text.disabled }} />
                     ) : (
@@ -365,8 +417,8 @@ function InteractiveListCard({ title, items }) {
                       bgcolor: alpha(theme.palette.background.default, 0.5),
                     }}
                   >
-                    <Typography variant="body2" sx={{ pt: 1.5, lineHeight: 1.7 }}>
-                      {item.content}
+                    <Typography variant="body2" sx={{ pt: 1.5, lineHeight: 1.7 }} component="div">
+                      <AnimatedText text={item.content} triggered={expandedIndex === index} />
                     </Typography>
                   </Box>
                 </Fade>
@@ -383,6 +435,34 @@ function InteractiveListCard({ title, items }) {
 function TapToRevealCard({ title, question, answer }) {
   const theme = useTheme();
   const [revealed, setRevealed] = useState(false);
+  const [noteSaved, setNoteSaved] = useState(false);
+  const [CreateNote] = useCreateNoteMutation();
+
+  const saveAsNote = async () => {
+    await CreateNote({
+      sourceKey: '',
+      title: question.slice(0, 60),
+      cards: [
+        { text: question, html: '', image: '', templateId: 0 },
+        { text: answer, html: '', image: '', templateId: 0 },
+      ],
+      chapter: '',
+      chapterIndex: -1,
+      cfi: '',
+      range: '',
+      percentage: 0,
+      sourceType: NoteType.Note,
+      color: '',
+      tags: [],
+      rate: 0,
+      position: [],
+      emoji: '',
+      highlightOnly: false,
+      highlightType: '',
+      hasQuiz: false,
+    });
+    setNoteSaved(true);
+  };
 
   return (
     <ContentCard
@@ -462,23 +542,45 @@ function TapToRevealCard({ title, question, answer }) {
                 border: `1px solid ${alpha(theme.palette.success.main, 0.2)}`,
               }}
             >
-              <Typography variant="body1" sx={{ lineHeight: 1.7 }}>
-                {answer}
+              <Typography variant="body1" sx={{ lineHeight: 1.7 }} component="div">
+                <AnimatedText text={answer} triggered={revealed} />
               </Typography>
               <Box
-                onClick={() => setRevealed(false)}
                 sx={{
                   mt: 2,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 0.5,
-                  cursor: 'pointer',
-                  color: theme.palette.text.disabled,
-                  '&:hover': { color: theme.palette.text.secondary },
                 }}
               >
-                <ArrowBackIcon sx={{ fontSize: 14 }} />
-                <Typography variant="caption">Hide answer</Typography>
+                <Box
+                  onClick={() => setRevealed(false)}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.5,
+                    cursor: 'pointer',
+                    color: theme.palette.text.disabled,
+                    '&:hover': { color: theme.palette.text.secondary },
+                  }}
+                >
+                  <ArrowBackIcon sx={{ fontSize: 14 }} />
+                  <Typography variant="caption">Hide answer</Typography>
+                </Box>
+                <Box sx={{ flex: 1 }} />
+                <Tooltip title={noteSaved ? 'Saved!' : 'Save as note'}>
+                  <span>
+                    <IconButton
+                      size="small"
+                      onClick={saveAsNote}
+                      disabled={noteSaved}
+                      sx={{ '&:hover': { color: theme.palette.warning.main } }}
+                    >
+                      {noteSaved
+                        ? <TurnedInIcon sx={{ fontSize: 16, color: theme.palette.warning.main }} />
+                        : <BookmarkAddIcon sx={{ fontSize: 16 }} />}
+                    </IconButton>
+                  </span>
+                </Tooltip>
               </Box>
             </Box>
           </Grow>
@@ -492,6 +594,8 @@ function TapToRevealCard({ title, question, answer }) {
 function VocabularyCardNew({ word, definition, examples }) {
   const theme = useTheme();
   const [showExamples, setShowExamples] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
 
   const handleSave = async () => {
     await customStorage.createVocabulary({
@@ -534,11 +638,25 @@ function VocabularyCardNew({ word, definition, examples }) {
           </Tooltip>
         </SectionHeader>
 
-        <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
+        <Typography
+          variant="h6"
+          sx={{
+            fontWeight: 700,
+            mb: 0.5,
+            ...(mounted && {
+              '@keyframes vocabWordGlow': {
+                '0%': { textShadow: 'none' },
+                '40%': { textShadow: `0 0 12px ${alpha(theme.palette.info.main, 0.8)}` },
+                '100%': { textShadow: 'none' },
+              },
+              animation: 'vocabWordGlow 1.5s ease forwards',
+            }),
+          }}
+        >
           {word}
         </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          {definition}
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }} component="div">
+          <AnimatedText text={definition} triggered={mounted} />
         </Typography>
 
         {examples && examples.length > 0 && (
@@ -841,6 +959,8 @@ function LearnAboutDetailPanel({ chatId }) {
   const [submitting, setSubmitting] = useState(false);
   const [, forceUpdate] = useState();
   const [learnAbout, setLearnAbout] = useState(null);
+  // tracks which message indices have been saved as mindmaps (for icon toggle)
+  const [savedMindmapIndices, setSavedMindmapIndices] = useState(new Set());
   const [messages, setMessages] = useState([]);
   const [images, setImages] = useState([]);
   const [metaImages, setMetaImages] = useState([]);
@@ -848,6 +968,7 @@ function LearnAboutDetailPanel({ chatId }) {
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [keywordExercisePrompt, setKeywordExercisePrompt] = useState('');
   const [readerLevelPrompt, setReaderLevelPrompt] = useState('');
+  const [quickNoteOpen, setQuickNoteOpen] = useState(false);
   const dispatch = useDispatch();
 
   const componentRef = useRef(null);
@@ -927,6 +1048,26 @@ function LearnAboutDetailPanel({ chatId }) {
     setOpen(true);
   };
 
+  const handleSaveMindmap = async (legacyData, messageIndex) => {
+    try {
+      const canonical = legacyToCanonical(legacyData, `m-learnabout-${Date.now()}`);
+      await apiSaveMindmap({ title: canonical.title || content, query: content, data: canonical });
+      setSavedMindmapIndices((prev) => new Set([...prev, messageIndex]));
+      showMessage('Mind map saved — find it in Knowledge → Maps.', 'success');
+    } catch (err) {
+      console.error('[LearnAbout] save mindmap failed:', err);
+      showMessage('Failed to save mind map.', 'error');
+    }
+  };
+
+  const handleAddToBoard = (note, noteTitle) => {
+    if (note) {
+      dispatch(noteAdded(null));
+      dispatch(noteAdded(note));
+    }
+    showMessage(`"${noteTitle}" added — open MoodBoard to see it on the board.`, 'success');
+  };
+
   function reset() {
     setMessages([]);
     setContent('');
@@ -981,7 +1122,7 @@ function LearnAboutDetailPanel({ chatId }) {
 
       let localData = '';
       if (useLocalData) {
-        localData = queryLocalData(content);
+        localData = await queryLocalData(content);
       }
       const userMessage = await createMessage({
         chatId: curChatId,
@@ -1090,6 +1231,9 @@ function LearnAboutDetailPanel({ chatId }) {
       // create report — use advanced model: this is the longest, most
       // quality-sensitive generation in the pipeline (summary + sections).
       let webContents = await fetchAndExtractTextFromCache(urlToHtml);
+      if (localData) {
+        webContents = [{ url: 'Local Knowledge Base', text: localData }, ...webContents];
+      }
       const prompt = constructContextPrompt(content, webContents);
       const summarySections = await queryAdvancedWithReturnJson(prompt);
 
@@ -1136,7 +1280,7 @@ function LearnAboutDetailPanel({ chatId }) {
       }
 
       // add some tap-to-reveal
-      const ttrp = getTapToRevealPrompt(content, webContents.map((c) => c.text).join('\n\n'));
+      const ttrp = getTapToRevealPrompt(content, webContents.map((c) => c.text).join('\n\n').slice(0, 3000));
       const ttrpResponse = await queryOllamaWithReturnJson(ttrp);
       if (ttrpResponse) {
         const ttrps = (ttrpResponse.data || ttrpResponse).map(async (r) => {
@@ -1188,32 +1332,91 @@ function LearnAboutDetailPanel({ chatId }) {
 
       // add mindmap view — route through the advanced provider; structuring
       // a coherent map across an article rewards a stronger model.
-      const mindmapSourceText = webContents[0]?.text || '';
+      // Use the AI-generated summary as source: it is already topic-correct and
+      // compact. Raw webContents[0].text is often platform boilerplate (e.g.
+      // Zhihu login page) when the site blocks headless fetches.
+      const mindmapSourceText = summarySections
+        ? [
+            summarySections.summary,
+            ...(summarySections.sections || []).map((s) => `${s.title}: ${s.detail}`),
+          ]
+            .join('\n\n')
+            .slice(0, 4000)
+        : (webContents[0]?.text || '').slice(0, 4000);
       if (mindmapSourceText) {
-        const mindmapPrompt = getMindMapChatHistoryPrompt(mindmapSourceText);
-        // mindmapPrompt is an array [{role, content}], use sendChatMessage properly
-        const mindmapHistory = mindmapPrompt.slice(0, -1);
-        const mindmapUserMessage = mindmapPrompt[mindmapPrompt.length - 1]?.content || '';
-        const mindmapTarget = aiProviderManager.getAdvanced();
-        const mindmap = mindmapTarget
-          ? await mindmapTarget.sendChatMessage(
-              mindmapHistory,
-              mindmapUserMessage,
-              { maxOutputTokens: 8192 },
-            )
-          : null;
-        if (mindmap) {
-          const mindmapContent = removeStartEndSymbolLines(mindmap);
-          const mindmapObj = parseMindmapToReactFlow(mindmapContent);
-          const mMessage = await createMessage({
-            chatId: curChatId,
-            content: JSON.stringify(mindmapObj),
-            type: 'mindmap',
-            role: 'user',
-            createdAt: new Date(),
-          });
-          messagesCached.push(mMessage);
-          setMessages([...messagesCached]);
+        try {
+          const mindmapPrompt = getMindMapChatHistoryPrompt(mindmapSourceText);
+          const mindmapHistory = mindmapPrompt.slice(0, -1);
+          const mindmapUserMessage = mindmapPrompt[mindmapPrompt.length - 1]?.content || '';
+          const mindmapTarget = aiProviderManager.getAdvanced();
+          if (!mindmapTarget) {
+            console.warn('[LearnAbout] mindmap skipped: no AI provider (instanceInRender.currentProvider is null)');
+          }
+          const mindmap = mindmapTarget
+            ? await mindmapTarget.sendChatMessage(
+                mindmapHistory,
+                mindmapUserMessage,
+                { maxOutputTokens: 8192 },
+              )
+            : null;
+          if (mindmapTarget && !mindmap) {
+            console.warn('[LearnAbout] mindmap skipped: sendChatMessage returned empty response');
+          }
+          if (mindmap) {
+            const mindmapContent = removeStartEndSymbolLines(mindmap);
+            const mindmapObj = parseMindmapToReactFlow(mindmapContent);
+            const hasNodes =
+              mindmapObj.descriptionMap?.nodes?.length > 0 ||
+              mindmapObj.keywordMap?.nodes?.length > 0;
+            if (hasNodes) {
+              const mMessage = await createMessage({
+                chatId: curChatId,
+                content: JSON.stringify(mindmapObj),
+                type: 'mindmap',
+                role: 'user',
+                createdAt: new Date(),
+              });
+              messagesCached.push(mMessage);
+              setMessages([...messagesCached]);
+            } else {
+              console.warn('[LearnAbout] mindmap AI output did not parse to any nodes; skipping card. Raw output head:', mindmap.slice(0, 200));
+            }
+          }
+        } catch (err) {
+          console.error('[LearnAbout] mindmap generation failed:', err);
+        }
+      }
+
+      // add presentation (Impress.js) — same source text as mindmap.
+      // Slide data is stored (not full HTML); EmbeddedPresentationCard
+      // rebuilds the HTML at render time via buildImpressHTML.
+      if (mindmapSourceText) {
+        try {
+          const presentationData = await spineApi.generateContentWithJson(
+            createDecomposeParagraphPrompt(mindmapSourceText),
+            null,
+            { label: 'impress-slide-decompose' },
+          );
+          // Normalize: some providers return the slides array directly; wrap it
+          // so EmbeddedPresentationCard always receives { data: [...] }.
+          const normalizedPresentation = Array.isArray(presentationData)
+            ? { data: presentationData }
+            : presentationData;
+          if (normalizedPresentation?.data?.length > 0) {
+            const pMessage = await createMessage({
+              chatId: curChatId,
+              content: JSON.stringify(normalizedPresentation),
+              type: 'presentation',
+              role: 'user',
+              createdAt: new Date(),
+            });
+            messagesCached.push(pMessage);
+            setMessages([...messagesCached]);
+          } else {
+            console.warn('[LearnAbout] presentation AI returned no slides; skipping card.', normalizedPresentation);
+          }
+        } catch (err) {
+          console.error('[LearnAbout] presentation generation failed:', err);
         }
       }
 
@@ -1307,13 +1510,20 @@ function LearnAboutDetailPanel({ chatId }) {
             </Typography>
           </Box>
         </Box>
-        {learnAbout && (
-          <Tooltip title="Start new exploration">
-            <IconButton onClick={reset} size="small">
-              <CreateNewFolderIcon sx={{ fontSize: 20 }} />
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Tooltip title="Quick note">
+            <IconButton onClick={() => setQuickNoteOpen(true)} size="small">
+              <NoteAddIcon sx={{ fontSize: 20 }} />
             </IconButton>
           </Tooltip>
-        )}
+          {learnAbout && (
+            <Tooltip title="Start new exploration">
+              <IconButton onClick={reset} size="small">
+                <CreateNewFolderIcon sx={{ fontSize: 20 }} />
+              </IconButton>
+            </Tooltip>
+          )}
+        </Box>
       </Box>
 
       {/* Loading Progress */}
@@ -1383,7 +1593,7 @@ function LearnAboutDetailPanel({ chatId }) {
                   return (
                     <Grow in key={index}>
                       <Box>
-                        <InteractiveListCard title={jsonObj.title} items={jsonObj.items} />
+                        <InteractiveListCard title={jsonObj.title} items={jsonObj.items} onAddToBoard={handleAddToBoard} />
                       </Box>
                     </Grow>
                   );
@@ -1421,6 +1631,9 @@ function LearnAboutDetailPanel({ chatId }) {
                               p: 2,
                               background: `linear-gradient(135deg, ${alpha(theme.palette.info.main, 0.08)}, ${alpha(theme.palette.primary.main, 0.05)})`,
                               borderBottom: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
                             }}
                           >
                             <SectionHeader sx={{ mb: 0 }}>
@@ -1429,15 +1642,38 @@ function LearnAboutDetailPanel({ chatId }) {
                                 Mind Map
                               </Typography>
                             </SectionHeader>
+                            <Tooltip title={savedMindmapIndices.has(index) ? 'Saved' : 'Save to library'}>
+                              <span>
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleSaveMindmap(jsonObj.descriptionMap || jsonObj.keywordMap, index)}
+                                  disabled={savedMindmapIndices.has(index)}
+                                  sx={{ color: savedMindmapIndices.has(index) ? theme.palette.success.main : theme.palette.action.active }}
+                                >
+                                  {savedMindmapIndices.has(index)
+                                    ? <BookmarkAddedIcon fontSize="small" />
+                                    : <BookmarkAddIcon fontSize="small" />}
+                                </IconButton>
+                              </span>
+                            </Tooltip>
                           </Box>
-                          <Box sx={{ height: 400, p: 1 }}>
+                          <Box sx={{ p: 1 }}>
                             <MindmapSurface
                               data={jsonObj.descriptionMap || jsonObj.keywordMap}
-                              mode="expanded"
+                              mode="inline"
+                              height={460}
                             />
                           </Box>
                         </CardContent>
                       </ContentCard>
+                    </Grow>
+                  );
+                case 'presentation':
+                  return (
+                    <Grow in key={index}>
+                      <Box>
+                        <EmbeddedPresentationCard slideData={jsonObj} />
+                      </Box>
                     </Grow>
                   );
                 case 'related_topics':
@@ -1559,6 +1795,10 @@ function LearnAboutDetailPanel({ chatId }) {
         </Box>
       </Box>
 
+      <QuickNoteDialog
+        open={quickNoteOpen}
+        onClose={() => setQuickNoteOpen(false)}
+      />
       <Snackbar
         open={open}
         autoHideDuration={6000}

@@ -1,8 +1,10 @@
 /* eslint-disable prettier/prettier */
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useState } from 'react';
 import { styled } from '@mui/material/styles';
 import IconButton from '@mui/material/IconButton';
 import CloseIcon from '@mui/icons-material/Close';
+import Typography from '@mui/material/Typography';
+import Box from '@mui/material/Box';
 
 const Overlay = styled('div')({
   position: 'fixed',
@@ -10,7 +12,7 @@ const Overlay = styled('div')({
   left: 0,
   right: 0,
   bottom: 0,
-  backgroundColor: 'rgba(0, 0, 0, 0.95)',
+  backgroundColor: '#000',
   zIndex: 9999,
   display: 'flex',
   flexDirection: 'column',
@@ -18,15 +20,23 @@ const Overlay = styled('div')({
   justifyContent: 'center',
 });
 
-const CloseButton = styled(IconButton)({
+// Top bar fades in when user mouses into the top 80px
+const TopBar = styled('div')({
   position: 'absolute',
-  top: 16,
-  right: 16,
-  color: '#fff',
-  backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  zIndex: 10000,
-  '&:hover': {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  top: 0,
+  left: 0,
+  right: 0,
+  height: 72,
+  background: 'linear-gradient(to bottom, rgba(0,0,0,0.75) 0%, transparent 100%)',
+  zIndex: 10001,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'flex-end',
+  padding: '0 20px',
+  opacity: 0,
+  transition: 'opacity 0.25s ease',
+  '&.visible': {
+    opacity: 1,
   },
 });
 
@@ -45,7 +55,25 @@ const StyledIframe = styled('iframe')({
   backgroundColor: '#000',
 });
 
+// Keyboard hint — visible for a few seconds then fades
+const KeyHint = styled(Typography)({
+  position: 'absolute',
+  bottom: 28,
+  left: '50%',
+  transform: 'translateX(-50%)',
+  color: 'rgba(255,255,255,0.3)',
+  fontSize: 11,
+  letterSpacing: '0.1em',
+  textTransform: 'uppercase',
+  pointerEvents: 'none',
+  transition: 'opacity 1s ease',
+  whiteSpace: 'nowrap',
+});
+
 function ImpressModal({ open, onClose, htmlContent }) {
+  const [topBarVisible, setTopBarVisible] = useState(false);
+  const [hintVisible, setHintVisible] = useState(true);
+
   const handleKeyDown = useCallback((event) => {
     if (event.key === 'Escape') {
       onClose();
@@ -55,8 +83,14 @@ function ImpressModal({ open, onClose, htmlContent }) {
   useEffect(() => {
     if (open) {
       document.addEventListener('keydown', handleKeyDown);
-      // Prevent body scroll when modal is open
       document.body.style.overflow = 'hidden';
+      setHintVisible(true);
+      const t = setTimeout(() => setHintVisible(false), 3500);
+      return () => {
+        clearTimeout(t);
+        document.removeEventListener('keydown', handleKeyDown);
+        document.body.style.overflow = '';
+      };
     }
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
@@ -67,10 +101,30 @@ function ImpressModal({ open, onClose, htmlContent }) {
   if (!open || !htmlContent) return null;
 
   return (
-    <Overlay>
-      <CloseButton onClick={onClose} size="large">
-        <CloseIcon fontSize="large" />
-      </CloseButton>
+    <Overlay
+      onMouseMove={(e) => setTopBarVisible(e.clientY < 80)}
+      onMouseLeave={() => setTopBarVisible(false)}
+    >
+      {/* Gradient top bar with close button — appears on mouse approach */}
+      <TopBar className={topBarVisible ? 'visible' : ''}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Typography sx={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+            Esc to close
+          </Typography>
+          <IconButton
+            onClick={onClose}
+            size="medium"
+            sx={{
+              color: 'rgba(255,255,255,0.7)',
+              '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.1)' },
+            }}
+            aria-label="Close presentation"
+          >
+            <CloseIcon />
+          </IconButton>
+        </Box>
+      </TopBar>
+
       <IframeContainer>
         <StyledIframe
           srcDoc={htmlContent}
@@ -78,6 +132,11 @@ function ImpressModal({ open, onClose, htmlContent }) {
           sandbox="allow-scripts allow-same-origin"
         />
       </IframeContainer>
+
+      {/* Keyboard hint fades after 3.5s */}
+      <KeyHint sx={{ opacity: hintVisible ? 1 : 0 }}>
+        Space / Arrow keys to navigate
+      </KeyHint>
     </Overlay>
   );
 }
