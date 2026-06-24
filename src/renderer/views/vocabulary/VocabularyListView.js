@@ -33,7 +33,7 @@ const ScrollPane = styled('div')(({ theme }) => ({
       : theme.palette.background.default,
 }));
 
-function VocabularyListView({isReviewDue}) {
+function VocabularyListView({isReviewDue, searchQuery}) {
   // const [apiKey, setApiKey] = useState('');
   const [vocabularies, setVocabularies] = useState([]);
   const [search, setSearch] = useState('');
@@ -41,28 +41,34 @@ function VocabularyListView({isReviewDue}) {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
 
+  // Sync controlled searchQuery from parent sidebar into internal search state
+  useEffect(() => {
+    if (searchQuery !== undefined) {
+      setSearch(searchQuery);
+      setPage(1);
+    }
+  }, [searchQuery]);
+
   const [open, setOpen] = useState(false);
   const dispatch = useDispatch();
 
 
-  // `t` is invoked both by the useEffect (when page/limit/isReviewDue change)
-  // and directly by `searchIt`, which itself triggers a state change that
-  // re-runs the useEffect. That pair fires overlapping requests; without a
-  // race guard the slower response wins and stale results land.
+  // Race guard: multiple state changes (page, search) can trigger concurrent fetches.
+  // Only the latest generation's result is applied.
   const queryGenRef = useRef(0);
 
   async function t() {
       const myGen = queryGenRef.current + 1;
       queryGenRef.current = myGen;
-      const result = isReviewDue ? await customStorage.getVocabulariesByQuery({
-        query: search || '',
-        page,
-        limit,
-      }) : await customStorage.getVocabulariesByDueReview({
+      const result = isReviewDue ? await customStorage.getVocabulariesByDueReview({
         dueTime: new Date(),
         page,
         limit,
-      }) ;
+      }) : await customStorage.getVocabulariesByQuery({
+        query: search || '',
+        page,
+        limit,
+      });
       if (myGen !== queryGenRef.current) return;
       if (!result) return;
       setVocabularies(result.data || []);
@@ -71,12 +77,11 @@ function VocabularyListView({isReviewDue}) {
 
   useEffect(() => {
     t();
-  }, [page, limit, isReviewDue]);
+  }, [page, limit, isReviewDue, search]);
 
   const searchIt = (query) => {
     setSearch(query);
-    setPage(1)
-    t();
+    setPage(1);
   };
   const handlePageChange = (event, value) => {
     setPage(value);

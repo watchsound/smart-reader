@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTheme, alpha, styled } from '@mui/material/styles';
 import {
   Box,
@@ -12,6 +12,8 @@ import {
   Tooltip,
   Badge,
   LinearProgress,
+  Tabs,
+  Tab,
 } from '@mui/material';
 import { useSelector, useDispatch } from 'react-redux';
 
@@ -33,6 +35,7 @@ import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import LeitnerSystem from '../../components/LeitnerSystem/LeitnerSystem';
 import VocabularyListView from './VocabularyListView';
 import customStorage from '../../store/customStorage';
+import { getBySource, ensureVocabBackfilled } from '../../api/learningPointApi';
 
 // Color palette for Leitner boxes - representing learning progress
 const BOX_COLORS = [
@@ -159,8 +162,63 @@ function VocabularyView() {
 
   const addVocabulary = useSelector((state) => state.vocabulary.addVocabulary);
 
+  // Resolve the mirrored learning_point for the vocabulary so processReview uses
+  // the correct LP id. Falls back to a vocab-format card if the mirror hasn't run yet.
+  const [addItem, setAddItem] = useState(null);
+  useEffect(() => {
+    if (!addVocabulary) {
+      setAddItem(null);
+      return;
+    }
+    async function resolveLP() {
+      const token = await customStorage.getToken();
+      const results = await getBySource('vocabulary', String(addVocabulary.id), token);
+      if (results && results.length > 0) {
+        setAddItem(results[0]);
+      } else {
+        // Mirror not yet written — use vocab shape; review won't persist until mirror runs
+        setAddItem({
+          id: addVocabulary.id,
+          domain_type: 'vocabulary',
+          item_type: 'word',
+          source_type: 'vocabulary',
+          source_id: String(addVocabulary.id),
+          title: addVocabulary.word,
+          front: { text: addVocabulary.word || '' },
+          back: { text: addVocabulary.definition || addVocabulary.detail || '' },
+          box: addVocabulary.leitnerItem?.box || 1,
+          review_count: addVocabulary.leitnerItem?.skips || 0,
+          fully_learned: (addVocabulary.leitnerItem?.fullLearned || addVocabulary.leitnerItem?.fullyLearned) ? 1 : 0,
+          next_review: addVocabulary.leitnerItem?.nextReview || null,
+          extras: {
+            relatedWords: addVocabulary.relatedWords || '',
+            example: addVocabulary.example || '',
+          },
+        });
+      }
+    }
+    resolveLP();
+  }, [addVocabulary]);
+
+  // Clicked box number (1-5) to filter Leitner cards; null = show all due
+  const [boxFilter, setBoxFilter] = useState(null);
+  // Incremented after backfill to trigger LeitnerSystem reload
+  const [refreshToken, setRefreshToken] = useState(0);
+
+  // Mirror any un-backfilled vocabulary rows to learning_point on first visit.
+  // Idempotent on main side (one-shot per session), so safe to call every mount.
+  useEffect(() => {
+    async function runBackfill() {
+      const token = await customStorage.getToken();
+      await ensureVocabBackfilled(token);
+      setRefreshToken((n) => n + 1);
+    }
+    runBackfill();
+  }, []);
+
   // State
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarTab, setSidebarTab] = useState('boxes'); // 'boxes' | 'words'
   const [quickFilter, setQuickFilter] = useState('review'); // 'review' or 'all'
   const [searchQuery, setSearchQuery] = useState('');
   const [stats, setStats] = useState({
@@ -349,137 +407,118 @@ function VocabularyView() {
           </Box>
         </SidebarSection>
 
-        {/* Quick Filters */}
-        <SidebarSection>
-          <Typography
-            variant="caption"
-            sx={{
-              color: theme.palette.text.disabled,
-              fontWeight: 600,
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
-              display: 'block',
-              mb: 1,
-            }}
-          >
-            View Mode
-          </Typography>
-          <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
-            <QuickFilterChip
-              icon={<AccessTimeIcon sx={{ fontSize: '14px !important' }} />}
-              label={`For Review (${stats.dueToday})`}
-              size="small"
-              selected={quickFilter === 'review'}
-              onClick={() => setQuickFilter('review')}
-            />
-            <QuickFilterChip
-              icon={<Inventory2Icon sx={{ fontSize: '14px !important' }} />}
-              label={`All Words (${stats.total})`}
-              size="small"
-              selected={quickFilter === 'all'}
-              onClick={() => setQuickFilter('all')}
-            />
-          </Box>
-        </SidebarSection>
-
-        {/* Leitner Boxes Overview */}
-        <Box sx={{ flex: 1, overflow: 'auto', px: 1.5, py: 1 }}>
-          <Typography
-            variant="caption"
-            sx={{
-              color: theme.palette.text.disabled,
-              fontWeight: 600,
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
-              display: 'block',
-              mb: 1.5,
-              px: 0.5,
-            }}
-          >
-            Leitner Boxes
-          </Typography>
-
-          {colorPalette.map((boxColor, index) => (
-            <Box
-              key={index}
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1.5,
-                p: 1.5,
-                mb: 1,
-                borderRadius: 2,
-                bgcolor: boxColor.bg,
-                border: `1px solid ${alpha(boxColor.accent, 0.2)}`,
-                transition: 'all 0.2s ease',
-                '&:hover': {
-                  transform: 'translateX(4px)',
-                  boxShadow: `0 2px 8px ${alpha(boxColor.accent, 0.2)}`,
-                },
-              }}
-            >
-              <Box
-                sx={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: 1.5,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  bgcolor: alpha(boxColor.accent, 0.15),
-                }}
-              >
-                <Typography
-                  sx={{
-                    fontWeight: 700,
-                    fontSize: '0.9rem',
-                    color: boxColor.icon,
-                  }}
-                >
-                  {index + 1}
-                </Typography>
-              </Box>
-              <Box sx={{ flex: 1 }}>
-                <Typography
-                  variant="body2"
-                  sx={{ fontWeight: 600, color: boxColor.icon }}
-                >
-                  {boxColor.name}
-                </Typography>
-                <Typography variant="caption" sx={{ color: alpha(boxColor.icon, 0.7) }}>
-                  {index === 0 && 'Review daily'}
-                  {index === 1 && 'Every 2 days'}
-                  {index === 2 && 'Every 4 days'}
-                  {index === 3 && 'Every week'}
-                  {index === 4 && 'Every 2 weeks'}
-                </Typography>
-              </Box>
-              <Chip
-                label={stats.boxCounts[index]}
-                size="small"
-                sx={{
-                  height: 24,
-                  minWidth: 32,
-                  fontWeight: 700,
-                  bgcolor: alpha(boxColor.accent, 0.15),
-                  color: boxColor.icon,
-                  '& .MuiChip-label': { px: 1 },
-                }}
-              />
-            </Box>
-          ))}
-        </Box>
-
-        {/* Word List - Collapsible Section */}
-        <Box
+        {/* Tab Bar */}
+        <Tabs
+          value={sidebarTab}
+          onChange={(_, v) => setSidebarTab(v)}
+          variant="fullWidth"
           sx={{
-            borderTop: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
-            maxHeight: '35vh',
-            overflow: 'auto',
+            minHeight: 36,
+            borderBottom: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
+            '& .MuiTab-root': { minHeight: 36, fontSize: '0.75rem', fontWeight: 600, py: 0 },
           }}
         >
-          <VocabularyListView isReviewDue={quickFilter === 'review'} searchQuery={searchQuery} />
-        </Box>
+          <Tab label="Boxes" value="boxes" />
+          <Tab label={`Words (${stats.total})`} value="words" />
+        </Tabs>
+
+        {/* Tab: Leitner Boxes */}
+        {sidebarTab === 'boxes' && (
+          <Box sx={{ flex: 1, overflow: 'auto', px: 1.5, py: 1 }}>
+            {colorPalette.map((boxColor, index) => {
+              const boxNum = index + 1;
+              const isSelected = boxFilter === boxNum;
+              return (
+                <Box
+                  key={index}
+                  onClick={() => setBoxFilter(isSelected ? null : boxNum)}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1.5,
+                    p: 1.5,
+                    mb: 1,
+                    borderRadius: 2,
+                    bgcolor: boxColor.bg,
+                    border: `1px solid ${isSelected ? boxColor.accent : alpha(boxColor.accent, 0.2)}`,
+                    outline: isSelected ? `2px solid ${alpha(boxColor.accent, 0.4)}` : 'none',
+                    transition: 'all 0.2s ease',
+                    cursor: 'pointer',
+                    '&:hover': {
+                      transform: 'translateX(4px)',
+                      boxShadow: `0 2px 8px ${alpha(boxColor.accent, 0.2)}`,
+                    },
+                  }}
+                >
+                  <Box
+                    sx={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 1.5,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      bgcolor: alpha(boxColor.accent, 0.15),
+                    }}
+                  >
+                    <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', color: boxColor.icon }}>
+                      {index + 1}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600, color: boxColor.icon }}>
+                      {boxColor.name}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: alpha(boxColor.icon, 0.7) }}>
+                      {index === 0 && 'Review daily'}
+                      {index === 1 && 'Every 2 days'}
+                      {index === 2 && 'Every 4 days'}
+                      {index === 3 && 'Every week'}
+                      {index === 4 && 'Every 2 weeks'}
+                    </Typography>
+                  </Box>
+                  <Chip
+                    label={stats.boxCounts[index]}
+                    size="small"
+                    sx={{
+                      height: 24,
+                      minWidth: 32,
+                      fontWeight: 700,
+                      bgcolor: alpha(boxColor.accent, 0.15),
+                      color: boxColor.icon,
+                      '& .MuiChip-label': { px: 1 },
+                    }}
+                  />
+                </Box>
+              );
+            })}
+          </Box>
+        )}
+
+        {/* Tab: Word List */}
+        {sidebarTab === 'words' && (
+          <Box sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <Box sx={{ px: 1.5, pt: 1, pb: 0.5, display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
+              <QuickFilterChip
+                icon={<AccessTimeIcon sx={{ fontSize: '14px !important' }} />}
+                label={`For Review (${stats.dueToday})`}
+                size="small"
+                selected={quickFilter === 'review'}
+                onClick={() => setQuickFilter('review')}
+              />
+              <QuickFilterChip
+                icon={<Inventory2Icon sx={{ fontSize: '14px !important' }} />}
+                label={`All Words (${stats.total})`}
+                size="small"
+                selected={quickFilter === 'all'}
+                onClick={() => setQuickFilter('all')}
+              />
+            </Box>
+            <Box sx={{ flex: 1, overflow: 'auto' }}>
+              <VocabularyListView isReviewDue={quickFilter === 'review'} searchQuery={searchQuery} />
+            </Box>
+          </Box>
+        )}
       </Box>
 
       {/* Toggle Sidebar Button */}
@@ -581,7 +620,11 @@ function VocabularyView() {
               subtitle="Add words from the sidebar to start building your vocabulary with spaced repetition learning"
             />
           ) : (
-            <LeitnerSystem addVocabulary={addVocabulary} isVocabulary />
+            <LeitnerSystem
+              addItem={addItem}
+              boxFilter={boxFilter}
+              refreshToken={refreshToken}
+            />
           )}
         </Box>
       </Box>

@@ -221,7 +221,7 @@ export const createVocabulary = (vocabulary, token) => {
       );
     const result = stmt.run();
     vocabulary.id = result.lastInsertRowid;
-    const v = getVocabularyById(vocabulary.id);
+    const v = getVocabularyById(vocabulary.id, token);
     if (leitnerItemId) {
       v.leitnerItem = getLeitnerItemById(leitnerItemId);
     }

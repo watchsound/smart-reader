@@ -127,6 +127,8 @@ function LeitnerSystem({
   addItem,
   initialDomainTypes = null,
   planId = null,
+  boxFilter = null,
+  refreshToken = null,
 }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -159,6 +161,7 @@ function LeitnerSystem({
           limit: 300,
           domainTypes: domainFilter === DOMAIN_FILTERS.ALL ? null : [domainFilter],
           planId,
+          boxes: boxFilter != null ? [boxFilter] : null,
         });
 
         const cardList = (items || []).map(learningPointToCard);
@@ -172,7 +175,7 @@ function LeitnerSystem({
       }
     }
     loadCards();
-  }, [domainFilter, planId]);
+  }, [domainFilter, planId, boxFilter, refreshToken]);
 
   const handleCorrect = useCallback(async (id) => {
     const card = cards.find((m) => m.id === id);
@@ -385,6 +388,7 @@ function LeitnerSystem({
         limit: 300,
         domainTypes: domainFilter === DOMAIN_FILTERS.ALL ? null : [domainFilter],
         planId,
+        boxes: boxFilter != null ? [boxFilter] : null,
       });
 
       const cardList = (items || []).map(learningPointToCard);
@@ -395,7 +399,7 @@ function LeitnerSystem({
     } finally {
       setIsLoading(false);
     }
-  }, [domainFilter, planId]);
+  }, [domainFilter, planId, boxFilter]);
 
   // Get box counts for the progression track
   const getBoxCounts = () => {

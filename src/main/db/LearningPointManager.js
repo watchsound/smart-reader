@@ -683,6 +683,7 @@ export const getDueItems = ({
   tags = null,
   planId = null,
   includeNew = true,
+  boxes = null,
 }) => {
   const userId = getUserIdFromToken(token);
   if (userId < 0) return [];
@@ -713,6 +714,11 @@ export const getDueItems = ({
   if (planId) {
     conditions.push('plan_id = ?');
     params.push(planId);
+  }
+
+  if (boxes && boxes.length > 0) {
+    conditions.push(`box IN (${boxes.map(() => '?').join(',')})`);
+    params.push(...boxes);
   }
 
   // Tag filtering using JSON contains (SQLite LIKE)
