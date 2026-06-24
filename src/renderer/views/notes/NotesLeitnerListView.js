@@ -23,6 +23,7 @@ const ScrollPane = styled('div')(({ theme }) => ({
   overflowY: 'auto',
   height: 'calc(100vh - 120px)',
   width: '100%',
+  paddingBottom: '16px',
   scrollbarWidth: 'thin',
   scrollbarColor:
     theme.palette.mode === 'light'
@@ -83,40 +84,36 @@ function NotesLeitnerListView({isReviewDue}) {
 
   return (
     <>
-    <TextSearchRow
-            placeHolder=""
-            label="Note"
-            searchAction={(text) => searchIt(text)}
-            searchTip="Search Note"
-            sx={{ borderStyle: 'none' }}
-          />
-
-      {notes.length > 0 && (
-        <>
-          {notes.map((note) => (
-             <NoteUI
-                key={note.id}
-                selectedNoteKey={note.id}
-                cardWidth="230"
-                cardHeight="280"
-                compactView
-                useMiniHeight
-              />
-          ))}
-        </>
-      )}
-
-      <Divider />
-      <Pagination
-        count={Math.ceil(total / limit)}
-        page={page}
-        size="small"
-        onChange={handlePageChange}
-        color="primary"
-         sx={{ margin: '10px' }}
+      <TextSearchRow
+        placeHolder=""
+        label="Note"
+        searchAction={(text) => searchIt(text)}
+        searchTip="Search Note"
+        sx={{ borderStyle: 'none' }}
       />
-
-  </>
+      <ScrollPane>
+        {notes.length > 0 && notes.map((note) => (
+          <NoteUI
+            key={note.id}
+            selectedNoteKey={note.id}
+            cardWidth="230"
+            cardHeight="280"
+            compactView
+            useMiniHeight
+            maxHeight={360}
+          />
+        ))}
+        <Divider />
+        <Pagination
+          count={Math.ceil(total / limit)}
+          page={page}
+          size="small"
+          onChange={handlePageChange}
+          color="primary"
+          sx={{ margin: '10px' }}
+        />
+      </ScrollPane>
+    </>
   );
 }
 

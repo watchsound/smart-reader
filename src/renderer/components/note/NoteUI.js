@@ -91,7 +91,8 @@ function NoteUI({
   customAction,
   cardWidth,
   cardHeight,
-  useMiniHeight, // height can grow,  it applies only when compactView is true.
+  useMiniHeight, // height can grow, it applies only when compactView is true.
+  maxHeight, // optional upper bound (px) when useMiniHeight is true
   deleteActionName,
   deleteAction,
   useBgColor,
@@ -103,6 +104,7 @@ function NoteUI({
   // Used by reading sidebars (BookNotesPanel, BrowserSidebar) where
   // notes are just viewed, not designed or animated.
   compactMenu = false,
+  toolbarMode = false,
 }) {
   const [edit, setEdit] = useState(false);
   const [inputText, setInputText] = useState('');
@@ -351,6 +353,7 @@ function NoteUI({
             : { setEmphasis, setEntry })}
           openCarSettingModal={setOpenCarSettingModal}
           deleteNoteAction={deleteNote}
+          toolbarMode={toolbarMode}
         />
         {getImageCode() && (
           <CardMedia component="img" height="194" image={getImageCode()} />
@@ -442,6 +445,8 @@ function NoteUI({
           margin: noPadding ? 0 : '6px 3px',
           height: noPadding ? '100%' : (useMiniHeight ? undefined : size.height),
           minHeight: useMiniHeight ? size.height : undefined,
+          maxHeight: useMiniHeight && maxHeight ? maxHeight : undefined,
+          overflow: useMiniHeight && maxHeight ? 'hidden' : undefined,
           width: noPadding ? '100%' : size.width,
         }}
         onClick={selectHandler}
@@ -459,6 +464,7 @@ function NoteUI({
           openCarSettingModal={setOpenCarSettingModal}
           setEditMode={setEdit}
           deleteNoteAction={deleteNote}
+          toolbarMode={toolbarMode}
         />
 
         <CardContentSwitcher
@@ -521,6 +527,8 @@ function NoteUI({
           ? '100%'
           : (useMiniHeight ? undefined : size.height),
         minHeight: useMiniHeight ? size.height : undefined,
+        maxHeight: useMiniHeight && maxHeight ? maxHeight : undefined,
+        overflow: useMiniHeight && maxHeight ? 'hidden' : undefined,
         display: 'flex',
         flexDirection: 'column',
       }}
@@ -542,6 +550,7 @@ function NoteUI({
         openCarSettingModal={setOpenCarSettingModal}
         setEditMode={setEdit}
         deleteNoteAction={deleteNote}
+        toolbarMode={toolbarMode}
       />
       <Grid container spacing={0.5} alignItems="center">
         <Grid item container justifyContent="flex-start" spacing={0.5}>

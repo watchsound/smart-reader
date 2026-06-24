@@ -119,7 +119,7 @@ function formatDate(dateObj) {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-function NoteCard({ note, viewMode, onDelete, onShowQuiz, onClick, selected }) {
+function NoteCard({ note, viewMode, onDelete, onShowQuiz, onClick, selected, toolbarMode }) {
   const theme = useTheme();
   const navigate = useNavigate();
   const dispatch = useDispatch();
@@ -177,7 +177,8 @@ function NoteCard({ note, viewMode, onDelete, onShowQuiz, onClick, selected }) {
     setAnchorEl(null);
   };
 
-  const handleJumpToSource = () => {
+  const handleJumpToSource = (e) => {
+    if (e) e.stopPropagation();
     handleMenuClose();
     if (note.sourceType === NoteType.Book && note.sourceKey) {
       navigate(`/reading/${note.sourceKey}`);
@@ -189,7 +190,8 @@ function NoteCard({ note, viewMode, onDelete, onShowQuiz, onClick, selected }) {
     }
   };
 
-  const handleShowQuiz = async () => {
+  const handleShowQuiz = async (e) => {
+    if (e) e.stopPropagation();
     handleMenuClose();
     if (!note.hasQuiz) return;
     const quizList = await getQuizProblemsBySourceKey(note.id);
@@ -352,22 +354,61 @@ function NoteCard({ note, viewMode, onDelete, onShowQuiz, onClick, selected }) {
           )}
         </Box>
 
-        {/* Hover: ⋮ menu */}
+        {/* Actions: inline toolbar (Notes Page) or 3-dot menu (other contexts) */}
         <Box
           sx={{
             display: 'flex',
             alignItems: 'center',
-            pr: 0.5,
+            gap: 0.25,
+            pr: 0.75,
+            flexShrink: 0,
             opacity: isHovered ? 1 : 0,
             transition: 'opacity 0.15s ease',
           }}
         >
-          <IconButton size="small" onClick={handleMenuClick}>
-            <MoreVertIcon sx={{ fontSize: 16 }} />
-          </IconButton>
+          {toolbarMode ? (
+            <>
+              {note.sourceKey && (
+                <Tooltip title="Jump to Source">
+                  <IconButton size="small" onClick={handleJumpToSource}>
+                    <LaunchIcon sx={{ fontSize: 15 }} />
+                  </IconButton>
+                </Tooltip>
+              )}
+              {hasQuiz && (
+                <Tooltip title="Show Quiz">
+                  <IconButton size="small" onClick={handleShowQuiz}>
+                    <QuizIcon sx={{ fontSize: 15 }} />
+                  </IconButton>
+                </Tooltip>
+              )}
+              <Tooltip title={activeMoodBoardId ? 'Add to Active Board' : 'Add to Board'}>
+                <IconButton
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    dispatch(noteAdded(null));
+                    dispatch(noteAdded(note));
+                    navigate('/moodboard');
+                  }}
+                >
+                  <FlashOnIcon sx={{ fontSize: 15, color: activeMoodBoardId ? 'success.main' : 'text.disabled' }} />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Delete">
+                <IconButton size="small" onClick={handleDelete}>
+                  <DeleteOutlineIcon sx={{ fontSize: 15, color: 'error.main' }} />
+                </IconButton>
+              </Tooltip>
+            </>
+          ) : (
+            <IconButton size="small" onClick={handleMenuClick}>
+              <MoreVertIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          )}
         </Box>
 
-        {/* Context Menu */}
+        {/* Context menu (used when toolbarMode is off) */}
         <Menu
           anchorEl={anchorEl}
           open={Boolean(anchorEl)}
@@ -540,18 +581,57 @@ function NoteCard({ note, viewMode, onDelete, onShowQuiz, onClick, selected }) {
             </Box>
           </Box>
 
-          {/* Actions */}
+          {/* Actions: inline toolbar (Notes Page) or 3-dot menu (other contexts) */}
           <Box
             sx={{
               display: 'flex',
               alignItems: 'center',
+              gap: 0.25,
               opacity: isHovered ? 1 : 0,
               transition: 'opacity 0.15s ease',
+              flexShrink: 0,
             }}
           >
-            <IconButton size="small" onClick={handleMenuClick}>
-              <MoreVertIcon sx={{ fontSize: 18 }} />
-            </IconButton>
+            {toolbarMode ? (
+              <>
+                {note.sourceKey && (
+                  <Tooltip title="Jump to Source">
+                    <IconButton size="small" onClick={handleJumpToSource}>
+                      <LaunchIcon sx={{ fontSize: 16 }} />
+                    </IconButton>
+                  </Tooltip>
+                )}
+                {hasQuiz && (
+                  <Tooltip title="Show Quiz">
+                    <IconButton size="small" onClick={handleShowQuiz}>
+                      <QuizIcon sx={{ fontSize: 16 }} />
+                    </IconButton>
+                  </Tooltip>
+                )}
+                <Tooltip title={activeMoodBoardId ? 'Add to Active Board' : 'Add to Board'}>
+                  <IconButton
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      dispatch(noteAdded(null));
+                      dispatch(noteAdded(note));
+                      navigate('/moodboard');
+                    }}
+                  >
+                    <FlashOnIcon sx={{ fontSize: 16, color: activeMoodBoardId ? 'success.main' : 'text.disabled' }} />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="Delete">
+                  <IconButton size="small" onClick={handleDelete}>
+                    <DeleteOutlineIcon sx={{ fontSize: 16, color: 'error.main' }} />
+                  </IconButton>
+                </Tooltip>
+              </>
+            ) : (
+              <IconButton size="small" onClick={handleMenuClick}>
+                <MoreVertIcon sx={{ fontSize: 18 }} />
+              </IconButton>
+            )}
           </Box>
         </Box>
 
@@ -633,6 +713,47 @@ function NoteCard({ note, viewMode, onDelete, onShowQuiz, onClick, selected }) {
         </Box>
       </Box>
 
+      {/* Context menu (used when toolbarMode is off) */}
+      <Menu
+        anchorEl={anchorEl}
+        open={Boolean(anchorEl)}
+        onClose={handleMenuClose}
+        transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+        anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+      >
+        {note.sourceKey && (
+          <MenuItem onClick={handleJumpToSource}>
+            <ListItemIcon><LaunchIcon fontSize="small" /></ListItemIcon>
+            <ListItemText>Jump to Source</ListItemText>
+          </MenuItem>
+        )}
+        {hasQuiz && (
+          <MenuItem onClick={handleShowQuiz}>
+            <ListItemIcon><QuizIcon fontSize="small" /></ListItemIcon>
+            <ListItemText>Show Quiz</ListItemText>
+          </MenuItem>
+        )}
+        <MenuItem
+          onClick={() => {
+            handleMenuClose();
+            dispatch(noteAdded(null));
+            dispatch(noteAdded(note));
+            navigate('/moodboard');
+          }}
+        >
+          <ListItemIcon>
+            <FlashOnIcon fontSize="small" sx={{ color: activeMoodBoardId ? 'success.main' : 'text.disabled' }} />
+          </ListItemIcon>
+          <ListItemText>
+            {activeMoodBoardId ? 'Add to Active Board' : 'Add to Board (open MoodBoard first)'}
+          </ListItemText>
+        </MenuItem>
+        <MenuItem onClick={handleDelete}>
+          <ListItemIcon><DeleteOutlineIcon fontSize="small" color="error" /></ListItemIcon>
+          <ListItemText sx={{ color: theme.palette.error.main }}>Delete</ListItemText>
+        </MenuItem>
+      </Menu>
+
       {/* Side indicator (if multiple sides) */}
       {hasMultipleSides && (
         <Box
@@ -662,54 +783,6 @@ function NoteCard({ note, viewMode, onDelete, onShowQuiz, onClick, selected }) {
         </Box>
       )}
 
-      {/* Context Menu */}
-      <Menu
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={handleMenuClose}
-        transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-        anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
-      >
-        {note.sourceKey && (
-          <MenuItem onClick={handleJumpToSource}>
-            <ListItemIcon>
-              <LaunchIcon fontSize="small" />
-            </ListItemIcon>
-            <ListItemText>Jump to Source</ListItemText>
-          </MenuItem>
-        )}
-        {hasQuiz && (
-          <MenuItem onClick={handleShowQuiz}>
-            <ListItemIcon>
-              <QuizIcon fontSize="small" />
-            </ListItemIcon>
-            <ListItemText>Show Quiz</ListItemText>
-          </MenuItem>
-        )}
-        <MenuItem
-          onClick={() => {
-            handleMenuClose();
-            dispatch(noteAdded(null));
-            dispatch(noteAdded(note));
-            navigate('/moodboard');
-          }}
-        >
-          <ListItemIcon>
-            <FlashOnIcon fontSize="small" sx={{ color: activeMoodBoardId ? 'success.main' : 'text.disabled' }} />
-          </ListItemIcon>
-          <ListItemText>
-            {activeMoodBoardId ? 'Add to Active Board' : 'Add to Board (open MoodBoard first)'}
-          </ListItemText>
-        </MenuItem>
-        <MenuItem onClick={handleDelete}>
-          <ListItemIcon>
-            <DeleteOutlineIcon fontSize="small" color="error" />
-          </ListItemIcon>
-          <ListItemText sx={{ color: theme.palette.error.main }}>
-            Delete
-          </ListItemText>
-        </MenuItem>
-      </Menu>
     </Box>
   );
 }

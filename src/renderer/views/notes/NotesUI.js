@@ -204,6 +204,7 @@ function NotesUI() {
                 <NoteCard
                   note={note}
                   viewMode="list"
+                  toolbarMode
                   selected={note.id === selectedNoteId}
                   onClick={handleNoteClick}
                   onDelete={deleteNote}
@@ -283,6 +284,7 @@ function NotesUI() {
                   deleteAction={(n) => deleteNote(n)}
                   deleteActionName="Delete"
                   isInNotesUIView
+                  toolbarMode
                 />
               )}
             </TabPanel>

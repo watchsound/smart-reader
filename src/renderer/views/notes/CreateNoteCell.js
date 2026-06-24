@@ -23,7 +23,9 @@ import customStorage from '../../store/customStorage';
 import {
   useCreateNoteMutation,
   useCreateImageMutation,
+  useReplaceNoteMutation,
 } from '../../store/api/noteApiSlice';
+import spineApi from '../../api/spineApi';
 import parseMarkdownToHtml, { removeEmptySide } from '../../components/note/NoteUtil';
 import ImageFileInput from '../../components/imageFileInput';
 import LayoutOptions from './LayoutOptions';
@@ -44,7 +46,8 @@ function CreateNoteCell({noteCreationHandler}) {
   const [imagesSrc, setImagesSrc] = useState([null, null, null]);
   const [overlaps, setOverlaps] = useState([0, 0, 0]);
 
-  const [CreateNote ] = useCreateNoteMutation();
+  const [CreateNote] = useCreateNoteMutation();
+  const [ReplaceNote] = useReplaceNoteMutation();
   // const [CreateImage ] = useCreateImageMutation();
 
   const charLimit = 150;
@@ -281,8 +284,31 @@ function CreateNoteCell({noteCreationHandler}) {
         hasQuiz: false,
       });
     }
-    if (newNote && noteCreationHandler) {
-      noteCreationHandler(newNote.data ? newNote.data: newNote);
+    const savedNote = newNote?.data ?? newNote;
+    if (savedNote && noteCreationHandler) {
+      noteCreationHandler(savedNote);
+    }
+
+    // Auto-generate title when content is long and user left title blank
+    const AUTO_TITLE_THRESHOLD = 200;
+    const contentText = finalValues[0] || '';
+    if (!title && contentText.length > AUTO_TITLE_THRESHOLD && savedNote) {
+      try {
+        const prompt = `Generate a concise title (5–10 words) for this note. Reply with only the title text, no quotes.\n\nNote content:\n${contentText.slice(0, 800)}`;
+        const schema = {
+          type: 'object',
+          properties: {
+            title: { type: 'string' },
+          },
+          required: ['title'],
+        };
+        const generated = await spineApi.generateContentWithJson(prompt, schema, { label: 'note.auto-title' });
+        if (generated?.title) {
+          ReplaceNote({ ...savedNote, title: generated.title });
+        }
+      } catch (_) {
+        // Non-critical — silently skip if AI is unavailable
+      }
     }
 
     // clear the textarea

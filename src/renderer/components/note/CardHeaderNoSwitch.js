@@ -1,11 +1,13 @@
 /* eslint-disable prettier/prettier */
 import {
+  Box,
   CardHeader,
   IconButton,
   ListItemIcon,
   ListItemText,
   Menu,
   MenuItem,
+  Tooltip,
 } from '@mui/material';
 import { useState } from 'react';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
@@ -101,6 +103,10 @@ function CardHeaderNoSwitch({
   // BrowserSidebar) opt out by passing `showLayout={false}` — the
   // Layout/CarSetting modal is for card-design contexts, not browsing.
   showLayout = true,
+  // When true, replaces the 3-dot popup with an inline icon toolbar.
+  // Used by the Notes Page where the card has enough space to expose
+  // actions directly. All other contexts keep the popup menu default.
+  toolbarMode = false,
 }) {
   const [anchorEl, setAnchorEl] = useState(null);
   const navigate = useNavigate();
@@ -125,6 +131,76 @@ function CardHeaderNoSwitch({
     if (path) navigate(path);
   };
 
+
+  if (toolbarMode) {
+    return (
+      <>
+        <Box
+          sx={{
+            position: 'absolute',
+            top: 4,
+            right: 4,
+            zIndex: 10,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 0.25,
+          }}
+        >
+          {useJumpToSource && (
+            <Tooltip title="Jump to Source">
+              <IconButton size="small" sx={{ width: 28, height: 28 }} onClick={tryToJumpToSource}>
+                <MoveUpIcon sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Tooltip>
+          )}
+          {!selectedNote.leitnerItemId && (
+            <Tooltip title="Add to Leitner">
+              <IconButton size="small" sx={{ width: 28, height: 28 }} onClick={addToLeitnerSystem}>
+                <LocalLibraryIcon sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Tooltip>
+          )}
+          <Tooltip title={activeMoodBoardId ? 'Add to Active Board' : 'Add to Board'}>
+            <IconButton
+              size="small"
+              sx={{ width: 28, height: 28 }}
+              onClick={() => {
+                dispatch(noteAdded(null));
+                dispatch(noteAdded(selectedNote));
+                navigate('/moodboard');
+              }}
+            >
+              <FlashOnIcon sx={{ fontSize: 16, color: activeMoodBoardId ? 'success.main' : 'text.disabled' }} />
+            </IconButton>
+          </Tooltip>
+          {showLayout && (
+            <Tooltip title="Layout">
+              <IconButton size="small" sx={{ width: 28, height: 28 }} onClick={() => openCarSettingModal(true)}>
+                <DashboardIcon sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Tooltip>
+          )}
+          <Tooltip title="Edit">
+            <IconButton size="small" sx={{ width: 28, height: 28 }} onClick={() => setEditMode(true)}>
+              <EditNoteTwoToneIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Delete Note">
+            <IconButton size="small" sx={{ width: 28, height: 28 }} onClick={() => deleteNoteAction(selectedNote)}>
+              <DeleteForeverOutlinedIcon sx={{ fontSize: 16, color: 'error.main' }} />
+            </IconButton>
+          </Tooltip>
+        </Box>
+        {!compact && selectedNote.title && (
+          <CardHeader
+            title={selectedNote.title}
+            titleTypographyProps={{ variant: 'h8' }}
+            sx={{ margin: '0px !important', paddingBottom: '0px !important' }}
+          />
+        )}
+      </>
+    );
+  }
 
   return (
     <>
