@@ -873,6 +873,7 @@ const createWindow = async () => {
       _.returnValue = false;
     } else {
       store.set(`gemini-model_${userId}`, mode);
+      reinitializeProvider(userId);
       _.returnValue = true;
     }
   });
@@ -892,6 +893,7 @@ const createWindow = async () => {
       _.returnValue = false;
     } else {
       store.set(`ollama-model_${userId}`, mode);
+      reinitializeProvider(userId);
       _.returnValue = true;
     }
   });
@@ -911,6 +913,7 @@ const createWindow = async () => {
       _.returnValue = false;
     } else {
       store.set(`claude-model_${userId}`, mode);
+      reinitializeProvider(userId);
       _.returnValue = true;
     }
   });
@@ -930,6 +933,7 @@ const createWindow = async () => {
       _.returnValue = false;
     } else {
       store.set(`chatgpt-model_${userId}`, mode);
+      reinitializeProvider(userId);
       _.returnValue = true;
     }
   });
@@ -1073,6 +1077,7 @@ const createWindow = async () => {
       _.returnValue = false;
     } else {
       store.set(`kimi-model_${userId}`, mode);
+      reinitializeProvider(userId);
       _.returnValue = true;
     }
   });
@@ -1113,6 +1118,7 @@ const createWindow = async () => {
       _.returnValue = false;
     } else {
       store.set(`doubao-model_${userId}`, mode);
+      reinitializeProvider(userId);
       _.returnValue = true;
     }
   });
@@ -1153,6 +1159,7 @@ const createWindow = async () => {
       _.returnValue = false;
     } else {
       store.set(`qwen-model_${userId}`, mode);
+      reinitializeProvider(userId);
       _.returnValue = true;
     }
   });
@@ -1532,6 +1539,7 @@ const createWindow = async () => {
       _.returnValue = false;
     } else {
       store.set(`deepseek-model_${userId}`, mode);
+      reinitializeProvider(userId);
       _.returnValue = true;
     }
   });
