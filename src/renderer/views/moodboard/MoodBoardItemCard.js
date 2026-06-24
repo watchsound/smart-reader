@@ -69,11 +69,12 @@ const BOARD_ICONS = [
   SpaceDashboardIcon,
 ];
 
-function getColorIndex(str) {
-  if (!str) return 0;
+export function getColorIndex(str) {
+  if (!str && str !== 0) return 0;
+  const s = String(str);
   let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  for (let i = 0; i < s.length; i++) {
+    hash = s.charCodeAt(i) + ((hash << 5) - hash);
   }
   return Math.abs(hash) % CARD_COLORS.length;
 }
@@ -249,13 +250,7 @@ function MoodBoardItemCard({ moodBoard, isActive, isActivePinned, onSelect, onSe
             </Typography>
             {isActivePinned && (
               <Tooltip title="Active board — notes from other pages go here">
-                <FlashOnIcon
-                  sx={{
-                    fontSize: 14,
-                    color: 'success.main',
-                    flexShrink: 0,
-                  }}
-                />
+                <FlashOnIcon sx={{ fontSize: 14, color: 'success.main', flexShrink: 0 }} />
               </Tooltip>
             )}
             {isPinned && !isHovered && (
@@ -385,10 +380,7 @@ function MoodBoardItemCard({ moodBoard, isActive, isActivePinned, onSelect, onSe
         }}
       >
         <MenuItem
-          onClick={() => {
-            handleMenuClose();
-            if (onSetActive) onSetActive(moodBoard);
-          }}
+          onClick={() => { handleMenuClose(); if (onSetActive) onSetActive(moodBoard); }}
           sx={{ color: isActivePinned ? 'success.main' : undefined }}
         >
           <ListItemIcon>

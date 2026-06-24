@@ -19,7 +19,6 @@ export interface NoteNodeWidgetProps {
   engine: DiagramEngine;
   width?: number;
   height?: number;
-  showPorts?: boolean;
 }
 
 const S = {
@@ -59,7 +58,7 @@ const ResizeHandle = styledComp.div`
   }
 `;
 
-function NoteNodeWidget({ node, engine, showPorts = false }: NoteNodeWidgetProps) {
+function NoteNodeWidget({ node, engine }) {
   // console.log(' enter NoteNodeWidget ............................. ')
   const [isDragging, setIsDragging] = React.useState(false);
   const [originalSize, setOriginalSize] = React.useState({
@@ -70,8 +69,8 @@ function NoteNodeWidget({ node, engine, showPorts = false }: NoteNodeWidgetProps
     x: 0,
     y: 0,
   });
-  const curEditState = useSelector((state: any) => state.moodBoard.editState);
-  const showControl = useSelector((state: any) => state.moodBoard.showControl);
+  const curEditState = useSelector((state) => state.moodBoard.editState);
+  const showControl = useSelector((state) => state.moodBoard.showControl);
 
   const dispatch = useDispatch();
 
@@ -83,7 +82,7 @@ function NoteNodeWidget({ node, engine, showPorts = false }: NoteNodeWidgetProps
     });
   }, [node]);
 
-  const onMouseDown = (event: React.MouseEvent) => {
+  const onMouseDown = (event) => {
     if (!curEditState) {
       event.stopPropagation();
       setIsDragging(false);
@@ -95,7 +94,7 @@ function NoteNodeWidget({ node, engine, showPorts = false }: NoteNodeWidgetProps
     event.stopPropagation();
   };
 
-  const onMouseMove = (event: MouseEvent) => {
+  const onMouseMove = (event) => {
     if (!curEditState) {
       event.stopPropagation();
       return;
@@ -109,7 +108,7 @@ function NoteNodeWidget({ node, engine, showPorts = false }: NoteNodeWidgetProps
     }
   };
 
-  const onMouseUp = (event: MouseEvent) => {
+  const onMouseUp = (event) => {
     if (!curEditState) {
       setIsDragging(false);
       event.stopPropagation();
@@ -157,13 +156,12 @@ function NoteNodeWidget({ node, engine, showPorts = false }: NoteNodeWidgetProps
       }}
     >
       {node.note && (
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore — NoteUI is a JS component; ts infers required props that are actually optional
         <NoteUI
           key={node.note.id}
           selectedNoteKey={node.note.id}
           selectHandler={() => {}}
           compactView={!showControl}
+          useBgColor
           customAction={() => {
             dispatch(diagramNoteHandled(node.note));
           }}
@@ -179,54 +177,50 @@ function NoteNodeWidget({ node, engine, showPorts = false }: NoteNodeWidgetProps
           noPadding
         />
       )}
-      {showPorts && (
-        <>
-          <PortWidget
-            style={{
-              top: (node.height || 180) / 2 - 5,
-              left: -10,
-              position: 'absolute',
-            }}
-            port={node.getPort(PortModelAlignment.LEFT)!}
-            engine={engine}
-          >
-            <S.Port data-testid="note-port" />
-          </PortWidget>
-          <PortWidget
-            style={{
-              left: (node.width || 250) / 2 - 5,
-              top: -10,
-              position: 'absolute',
-            }}
-            port={node.getPort(PortModelAlignment.TOP)!}
-            engine={engine}
-          >
-            <S.Port data-testid="note-port" />
-          </PortWidget>
-          <PortWidget
-            style={{
-              left: (node.width || 250) - 4,
-              top: (node.height || 180) / 2 - 5,
-              position: 'absolute',
-            }}
-            port={node.getPort(PortModelAlignment.RIGHT)!}
-            engine={engine}
-          >
-            <S.Port data-testid="note-port" />
-          </PortWidget>
-          <PortWidget
-            style={{
-              left: (node.width || 250) / 2 - 5,
-              top: (node.height || 180) - 4,
-              position: 'absolute',
-            }}
-            port={node.getPort(PortModelAlignment.BOTTOM)!}
-            engine={engine}
-          >
-            <S.Port data-testid="note-port" />
-          </PortWidget>
-        </>
-      )}
+      <PortWidget
+        style={{
+          top: (node.height || 180) / 2 - 5,
+          left: -10,
+          position: 'absolute',
+        }}
+        port={node.getPort(PortModelAlignment.LEFT)}
+        engine={engine}
+      >
+        <S.Port />
+      </PortWidget>
+      <PortWidget
+        style={{
+          left: (node.width || 250) / 2 - 5,
+          top: -10,
+          position: 'absolute',
+        }}
+        port={node.getPort(PortModelAlignment.TOP)}
+        engine={engine}
+      >
+        <S.Port />
+      </PortWidget>
+      <PortWidget
+        style={{
+          left: (node.width || 250) - 4,
+          top: (node.height || 180) / 2 - 5,
+          position: 'absolute',
+        }}
+        port={node.getPort(PortModelAlignment.RIGHT)}
+        engine={engine}
+      >
+        <S.Port />
+      </PortWidget>
+      <PortWidget
+        style={{
+          left: (node.width || 250) / 2 - 5,
+          top: (node.height || 180) - 4,
+          position: 'absolute',
+        }}
+        port={node.getPort(PortModelAlignment.BOTTOM)}
+        engine={engine}
+      >
+        <S.Port />
+      </PortWidget>
       {curEditState && <ResizeHandle onMouseDown={onMouseDown} />}
     </div>
   );

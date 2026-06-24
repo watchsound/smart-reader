@@ -32,11 +32,8 @@ function MoodBoardPage() {
     <Box
       sx={{
         width: '100%',
-        flex: 1,
-        minHeight: 0,
+        height: '100vh',
         overflow: 'hidden',
-        display: 'flex',
-        flexDirection: 'column',
       }}
     >
       <MoodBoardView moodBoard={curMoodBoard} />

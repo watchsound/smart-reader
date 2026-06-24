@@ -37,12 +37,12 @@ import { recordEvent } from '../../api/brainApi';
 import {
   moodBoardAdded,
   moodBoardHandled,
-  activeMoodBoardIdSet,
   noteAdded,
+  activeMoodBoardIdSet,
 } from '../../store/reducers/moodBoardSlice';
 import customStorage from '../../store/customStorage';
 
-import DetailedDiagramPanel from '../../components/MoodBoard/diagram/DetailedDiagramPanel';
+import MoodBoardCanvas from '../../components/MoodBoard/rf/MoodBoardCanvas';
 import MoodBoardItemCard from './MoodBoardItemCard';
 import NotesListPanelInMoodBoard from './NotesListPanelInMoodBoard';
 import CreateNoteCell from '../notes/CreateNoteCell';
@@ -174,19 +174,13 @@ function MoodBoardView({ moodBoard }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState('boards'); // 'boards', 'notes', 'create'
   const [noteQueryStr, setNoteQueryStr] = useState('');
-  // Active board: the persistent "inbox" board for cross-page note adds.
-  const [activeMoodBoardId, setActiveMoodBoardIdLocal] = useState(null);
   // Phase 8 organize loop: cluster the brain wants us to organize, if any.
   const [organizeSuggestion, setOrganizeSuggestion] = useState(null);
+  const [activeMoodBoardId, setActiveMoodBoardIdLocal] = useState(null);
 
   const aMoodBoard = useSelector((state) => state.moodBoard.curMoodBoard);
 
-  // Load mood boards
-  useEffect(() => {
-    loadMoodBoards();
-  }, [searchQuery, page]);
-
-  // On mount: auto-create Default Board if none exist; restore persistent active board.
+  // On mount: restore persisted active board; auto-create Default Board if none exist.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const initActiveBoard = async () => {
@@ -195,11 +189,8 @@ function MoodBoardView({ moodBoard }) {
 
       if (boards.length === 0) {
         const created = await createMoodBoard({
-          name: 'Default Board',
-          description: '',
-          gridLayout: { layout: { lg: [] } },
-          diagram: {},
-          pinned: false,
+          name: 'Default Board', description: '',
+          gridLayout: { layout: { lg: [] } }, diagram: {}, pinned: false,
         });
         if (created) {
           boards = [created];
@@ -214,8 +205,7 @@ function MoodBoardView({ moodBoard }) {
       }
 
       const savedId = customStorage.getActiveMoodBoardId();
-      const active = (savedId && boards.find((b) => String(b.id) === String(savedId)))
-        || boards[0];
+      const active = (savedId && boards.find((b) => String(b.id) === String(savedId))) || boards[0];
       if (active) {
         setActiveMoodBoardIdLocal(active.id);
         dispatch(activeMoodBoardIdSet(active.id));
@@ -225,9 +215,13 @@ function MoodBoardView({ moodBoard }) {
         }
       }
     };
-
     initActiveBoard();
   }, []);
+
+  // Load mood boards
+  useEffect(() => {
+    loadMoodBoards();
+  }, [searchQuery, page]);
 
   useEffect(() => {
     if (!moodBoard) return;
@@ -263,8 +257,16 @@ function MoodBoardView({ moodBoard }) {
   };
 
   const handleCreateMoodBoard = async () => {
+    const baseName = 'New Mood Board';
+    const existingNames = new Set(moodBoards.map((b) => b.name));
+    let name = baseName;
+    let counter = 2;
+    while (existingNames.has(name)) {
+      name = `${baseName} ${counter}`;
+      counter += 1;
+    }
     const newBoard = {
-      name: 'New Mood Board',
+      name,
       description: '',
       gridLayout: { layout: { lg: [] } },
       diagram: {},
@@ -419,8 +421,7 @@ function MoodBoardView({ moodBoard }) {
     <Box
       sx={{
         display: 'flex',
-        flex: 1,
-        minHeight: 0,
+        height: '100vh',
         bgcolor: theme.palette.background.default,
         overflow: 'hidden',
       }}
@@ -430,7 +431,7 @@ function MoodBoardView({ moodBoard }) {
         sx={{
           width: sidebarCollapsed ? 0 : 300,
           minWidth: sidebarCollapsed ? 0 : 300,
-          height: '100%',
+          height: '100vh',
           bgcolor: theme.palette.background.paper,
           borderRight: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
           display: 'flex',
@@ -715,8 +716,6 @@ function MoodBoardView({ moodBoard }) {
       <Box
         sx={{
           flex: 1,
-          minWidth: 0,
-          minHeight: 0,
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
@@ -781,7 +780,7 @@ function MoodBoardView({ moodBoard }) {
           </Paper>
         )}
         {curMoodBoard ? (
-          <DetailedDiagramPanel curMoodBoard={curMoodBoard} />
+          <MoodBoardCanvas curMoodBoard={curMoodBoard} />
         ) : (
           <EmptyState
             icon={DashboardIcon}

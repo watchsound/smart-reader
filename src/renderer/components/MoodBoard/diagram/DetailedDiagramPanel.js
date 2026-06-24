@@ -5,13 +5,11 @@ import { useTheme, alpha, styled } from '@mui/material/styles';
 import BuildCircleIcon from '@mui/icons-material/BuildCircle';
 // import { Responsive, WidthProvider } from 'react-grid-layout';
 import { useSelector, useDispatch } from 'react-redux';
-import isEqual from 'is-equal';
-import watch from 'redux-watch';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Card from '@mui/material/Card';
 import Grid from '@mui/material/Grid';
-import { IconButton, SvgIcon, Divider, Chip, Button, CircularProgress } from '@mui/material';
+import { IconButton, SvgIcon, Divider, Chip, Button, CircularProgress, InputBase } from '@mui/material';
 import Tooltip from '@mui/material/Tooltip';
 import {
   CanvasWidget,
@@ -25,7 +23,6 @@ import createEngine, {
   DefaultLinkFactory,
 } from '@projectstorm/react-diagrams';
 import SaveIcon from '@mui/icons-material/Save';
-import DownloadIcon from '@mui/icons-material/Download';
 import PausePresentationIcon from '@mui/icons-material/PausePresentation';
 import SlideshowIcon from '@mui/icons-material/Slideshow';
 import GridViewIcon from '@mui/icons-material/GridView';
@@ -42,22 +39,20 @@ import SettingsIcon from '@mui/icons-material/Settings';
 // import OpenAI from 'openai';
 
 import SmallButton from '../../Button/SmallButton';
-import store from '../../../store/store';
 
 // Styled components for the toolbar
 const ToolbarContainer = styled(Box)(({ theme }) => ({
   display: 'flex',
-  flexWrap: 'wrap',
   alignItems: 'center',
-  padding: '6px 12px',
+  justifyContent: 'space-between',
+  padding: '8px 16px',
   backgroundColor: theme.palette.background.paper,
   borderBottom: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
-  gap: theme.spacing(0.5),
+  gap: theme.spacing(1),
 }));
 
 const ToolbarSection = styled(Box)(({ theme }) => ({
   display: 'flex',
-  flexWrap: 'wrap',
   alignItems: 'center',
   gap: theme.spacing(0.5),
 }));
@@ -82,10 +77,9 @@ const ToolbarButton = styled(IconButton, {
   },
 }));
 
-const ToolbarDivider = styled(Divider)(() => ({
+const ToolbarDivider = styled(Divider)(({ theme }) => ({
   height: 24,
-  alignSelf: 'center',
-  margin: '0 4px',
+  margin: '0 8px',
 }));
 
 const ActionButton = styled(Button)(({ theme }) => ({
@@ -100,6 +94,7 @@ const ActionButton = styled(Button)(({ theme }) => ({
 
 import { updateMoodBoard } from '../../../api/moodBoardApi';
 import {
+  noteAdded,
   moodBoardUpdated,
   editStateChanged,
   linkModelChanged,
@@ -108,31 +103,6 @@ import {
 
 import { NoteNodeModel } from './NoteNodeModel';
 import { NoteNodeFactory } from './NoteNodeFactory';
-import { FrameNodeFactory } from './FrameNodeFactory';
-import { FrameNodeModel } from './FrameNodeModel';
-import { StickyNoteNodeFactory } from './StickyNoteNodeFactory';
-import { StickyNoteNodeModel } from './StickyNoteNodeModel';
-import { updateContainmentForNode } from './containment';
-import LassoSelection from './selection/LassoSelection';
-import { useMultiSelectDrag } from './selection/useMultiSelectDrag';
-import { ImageNodeFactory } from './ImageNodeFactory';
-import { ImageNodeModel } from './ImageNodeModel';
-import BoardThemeProvider from './canvas/BoardThemeProvider';
-import BackgroundLayer from './canvas/BackgroundLayer';
-import ColorZoneLayer from './canvas/ColorZoneLayer';
-import ThemePicker from './canvas/ThemePicker';
-import BackgroundPicker from './canvas/BackgroundPicker';
-import { createColorZone } from './canvas/colorZoneDraw';
-import {
-  buildExportFilename,
-  captureElementAsPng,
-  triggerDownload,
-} from './canvas/exportBoard';
-import {
-  shouldEmitDragEpisode,
-  emitBoardArrangedEpisode,
-} from '../../../views/reading/hooks/useBoardEpisodes';
-import { DEFAULT_BOARD_THEME } from './types';
 import { SimplePortFactory } from './SimplePortFactory';
 import { NotePortModel } from './NotePortModel';
 import { DemoCanvasWidget } from './DemoCanvasWidget';
@@ -151,6 +121,64 @@ import { createMoodBoardLayoutPrompt } from '../../../../commons/utils/AIPrompts
 import spineApi from '../../../api/spineApi';
 import { adjustFontSize } from '../../../utils/common';
 
+/**
+ * Finds the next non-overlapping position for a new note using a
+ * candidate-point algorithm:
+ *   1. Seed candidates from the right/bottom edges of every existing node.
+ *   2. Filter to positions that don't collide with any existing node (+ gap).
+ *   3. Pick the topmost-then-leftmost valid candidate so notes pack tightly.
+ *   4. Fall back to a plain grid sweep if all candidates are blocked.
+ */
+function getNextNotePosition(nodes, noteW = 250, noteH = 180) {
+  const GAP = 20;
+  const PAD = 40;
+
+  if (nodes.length === 0) return { x: PAD, y: PAD };
+
+  const rects = nodes.map((n) => ({
+    x: n.getX(),
+    y: n.getY(),
+    w: n.width || 250,
+    h: n.height || 180,
+  }));
+
+  const overlaps = (cx, cy) =>
+    rects.some(
+      (r) =>
+        cx < r.x + r.w + GAP &&
+        cx + noteW + GAP > r.x &&
+        cy < r.y + r.h + GAP &&
+        cy + noteH + GAP > r.y,
+    );
+
+  // Seed candidates: origin + right-edge and bottom-edge of every existing node.
+  const candidates = [{ x: PAD, y: PAD }];
+  for (const r of rects) {
+    candidates.push({ x: r.x + r.w + GAP, y: r.y });
+    candidates.push({ x: r.x, y: r.y + r.h + GAP });
+    candidates.push({ x: r.x + r.w + GAP, y: r.y + r.h + GAP });
+  }
+
+  const valid = candidates
+    .filter((c) => c.x >= PAD && c.y >= PAD && !overlaps(c.x, c.y))
+    .sort((a, b) => a.y - b.y || a.x - b.x);
+
+  if (valid.length > 0) return valid[0];
+
+  // Grid sweep fallback when all candidate points are blocked.
+  for (let row = 0; row < 30; row++) {
+    for (let col = 0; col < 10; col++) {
+      const x = PAD + col * (noteW + GAP);
+      const y = PAD + row * (noteH + GAP);
+      if (!overlaps(x, y)) return { x, y };
+    }
+  }
+
+  // Last resort: stack below everything.
+  const maxY = Math.max(...rects.map((r) => r.y + r.h));
+  return { x: PAD, y: maxY + GAP };
+}
+
 function DetailedDiagramPanel({ curMoodBoard }) {
   const theme = useTheme();
   const [moodBoard, setMoodBoard] = useState({});
@@ -163,19 +191,10 @@ function DetailedDiagramPanel({ curMoodBoard }) {
   // const [model, setModel] = useState('');
   const [inProcess, setInProcess] = useState(false);
   const [size, setSize] = useState({ width: 0, height: 0 });
-  const [nodeListVersion, setNodeListVersion] = useState(0);
-  // Persisted theme/colorZones live inside react_diagram JSON (Option A save
-  // path), which `MoodBoardJsonManager.recordToObject` parses into the
-  // `diagram` field. Read from there directly on first render so the saved
-  // theme applies immediately — without this, the panel would flash
-  // DEFAULT_BOARD_THEME for one tick before the sync effect corrected it.
-  const [boardTheme, setBoardTheme] = useState(
-    curMoodBoard?.diagram?.theme || DEFAULT_BOARD_THEME,
-  );
-  const [colorZones, setColorZones] = useState(
-    curMoodBoard?.diagram?.colorZones || [],
-  );
+  const [editingName, setEditingName] = useState(false);
+  const [nameInputValue, setNameInputValue] = useState('');
 
+  const addedNote = useSelector((state) => state.moodBoard.addedNote);
   const curDiagramNote = useSelector((state) => state.moodBoard.curDiagramNote);
   const curEditState = useSelector((state) => state.moodBoard.editState);
   const showCardControl = useSelector((state) => state.moodBoard.showControl);
@@ -201,11 +220,6 @@ function DetailedDiagramPanel({ curMoodBoard }) {
 
   const handleUpdate = () => {
     forceUpdate((n) => n + 1); // increment state to trigger re-render
-    // Also bump nodeListVersion so the diagram useMemo invalidates and
-    // LassoSelection receives the fresh allNodes array. handleUpdate is the
-    // shared "the model changed" hook for add-node paths (drag-drop note,
-    // AI Layout). Without this bump, lasso silently misses programmatic adds.
-    setNodeListVersion((v) => v + 1);
   };
   const dispatch = useDispatch();
 
@@ -219,16 +233,6 @@ function DetailedDiagramPanel({ curMoodBoard }) {
     setCurNote(curDiagramNote);
     setOpenNoteModal(true);
   }, [curDiagramNote]);
-
-  useEffect(() => {
-    // Sync theme + colorZones when the user opens a different board.
-    // Canonical location is `diagram.theme` / `diagram.colorZones` (Option-A
-    // storage inside react_diagram JSON; no separate DB columns).
-    const savedTheme = curMoodBoard?.diagram?.theme;
-    const savedZones = curMoodBoard?.diagram?.colorZones;
-    if (savedTheme) setBoardTheme(savedTheme);
-    if (savedZones) setColorZones(savedZones);
-  }, [curMoodBoard]);
 
   const ballLinkFactoryRef = useRef(null);
   if (!ballLinkFactoryRef.current) {
@@ -312,9 +316,6 @@ function DetailedDiagramPanel({ curMoodBoard }) {
     //   }),
     // );
     eng.getNodeFactories().registerFactory(new NoteNodeFactory());
-    eng.getNodeFactories().registerFactory(new FrameNodeFactory());
-    eng.getNodeFactories().registerFactory(new StickyNoteNodeFactory());
-    eng.getNodeFactories().registerFactory(new ImageNodeFactory());
 
     eng.getLinkFactories().registerFactory(ballLinkFactoryRef.current);
     eng.getLinkFactories().registerFactory(linkFactoryRef.current);
@@ -355,17 +356,20 @@ function DetailedDiagramPanel({ curMoodBoard }) {
     [engineRef],
   );
 
+  // Handles notes dispatched to addedNote — both from outside the view (pre-mount)
+  // and from within the sidebar Notes tab (post-mount). Auto-saves after placing.
   useEffect(() => {
-    const w = watch(store.getState, 'moodBoard.addedNote', isEqual);
-    const unsubscribe = store.subscribe(
-      w((newVal, oldVal, objectPath) => {
-        setTimeout(() => {
-          addNewNote(newVal, 250, 300, 250, 180);
-        }, 100);
-      }),
-    );
-    return () => unsubscribe();
-  }, [addNewNote]);
+    if (!addedNote || !moodBoard.id) return;
+    const timer = setTimeout(() => {
+      const { x, y } = getNextNotePosition(engineRef.current.getModel().getNodes());
+      addNewNote(addedNote, x, y, 250, 180);
+      dispatch(noteAdded(null));
+      const str = JSON.stringify(engineRef.current.getModel().serialize());
+      const updated = updateMoodBoard(moodBoard.id, 'react_diagram', str);
+      if (updated) dispatch(moodBoardUpdated(updated));
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [addedNote, moodBoard, addNewNote]);
 
   useEffect(() => {
     if (!curMoodBoard) return;
@@ -377,62 +381,12 @@ function DetailedDiagramPanel({ curMoodBoard }) {
     engineRef.current.setModel(aModel);
   }, [curMoodBoard]);
 
-  // Attach positionChanged listeners so that moving a non-frame node updates
-  // frame containment. Runs once per model (re-runs on board switch because
-  // curMoodBoard changes). Phase 1 limitation: listeners are only attached to
-  // nodes present at model-load time; nodes added at runtime won't be tracked
-  // until the next board switch.
-  // Phase 3 addition: also emits BOARD_ARRANGED episode when a drag exceeds 50px.
-  useEffect(() => {
-    if (!engineRef.current) return undefined;
-    const model = engineRef.current.getModel();
-    const nodes = Object.values(model.getNodes());
-    const lastPositions = new Map();
-    const handles = nodes.map((node) => {
-      // Only listen to non-frame nodes; frames don't contain themselves.
-      if (node.getType && node.getType() === 'frame') return null;
-      lastPositions.set(node.getID(), { x: node.getX(), y: node.getY() });
-      return node.registerListener({
-        positionChanged: () => {
-          // Existing Phase 1 behavior: update frame containment
-          const allNodes = Object.values(
-            engineRef.current.getModel().getNodes(),
-          );
-          const frames = allNodes.filter(
-            (n) => n.getType && n.getType() === 'frame',
-          );
-          updateContainmentForNode(node, frames);
-
-          // Phase 3 telemetry: emit BOARD_ARRANGED on >50px drags
-          const last = lastPositions.get(node.getID());
-          const now = { x: node.getX(), y: node.getY() };
-          if (last && shouldEmitDragEpisode(last, now)) {
-            emitBoardArrangedEpisode({
-              boardId: moodBoard?.id ?? curMoodBoard?.id ?? 'unknown',
-              nodeCount: allNodes.length,
-              frameCount: frames.length,
-              linkCount: Object.keys(
-                engineRef.current.getModel().getLinks(),
-              ).length,
-              durationMs: 0,
-            });
-            lastPositions.set(node.getID(), now);
-          }
-        },
-      });
-    });
-    return () => {
-      handles.forEach((h) => h && h.deregister && h.deregister());
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [curMoodBoard]);
-
   const onDrop = (layout, item, e) => {
     if (!item) return;
     console.log(`Element parameters: ${JSON.stringify(item)}`);
     if (typeof item.id === 'undefined') return;
-    // if (ids.includes(item.id)) return;
-    addNewNote(item, 250, 300, 250, 180);
+    const { x, y } = getNextNotePosition(engineRef.current.getModel().getNodes());
+    addNewNote(item, x, y, 250, 180);
   };
 
   function clearDiagram(engine) {
@@ -513,105 +467,36 @@ function DetailedDiagramPanel({ curMoodBoard }) {
     dispatch(editStateChanged(state));
   };
 
-  const addFrame = () => {
-    if (!engineRef.current) return;
-    const frame = new FrameNodeModel({
-      label: 'New frame',
-      accentColor: '#9e9e9e',
-      width: 400,
-      height: 300,
-    });
-    const existingFrames = Object.values(
-      engineRef.current.getModel().getNodes()
-    ).filter((n) => n.getType && n.getType() === 'frame');
-    const offset = existingFrames.length * 24;
-    frame.setPosition(100 + offset, 100 + offset);
-    engineRef.current.getModel().addNode(frame);
-    setNodeListVersion((v) => v + 1);
-    engineRef.current.repaintCanvas();
-  };
-
-  const addSticky = () => {
-    if (!engineRef.current) return;
-    const sticky = new StickyNoteNodeModel({
-      text: '',
-      color: '#fff59d',
-      width: 160,
-      height: 120,
-    });
-    const existingStickies = Object.values(
-      engineRef.current.getModel().getNodes()
-    ).filter((n) => n.getType && n.getType() === 'sticky');
-    const offset = existingStickies.length * 20;
-    sticky.setPosition(200 + offset, 200 + offset);
-
-    // Attach containment listener before adding to the model. This mirrors the
-    // per-node setup in the board-load useEffect (which only fires at mount and
-    // misses runtime-added nodes). Frames don't need this — updateContainmentForNode
-    // early-returns for frame nodes, so only stickies require the listener.
-    sticky.registerListener({
-      positionChanged: () => {
-        const frames = Object.values(
-          engineRef.current.getModel().getNodes(),
-        ).filter((n) => n.getType && n.getType() === 'frame');
-        updateContainmentForNode(sticky, frames);
-      },
-    });
-
-    engineRef.current.getModel().addNode(sticky);
-    setNodeListVersion((v) => v + 1);
-    engineRef.current.repaintCanvas();
+  const handleNameSave = async () => {
+    setEditingName(false);
+    const trimmed = nameInputValue.trim();
+    if (!trimmed || trimmed === moodBoard.name) return;
+    const updated = await updateMoodBoard(moodBoard.id, 'name', trimmed);
+    if (updated) {
+      setMoodBoard(updated);
+      dispatch(moodBoardUpdated(updated));
+    }
   };
 
   const onSaveGridLayout = () => {
-    const serialized = engineRef.current.getModel().serialize();
-    const payload = { ...serialized, theme: boardTheme, colorZones };
-    const str = JSON.stringify(payload);
+    const str = JSON.stringify(engineRef.current.getModel().serialize());
     const c = updateMoodBoard(moodBoard.id, 'react_diagram', str);
     if (c) dispatch(moodBoardUpdated(c));
   };
 
-  const onExportPng = async () => {
-    if (!componentRef.current) return;
-    try {
-      const dataUrl = await captureElementAsPng(componentRef.current, 2);
-      const filename = buildExportFilename(moodBoard?.name, 'png');
-      triggerDownload(dataUrl, filename);
-    } catch (e) {
-      console.error('Export failed:', e);
-    }
-  };
-
-  const allNodes = engineRef.current
-    ? Object.values(engineRef.current.getModel().getNodes())
-    : [];
-  const selectedDriver = allNodes.find((n) => n.isSelected()) || null;
-  useMultiSelectDrag(selectedDriver, allNodes, engineRef.current);
-
   const diagramPanel = useMemo(() => {
     return (
-      <div ref={componentRef} style={{ height: '100%' }}>
-        <BoardThemeProvider theme={boardTheme}>
-          <DemoCanvasWidget background={canvasBackground}>
-            <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-              <BackgroundLayer spec={boardTheme.backgroundLayer || { mode: 'none' }} />
-              <ColorZoneLayer zones={colorZones} />
-              <CanvasWidget engine={engineRef.current} />
-              <LassoSelection nodes={allNodes} engine={engineRef.current} />
-            </div>
-          </DemoCanvasWidget>
-        </BoardThemeProvider>
+      <div ref={componentRef} style={{ height: 'calc(100vh - 65px)' }}>
+        <DemoCanvasWidget background={canvasBackground}>
+          <CanvasWidget engine={engineRef.current} />
+        </DemoCanvasWidget>
       </div>
     );
-  // nodeListVersion forces re-render when addFrame/addSticky/addImage add nodes at
-  // runtime so allNodes (computed just above this memo) is captured fresh.
-  // boardTheme + colorZones are Phase 2 additions that also drive visual output.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canvasBackground, nodeListVersion, boardTheme, colorZones]);
+  }, [canvasBackground]);
 
   // Props spreading for simplicity, consider enumerating specific props as best practice.
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Professional Toolbar */}
       <ToolbarContainer>
         {/* Left Section - Zoom & View Controls */}
@@ -662,116 +547,54 @@ function DetailedDiagramPanel({ curMoodBoard }) {
               <SettingsIcon sx={{ fontSize: 18 }} />
             </ToolbarButton>
           </Tooltip>
-
-          <ToolbarDivider orientation="vertical" flexItem />
-
-          {/* Add Frame / Add Sticky */}
-          <Tooltip title="Add a new frame container">
-            <ActionButton
-              variant="outlined"
-              onClick={addFrame}
-              sx={{
-                borderColor: alpha(theme.palette.text.secondary, 0.3),
-                color: theme.palette.text.secondary,
-                '&:hover': {
-                  borderColor: theme.palette.text.primary,
-                  bgcolor: alpha(theme.palette.text.primary, 0.05),
-                },
-              }}
-            >
-              + Frame
-            </ActionButton>
-          </Tooltip>
-          <Tooltip title="Add a new sticky note">
-            <ActionButton
-              variant="outlined"
-              onClick={addSticky}
-              sx={{
-                borderColor: alpha(theme.palette.warning.main, 0.4),
-                color: theme.palette.warning.dark,
-                '&:hover': {
-                  borderColor: theme.palette.warning.main,
-                  bgcolor: alpha(theme.palette.warning.main, 0.05),
-                },
-              }}
-            >
-              + Sticky
-            </ActionButton>
-          </Tooltip>
-
-          <ToolbarDivider orientation="vertical" flexItem />
-
-          <Tooltip title="Theme">
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <ThemePicker
-                theme={boardTheme}
-                onChange={(next) => setBoardTheme(next)}
-              />
-            </Box>
-          </Tooltip>
-          <BackgroundPicker
-            spec={boardTheme.backgroundLayer || { mode: 'none' }}
-            onChange={(next) =>
-              setBoardTheme((t) => ({ ...t, backgroundLayer: next }))
-            }
-          />
-          <Tooltip title="Add a color zone">
-            <ActionButton
-              variant="outlined"
-              onClick={() => {
-                const z = createColorZone(
-                  { x: 60, y: 60 },
-                  { x: 240, y: 180 },
-                  '#ffcc80',
-                );
-                if (z) setColorZones((prev) => [...prev, z]);
-              }}
-              sx={{
-                borderColor: 'rgba(0,0,0,0.2)',
-                color: theme.palette.text.secondary,
-              }}
-            >
-              + Zone
-            </ActionButton>
-          </Tooltip>
-          <Tooltip title="Add an image node">
-            <ActionButton
-              variant="outlined"
-              onClick={() => {
-                const node = new ImageNodeModel({ src: '', width: 240, height: 180 });
-                const existing = Object.values(
-                  engineRef.current.getModel().getNodes(),
-                ).filter((n) => n.getType && n.getType() === 'image');
-                node.setPosition(300 + existing.length * 24, 100 + existing.length * 24);
-                engineRef.current.getModel().addNode(node);
-                setNodeListVersion((v) => v + 1);
-                engineRef.current.repaintCanvas();
-              }}
-              sx={{
-                borderColor: 'rgba(0,0,0,0.2)',
-                color: theme.palette.text.secondary,
-              }}
-            >
-              + Image
-            </ActionButton>
-          </Tooltip>
         </ToolbarSection>
 
-        {/* Center - Board Name */}
+        {/* Center - Board Name (click to rename) */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Typography
-            variant="subtitle1"
-            sx={{
-              fontWeight: 600,
-              color: theme.palette.text.primary,
-              maxWidth: 200,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {moodBoard.name || 'Untitled Board'}
-          </Typography>
+          {editingName ? (
+            <InputBase
+              autoFocus
+              value={nameInputValue}
+              onChange={(e) => setNameInputValue(e.target.value)}
+              onBlur={handleNameSave}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleNameSave();
+                if (e.key === 'Escape') setEditingName(false);
+              }}
+              sx={{
+                fontSize: '0.9rem',
+                fontWeight: 600,
+                maxWidth: 220,
+                border: `1px solid ${alpha(theme.palette.primary.main, 0.5)}`,
+                borderRadius: 0.5,
+                px: 0.75,
+                py: 0.25,
+                bgcolor: alpha(theme.palette.primary.main, 0.04),
+              }}
+            />
+          ) : (
+            <Tooltip title="Click to rename">
+              <Typography
+                variant="subtitle1"
+                onClick={() => {
+                  setNameInputValue(moodBoard.name || '');
+                  setEditingName(true);
+                }}
+                sx={{
+                  fontWeight: 600,
+                  color: theme.palette.text.primary,
+                  maxWidth: 200,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  cursor: 'pointer',
+                  '&:hover': { color: theme.palette.primary.main },
+                }}
+              >
+                {moodBoard.name || 'Untitled Board'}
+              </Typography>
+            </Tooltip>
+          )}
           {moodBoard.pinned && (
             <Chip
               label="Pinned"
@@ -787,7 +610,7 @@ function DetailedDiagramPanel({ curMoodBoard }) {
         </Box>
 
         {/* Right Section - Actions */}
-        <ToolbarSection sx={{ marginLeft: 'auto' }}>
+        <ToolbarSection>
           {/* AI Layout Button */}
           <Tooltip title="Auto-arrange with AI">
             <ActionButton
@@ -827,13 +650,6 @@ function DetailedDiagramPanel({ curMoodBoard }) {
             </ActionButton>
           </Tooltip>
 
-          {/* Export PNG Button */}
-          <Tooltip title="Export board as PNG">
-            <ToolbarButton onClick={onExportPng}>
-              <DownloadIcon fontSize="small" />
-            </ToolbarButton>
-          </Tooltip>
-
           {/* Save Button */}
           <Tooltip title="Save changes">
             <ActionButton
@@ -854,7 +670,7 @@ function DetailedDiagramPanel({ curMoodBoard }) {
       </ToolbarContainer>
 
       {/* Diagram Canvas */}
-      <Box sx={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden' }}>
+      <Box sx={{ flex: 1, position: 'relative' }}>
         {diagramPanel}
       </Box>
 
