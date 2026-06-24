@@ -26,16 +26,33 @@ export function legacyToCanonical(legacy: LegacyMindmap, fallbackId: string): Mi
     return { id: fallbackId, title: '', rootId: '', nodes: [], edges: [] };
   }
 
+  // Drop edges whose source/target is not an actual node. parseMindmapToReactFlow
+  // emits synthetic "-1" → top-level-bullet edges; preserving those leaves the
+  // canonical graph disconnected after the layout step filters them, which makes
+  // ELK stack every node at the origin.
+  const nodeIds = new Set(nodes.map((n) => n.id));
+  const realEdges = edges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
+
   const parentOf = new Map<string, string>();
-  edges.forEach((e) => parentOf.set(e.target, e.source));
+  realEdges.forEach((e) => parentOf.set(e.target, e.source));
+
+  const rootId = nodes.find((n) => !parentOf.has(n.id))?.id ?? nodes[0].id;
+
+  // For every orphan (parent was the synthetic "-1"), attach it to the root so
+  // the canonical edge set is a real tree. This fixes the flat-bullet-list case
+  // where the AI returns all items at indent 0.
+  const synthesizedEdges: LegacyEdge[] = nodes
+    .filter((n) => n.id !== rootId && !parentOf.has(n.id))
+    .map((n, i) => ({ id: `synth-${i}`, source: rootId, target: n.id }));
+  synthesizedEdges.forEach((e) => parentOf.set(e.target, e.source));
+
+  const allEdges = [...realEdges, ...synthesizedEdges];
 
   const childrenOf = new Map<string, string[]>();
-  edges.forEach((e) => {
+  allEdges.forEach((e) => {
     if (!childrenOf.has(e.source)) childrenOf.set(e.source, []);
     childrenOf.get(e.source)!.push(e.target);
   });
-
-  const rootId = nodes.find((n) => !parentOf.has(n.id))?.id ?? nodes[0].id;
 
   const levelOf = new Map<string, number>([[rootId, 0]]);
   const queue: string[] = [rootId];
@@ -60,7 +77,7 @@ export function legacyToCanonical(legacy: LegacyMindmap, fallbackId: string): Mi
     return { id: n.id, data };
   });
 
-  const canonicalEdges = edges.map((e, i) => ({
+  const canonicalEdges = allEdges.map((e, i) => ({
     id: e.id ?? `e${i}`,
     source: e.source,
     target: e.target,

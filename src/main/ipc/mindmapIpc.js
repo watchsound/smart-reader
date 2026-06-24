@@ -11,14 +11,8 @@
 
 import { ipcMain } from 'electron';
 import { getDb } from '../db/dbManager';
-// LearningPointManager (direct SQLite, function exports) is the working
-// write path on the default SqliteAdapter. LearningPointService's batch
-// call routes through GraphInterface, which silently no-ops on SQLite
-// (SqliteAdapter lacks createLearningPointsBatch). MindmapPersistenceService's
-// constructor takes any object matching the {createLearningPointsBatch,
-// getLearningPointById} interface, so the LearningPointManager module
-// namespace satisfies it directly.
 import * as learningPointManager from '../db/LearningPointManager';
+import * as mindmapJsonManager from '../db/MindmapJsonManager';
 
 // Service is CommonJS; ESM-side default-import not needed because we
 // reach via require() within main.ts/IPC contexts that already mix both.
@@ -61,6 +55,46 @@ function registerMindmapIpc() {
     } catch (err) {
       console.error('[mindmapIpc] mastery-snapshot failed:', err);
       return {};
+    }
+  });
+
+  ipcMain.handle('mindmap:save', (_e, payload) => {
+    try {
+      const { title, query, data, token } = payload || {};
+      return mindmapJsonManager.saveMindmap({ title, query, data }, token);
+    } catch (err) {
+      console.error('[mindmapIpc] save failed:', err);
+      return null;
+    }
+  });
+
+  ipcMain.handle('mindmap:list', (_e, payload) => {
+    try {
+      const { token } = payload || {};
+      return mindmapJsonManager.listMindmaps(token);
+    } catch (err) {
+      console.error('[mindmapIpc] list failed:', err);
+      return [];
+    }
+  });
+
+  ipcMain.handle('mindmap:get', (_e, payload) => {
+    try {
+      const { id, token } = payload || {};
+      return mindmapJsonManager.getMindmap(id, token);
+    } catch (err) {
+      console.error('[mindmapIpc] get failed:', err);
+      return null;
+    }
+  });
+
+  ipcMain.handle('mindmap:delete', (_e, payload) => {
+    try {
+      const { id, token } = payload || {};
+      return mindmapJsonManager.deleteMindmap(id, token);
+    } catch (err) {
+      console.error('[mindmapIpc] delete failed:', err);
+      return -1;
     }
   });
 }

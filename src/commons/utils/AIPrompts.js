@@ -181,24 +181,34 @@ const getSummaryChatHistoryPrompt =  (content, savedTags) => {
 
 const getSystemMessageMindMap = () => {
   const message = [];
-  message.push('You are an expert for logic reasoning.');
+  message.push('You are an expert at structured outlines.');
   message.push(
-    'You return *only* a mindmap using markdown,  each node including root node starts with "-".',
+    'Return ONLY a markdown indented bullet list. Every line begins with "- " (dash + space). Use 2 spaces per indent level.',
   );
   message.push(
-    'You use keyword+ "|" + simple description for each node of mindmap.',
+    'Each bullet is "keyword | one-line description". No numbered lists, no headers (#), no preamble, no explanation, no code fences.',
+  );
+  message.push(
+    'If the input cannot be turned into a mindmap, return an empty response.',
   );
   return message.join(' ');
 };
 const getUserMessageMindMap = () => {
   const message = [];
   message.push(
-    'please return *only* a mindmap using markdown for the following paragraph',
+    'Return ONLY a markdown mindmap of the following text. Format rules:',
   );
   message.push(
-    '(use keyword+ "|" + simple description for every item of mindmap, starting with "-") \n\n',
+    '- every line begins with "- " (dash space); no "1." numbered list, no "#" headers, no code fences',
   );
-  return message.join(' ');
+  message.push(
+    '- indent children with 2 extra spaces',
+  );
+  message.push(
+    '- each bullet is keyword + " | " + short description',
+  );
+  message.push('\nText:\n\n');
+  return message.join('\n');
 };
 
 const getMindMapChatHistoryPrompt = (content) => {

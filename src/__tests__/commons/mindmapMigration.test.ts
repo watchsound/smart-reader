@@ -37,6 +37,37 @@ describe('legacyToCanonical', () => {
     expect(result.nodes).toEqual([]);
   });
 
+  it('drops synthetic "-1" edges and re-roots orphans onto the first node', () => {
+    // parseMindmapToReactFlow emits source: "-1" for every top-level bullet
+    // when the AI returns a flat list. Without re-rooting, the canonical
+    // graph has zero real edges → ELK stacks every node at (0, 0).
+    const legacy = {
+      nodes: [
+        { id: '0', data: { label: 'A' } },
+        { id: '1', data: { label: 'B' } },
+        { id: '2', data: { label: 'C' } },
+      ],
+      edges: [
+        { id: 'e0', source: '-1', target: '0' },
+        { id: 'e1', source: '-1', target: '1' },
+        { id: 'e2', source: '-1', target: '2' },
+      ],
+    };
+    const result = legacyToCanonical(legacy, 'm-flat');
+    expect(result.rootId).toBe('0');
+    // No "-1" should appear as a source on any canonical edge.
+    expect(result.edges.every((e) => e.source !== '-1')).toBe(true);
+    // The two orphans must now have the root as their source.
+    const orphanSources = result.edges
+      .filter((e) => e.target === '1' || e.target === '2')
+      .map((e) => e.source);
+    expect(orphanSources).toEqual(['0', '0']);
+    // Levels: root=0, both children=1.
+    expect(result.nodes.find((n) => n.id === '0')?.data.level).toBe(0);
+    expect(result.nodes.find((n) => n.id === '1')?.data.level).toBe(1);
+    expect(result.nodes.find((n) => n.id === '2')?.data.level).toBe(1);
+  });
+
   it('derives level from edge graph when no explicit level field', () => {
     const legacy = {
       nodes: [

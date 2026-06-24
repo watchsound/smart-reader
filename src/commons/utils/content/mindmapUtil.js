@@ -32,30 +32,41 @@ export function removeStartEndSymbolLines(content) {
   return content;
 }
 
-function isAlphaNumeric(code) {
-  if (
-    !(code > 47 && code < 58) && // numeric (0-9)
-    !(code > 64 && code < 91) && // upper alpha (A-Z)
-    !(code > 96 && code < 123)
-  ) {
-    return false;
-  }
-  return true;
+// Detects the length of a list marker at the start of trimmed content.
+// Recognises dash/asterisk/plus/bullet/middle-dot bullets, numbered lists
+// (1. / 1) / (1) / 1)) and markdown headers (# / ## / …). Returns 0 when
+// the content doesn't start with any recognised marker (i.e. probably prose
+// preamble or a refusal — caller skips those).
+//
+// Replaces the previous `isAlphaNumeric` filter, which mis-rejected
+// numbered-list lines like "1. Item" because '1' is alphanumeric.
+function listMarkerLength(content) {
+  if (!content) return 0;
+  // Bullet markers: -, *, +, •, ·  (must be followed by space)
+  const bulletMatch = content.match(/^([-*+•·])\s+/);
+  if (bulletMatch) return bulletMatch[0].length;
+  // Numbered list: "1. ", "1) ", "(1) "
+  const numberedMatch = content.match(/^\(?\d+[.)]\s+/);
+  if (numberedMatch) return numberedMatch[0].length;
+  // Markdown headers: #, ##, ### (must be followed by space)
+  const headerMatch = content.match(/^#{1,6}\s+/);
+  if (headerMatch) return headerMatch[0].length;
+  return 0;
+}
+
+function isListLine(content) {
+  return listMarkerLength(content) > 0;
 }
 
 function calculateMiniStepForMindmap(lines) {
-  // for each line
-  // if line starts with alphanumeric, then it is not a mindmap, so skip it
-  // calculate the position of the first non-space character, and keep track of the minimum
-  // return the minimum
+  // For each line: if it doesn't look like a mindmap list item, skip it.
+  // Otherwise, track the minimum leading-whitespace column across indented
+  // lines — that's the indentation step size.
   let min = 1000;
   lines.forEach((line) => {
     const content = line.trim();
     if (!content || content === 'mindmap' || content.indexOf('`') === 0) return;
-    const code = line.charCodeAt(0);
-    if (isAlphaNumeric(code)) {
-      return;
-    }
+    if (!isListLine(content)) return;
     const pos = line.indexOf(content);
     if (pos !== 0 && pos < min) min = pos;
   });
@@ -110,8 +121,6 @@ function parseMindmapToReactFlowImp(
   let edgeId = 0;
   const fontSize = useKeyword ? '18px' : '20px';
 
-  console.log('step = ' + stepLength  );
-
   lines.forEach((line, index) => {
     const content = line.trim();
     if (
@@ -121,16 +130,18 @@ function parseMindmapToReactFlowImp(
     ) {
       return; // Skip 'mindmap' directive and empty lines
     }
-    const code = line.charCodeAt(0);
-    if (isAlphaNumeric(code)) {
-      return;
+    const markerLen = listMarkerLength(content);
+    if (markerLen === 0) {
+      return; // Not a list item (preamble / prose / refusal)
     }
 
     let currentIndentation =
       stepLength === 0 ? 0 : line.indexOf(content) / stepLength; // Assuming 4 spaces per indentation level
     if (currentIndentation < 0) currentIndentation = 0;
     const id = `${index}`; // `node-${index}`;
-    let c = content; // .substring(startSymbol.length);
+    // Strip the bullet / number / header marker so the node text doesn't
+    // include "- " or "1. " etc.
+    let c = content.substring(markerLen);
     const sepPos = c.indexOf('|');
     if (sepPos > 0)
       c = useKeyword ? c.substring(0, sepPos) : c.replace('|', ' :: ');
@@ -192,8 +203,7 @@ function parseMindmapToReactFlowImp(
     //   parentIdStack.pop();
     // }
     parentIdStack.push(id);
-    parentIdStack.push(currentIndentation);
-    // lastIndentation = currentIndentation;
+    parentIndents.push(currentIndentation);
   });
 
   return { width, height, nodes, edges };

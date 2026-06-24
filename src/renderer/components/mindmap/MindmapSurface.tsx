@@ -8,6 +8,7 @@ import {
   MiniMap,
   useNodesState,
   useEdgesState,
+  useReactFlow,
 } from '@xyflow/react';
 import '@xyflow/react/dist/base.css';
 import { Box } from '@mui/material';
@@ -21,9 +22,23 @@ import type { MindmapData } from '../../../commons/model/MindmapData';
 
 const NODE_TYPES = { mind: MindNode, mindRoot: MindRootNode };
 
+// Must be rendered inside <ReactFlow> so useReactFlow has a context.
+// Calls fitView() each time the ELK layout version increments — after the
+// initial stacked render, so the viewport always fits the real positions.
+function FitViewTrigger({ version }: { version: number }) {
+  const { fitView } = useReactFlow();
+  useEffect(() => {
+    if (version === 0) return undefined;
+    const t = setTimeout(() => fitView({ duration: 250, padding: 0.15 }), 200);
+    return () => clearTimeout(t);
+  }, [version, fitView]);
+  return null;
+}
+
 interface Props {
   data: MindmapData | any;
   mode?: 'inline' | 'expanded' | 'card';
+  height?: number | string;
   bookId?: string;
   readOnly?: boolean;
   onNodeClick?: (nodeId: string, lpId?: string) => void;
@@ -49,18 +64,20 @@ function looksLegacy(d: any): boolean {
 export default function MindmapSurface({
   data: rawData,
   mode = 'inline',
+  height: heightProp,
   bookId,
   readOnly,
   onNodeClick,
 }: Props) {
   const navigate = useNavigate();
-  const data: MindmapData = useMemo(
-    () =>
-      looksLegacy(rawData)
-        ? legacyToCanonical(rawData, rawData?.id ?? `m-${Date.now()}`)
-        : rawData,
-    [rawData],
-  );
+  const data: MindmapData = useMemo(() => {
+    if (!rawData?.nodes) {
+      return { id: 'm-empty', title: '', rootId: '', nodes: [], edges: [] };
+    }
+    return looksLegacy(rawData)
+      ? legacyToCanonical(rawData, rawData.id ?? `m-${Date.now()}`)
+      : rawData;
+  }, [rawData]);
 
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [mastery, setMastery] = useState<Record<string, number>>({});
@@ -117,7 +134,7 @@ export default function MindmapSurface({
     return new Set(data.nodes.map((n) => n.id).filter((id) => !hidden.has(id)));
   }, [data.nodes, data.rootId, collapsed, childrenOf]);
 
-  const { positioned } = useMindmapLayout(data, visibleIds);
+  const { positioned, layoutVersion } = useMindmapLayout(data, visibleIds);
 
   const handleActivate = useCallback(
     (nodeId: string, lpId?: string) => {
@@ -227,7 +244,11 @@ export default function MindmapSurface({
     setBarDismissed(true);
   };
 
-  const size = MODE_SIZE[mode];
+  const modeSize = MODE_SIZE[mode];
+  const size = {
+    width: modeSize.width,
+    height: heightProp ?? modeSize.height,
+  };
 
   return (
     <Box
@@ -253,11 +274,11 @@ export default function MindmapSurface({
           nodeTypes={NODE_TYPES as any}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
-          fitView
-          nodesDraggable={mode === 'expanded' && !readOnly}
+          nodesDraggable={!readOnly}
           panOnDrag
           zoomOnScroll
         >
+          <FitViewTrigger version={layoutVersion} />
           <Background />
           {mode === 'expanded' && <Controls />}
           {mode === 'expanded' && <MiniMap pannable zoomable />}

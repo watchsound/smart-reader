@@ -811,3 +811,20 @@ CREATE TABLE IF NOT EXISTS mindmap_node_lp_link (
   FOREIGN KEY (lp_id) REFERENCES learning_point(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_mindmap_link_lp ON mindmap_node_lp_link(lp_id);
+
+-- ============================================================================
+-- SAVED MINDMAPS
+-- ============================================================================
+-- Persists the full canonical MindmapData JSON for mindmaps the user
+-- explicitly saves from LearnAbout (or any other surface). Separate from
+-- mindmap_node_lp_link which is a join table for node→LP links.
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS mindmap (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  title      TEXT    NOT NULL DEFAULT '',
+  query      TEXT    NOT NULL DEFAULT '',
+  data       TEXT    NOT NULL,
+  created_at TEXT    NOT NULL,
+  user_id    INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_mindmap_user ON mindmap(user_id, created_at DESC);

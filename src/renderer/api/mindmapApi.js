@@ -28,9 +28,38 @@ export async function masterySnapshot({ lpIds }) {
   });
 }
 
+export async function saveMindmap({ title, query, data }) {
+  const token = customStorage.getToken();
+  return window.electron.ipcRenderer.invoke('mindmap:save', {
+    title,
+    query,
+    data,
+    token,
+  });
+}
+
+export async function listMindmaps() {
+  const token = customStorage.getToken();
+  return window.electron.ipcRenderer.invoke('mindmap:list', { token });
+}
+
+export async function getMindmap(id) {
+  const token = customStorage.getToken();
+  return window.electron.ipcRenderer.invoke('mindmap:get', { id, token });
+}
+
+export async function deleteMindmap(id) {
+  const token = customStorage.getToken();
+  return window.electron.ipcRenderer.invoke('mindmap:delete', { id, token });
+}
+
 const mindmapApi = {
   saveAsLearningPoints,
   masterySnapshot,
+  saveMindmap,
+  listMindmaps,
+  getMindmap,
+  deleteMindmap,
 };
 
 export default mindmapApi;
