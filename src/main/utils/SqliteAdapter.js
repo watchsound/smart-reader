@@ -20,6 +20,7 @@
 
 import { getUserIdFromToken, getDb } from '../db/dbManager';
 import { cosineSimilarity } from './EmbeddingService';
+import * as lpm from '../db/LearningPointManager';
 
 function safeParse(json) {
   try { return JSON.parse(json); } catch { return null; }
@@ -573,11 +574,158 @@ class SqliteAdapter {
   async createChunkIndexes() { return true; }
 
   // ===========================================================================
+  // LEARNING POINTS — delegate to LearningPointManager (owns the learning_point
+  // table). Methods are synchronous in LPM; async wrapper resolves immediately.
+  // ===========================================================================
+
+  async createLearningPoint(point, token) {
+    return lpm.createLearningPoint(point, token);
+  }
+
+  async createLearningPointsBatch(points, token) {
+    return lpm.createLearningPointsBatch(points, token);
+  }
+
+  async getLearningPointById(id, token) {
+    return lpm.getLearningPointById(id, token);
+  }
+
+  async updateLearningPoint(id, updates, token) {
+    return lpm.updateLearningPoint(id, updates, token);
+  }
+
+  async deleteLearningPoint(id, token, hard = false) {
+    return lpm.deleteLearningPoint(id, token, hard);
+  }
+
+  async getLearningPointsDue(options) {
+    return lpm.getDueItems(options);
+  }
+
+  async getLearningPointsBySource(sourceType, sourceId, token) {
+    return lpm.getBySource(sourceType, sourceId, token);
+  }
+
+  async getLearningPointsByPlan(planId, token) {
+    return lpm.getByPlan(planId, token);
+  }
+
+  async searchLearningPoints(query, token, options = {}) {
+    return lpm.searchLearningPoints(query, token, options);
+  }
+
+  async getAllLearningPoints(token, options = {}) {
+    return lpm.getAllLearningPoints(token, options);
+  }
+
+  async processLearningPointReview(id, rating, responseTimeMs, token) {
+    return lpm.processReview(id, rating, responseTimeMs, token);
+  }
+
+  async resetLearningPoint(id, token) {
+    return lpm.resetLearningPoint(id, token);
+  }
+
+  async getLearningPointStats(token, options = {}) {
+    return lpm.getStats(token, options);
+  }
+
+  async getLearningPointForecast(token, days = 14) {
+    return lpm.getDailyForecast(token, days);
+  }
+
+  // ===========================================================================
   // LEARNING PATHS — Pass 4 may wire recursive CTEs over graph_edge.
   // ===========================================================================
 
   async getLearningPath(/* targetConceptId, maxDepth, token */) { return null; }
   async getKnowledgeAtTime(/* asOfDate, token */) { return []; }
+
+  // ===========================================================================
+  // KNOWLEDGE GRAPH VIEW — returns nodes + edges for the dashboard visualisation.
+  // Note nodes come from graph_embedding (joined to the note table for titles).
+  // Concept nodes are inferred from MENTIONS_CONCEPT edge targets — they have no
+  // dedicated table in the SQLite adapter.
+  // ===========================================================================
+
+  async getKnowledgeGraphData(token) {
+    if (!this.isConnected) return { nodes: [], edges: [] };
+    try {
+      const db = getDb();
+      const userId = token ? getUserIdFromToken(token) : null;
+
+      // Note nodes — graph_embedding stores node_id (=note.id) as TEXT.
+      // user_id is not set by graphEmbeddingManager.addNote, so filter via note JOIN.
+      const noteUserClause = userId != null ? 'AND n.user_id = ?' : '';
+      const noteRows = db
+        .prepare(
+          `SELECT ge.node_id AS id,
+                  json_extract(n.data, '$.title') AS title,
+                  ge.updated_at AS updatedAt
+           FROM graph_embedding ge
+           LEFT JOIN note n ON CAST(ge.node_id AS INTEGER) = n.id
+           WHERE ge.node_type = 'Note'
+           ${noteUserClause}
+           ORDER BY ge.updated_at DESC
+           LIMIT 200`,
+        )
+        .all(...(userId != null ? [userId] : []));
+
+      // Concept nodes — inferred from edge targets; no dedicated table.
+      const conceptUserClause = userId != null ? 'AND user_id = ?' : '';
+      const conceptRows = db
+        .prepare(
+          `SELECT target_id AS id, COUNT(*) AS frequency
+           FROM graph_edge
+           WHERE target_type = 'Concept' AND edge_type = 'MENTIONS_CONCEPT'
+           ${conceptUserClause}
+           GROUP BY target_id`,
+        )
+        .all(...(userId != null ? [userId] : []));
+
+      // Edges
+      const edgeUserClause = userId != null ? 'AND user_id = ?' : '';
+      const edgeRows = db
+        .prepare(
+          `SELECT source_id AS source, target_id AS target, edge_type AS type
+           FROM graph_edge
+           WHERE edge_type IN ('MENTIONS_CONCEPT', 'LINKS_TO', 'RELATED_TO', 'REQUIRES')
+           ${edgeUserClause}
+           LIMIT 1000`,
+        )
+        .all(...(userId != null ? [userId] : []));
+
+      const noteNodes = noteRows.map((r) => ({
+        id: String(r.id),
+        name: r.title || `Note #${r.id}`,
+        type: 'Note',
+        mastery: 0,
+        domain: 'note',
+      }));
+
+      const conceptNodes = conceptRows.map((r) => ({
+        id: String(r.id),
+        name: String(r.id),
+        type: 'Concept',
+        mastery: 0,
+        domain: 'concept',
+        frequency: r.frequency,
+      }));
+
+      const edges = edgeRows
+        .filter((r) => r.source && r.target)
+        .map((r) => ({
+          source: String(r.source),
+          target: String(r.target),
+          type: r.type,
+        }));
+
+      return { nodes: [...noteNodes, ...conceptNodes], edges };
+    } catch (e) {
+      console.error('[SqliteAdapter] getKnowledgeGraphData:', e.message);
+      return { nodes: [], edges: [] };
+    }
+  }
 }
 
 const sqliteAdapter = new SqliteAdapter();

@@ -335,17 +335,16 @@ declare global {
 
 let libreOfficeInstalled = false;
 
-async function setupThirdPartySetting(userId: number): Promise<void> {
-  console.log('enter setupThirdPartySetting');
-  libreOfficeInstalled = await checkLibreOfficeInstalled();
-  console.log(` libreOfficeInstalled = ${libreOfficeInstalled}`);
-
+// Re-reads all provider credentials from the store and hot-reloads
+// aiProviderManager without requiring a logout/login cycle.
+// Called at login (via setupThirdPartySetting) and from every settings setter
+// so that API-key and provider changes take effect immediately.
+function reinitializeProvider(userId: number): void {
   const provider0 = store.get(`ai_provider_${userId}`) as string;
   const apiKeyChatgpt = store.get(`openai_key_${userId}`) as string;
   const apiKeyGemini = store.get(`gemini_key_${userId}`) as string;
   const apiKeyKimi = store.get(`kimi_key_${userId}`) as string;
   const apiKeyClaude = store.get(`claude_key_${userId}`) as string;
-  // const baiduAccessToken = await getBaiduAccessToken(userId);
   const apiKeyBaidu = store.get(`baidu_key_${userId}`) as string;
   const apiKeyDoubao = store.get(`doubao_key_${userId}`) as string;
   const apiKeyQwen = store.get(`qwen_key_${userId}`) as string;
@@ -415,9 +414,18 @@ async function setupThirdPartySetting(userId: number): Promise<void> {
     if (k) aiProviderManager.registerProvider(name, k, m, false);
   }
 
+  // Re-build embedding function for the new active provider. Fire-and-forget
+  // so callers from sync IPC handlers don't need to be made async.
   const embeddingFn = buildEmbeddingFunction(store, userId, provider);
-  await vectorManager.setup(store, embeddingFn);
-  await graphEmbeddingManager.setup(store, embeddingFn);
+  vectorManager.setup(store, embeddingFn).catch(() => {});
+  graphEmbeddingManager.setup(store, embeddingFn).catch(() => {});
+}
+
+async function setupThirdPartySetting(userId: number): Promise<void> {
+  console.log('enter setupThirdPartySetting');
+  libreOfficeInstalled = await checkLibreOfficeInstalled();
+  console.log(` libreOfficeInstalled = ${libreOfficeInstalled}`);
+  reinitializeProvider(userId);
 }
 
 async function setupPathInfo() {
@@ -1320,6 +1328,7 @@ const createWindow = async () => {
       _.returnValue = false;
     } else {
       store.set(`ai_provider_${userId}`, provider || false);
+      reinitializeProvider(userId);
       _.returnValue = true;
     }
   });
@@ -1339,6 +1348,7 @@ const createWindow = async () => {
       _.returnValue = false;
     } else {
       store.set(`openai_key_${userId}`, key || false);
+      reinitializeProvider(userId);
       _.returnValue = true;
     }
   });
@@ -1358,6 +1368,7 @@ const createWindow = async () => {
       _.returnValue = false;
     } else {
       store.set(`gemini_key_${userId}`, key || false);
+      reinitializeProvider(userId);
       _.returnValue = true;
     }
   });
@@ -1377,6 +1388,7 @@ const createWindow = async () => {
       _.returnValue = false;
     } else {
       store.set(`claude_key_${userId}`, key || false);
+      reinitializeProvider(userId);
       _.returnValue = true;
     }
   });
@@ -1396,6 +1408,7 @@ const createWindow = async () => {
       _.returnValue = false;
     } else {
       store.set(`baidu_key_${userId}`, key || false);
+      reinitializeProvider(userId);
       _.returnValue = true;
     }
   });
@@ -1415,6 +1428,7 @@ const createWindow = async () => {
       _.returnValue = false;
     } else {
       store.set(`baidu_secret_${userId}`, key || false);
+      reinitializeProvider(userId);
       _.returnValue = true;
     }
   });
@@ -1434,6 +1448,7 @@ const createWindow = async () => {
       _.returnValue = false;
     } else {
       store.set(`kimi_key_${userId}`, key || false);
+      reinitializeProvider(userId);
       _.returnValue = true;
     }
   });
@@ -1454,6 +1469,7 @@ const createWindow = async () => {
       _.returnValue = false;
     } else {
       store.set(`doubao_key_${userId}`, key || false);
+      reinitializeProvider(userId);
       _.returnValue = true;
     }
   });
@@ -1474,6 +1490,7 @@ const createWindow = async () => {
       _.returnValue = false;
     } else {
       store.set(`qwen_key_${userId}`, key || false);
+      reinitializeProvider(userId);
       _.returnValue = true;
     }
   });
@@ -1494,6 +1511,7 @@ const createWindow = async () => {
       _.returnValue = false;
     } else {
       store.set(`deepseek_key_${userId}`, key || false);
+      reinitializeProvider(userId);
       _.returnValue = true;
     }
   });
@@ -1587,6 +1605,9 @@ const createWindow = async () => {
     try {
       const info = store.get('session_info');
       if (info && info.token && info.token === token) {
+        // Re-initialize the AI provider so it's ready without requiring a
+        // full login flow (happens on every app restart that auto-resumes a session).
+        if (info.id) reinitializeProvider(info.id);
         return info;
       }
       return null;

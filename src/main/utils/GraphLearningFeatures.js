@@ -753,7 +753,13 @@ class GraphLearningFeatures {
 
     try {
       const session = graphInterface.adapter?.session;
-      if (!session) return { nodes: [], edges: [] };
+      // SqliteAdapter has no Neo4j session — delegate to its own implementation.
+      if (!session) {
+        if (typeof graphInterface.adapter?.getKnowledgeGraphData === 'function') {
+          return graphInterface.adapter.getKnowledgeGraphData(token);
+        }
+        return { nodes: [], edges: [] };
+      }
 
       const userId = getUserIdFromToken(token);
 
