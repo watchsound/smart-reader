@@ -358,6 +358,7 @@ function ConceptReviewPanel({
   const [selectedNodes, setSelectedNodes] = useState<Set<string>>(new Set());
   const [selectedEdges, setSelectedEdges] = useState<Set<string>>(new Set());
   const [autoSave, setAutoSave] = useState(false);
+  const [extractError, setExtractError] = useState<string | null>(null);
 
   // Race guard: handleExtract is invoked from both the auto-extract
   // useEffect (when `text` changes) and from an explicit extract button.
@@ -373,9 +374,14 @@ function ConceptReviewPanel({
     const isStale = () => myGen !== extractGenRef.current;
 
     setLoading(true);
+    setExtractError(null);
     try {
       const result = await graphApi.aiFullExtraction(text);
       if (isStale()) return;
+      if (result?.error === 'no_provider') {
+        setExtractError('No AI provider configured. Go to Settings to add one.');
+        return;
+      }
       setExtracted(result);
 
       // Select all nodes and edges by default
@@ -391,8 +397,7 @@ function ConceptReviewPanel({
       }
     } catch (error) {
       if (isStale()) return;
-      // eslint-disable-next-line no-console
-      console.error('Concept extraction failed:', error);
+      setExtractError('Extraction failed. Check your AI provider settings.');
     } finally {
       if (!isStale()) {
         setLoading(false);
@@ -451,10 +456,6 @@ function ConceptReviewPanel({
     setSelectedNodes(new Set());
     setSelectedEdges(new Set());
   };
-
-  if (!graphApi.isAIExtractionAvailable()) {
-    return null;
-  }
 
   return (
     <PanelContainer>
@@ -565,13 +566,13 @@ function ConceptReviewPanel({
           {!loading && !extracted && (
             <EmptyState>
               <EmptyStateIcon>
-                <LightbulbIcon sx={{ fontSize: 28, color: theme.palette.primary.main, opacity: 0.7 }} />
+                <LightbulbIcon sx={{ fontSize: 28, color: extractError ? theme.palette.error.main : theme.palette.primary.main, opacity: 0.7 }} />
               </EmptyStateIcon>
               <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
-                Ready to Extract
+                {extractError ? 'Extraction Failed' : 'Ready to Extract'}
               </Typography>
-              <Typography variant="body2" sx={{ color: theme.palette.text.secondary, maxWidth: 240, fontSize: '0.8rem' }}>
-                Click the Extract button to identify concepts and relationships in your content
+              <Typography variant="body2" sx={{ color: extractError ? theme.palette.error.main : theme.palette.text.secondary, maxWidth: 240, fontSize: '0.8rem' }}>
+                {extractError || 'Click the Extract button to identify concepts and relationships in your content'}
               </Typography>
             </EmptyState>
           )}

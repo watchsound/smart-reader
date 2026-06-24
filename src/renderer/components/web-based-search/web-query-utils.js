@@ -311,7 +311,11 @@ Return only category name.`;
       'Category not matched. Check the query or the categories list.',
     );
   } catch (error) {
-    console.error('Error determining category:', error.message);
+    if (error.message === 'no provider') {
+      console.warn('[web-search] No AI provider configured; skipping category classification.');
+    } else {
+      console.error('Error determining category:', error.message);
+    }
     return { category: null, sites: [] };
   }
 }

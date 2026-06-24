@@ -6,6 +6,10 @@ import puppeteer from 'puppeteer-core';
 import findChrome from 'chrome-finder';
 
 export async function fetchPageHeadless(url) {
+  if (!url || !/^https?:\/\//i.test(url)) {
+    console.error('fetchPageHeadless: invalid URL', url);
+    return '';
+  }
   const chromePath = findChrome();
   console.log(` chrompath = ${chromePath}`);
   const browser = await puppeteer.launch({
@@ -34,13 +38,21 @@ export async function fetchPageHeadless(url) {
       await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
     } catch (e) {
       await page.goto(url, { waitUntil: 'domcontentloaded' });
+      // Page may still be mid–JS redirect after domcontentloaded; let it settle.
+      await page
+        .waitForNavigation({ waitUntil: 'networkidle2', timeout: 10000 })
+        .catch(() => {});
     }
 
-    // Check for CAPTCHA
-    const isCaptcha = await page.$('#captcha');
-    if (isCaptcha) {
-      console.log('CAPTCHA detected. Unable to scrape.');
-      return '';
+    // Check for CAPTCHA — skip gracefully if a navigation destroyed the context.
+    try {
+      const isCaptcha = await page.$('#captcha');
+      if (isCaptcha) {
+        console.log('CAPTCHA detected. Unable to scrape.');
+        return '';
+      }
+    } catch (_e) {
+      // Execution context was destroyed by a client-side navigation; skip check.
     }
 
     // Get the page content as a string

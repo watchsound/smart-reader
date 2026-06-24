@@ -27,11 +27,16 @@ export default async function scrapeBaidu(query, topN = 3) {
       if (results.length >= topN) return false;
 
       const title = $(element).find('h3').text().trim();
-      // Prefer the mu attribute (actual destination URL) over Baidu's redirect href
-      const link =
-        $(element).attr('mu') ||
-        $(element).find('h3 a').attr('href') ||
-        '';
+      // Prefer the mu attribute (actual destination URL) over Baidu's redirect href.
+      // Baidu Scholar results use "http://fakeurl.baidu.com/xueshu" as a mu placeholder
+      // — skip any link that isn't a real resolvable origin.
+      const muAttr = $(element).attr('mu') || '';
+      const hrefAttr = $(element).find('h3 a').attr('href') || '';
+      const rawLink = muAttr || hrefAttr;
+      const isFake = !rawLink ||
+        rawLink.includes('fakeurl') ||
+        rawLink.startsWith('/');
+      const link = isFake ? '' : rawLink;
 
       const snippet =
         $(element).find('.c-abstract').text().trim() ||

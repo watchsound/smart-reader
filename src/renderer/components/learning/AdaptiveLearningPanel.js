@@ -131,8 +131,9 @@ export default function AdaptiveLearningPanel({
 
     try {
       // Get performance history
-      const recentSessions = await learningApi.getRecentSessions(30);
-      const performanceHistory = (recentSessions || []).map((s) => ({
+      const sessionsResponse = await learningApi.getRecentSessions(30);
+      const recentSessions = sessionsResponse?.data || [];
+      const performanceHistory = recentSessions.map((s) => ({
         timestamp: s.startedAt,
         itemsReviewed: s.completedItems || 0,
         itemsCorrect: Math.round(

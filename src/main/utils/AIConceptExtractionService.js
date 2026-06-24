@@ -163,6 +163,9 @@ class AIConceptExtractionService {
    * @returns {Object} Complete extraction result
    */
   async fullExtraction(text, token) {
+    if (!this.isAvailable()) {
+      return { error: 'no_provider', nodes: [], edges: [], entities: [], existingConcepts: [], suggestions: [] };
+    }
     // Run concept and entity extraction in parallel
     const [conceptResult, entityResult] = await Promise.all([
       this.extractConceptsWithAI(text, token),

@@ -1,9 +1,9 @@
 /**
  * KnowledgeDashboard.js
  *
- * A professional, creative dashboard for visualizing knowledge graph data,
- * learning paths, and concept mastery. Uses glass-morphism design with
- * gradient accents consistent with BookmarkUI and Browser views.
+ * Simplified to 3 tabs: Graph | Study | Plan
+ * Study = Weak Concepts + Re-read Queue side-by-side
+ * Plan = Learning Path / Curriculum / Timeline via inner toggle
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -19,6 +19,14 @@ import Skeleton from '@mui/material/Skeleton';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
 import Fade from '@mui/material/Fade';
+import ToggleButton from '@mui/material/ToggleButton';
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
+import CircularProgress from '@mui/material/CircularProgress';
+import Snackbar from '@mui/material/Snackbar';
+import Alert from '@mui/material/Alert';
+import Button from '@mui/material/Button';
+import Badge from '@mui/material/Badge';
+import Popover from '@mui/material/Popover';
 
 // Icons
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
@@ -28,18 +36,16 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import SchoolIcon from '@mui/icons-material/School';
 import AutoGraphIcon from '@mui/icons-material/AutoGraph';
 import HubIcon from '@mui/icons-material/Hub';
-import LightbulbIcon from '@mui/icons-material/Lightbulb';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import RouteIcon from '@mui/icons-material/Route';
+import MapIcon from '@mui/icons-material/Map';
 import BoltIcon from '@mui/icons-material/Bolt';
 import NotificationsIcon from '@mui/icons-material/Notifications';
-import TuneIcon from '@mui/icons-material/Tune';
 import MemoryIcon from '@mui/icons-material/Memory';
 import ReplayIcon from '@mui/icons-material/Replay';
-import Badge from '@mui/material/Badge';
-import Popover from '@mui/material/Popover';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 
 // Graph components
 import KnowledgeGraphPanel from '../../components/graph/KnowledgeGraphPanel';
@@ -47,20 +53,19 @@ import LearningPathPanel from '../../components/graph/LearningPathPanel';
 import WeakConceptsPanel from '../../components/graph/WeakConceptsPanel';
 
 // Learning components
-import {
-  NotificationsPanel,
-  AdaptiveLearningPanel,
-} from '../../components/learning';
+import { NotificationsPanel } from '../../components/learning';
 
 // Knowledge components
 import MemoryTimelinePanel from '../../components/knowledge/MemoryTimelinePanel';
 import CrossBookPathPanel from '../../components/knowledge/CrossBookPathPanel';
 import RereadQueuePanel from '../../components/knowledge/RereadQueuePanel';
 import ProductionPromptPanel from '../../components/knowledge/ProductionPromptPanel';
+import MindmapLibraryPanel from '../../components/mindmap/MindmapLibraryPanel';
 
 // API
 import graphApi from '../../api/graphApi';
 import { getUnreadCount as fetchUnreadCount } from '../../api/notificationApi';
+import { getNotesByQuery } from '../../api/notesApi';
 
 // Color palettes for light mode
 const ACCENT_COLORS = {
@@ -94,8 +99,6 @@ const ACCENT_COLORS_DARK = {
   indigo: { bg: '#1A1D2E', accent: '#3F51B5', glow: 'rgba(63, 81, 181, 0.4)' },
 };
 
-// Styled components
-
 const DashboardContainer = styled(Box)(({ theme }) => ({
   minHeight: '100vh',
   padding: theme.spacing(3),
@@ -104,7 +107,7 @@ const DashboardContainer = styled(Box)(({ theme }) => ({
       ? 'linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%)'
       : 'linear-gradient(135deg, #f5f7fa 0%, #e4e8f0 50%, #f0f4f8 100%)',
   position: 'relative',
-  overflow: 'hidden',
+  overflowX: 'hidden',
   '&::before': {
     content: '""',
     position: 'absolute',
@@ -255,6 +258,8 @@ const MetricCard = styled(Box, {
 
 const TabsContainer = styled(Tabs)(({ theme }) => ({
   minHeight: 48,
+  flex: 1,
+  minWidth: 0,
   '& .MuiTabs-indicator': {
     height: 3,
     borderRadius: 3,
@@ -302,6 +307,8 @@ function KnowledgeDashboard() {
 
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(0);
+  // Plan tab inner view: 'path' | 'curriculum' | 'timeline'
+  const [planView, setPlanView] = useState('path');
   const [stats, setStats] = useState({
     concepts: 0,
     mastered: 0,
@@ -317,18 +324,94 @@ function KnowledgeDashboard() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [selectedConcept, setSelectedConcept] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [recentNotes, setRecentNotes] = useState([]);
+  const [extractingIds, setExtractingIds] = useState(new Set());
+  const [extractedIds, setExtractedIds] = useState(new Set());
+  const [extractSnack, setExtractSnack] = useState({ open: false, message: '', severity: 'success' });
+  const [bulkExtracting, setBulkExtracting] = useState(false);
+
+  const buildNoteText = (note) => {
+    const parts = [];
+    if (note.title) parts.push(note.title);
+    if (note.description) parts.push(note.description);
+    if (Array.isArray(note.cards)) {
+      note.cards.forEach((c) => {
+        if (c.text) parts.push(c.text);
+        if (c.front) parts.push(c.front);
+        if (c.back) parts.push(c.back);
+        if (c.content) parts.push(c.content);
+      });
+    }
+    return parts.join('\n\n').trim();
+  };
+
+  const handleBulkExtract = useCallback(async () => {
+    const notes = recentNotes.slice(0, 10);
+    if (notes.length === 0) {
+      setExtractSnack({ open: true, message: 'No notes to extract from.', severity: 'info' });
+      return;
+    }
+    setBulkExtracting(true);
+    let totalConcepts = 0;
+    let processed = 0;
+    let providerMissing = false;
+    for (const note of notes) {
+      const text = buildNoteText(note);
+      if (!text || text.length < 20) continue;
+      try {
+        const result = await graphApi.aiFullExtraction(text);
+        if (result?.nodes?.length) {
+          await graphApi.aiSaveExtraction(result.nodes, result.edges || [], note.id, 'Note');
+          totalConcepts += result.nodes.length;
+          setExtractedIds((prev) => new Set([...prev, note.id]));
+        } else if (result?.error === 'no_provider') {
+          providerMissing = true;
+          break;
+        }
+        processed++;
+      } catch (e) {
+        // continue on individual failure
+      }
+    }
+    setBulkExtracting(false);
+    if (providerMissing) {
+      setExtractSnack({ open: true, message: 'No AI provider configured. Go to Settings to add one.', severity: 'warning' });
+      return;
+    }
+    loadData();
+    setExtractSnack({
+      open: true,
+      message: totalConcepts > 0
+        ? `Extracted ${totalConcepts} concepts from ${processed} note${processed !== 1 ? 's' : ''}`
+        : 'No concepts found. Try adding more content to your notes.',
+      severity: totalConcepts > 0 ? 'success' : 'info',
+    });
+  }, [recentNotes]);
+
+  const loadRecentNotes = useCallback(async () => {
+    try {
+      const result = await getNotesByQuery({ query: '', page: 1, limit: 30 });
+      const notes = Array.isArray(result) ? result : (result?.data || []);
+      notes.sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
+      setRecentNotes(notes);
+    } catch (e) {
+      console.error('Failed to load recent notes:', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadRecentNotes();
+  }, [loadRecentNotes]);
 
   const loadData = useCallback(async () => {
     try {
       setRefreshing(true);
 
-      // Check connection first
       const connected = graphApi.isConnected();
       if (!connected) {
         await graphApi.connect();
       }
 
-      // Load graph data
       const [graphResult, weakResult] = await Promise.all([
         graphApi.getKnowledgeGraphData(),
         graphApi.detectWeakConcepts(5),
@@ -337,7 +420,6 @@ function KnowledgeDashboard() {
       if (graphResult) {
         setGraphData(graphResult);
 
-        // Calculate stats from graph data
         const nodes = graphResult.nodes || [];
         const mastered = nodes.filter((n) => n.mastery >= 80).length;
         const inProgress = nodes.filter(
@@ -384,7 +466,6 @@ function KnowledgeDashboard() {
     setSelectedConcept(concept);
   };
 
-  // Load notification count
   const loadNotificationCount = useCallback(async () => {
     try {
       const result = await fetchUnreadCount();
@@ -392,7 +473,7 @@ function KnowledgeDashboard() {
         setUnreadCount(result.count);
       }
     } catch (error) {
-      // Notification count is non-critical, silently ignore errors
+      // non-critical
     }
   }, []);
 
@@ -406,11 +487,7 @@ function KnowledgeDashboard() {
 
   const handleNotificationClose = () => {
     setNotificationAnchor(null);
-    loadNotificationCount(); // Refresh count after closing
-  };
-
-  const handleRefresh = () => {
-    loadData();
+    loadNotificationCount();
   };
 
   const renderProgressRing = (value, size, colorKey) => {
@@ -590,7 +667,7 @@ function KnowledgeDashboard() {
           </MetricCard>
         </Grid>
         <Grid item xs={6} sm={3}>
-          <MetricCard colorKey="warning" onClick={() => setActiveTab(2)}>
+          <MetricCard colorKey="warning" onClick={() => setActiveTab(1)}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               <Box
                 sx={{
@@ -617,7 +694,7 @@ function KnowledgeDashboard() {
           </MetricCard>
         </Grid>
         <Grid item xs={6} sm={3}>
-          <MetricCard colorKey="purple" onClick={() => setActiveTab(1)}>
+          <MetricCard colorKey="purple" onClick={() => { setActiveTab(2); setPlanView('path'); }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               <Box
                 sx={{
@@ -662,46 +739,34 @@ function KnowledgeDashboard() {
             borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
           }}
         >
-          <TabsContainer value={activeTab} onChange={handleTabChange}>
+          <TabsContainer
+            value={activeTab}
+            onChange={handleTabChange}
+          >
             <Tab
               icon={<AccountTreeIcon sx={{ fontSize: 20 }} />}
               iconPosition="start"
-              label="Knowledge Graph"
-            />
-            <Tab
-              icon={<TimelineIcon sx={{ fontSize: 20 }} />}
-              iconPosition="start"
-              label="Learning Path"
-            />
-            <Tab
-              icon={<LightbulbIcon sx={{ fontSize: 20 }} />}
-              iconPosition="start"
-              label="Weak Concepts"
-            />
-            <Tab
-              icon={<TuneIcon sx={{ fontSize: 20 }} />}
-              iconPosition="start"
-              label="Adaptive Learning"
-            />
-            <Tab
-              icon={<MemoryIcon sx={{ fontSize: 20 }} />}
-              iconPosition="start"
-              label="Memory Timeline"
-            />
-            <Tab
-              icon={<RouteIcon sx={{ fontSize: 20 }} />}
-              iconPosition="start"
-              label="Curriculum Builder"
+              label="Graph"
             />
             <Tab
               icon={<ReplayIcon sx={{ fontSize: 20 }} />}
               iconPosition="start"
-              label="Re-read Queue"
+              label="Study"
+            />
+            <Tab
+              icon={<RouteIcon sx={{ fontSize: 20 }} />}
+              iconPosition="start"
+              label="Plan"
+            />
+            <Tab
+              icon={<MapIcon sx={{ fontSize: 20 }} />}
+              iconPosition="start"
+              label="Maps"
             />
           </TabsContainer>
           <Tooltip title="Refresh data">
             <span>
-              <IconButton onClick={handleRefresh} disabled={refreshing}>
+              <IconButton onClick={loadData} disabled={refreshing}>
                 <RefreshIcon
                   sx={{
                     animation: refreshing ? 'spin 1s linear infinite' : 'none',
@@ -718,8 +783,46 @@ function KnowledgeDashboard() {
 
         {/* Tab Panels */}
         <Box sx={{ minHeight: 500, p: 3 }}>
+
+          {/* Tab 0: Graph */}
           <Fade in={activeTab === 0} unmountOnExit>
             <Box sx={{ display: activeTab === 0 ? 'block' : 'none' }}>
+              {!loading && graphData.nodes.length === 0 && (
+                <Box
+                  sx={{
+                    textAlign: 'center',
+                    py: 6,
+                    mb: 2,
+                    borderRadius: 3,
+                    border: `1px dashed ${alpha(theme.palette.primary.main, 0.3)}`,
+                    background: alpha(theme.palette.primary.main, isDark ? 0.04 : 0.02),
+                  }}
+                >
+                  <HubIcon sx={{ fontSize: 48, color: alpha(theme.palette.primary.main, 0.3), mb: 1 }} />
+                  <Typography variant="h6" color="text.secondary" gutterBottom>
+                    Knowledge graph is empty
+                  </Typography>
+                  <Typography variant="body2" color="text.disabled" sx={{ mb: 3, maxWidth: 400, mx: 'auto' }}>
+                    Extract concepts from your notes to build the graph. Concepts are linked automatically by meaning.
+                  </Typography>
+                  <Button
+                    variant="contained"
+                    startIcon={bulkExtracting ? <CircularProgress size={16} sx={{ color: 'inherit' }} /> : <AutoAwesomeIcon />}
+                    onClick={handleBulkExtract}
+                    disabled={bulkExtracting || recentNotes.length === 0}
+                    sx={{ borderRadius: 2, textTransform: 'none', mr: 1 }}
+                  >
+                    {bulkExtracting ? 'Extracting…' : recentNotes.length > 0 ? `Extract from ${Math.min(recentNotes.length, 10)} notes` : 'No notes yet'}
+                  </Button>
+                  <Button
+                    variant="text"
+                    onClick={() => navigate('/notes')}
+                    sx={{ borderRadius: 2, textTransform: 'none' }}
+                  >
+                    Open Notes →
+                  </Button>
+                </Box>
+              )}
               <KnowledgeGraphPanel
                 graphData={graphData}
                 onNodeSelect={handleConceptSelect}
@@ -729,66 +832,99 @@ function KnowledgeDashboard() {
             </Box>
           </Fade>
 
+          {/* Tab 1: Study — weak concepts + re-read queue */}
           <Fade in={activeTab === 1} unmountOnExit>
-            <Box sx={{ display: activeTab === 1 ? 'block' : 'none' }}>
-              <LearningPathPanel
-                targetConceptId={selectedConcept?.id}
-                onConceptSelect={handleConceptSelect}
-              />
+            <Box
+              sx={{
+                display: activeTab === 1 ? 'flex' : 'none',
+                gap: 3,
+                flexWrap: { xs: 'wrap', md: 'nowrap' },
+                minHeight: 500,
+              }}
+            >
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <WeakConceptsPanel
+                  weakConcepts={weakConcepts}
+                  onConceptSelect={handleConceptSelect}
+                  loading={loading}
+                />
+              </Box>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <RereadQueuePanel />
+              </Box>
             </Box>
           </Fade>
 
+          {/* Tab 2: Plan — Learning Path / Curriculum / Timeline */}
           <Fade in={activeTab === 2} unmountOnExit>
             <Box sx={{ display: activeTab === 2 ? 'block' : 'none' }}>
-              <WeakConceptsPanel
-                weakConcepts={weakConcepts}
-                onConceptSelect={handleConceptSelect}
-                loading={loading}
-              />
+              <Box sx={{ mb: 3 }}>
+                <ToggleButtonGroup
+                  value={planView}
+                  exclusive
+                  onChange={(e, v) => { if (v) setPlanView(v); }}
+                  size="small"
+                  sx={{
+                    '& .MuiToggleButton-root': {
+                      textTransform: 'none',
+                      fontWeight: 600,
+                      px: 2.5,
+                      borderRadius: '10px !important',
+                      border: `1px solid ${alpha(theme.palette.divider, 0.3)}`,
+                      mx: 0.5,
+                      '&.Mui-selected': {
+                        background: isDark
+                          ? alpha('#667eea', 0.25)
+                          : alpha('#667eea', 0.1),
+                        color: isDark ? '#a78bfa' : '#667eea',
+                        borderColor: alpha('#667eea', 0.5),
+                      },
+                    },
+                  }}
+                >
+                  <ToggleButton value="path">
+                    <RouteIcon sx={{ mr: 1, fontSize: 18 }} />
+                    Learning Path
+                  </ToggleButton>
+                  <ToggleButton value="curriculum">
+                    <TimelineIcon sx={{ mr: 1, fontSize: 18 }} />
+                    Curriculum
+                  </ToggleButton>
+                  <ToggleButton value="timeline">
+                    <MemoryIcon sx={{ mr: 1, fontSize: 18 }} />
+                    Timeline
+                  </ToggleButton>
+                </ToggleButtonGroup>
+              </Box>
+
+              {planView === 'path' && (
+                <LearningPathPanel
+                  targetConceptId={selectedConcept?.id}
+                  onConceptSelect={handleConceptSelect}
+                />
+              )}
+              {planView === 'curriculum' && <CrossBookPathPanel />}
+              {planView === 'timeline' && (
+                <MemoryTimelinePanel
+                  conceptId={selectedConcept?.id}
+                  conceptName={selectedConcept?.name}
+                  onConceptSelect={handleConceptSelect}
+                  onMemorySelect={() => {}}
+                  height={500}
+                  showStats
+                  showGaps
+                />
+              )}
             </Box>
           </Fade>
 
+          {/* Tab 3: Maps — saved mindmap library */}
           <Fade in={activeTab === 3} unmountOnExit>
             <Box sx={{ display: activeTab === 3 ? 'block' : 'none' }}>
-              <AdaptiveLearningPanel
-                topicId={selectedConcept?.id}
-                domainType="vocabulary"
-                onApplyRecommendation={(rec) => {
-                  console.log('Applying recommendation:', rec);
-                }}
-              />
+              <MindmapLibraryPanel />
             </Box>
           </Fade>
 
-          <Fade in={activeTab === 4} unmountOnExit>
-            <Box sx={{ display: activeTab === 4 ? 'block' : 'none' }}>
-              <MemoryTimelinePanel
-                conceptId={selectedConcept?.id}
-                conceptName={selectedConcept?.name}
-                onConceptSelect={handleConceptSelect}
-                onMemorySelect={(memory) => {
-                  console.log('Memory selected:', memory);
-                }}
-                height={500}
-                showStats
-                showGaps
-              />
-            </Box>
-          </Fade>
-
-          {/* Phase 7: Cross-book curriculum builder */}
-          <Fade in={activeTab === 5} unmountOnExit>
-            <Box sx={{ display: activeTab === 5 ? 'block' : 'none' }}>
-              <CrossBookPathPanel />
-            </Box>
-          </Fade>
-
-          {/* Phase 8: spaced re-reading queue */}
-          <Fade in={activeTab === 6} unmountOnExit>
-            <Box sx={{ display: activeTab === 6 ? 'block' : 'none' }}>
-              <RereadQueuePanel />
-            </Box>
-          </Fade>
         </Box>
       </GlassCard>
 
@@ -912,6 +1048,22 @@ function KnowledgeDashboard() {
         learningPointId={produceParam}
         onClose={closeProducePanel}
       />
+
+      {/* Concept extraction feedback */}
+      <Snackbar
+        open={extractSnack.open}
+        autoHideDuration={4000}
+        onClose={() => setExtractSnack((s) => ({ ...s, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          severity={extractSnack.severity}
+          onClose={() => setExtractSnack((s) => ({ ...s, open: false }))}
+          sx={{ borderRadius: 2 }}
+        >
+          {extractSnack.message}
+        </Alert>
+      </Snackbar>
     </DashboardContainer>
   );
 }
