@@ -1,9 +1,12 @@
 import React, { useState, useCallback } from 'react';
 import { Handle, Position, NodeResizer, useReactFlow, type NodeProps } from '@xyflow/react';
 
+export type MbStickyTexture = 'plain' | 'lined' | 'dotted' | 'grid' | 'cardboard';
+
 export interface MbStickyData {
   text: string;
   color: string;
+  texture?: MbStickyTexture;
 }
 
 const STICKY_COLORS = [
@@ -14,9 +17,37 @@ const STICKY_COLORS = [
   { value: '#E1BEE7', label: 'Lavender', shadow: 'rgba(150,60,200,0.20)' },
 ];
 
+const STICKY_TEXTURES: { value: MbStickyTexture; label: string; glyph: string }[] = [
+  { value: 'plain',     label: 'Plain',     glyph: '·' },
+  { value: 'lined',     label: 'Lined',     glyph: '≡' },
+  { value: 'dotted',    label: 'Dotted',    glyph: '⁘' },
+  { value: 'grid',      label: 'Grid',      glyph: '⌗' },
+  { value: 'cardboard', label: 'Cardboard', glyph: '▦' },
+];
+
 function shadowForColor(color: string): string {
   const match = STICKY_COLORS.find((c) => c.value === color);
   return match?.shadow ?? 'rgba(0,0,0,0.18)';
+}
+
+// Texture overlays are layered above the solid color via background-image.
+// Tints are intentionally low-alpha so the chosen color still reads as dominant.
+function textureBackground(texture: MbStickyTexture, color: string): string {
+  const ink = 'rgba(0,0,0,0.10)';
+  const inkSoft = 'rgba(0,0,0,0.06)';
+  switch (texture) {
+    case 'lined':
+      return `repeating-linear-gradient(to bottom, transparent 0 21px, ${ink} 21px 22px), ${color}`;
+    case 'dotted':
+      return `radial-gradient(${ink} 1px, transparent 1.4px) 0 0 / 12px 12px, ${color}`;
+    case 'grid':
+      return `repeating-linear-gradient(to right, transparent 0 15px, ${inkSoft} 15px 16px), repeating-linear-gradient(to bottom, transparent 0 15px, ${inkSoft} 15px 16px), ${color}`;
+    case 'cardboard':
+      return `repeating-linear-gradient(45deg, ${inkSoft} 0 1px, transparent 1px 6px), repeating-linear-gradient(-45deg, ${inkSoft} 0 1px, transparent 1px 6px), ${color}`;
+    case 'plain':
+    default:
+      return color;
+  }
 }
 
 export function StickyNode({ id, data, selected }: NodeProps) {
@@ -26,6 +57,7 @@ export function StickyNode({ id, data, selected }: NodeProps) {
   const [hovered, setHovered] = useState(false);
 
   const currentColor = (data.color as string) || '#FFF9C4';
+  const currentTexture: MbStickyTexture = (data.texture as MbStickyTexture) || 'plain';
 
   const commit = useCallback(() => {
     rf.updateNodeData(id, { text: draft });
@@ -45,6 +77,11 @@ export function StickyNode({ id, data, selected }: NodeProps) {
     [rf, id],
   );
 
+  const setTexture = useCallback(
+    (texture: MbStickyTexture) => rf.updateNodeData(id, { texture }),
+    [rf, id],
+  );
+
   const handleDelete = useCallback(() => {
     rf.deleteElements({ nodes: [{ id }] });
   }, [rf, id]);
@@ -59,38 +96,67 @@ export function StickyNode({ id, data, selected }: NodeProps) {
       <Handle type="source" position={Position.Bottom} id="bottom" style={{ opacity: 0 }} />
       <Handle type="source" position={Position.Left}   id="left"   style={{ opacity: 0 }} />
 
-      {/* Color palette — visible when selected */}
+      {/* Color + texture palette — visible when selected */}
       {selected && (
         <div style={{
           position: 'absolute',
-          top: -36,
+          top: -64,
           left: '50%',
           transform: 'translateX(-50%)',
           display: 'flex',
-          gap: 5,
+          flexDirection: 'column',
+          gap: 4,
           background: 'rgba(255,255,255,0.95)',
-          borderRadius: 20,
-          padding: '4px 8px',
+          borderRadius: 14,
+          padding: '5px 8px',
           boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
           zIndex: 10,
         }}>
-          {STICKY_COLORS.map((c) => (
-            <button
-              key={c.value}
-              onClick={() => setColor(c.value)}
-              title={c.label}
-              style={{
-                width: 18,
-                height: 18,
-                borderRadius: '50%',
-                background: c.value,
-                border: currentColor === c.value ? '2px solid #374151' : '2px solid transparent',
-                cursor: 'pointer',
-                padding: 0,
-                boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-              }}
-            />
-          ))}
+          <div style={{ display: 'flex', gap: 5, justifyContent: 'center' }}>
+            {STICKY_COLORS.map((c) => (
+              <button
+                key={c.value}
+                onClick={() => setColor(c.value)}
+                title={c.label}
+                style={{
+                  width: 18,
+                  height: 18,
+                  borderRadius: '50%',
+                  background: c.value,
+                  border: currentColor === c.value ? '2px solid #374151' : '2px solid transparent',
+                  cursor: 'pointer',
+                  padding: 0,
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                }}
+              />
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
+            {STICKY_TEXTURES.map((t) => (
+              <button
+                key={t.value}
+                onClick={() => setTexture(t.value)}
+                title={t.label}
+                style={{
+                  width: 22,
+                  height: 20,
+                  borderRadius: 4,
+                  background: textureBackground(t.value, '#fafafa'),
+                  border: currentTexture === t.value ? '1.5px solid #374151' : '1.5px solid #d1d5db',
+                  cursor: 'pointer',
+                  padding: 0,
+                  fontSize: 11,
+                  lineHeight: 1,
+                  color: '#374151',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {t.glyph}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -101,7 +167,7 @@ export function StickyNode({ id, data, selected }: NodeProps) {
         style={{
           width: '100%',
           height: '100%',
-          background: currentColor,
+          background: textureBackground(currentTexture, currentColor),
           padding: '10px 12px',
           boxSizing: 'border-box',
           fontSize: 13.5,
