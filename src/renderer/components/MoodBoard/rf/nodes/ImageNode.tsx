@@ -1,5 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { Handle, Position, NodeResizer, useReactFlow, type NodeProps } from '@xyflow/react';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const customStorage = require('../../../../store/customStorage').default;
 
 export interface MbImageData {
   url: string;
@@ -10,28 +12,51 @@ export function ImageNode({ id, data, selected }: NodeProps) {
   const rf = useReactFlow();
   const [hovered, setHovered] = useState(false);
   const [editingUrl, setEditingUrl] = useState(!(data.url as string));
-  const [urlDraft, setUrlDraft] = useState((data.url as string) || '');
+  const [urlDraft, setUrlDraft] = useState('');
   const [imgError, setImgError] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const url = data.url as string;
   const caption = data.caption as string | undefined;
 
-  const commitUrl = useCallback(() => {
-    if (urlDraft.trim()) {
-      rf.updateNodeData(id, { url: urlDraft.trim() });
+  const commitUrl = useCallback((val?: string) => {
+    const v = (val ?? urlDraft).trim();
+    if (v) {
+      rf.updateNodeData(id, { url: v });
       setImgError(false);
     }
     setEditingUrl(false);
   }, [rf, id, urlDraft]);
 
+  const handleBrowse = useCallback(async () => {
+    setLoading(true);
+    try {
+      const result = await customStorage.importImageBase64FromFile();
+      if (result) {
+        rf.updateNodeData(id, { url: result });
+        setImgError(false);
+        setEditingUrl(false);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [rf, id]);
+
   const handleDelete = useCallback(() => {
     rf.deleteElements({ nodes: [{ id }] });
   }, [rf, id]);
+
+  const openEdit = useCallback(() => {
+    setUrlDraft('');
+    setEditingUrl(true);
+  }, []);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter') commitUrl();
     if (e.key === 'Escape') setEditingUrl(false);
   }, [commitUrl]);
+
+  const showPicker = editingUrl || !url || imgError;
 
   return (
     <>
@@ -63,9 +88,9 @@ export function ImageNode({ id, data, selected }: NodeProps) {
           boxSizing: 'border-box',
         }}
       >
-        {/* Image area */}
+        {/* Image or picker */}
         <div style={{ flex: 1, overflow: 'hidden', position: 'relative', minHeight: 0 }}>
-          {editingUrl || !url || imgError ? (
+          {showPicker ? (
             <div style={{
               width: '100%',
               height: '100%',
@@ -74,18 +99,43 @@ export function ImageNode({ id, data, selected }: NodeProps) {
               alignItems: 'center',
               justifyContent: 'center',
               gap: 8,
-              padding: 12,
+              padding: 14,
               boxSizing: 'border-box',
             }}>
-              <span style={{ fontSize: 28, opacity: 0.4 }}>🖼</span>
+              <span style={{ fontSize: 26, opacity: 0.35 }}>🖼</span>
+
+              {/* Native file browser — primary action */}
+              <button
+                onClick={handleBrowse}
+                disabled={loading}
+                style={{
+                  padding: '7px 18px',
+                  borderRadius: 6,
+                  border: '1px solid #d1d5db',
+                  background: loading ? '#f3f4f6' : '#fff',
+                  cursor: loading ? 'default' : 'pointer',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  color: '#374151',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                  width: '100%',
+                }}
+              >
+                {loading ? 'Opening…' : '📂 Browse files'}
+              </button>
+
+              {/* URL fallback */}
+              <div style={{ display: 'flex', alignItems: 'center', width: '100%', gap: 6 }}>
+                <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
+                <span style={{ fontSize: 10, color: '#9ca3af' }}>or</span>
+                <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
+              </div>
               <input
-                // eslint-disable-next-line jsx-a11y/no-autofocus
-                autoFocus={editingUrl}
                 placeholder="Paste image URL…"
                 value={urlDraft}
                 onChange={(e) => setUrlDraft(e.target.value)}
-                onBlur={commitUrl}
                 onKeyDown={handleKeyDown}
+                onBlur={() => { if (urlDraft.trim()) commitUrl(); else if (url) setEditingUrl(false); }}
                 style={{
                   width: '100%',
                   fontSize: 11,
@@ -107,23 +157,18 @@ export function ImageNode({ id, data, selected }: NodeProps) {
               src={url}
               alt={caption || ''}
               onError={() => setImgError(true)}
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-                display: 'block',
-              }}
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
             />
           )}
         </div>
 
         {/* Caption */}
-        {caption && !editingUrl && (
+        {caption && !showPicker && (
           <div style={{
             padding: '4px 8px',
             fontSize: 11,
             color: '#6b7280',
-            background: 'rgba(255,255,255,0.9)',
+            background: 'rgba(255,255,255,0.92)',
             textAlign: 'center',
             flexShrink: 0,
           }}>
@@ -138,27 +183,19 @@ export function ImageNode({ id, data, selected }: NodeProps) {
           right: 6,
           display: 'flex',
           gap: 4,
-          opacity: hovered ? 1 : 0,
+          opacity: hovered && !showPicker ? 1 : 0,
           transition: 'opacity 0.15s ease',
-          pointerEvents: hovered ? 'auto' : 'none',
+          pointerEvents: hovered && !showPicker ? 'auto' : 'none',
         }}>
           <button
-            onClick={() => { setUrlDraft(url || ''); setEditingUrl(true); }}
+            onClick={openEdit}
             title="Change image"
             style={{
-              width: 22,
-              height: 22,
-              borderRadius: 4,
-              border: 'none',
+              width: 22, height: 22, borderRadius: 4, border: 'none',
               background: 'rgba(255,255,255,0.95)',
               boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 11,
-              color: '#374151',
-              padding: 0,
+              cursor: 'pointer', fontSize: 11, color: '#374151', padding: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}
           >
             ✎
@@ -167,19 +204,11 @@ export function ImageNode({ id, data, selected }: NodeProps) {
             onClick={handleDelete}
             title="Remove from board"
             style={{
-              width: 22,
-              height: 22,
-              borderRadius: 4,
-              border: 'none',
+              width: 22, height: 22, borderRadius: 4, border: 'none',
               background: 'rgba(255,255,255,0.95)',
               boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 12,
-              color: '#ef4444',
-              padding: 0,
+              cursor: 'pointer', fontSize: 12, color: '#ef4444', padding: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}
           >
             ×
