@@ -404,11 +404,19 @@ function FlipCard({ card, isVocabulary, onCorrect, onIncorrect, boxColor }) {
           flexDirection: 'column',
         }}
       >
-        {/* Note Content */}
+        {/* Note Content.
+            For learning_point-backed cards mirrored from a note,
+            card.id is the learning_point UUID — NoteUI needs the
+            underlying note id, which sits at card.sourceKey
+            (source_id). Coerce to Number because note PK is INTEGER. */}
         <Box sx={{ flex: 1, p: 2, overflowY: 'auto' }}>
           <NoteUI
             key={card.id}
-            selectedNoteKey={card.id}
+            selectedNoteKey={
+              card.sourceType === 'note' && card.sourceKey
+                ? Number(card.sourceKey)
+                : card.id
+            }
             selectHandler={() => {}}
             compactView
             showControl={false}

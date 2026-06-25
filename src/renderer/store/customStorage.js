@@ -200,7 +200,10 @@ class customStorage {
   }
 
   static addNoteToLeitnerStudy(id) {
-    if (!this.isLoggedIn()) return null;
+    // Use -1 to match the NoteJsonManager error sentinel so the
+    // not-logged-in case surfaces via the same snackbar path instead
+    // of disappearing into the initial-null state.
+    if (!this.isLoggedIn()) return -1;
     return window.electron.ipcRenderer.addNoteToLeitnerStudy(
       id,
       this.getSessionToken(),

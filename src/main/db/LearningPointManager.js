@@ -303,7 +303,10 @@ export const createLearningPoint = (point, token) => {
   try {
     const id = point.id || uuidv4();
     const now = dateToSQLiteString(new Date());
-    const nextReview = calculateNextReview(1);
+    // Honor an explicit point.nextReview (e.g. "due today" for mirrored
+    // items that should be reviewable immediately). Fall back to the
+    // box-1 default for callers that don't care.
+    const nextReview = point.nextReview || calculateNextReview(1);
 
     const stmt = db.prepare(`
       INSERT INTO learning_point (
@@ -379,7 +382,8 @@ export const createLearningPointsBatch = (points, token) => {
       try {
         const id = point.id || uuidv4();
         const now = dateToSQLiteString(new Date());
-        const nextReview = calculateNextReview(1);
+        // Honor an explicit point.nextReview; see createLearningPoint above.
+        const nextReview = point.nextReview || calculateNextReview(1);
 
         const stmt = db.prepare(`
           INSERT INTO learning_point (

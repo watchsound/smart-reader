@@ -107,6 +107,11 @@ function CardHeaderNoSwitch({
   // Used by the Notes Page where the card has enough space to expose
   // actions directly. All other contexts keep the popup menu default.
   toolbarMode = false,
+  // When true, the popup menu shows only Jump-to-Source, Add-to-Leitner,
+  // Layout, and Edit — drops Annotation toggle, color picker, Add-to-Board,
+  // Delete, and Entry/Emphasis/Reset effects. Used by the Leitner page's
+  // right-panel notes list where the rest are noise.
+  simplifiedMenu = false,
 }) {
   const [anchorEl, setAnchorEl] = useState(null);
   const navigate = useNavigate();
@@ -228,7 +233,7 @@ function CardHeaderNoSwitch({
         </MenuItem>
        )}
 
-        {toggleAnnotation && (
+        {!simplifiedMenu && toggleAnnotation && (
           <MenuItem
             onClick={() => {
               handleMenuClose();
@@ -241,7 +246,7 @@ function CardHeaderNoSwitch({
             <ListItemText> Annotation </ListItemText>
           </MenuItem>
         )}
-       { colorAction && (
+       { !simplifiedMenu && colorAction && (
         <MenuItem>
           <ColorPicker
             getInitialSelection={() => null}
@@ -254,7 +259,7 @@ function CardHeaderNoSwitch({
         </MenuItem>
        )}
 
-        {customActionName && (
+        {!simplifiedMenu && customActionName && (
           <MenuItem
             onClick={() => {
               handleMenuClose();
@@ -267,7 +272,7 @@ function CardHeaderNoSwitch({
             <ListItemText> {customActionName} </ListItemText>
           </MenuItem>
         )}
-        {!selectedNote.leitnerItemId && (
+        {(simplifiedMenu || !selectedNote.leitnerItemId) && (
           <MenuItem
             onClick={() => {
               addToLeitnerSystem();
@@ -281,23 +286,25 @@ function CardHeaderNoSwitch({
           </MenuItem>
         )}
 
-        <MenuItem
-          onClick={() => {
-            handleMenuClose();
-            dispatch(noteAdded(null));
-            dispatch(noteAdded(selectedNote));
-            navigate('/moodboard');
-          }}
-        >
-          <ListItemIcon>
-            <FlashOnIcon fontSize="small" sx={{ color: activeMoodBoardId ? 'success.main' : 'text.disabled' }} />
-          </ListItemIcon>
-          <ListItemText>
-            {activeMoodBoardId ? 'Add to Active Board' : 'Add to Board (open MoodBoard first)'}
-          </ListItemText>
-        </MenuItem>
+        {!simplifiedMenu && (
+          <MenuItem
+            onClick={() => {
+              handleMenuClose();
+              dispatch(noteAdded(null));
+              dispatch(noteAdded(selectedNote));
+              navigate('/moodboard');
+            }}
+          >
+            <ListItemIcon>
+              <FlashOnIcon fontSize="small" sx={{ color: activeMoodBoardId ? 'success.main' : 'text.disabled' }} />
+            </ListItemIcon>
+            <ListItemText>
+              {activeMoodBoardId ? 'Add to Active Board' : 'Add to Board (open MoodBoard first)'}
+            </ListItemText>
+          </MenuItem>
+        )}
 
-        {deleteActionName && (
+        {!simplifiedMenu && deleteActionName && (
           <MenuItem
             onClick={() => {
               handleMenuClose();
@@ -337,19 +344,21 @@ function CardHeaderNoSwitch({
           <ListItemText>Edit</ListItemText>
         </MenuItem>
 
-        <MenuItem
-          onClick={() => {
-            handleMenuClose();
-            deleteNoteAction(selectedNote);
-          }}
-        >
-          <ListItemIcon>
-            <DeleteForeverOutlinedIcon />
-          </ListItemIcon>
-          <ListItemText>Delete Note</ListItemText>
-        </MenuItem>
+        {!simplifiedMenu && (
+          <MenuItem
+            onClick={() => {
+              handleMenuClose();
+              deleteNoteAction(selectedNote);
+            }}
+          >
+            <ListItemIcon>
+              <DeleteForeverOutlinedIcon />
+            </ListItemIcon>
+            <ListItemText>Delete Note</ListItemText>
+          </MenuItem>
+        )}
 
-        { setEmphasis && setEntry && (
+        { !simplifiedMenu && setEmphasis && setEntry && (
           <RichTextActionMenu
           asIconButton={false}
           emphasisCallback={setEmphasis}

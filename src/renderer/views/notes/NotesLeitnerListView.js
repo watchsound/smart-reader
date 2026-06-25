@@ -4,7 +4,7 @@ import Typography from '@mui/material/Typography';
 import { useSelector, useDispatch } from 'react-redux';
 import { styled } from '@mui/material/styles';
 import { green, grey } from '@mui/material/colors';
-import { Pagination } from '@mui/material';
+import { Pagination, Snackbar, Alert } from '@mui/material';
 import Divider from '@mui/material/Divider';
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
@@ -41,17 +41,50 @@ function NotesLeitnerListView({isReviewDue}) {
 
   const [open, setOpen] = useState(false);
   const dispatch = useDispatch();
+  // The CardHeaderNoSwitch ⋮ menu dispatches noteToLeitnerAdded after
+  // it writes note.leitner_item_id, but no UI was subscribed — so the
+  // list silently kept its stale rows and the action looked like a
+  // no-op. Watching this signal triggers a refetch so the user sees
+  // the new leitnerItemId reflected on the next render.
+  const addedNoteToLeitner = useSelector(
+    (state) => state.note.addedNoteToLeitner,
+  );
+  const [snack, setSnack] = useState(null);
+
+  useEffect(() => {
+    if (addedNoteToLeitner == null) return;
+    if (
+      addedNoteToLeitner === -1 ||
+      (typeof addedNoteToLeitner === 'object' && !addedNoteToLeitner?.id)
+    ) {
+      setSnack({ severity: 'error', message: 'Failed to add note to Leitner' });
+    } else if (addedNoteToLeitner.wasAlreadyAdded) {
+      setSnack({
+        severity: 'info',
+        message: 'Note is already in the Leitner system',
+      });
+    } else {
+      setSnack({
+        severity: 'success',
+        message: 'Note added to Leitner system',
+      });
+    }
+  }, [addedNoteToLeitner]);
 
 
+  // Tab semantics: isReviewDue=true → "Notes For Review" tab shows the
+  // notes that are due today (getNotesByDueReview). isReviewDue=false →
+  // "Notes In Query" tab runs the keyword/tag/star filter
+  // (getNotesByQuery). The ternary was previously inverted.
   async function t() {
-      const result = isReviewDue ? await customStorage.getNotesByQuery({
+      const result = isReviewDue ? await customStorage.getNotesByDueReview({
+        dueTime: new Date(),
+        page,
+        limit,
+      }) : await customStorage.getNotesByQuery({
         query: search || '',
         tag: '',
         star: 0,
-        page,
-        limit,
-      }) : await customStorage.getNotesByDueReview({
-        dueTime: new Date(),
         page,
         limit,
       }) ;
@@ -62,12 +95,14 @@ function NotesLeitnerListView({isReviewDue}) {
 
   useEffect(() => {
     t();
-  }, [page, limit, isReviewDue]);
+  }, [page, limit, isReviewDue, addedNoteToLeitner, search]);
 
   const searchIt = (query) => {
+    // setSearch alone triggers refetch via the useEffect dep — no need
+    // to call t() here (the immediate call would read stale `search`
+    // from this closure and miss the new keyword).
     setSearch(query);
-    setPage(1)
-    t();
+    setPage(1);
   };
   const handlePageChange = (event, value) => {
     setPage(value);
@@ -97,10 +132,11 @@ function NotesLeitnerListView({isReviewDue}) {
             key={note.id}
             selectedNoteKey={note.id}
             cardWidth="230"
-            cardHeight="280"
+            cardHeight="125"
             compactView
             useMiniHeight
-            maxHeight={360}
+            maxHeight={160}
+            simplifiedMenu
           />
         ))}
         <Divider />
@@ -113,6 +149,18 @@ function NotesLeitnerListView({isReviewDue}) {
           sx={{ margin: '10px' }}
         />
       </ScrollPane>
+      <Snackbar
+        open={Boolean(snack)}
+        autoHideDuration={3000}
+        onClose={() => setSnack(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        {snack ? (
+          <Alert severity={snack.severity} onClose={() => setSnack(null)}>
+            {snack.message}
+          </Alert>
+        ) : undefined}
+      </Snackbar>
     </>
   );
 }

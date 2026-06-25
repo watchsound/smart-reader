@@ -83,9 +83,91 @@
 
  */
 import JSON5 from 'json5';
+import { v4 as uuidv4 } from 'uuid';
 import db, { getUserIdFromToken, addUserIdCreatedAt } from './dbManager';
 import { createLeitnerItem, getLeitnerItemById } from './LeitnerItemManager';
 import { dateToSQLiteString } from '../../commons/utils/SqliteHelper';
+
+const cardText = (card) => {
+  if (!card) return '';
+  if (typeof card === 'string') return card;
+  return card.text || card.html || '';
+};
+
+// Mirror a note into learning_point so the LeitnerSystem main panel
+// (which reads learning_point, not leitner_item) can surface it for
+// study. SYNCHRONOUS direct-to-SQLite write — must complete inside the
+// sendSync IPC handler so the renderer's post-dispatch refresh sees the
+// row. The original async LearningPointService path raced the refresh
+// AND its createLearningPoint set next_review to (today + 1 day), so
+// fresh mirrors weren't due. Idempotent via (source_type, source_id).
+const mirrorNoteToLearningPoint = (note, token) => {
+  const userId = getUserIdFromToken(token);
+  if (userId < 0) return;
+  try {
+    const existing = db
+      .prepare(
+        `SELECT id FROM learning_point
+         WHERE user_id = ? AND source_type = 'note' AND source_id = ?
+         LIMIT 1`,
+      )
+      .get(userId, String(note.id));
+    if (existing) return;
+
+    const card0 = note.cards?.[0];
+    const card1 = note.cards?.[1];
+    const frontText = cardText(card0);
+    const backText = cardText(card1) || frontText;
+    const title =
+      (note.title || frontText || '').slice(0, 100) || 'Untitled note';
+    const now = dateToSQLiteString(new Date());
+
+    db.prepare(`
+      INSERT INTO learning_point (
+        id, user_id, title, front, back, extras,
+        item_type, domain_type, difficulty, format,
+        tags, source_type, source_id, plan_id, book_id,
+        box, next_review, mastery_level, ease_factor, interval_days,
+        status, created_at, updated_at
+      ) VALUES (
+        ?, ?, ?, ?, ?, ?,
+        ?, ?, ?, ?,
+        ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?,
+        ?, ?, ?
+      )
+    `).run(
+      `lp_${uuidv4()}`,
+      userId,
+      title,
+      JSON.stringify({ text: frontText }),
+      JSON.stringify({ text: backText }),
+      null,
+      'concept',
+      'knowledge',
+      'intermediate',
+      'card',
+      note.tags ? JSON.stringify(note.tags) : null,
+      'note',
+      String(note.id),
+      null,
+      null,
+      1,
+      now, // next_review = today → immediately due
+      0,
+      2.5,
+      1,
+      'active',
+      now,
+      now,
+    );
+  } catch (err) {
+    console.warn(
+      '[NoteJsonManager] learning_point mirror failed:',
+      err && err.message ? err.message : err,
+    );
+  }
+};
 
 /**
  *
@@ -532,7 +614,13 @@ export function addNoteToLeitnerStudy(id, token) {
   const obj = getNoteById(id, token);
   if (!obj) return -1;
   if (obj.leitnerItemId) {
-    return getLeitnerItemById(obj.leitnerItemId);
+    // Tag re-adds so the UI can show "Already in Leitner" instead of a
+    // misleading "Added" toast. Still attempt the mirror — handles
+    // notes that pre-date the learning_point mirror landing.
+    const existing = getLeitnerItemById(obj.leitnerItemId);
+    if (!existing) return -1;
+    mirrorNoteToLearningPoint(obj, token);
+    return { ...existing, wasAlreadyAdded: true };
   }
   try {
     const vc = createLeitnerItem({
@@ -555,7 +643,8 @@ export function addNoteToLeitnerStudy(id, token) {
     const sql = `UPDATE note SET leitner_item_id = ? WHERE id = ? and user_id = ?`;
     const query = db.prepare(sql);
     query.run([vc.id, id, userId]);
-    return vc;
+    mirrorNoteToLearningPoint(obj, token);
+    return { ...vc, wasAlreadyAdded: false };
   } catch (e) {
     console.error('[NoteJsonManager.addNoteToLeitnerStudy]', e);
     return -1;

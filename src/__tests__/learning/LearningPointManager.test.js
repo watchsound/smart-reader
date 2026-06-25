@@ -366,6 +366,45 @@ describe('LearningPointManager', () => {
 
       expect(result.box).toBe(1);
     });
+
+    test('honors explicit point.nextReview (lets callers seed immediately-due items)', () => {
+      mockStmt.get.mockReturnValue({ id: 'test-uuid-123' });
+
+      createLearningPoint(
+        {
+          title: 'Test',
+          front: 'Q',
+          back: 'A',
+          nextReview: '2026-06-25',
+        },
+        'valid-token',
+      );
+
+      // Column order in INSERT: next_review is index 16 (zero-based) in
+      // the stmt.run args list. Assert by scanning the args for the
+      // explicit value rather than depending on index.
+      const args = mockStmt.run.mock.calls[0];
+      expect(args).toContain('2026-06-25');
+    });
+
+    test('falls back to calculateNextReview default when point.nextReview is omitted', () => {
+      mockStmt.get.mockReturnValue({ id: 'test-uuid-123' });
+
+      createLearningPoint(
+        { title: 'Test', front: 'Q', back: 'A' },
+        'valid-token',
+      );
+
+      // The fallback computes (today + BOX_INTERVALS[1] days). Just
+      // assert it is NOT a value the caller didn't supply — i.e. the
+      // stmt got SOMETHING for next_review (the default).
+      const args = mockStmt.run.mock.calls[0];
+      // Find a date-shaped string in the args (any non-null string).
+      const dateArg = args.find(
+        (a) => typeof a === 'string' && /^\d{4}-\d{2}-\d{2}/.test(a),
+      );
+      expect(dateArg).toBeDefined();
+    });
   });
 
   describe('createLearningPointsBatch', () => {
@@ -422,6 +461,23 @@ describe('LearningPointManager', () => {
       createLearningPointsBatch(points, 'valid-token');
 
       expect(mockDb.transaction).toHaveBeenCalled();
+    });
+
+    test('honors per-item nextReview override', () => {
+      const points = [
+        {
+          title: 'Item 1',
+          front: 'Q1',
+          back: 'A1',
+          nextReview: '2026-06-25',
+        },
+      ];
+
+      createLearningPointsBatch(points, 'valid-token');
+
+      const calls = mockStmt.run.mock.calls;
+      expect(calls.length).toBeGreaterThanOrEqual(1);
+      expect(calls[0]).toContain('2026-06-25');
     });
   });
 

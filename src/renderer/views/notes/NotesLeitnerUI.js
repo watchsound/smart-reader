@@ -21,13 +21,24 @@ const MyTabPanel = styled(TabPanel)({
 function NotesLeitnerUI() {
   const [tabValue, setTabValue] = React.useState('1');
   const addVocabulary = useSelector((state) => state.vocabulary.addVocabulary);
+  // When NotesLeitnerListView's ⋮ menu adds a note, the new learning_point
+  // mirror has to be picked up by the main panel without the user having
+  // to navigate away. Forwarding this signal as refreshToken re-fires
+  // LeitnerSystem's loadCards effect.
+  const addedNoteToLeitner = useSelector(
+    (state) => state.note.addedNoteToLeitner,
+  );
 
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue);
   };
 
   const mainPanel = (
-    <LeitnerSystem addVocabulary={addVocabulary} isVocabulary={false} />
+    <LeitnerSystem
+      addVocabulary={addVocabulary}
+      isVocabulary={false}
+      refreshToken={addedNoteToLeitner}
+    />
   );
 
   const rightPanel = (

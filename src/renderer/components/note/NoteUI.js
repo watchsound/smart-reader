@@ -105,6 +105,11 @@ function NoteUI({
   // notes are just viewed, not designed or animated.
   compactMenu = false,
   toolbarMode = false,
+  // Opt-in trim of the ⋮ menu to Jump-to-Source / Add-to-Leitner /
+  // Layout / Edit. Used by the Leitner page's right-panel notes list
+  // where Annotation, Add-to-Board, Delete, and Entry/Emphasis/Reset
+  // are irrelevant. All other call sites keep the full menu.
+  simplifiedMenu = false,
 }) {
   const [edit, setEdit] = useState(false);
   const [inputText, setInputText] = useState('');
@@ -354,6 +359,7 @@ function NoteUI({
           openCarSettingModal={setOpenCarSettingModal}
           deleteNoteAction={deleteNote}
           toolbarMode={toolbarMode}
+          simplifiedMenu={simplifiedMenu}
         />
         {getImageCode() && (
           <CardMedia component="img" height="194" image={getImageCode()} />
@@ -465,6 +471,7 @@ function NoteUI({
           setEditMode={setEdit}
           deleteNoteAction={deleteNote}
           toolbarMode={toolbarMode}
+          simplifiedMenu={simplifiedMenu}
         />
 
         <CardContentSwitcher
@@ -551,6 +558,7 @@ function NoteUI({
         setEditMode={setEdit}
         deleteNoteAction={deleteNote}
         toolbarMode={toolbarMode}
+        simplifiedMenu={simplifiedMenu}
       />
       <Grid container spacing={0.5} alignItems="center">
         <Grid item container justifyContent="flex-start" spacing={0.5}>
