@@ -23,6 +23,27 @@ const debounce = (func, delay) => {
   };
 };
 
+/**
+ * Pure: pull display text for one face of a non-vocab, non-note card.
+ * learningPointToCard populates `card.cards` for every learning_point;
+ * fall back to raw front/back if a caller bypasses the conversion.
+ * Exported as a top-level so the unit test can assert without rendering.
+ */
+function getCardSideText(card, side) {
+  const idx = side === 'front' ? 0 : 1;
+  const fromCards = card?.cards?.[idx];
+  if (fromCards) {
+    if (typeof fromCards === 'string') return fromCards;
+    return fromCards.text || fromCards.html || '';
+  }
+  const raw = side === 'front' ? card?.front : card?.back;
+  if (!raw) return '';
+  if (typeof raw === 'string') return raw;
+  return raw.text || raw.html || '';
+}
+
+export { getCardSideText };
+
 function FlipCard({ card, isVocabulary, onCorrect, onIncorrect, boxColor }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -404,26 +425,74 @@ function FlipCard({ card, isVocabulary, onCorrect, onIncorrect, boxColor }) {
           flexDirection: 'column',
         }}
       >
-        {/* Note Content.
-            For learning_point-backed cards mirrored from a note,
-            card.id is the learning_point UUID — NoteUI needs the
-            underlying note id, which sits at card.sourceKey
-            (source_id). Coerce to Number because note PK is INTEGER. */}
+        {/* Content area — two sub-paths for non-vocab cards:
+            (a) note-sourced learning_points: rich NoteUI render via the
+                underlying note row (card.sourceKey → note id).
+            (b) everything else (micro-cards from source_type='book',
+                manual LPs, etc.): NoteUI can't load anything because
+                there's no note row, so render an inline tap-to-flip
+                card from card.cards or card.front/card.back. Without
+                this fallback the card body is blank and the user can't
+                study it. */}
         <Box sx={{ flex: 1, p: 2, overflowY: 'auto' }}>
-          <NoteUI
-            key={card.id}
-            selectedNoteKey={
-              card.sourceType === 'note' && card.sourceKey
-                ? Number(card.sourceKey)
-                : card.id
-            }
-            selectHandler={() => {}}
-            compactView
-            showControl={false}
-            useBgColor
-            cardWidth={size.width - 40}
-            cardHeight={size.height - 100}
-          />
+          {card.sourceType === 'note' && card.sourceKey ? (
+            <NoteUI
+              key={card.id}
+              selectedNoteKey={Number(card.sourceKey)}
+              selectHandler={() => {}}
+              compactView
+              showControl={false}
+              useBgColor
+              cardWidth={size.width - 40}
+              cardHeight={size.height - 100}
+            />
+          ) : (
+            <Box
+              onClick={() => setIsFlipped(!isFlipped)}
+              sx={{
+                cursor: 'pointer',
+                minHeight: 140,
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                alignItems: 'center',
+                p: 2,
+                borderRadius: 2,
+                bgcolor: alpha(accentColor, 0.05),
+                transition: 'background-color 0.2s ease',
+                '&:hover': { bgcolor: alpha(accentColor, 0.1) },
+              }}
+            >
+              <Typography
+                variant="caption"
+                sx={{
+                  color: 'text.disabled',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.6px',
+                  mb: 1.5,
+                  fontSize: '0.65rem',
+                }}
+              >
+                {isFlipped ? 'Back' : 'Front'} — tap to flip
+              </Typography>
+              <Typography
+                variant="body1"
+                sx={{
+                  fontWeight: isFlipped ? 400 : 600,
+                  textAlign: 'center',
+                  color: theme.palette.text.primary,
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                }}
+              >
+                {getCardSideText(card, isFlipped ? 'back' : 'front') ||
+                  (isFlipped
+                    ? '(no back side)'
+                    : card.title || '(no content)')}
+              </Typography>
+            </Box>
+          )}
         </Box>
 
         {/* Card Actions */}
