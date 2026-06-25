@@ -223,6 +223,7 @@ function NoteCard({ note, viewMode, onDelete, onShowQuiz, onClick, selected, too
         onMouseLeave={() => setIsHovered(false)}
         onClick={handleCardClick}
         sx={{
+          position: 'relative',
           display: 'flex',
           alignItems: 'stretch',
           height: 72,
@@ -337,14 +338,16 @@ function NoteCard({ note, viewMode, onDelete, onShowQuiz, onClick, selected, too
               />
             </>
           ) : (
-            /* No title — single centred content row */
+            /* No title — give content two lines instead of one so a
+               titleless note actually reveals what it is about. */
             <Typography
               variant="body2"
               color="text.secondary"
               sx={{
                 overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
                 fontSize: '0.825rem',
                 lineHeight: 1.4,
                 '& p, & h1, & h2, & h3': { display: 'inline', margin: 0 },
@@ -354,15 +357,27 @@ function NoteCard({ note, viewMode, onDelete, onShowQuiz, onClick, selected, too
           )}
         </Box>
 
-        {/* Actions: inline toolbar (Notes Page) or 3-dot menu (other contexts) */}
+        {/* Actions: absolute-positioned right-side overlay revealed on
+            hover. Solid bg matches the card so the icons cover (not
+            push) the content beneath — this is why the outer Box has
+            position: relative. */}
         <Box
           sx={{
+            position: 'absolute',
+            top: 0,
+            right: 0,
+            bottom: 0,
             display: 'flex',
             alignItems: 'center',
             gap: 0.25,
+            pl: 1.25,
             pr: 0.75,
             flexShrink: 0,
+            bgcolor: selected
+              ? alpha(colors.accent, isDark ? 0.14 : 0.08)
+              : theme.palette.background.paper,
             opacity: isHovered ? 1 : 0,
+            pointerEvents: isHovered ? 'auto' : 'none',
             transition: 'opacity 0.15s ease',
           }}
         >
