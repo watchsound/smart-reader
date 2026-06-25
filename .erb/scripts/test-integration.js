@@ -12,6 +12,7 @@
  */
 
 const { spawnSync } = require('child_process');
+const { copyFileWithRetry, verifyBinaryAbi } = require('./lib/binary-abi');
 
 const isWin = process.platform === 'win32';
 const npmCmd = isWin ? 'npm.cmd' : 'npm';
@@ -37,7 +38,7 @@ function rebuildForNode() {
   //
   // After that, we copy the Node-ABI binary into src/node_modules/better-sqlite3
   // too, since Jest also resolves that hoisted copy first (moduleDirectories: ["src"]).
-  const { existsSync, copyFileSync } = require('fs');
+  const { existsSync } = require('fs');
   const path = require('path');
   const root = path.join(__dirname, '..', '..');
   const bsqDir = path.join(root, 'release', 'app', 'node_modules', 'better-sqlite3');
@@ -56,7 +57,34 @@ function rebuildForNode() {
     if (existsSync(nodeBinary) && existsSync(path.dirname(jestCopy))) {
       // eslint-disable-next-line no-console
       console.log('[test-integration] copying system-Node binary to src/node_modules');
-      copyFileSync(nodeBinary, jestCopy);
+      try {
+        copyFileWithRetry(nodeBinary, jestCopy);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error(`[test-integration] ${err.message}`);
+        return 1;
+      }
+    }
+
+    // Belt-and-suspenders: if the copy succeeded but the resulting
+    // binary still can't load under system Node (stale file picked up
+    // from somewhere, partial copy, wrong-ABI override), fail loudly
+    // here rather than letting every integration test silently skip
+    // and the run look green.
+    if (existsSync(jestCopy)) {
+      const verify = verifyBinaryAbi(jestCopy);
+      if (!verify.ok) {
+        // eslint-disable-next-line no-console
+        console.error(
+          `[test-integration] FATAL: ${jestCopy} is NOT loadable under system Node ` +
+            `(NODE_MODULE_VERSION ${verify.expectedAbi}). ` +
+            (verify.actualAbi != null
+              ? `Found NODE_MODULE_VERSION ${verify.actualAbi} (probably Electron-ABI).`
+              : `Error: ${verify.error}`) +
+            ` Integration tests would skip silently with this binary in place.`,
+        );
+        return 1;
+      }
     }
     return 0;
   }
@@ -79,7 +107,7 @@ function rebuildForElectron() {
   // prebuild-install is the underlying tool that actually downloads
   // the v116 prebuild from the better-sqlite3 GitHub releases. We
   // invoke it directly with the explicit Electron target.
-  const { existsSync, copyFileSync, rmSync } = require('fs');
+  const { existsSync, rmSync } = require('fs');
   const path = require('path');
   const root = path.join(__dirname, '..', '..');
   const releaseAppBsq = path.join(
@@ -160,7 +188,13 @@ function rebuildForElectron() {
   if (existsSync(path.dirname(srcCopy))) {
     // eslint-disable-next-line no-console
     console.log('[test-integration] copying Electron-ABI binary back to src/node_modules');
-    copyFileSync(releaseAppBinary, srcCopy);
+    try {
+      copyFileWithRetry(releaseAppBinary, srcCopy);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error(`[test-integration] ${err.message}`);
+      return 1;
+    }
   }
   return 0;
 }
