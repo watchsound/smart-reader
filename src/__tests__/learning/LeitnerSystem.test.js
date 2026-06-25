@@ -307,11 +307,10 @@ describe('LeitnerSystem', () => {
         expect(result.box).toBe(3);
       });
 
-      test('box advances on correct answer', () => {
-        const oldBox = 2;
-        const newBox = 3;
-        expect(newBox).toBeGreaterThan(oldBox);
-      });
+      // The "box advances on correct answer" tautology lived here
+      // (expect(3).toBeGreaterThan(2)). Real box-transition behavior is
+      // owned by LearningPointManager.processReview and exhaustively
+      // covered in LearningPointManager.test.js — no UI-side restate.
     });
 
     describe('handleIncorrect', () => {
@@ -324,12 +323,9 @@ describe('LeitnerSystem', () => {
         expect(result.box).toBe(1);
       });
 
-      test('box resets to 1 on incorrect answer', () => {
-        const oldBox = 3;
-        const newBox = 1;
-        expect(newBox).toBeLessThan(oldBox);
-        expect(newBox).toBe(1);
-      });
+      // The "box resets to 1 on incorrect answer" tautology lived here.
+      // Real reset behavior is owned by LearningPointManager.processReview
+      // (covered in LearningPointManager.test.js Rating-1-Again describe).
     });
 
     describe('handleSkip', () => {
