@@ -39,6 +39,7 @@ import NearMeIcon from '@mui/icons-material/NearMe';
 import ImageIcon from '@mui/icons-material/Image';
 import TitleIcon from '@mui/icons-material/Title';
 import StickyNote2Icon from '@mui/icons-material/StickyNote2';
+import EditIcon from '@mui/icons-material/Edit';
 
 import { NoteNode } from './nodes/NoteNode';
 import { StickyNode } from './nodes/StickyNode';
@@ -47,6 +48,7 @@ import { HeadingNode } from './nodes/HeadingNode';
 import { RelationEdge } from './edges/RelationEdge';
 import { isLegacyStormJson } from './legacyDetect';
 import NoteDetailModal from '../../note/NoteDetailModal';
+import EditMoodBoardModal from '../gridLayout/EditMoodBoardModal';
 
 // ---------------------------------------------------------------------------
 // Inline theme types
@@ -202,6 +204,7 @@ const AddButton = styled(Button)(({ theme }) => ({
 interface CurMoodBoard {
   id: number;
   name?: string;
+  description?: string;
   pinned?: boolean;
   diagram?: Record<string, unknown> | null;
 }
@@ -224,6 +227,7 @@ export default function MoodBoardCanvas({ curMoodBoard }: Props) {
   const [curNote, setCurNote] = useState<any>(null);
   // Hand tool mode — when true, left-drag pans instead of selecting
   const [panMode, setPanMode] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   const rfRef = useRef<ReactFlowInstance | null>(null);
 
@@ -512,21 +516,42 @@ export default function MoodBoardCanvas({ curMoodBoard }: Props) {
           </Tooltip>
         </ToolbarSection>
 
-        {/* Center: board name */}
+        {/* Center: board name — click to rename */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mx: 'auto' }}>
-          <Typography
-            variant="subtitle2"
-            sx={{
-              fontWeight: 600,
-              color: theme.palette.text.primary,
-              maxWidth: 220,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {curMoodBoard.name || 'Untitled Board'}
-          </Typography>
+          <Tooltip title="Rename board">
+            <Box
+              onClick={() => setShowEditModal(true)}
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 0.5,
+                cursor: 'pointer',
+                borderRadius: 1,
+                px: 0.75,
+                py: 0.25,
+                '&:hover': { bgcolor: alpha(theme.palette.text.primary, 0.05) },
+                '&:hover .edit-icon': { opacity: 1 },
+              }}
+            >
+              <Typography
+                variant="subtitle2"
+                sx={{
+                  fontWeight: 600,
+                  color: theme.palette.text.primary,
+                  maxWidth: 200,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {curMoodBoard.name || 'Untitled Board'}
+              </Typography>
+              <EditIcon
+                className="edit-icon"
+                sx={{ fontSize: 13, color: theme.palette.text.disabled, opacity: 0, transition: 'opacity 0.15s' }}
+              />
+            </Box>
+          </Tooltip>
           {curMoodBoard.pinned && (
             <Chip
               label="Pinned"
@@ -626,6 +651,14 @@ export default function MoodBoardCanvas({ curMoodBoard }: Props) {
           <Button variant="contained" onClick={handleResetBoard}>Reset board</Button>
         </DialogActions>
       </Dialog>
+
+      {showEditModal && (
+        <EditMoodBoardModal
+          moodBoard={curMoodBoard as any}
+          open={showEditModal}
+          callback={(() => setShowEditModal(false)) as any}
+        />
+      )}
     </Box>
   );
 }
