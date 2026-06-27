@@ -99,4 +99,58 @@ intents.register('session-soft-write', {
   cachePolicy: 'none',
 });
 
+intents.register('simulate-forum-seed', {
+  label: 'Study Forum — generate opening discussion',
+  contextSlices: ['currentBook'],
+  costCeilingTokens: 2000,
+  cachePolicy: 'none',
+  schema: {
+    type: 'object',
+    required: ['turns'],
+    properties: {
+      turns: {
+        type: 'array',
+        items: {
+          type: 'object',
+          required: ['persona', 'content'],
+          properties: {
+            persona: {
+              type: 'string',
+              enum: ['moderator', 'skeptic', 'synthesizer', 'novice'],
+            },
+            content: { type: 'string' },
+          },
+        },
+      },
+    },
+  },
+});
+
+intents.register('simulate-forum-reply', {
+  label: 'Study Forum — generate persona reply',
+  contextSlices: ['currentBook'],
+  costCeilingTokens: 1400,
+  cachePolicy: 'none',
+  schema: {
+    type: 'object',
+    required: ['turns'],
+    properties: {
+      turns: {
+        type: 'array',
+        items: {
+          type: 'object',
+          required: ['persona', 'content'],
+          properties: {
+            persona: {
+              type: 'string',
+              enum: ['moderator', 'skeptic', 'synthesizer', 'novice'],
+            },
+            content: { type: 'string' },
+          },
+        },
+      },
+    },
+  },
+});
+
 module.exports = {};
