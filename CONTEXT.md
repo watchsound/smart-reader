@@ -39,6 +39,18 @@ Canonical names for domain concepts. One source of truth — code, docs, and con
 - **Quick Note** — inline note created from `CreateAnnotationPanel` via the expand-in-place flow. Saves a Note record alongside the highlight annotation without opening `CreateNoteModal`. Carries only the typed text — no title, tags, image, or summary. *Not "Inline Note", not "Quick Capture".*
 - **Full Note** — note created via the existing `CreateNoteModal` (the `CreateNotePanel` form). Has title / tags / image / summary fields. Reachable from `CreateAnnotationPanel` via the "Open full editor →" link when the panel is in expanded state.
 
+## Study Forum (2026-06-27 design)
+
+- **Study Forum** — the simulated multi-persona discussion feature. *Not "community discussion", not "AI forum"*; the word **community** stays reserved for the legacy remote-server path so they aren't conflated.
+- **Forum Discussion** — one persisted multi-turn conversation anchored to a Forum Anchor. Owns the turns blob, anchor reference, seed cost, and metadata.
+- **Forum Anchor** — `{ bookId, chapterId, cfiRange | null, pageTextHash, selectionText | null }`. Stable key for "where in the book this discussion is about." `cfiRange` is null when the discussion was opened on the whole page; `pageTextHash` covers that case.
+- **Persona** — one of the four fixed cast members: **Moderator (Mira)**, **Skeptic (Sam)**, **Synthesizer (Sora)**, **Curious Novice (Noa)**. Defined in `src/commons/model/forumPersonas.js`. *Not "character", not "agent".*
+- **Forum Turn** — one persona or user utterance: `{ persona, content, ts, addressedTo?, cost_usd? }`. Lives inside a Forum Discussion's `turns_json`. Append-only.
+- **Seed Generation** — initial Spine call (`intent: simulate-forum-seed`) that produces the 6-turn opening discussion.
+- **Reply Generation** — every subsequent Spine call (`intent: simulate-forum-reply`) after a user turn. Returns 1-2 persona turns based on the addressed persona + topical relevance.
+- **Forum Marker** — gutter chat-bubble icon shown when a chapter has existing Forum Discussions. Click jumps to that discussion in the panel.
+- **`feature_surface: 'study-forum'`** — closed-enum value in `featureSurface.js`. Cost moves caused by Study Forum calls attribute to this surface in Phase 13 Spend & Returns.
+
 ## Existing concepts (referenced — not redefined here)
 
 - **Phase 0–8 Loops** — the sequenced learning loops documented in [CLAUDE.md](CLAUDE.md#brain-driven-learning-loops-phase-08).
