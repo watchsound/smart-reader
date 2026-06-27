@@ -16,6 +16,7 @@ const FEATURE_SURFACES = [
   'pre-reading-diagnostic',
   'manual-review',
   'mindmap-study',
+  'study-forum',
   'backfill',
   'unknown',
 ];
@@ -28,6 +29,7 @@ const ATTENTION_STATE = {
   'production-prompt': 'focused-session',
   'manual-review': 'focused-session',
   'mindmap-study': 'focused-session',
+  'study-forum': 'focused-session',
   backfill: 'historical',
   unknown: 'historical',
 };
@@ -40,6 +42,7 @@ const PHASE_GROUP = {
   'production-prompt': 'production-prompts',
   'manual-review': 'manual-review',
   'mindmap-study': 'production-prompts',
+  'study-forum': 'production-prompts',
   backfill: 'historical',
   unknown: 'historical',
 };
