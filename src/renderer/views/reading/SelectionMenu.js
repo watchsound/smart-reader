@@ -17,6 +17,7 @@ import SpellcheckIcon from '@mui/icons-material/Spellcheck';
 import TranslateIcon from '@mui/icons-material/Translate';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import ForumIcon from '@mui/icons-material/Forum';
 
 // Floating toolbar container
 const ToolbarContainer = styled(Box)(({ theme }) => ({
@@ -250,6 +251,17 @@ function SelectionMenu({
         </Tooltip>
 
         <Divider />
+
+        {/* Discuss — opens Study Forum thread anchored to this selection */}
+        <Tooltip title="Discuss" placement="top" arrow>
+          <IconButton
+            onClick={() => handleAction('discuss')}
+            iconcolor="#7E57C2"
+            disabled={isLoading}
+          >
+            <ForumIcon />
+          </IconButton>
+        </Tooltip>
 
         {/* Smart Summary with animation */}
         {isLongText && (
