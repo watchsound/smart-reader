@@ -58,7 +58,11 @@ function rebuildForNode() {
       // eslint-disable-next-line no-console
       console.log('[test-integration] copying system-Node binary to src/node_modules');
       try {
-        copyFileWithRetry(nodeBinary, jestCopy);
+        // 30 attempts × 500ms = up to 15s wait for the file lock to clear.
+        // Windows holds .node handles for a surprising amount of time after
+        // an Electron child tree dies — the default 5×300ms=1.5s wasn't
+        // enough when a prior smoke run lingered.
+        copyFileWithRetry(nodeBinary, jestCopy, { attempts: 30, delayMs: 500 });
       } catch (err) {
         // eslint-disable-next-line no-console
         console.error(`[test-integration] ${err.message}`);
@@ -189,7 +193,8 @@ function rebuildForElectron() {
     // eslint-disable-next-line no-console
     console.log('[test-integration] copying Electron-ABI binary back to src/node_modules');
     try {
-      copyFileWithRetry(releaseAppBinary, srcCopy);
+      // Same generous retry budget as the system-Node copy above.
+      copyFileWithRetry(releaseAppBinary, srcCopy, { attempts: 30, delayMs: 500 });
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error(`[test-integration] ${err.message}`);

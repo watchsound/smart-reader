@@ -29,9 +29,11 @@
  * something triggers postinstall. We launch what the user actually runs.
  */
 
-const { spawn } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+
+const isWin = process.platform === 'win32';
 
 // How long to let Electron run before we assume "it's stable". Long
 // enough for the brain heartbeat to fire once (heartbeat is ~3s into
@@ -228,22 +230,52 @@ function run() {
       process.exit(1);
     }
 
-    proc.kill('SIGTERM');
+    // Kill the Electron PROCESS TREE, not just the parent. Electron spawns
+    // GPU / renderer / utility helpers; killing only the parent orphans
+    // them and they keep native-module file handles (esp. better_sqlite3.node)
+    // open. On Windows a subsequent `test-integration` rebuild then fails
+    // with EBUSY because the .node file is still locked.
+    //
+    // Wait for the OS to confirm the parent has exited before reporting,
+    // then add a brief NTFS settle delay so file handles drain.
+    if (isWin) {
+      spawnSync('taskkill', ['/F', '/T', '/PID', String(proc.pid)], {
+        stdio: 'ignore',
+      });
+    } else {
+      proc.kill('SIGTERM');
+    }
 
-    setTimeout(() => {
-      if (flagged.length === 0) {
-        console.log('[test-smoke] PASS: no flagged lines during boot');
-        process.exit(0);
-      } else {
-        console.error(
-          `\n[test-smoke] FAIL: ${flagged.length} flagged line(s) during boot:`,
-        );
-        flagged.forEach((f, i) => {
-          console.error(`  ${i + 1}. [${f.stream}] ${f.line}`);
-        });
-        process.exit(1);
-      }
-    }, 500); // brief grace period for in-flight log flushes after kill
+    const finish = () => {
+      // Extra NTFS handle-release window on Windows. Empirically 1500ms is
+      // enough for better_sqlite3.node to become writable again after the
+      // process tree dies.
+      const settleMs = isWin ? 1500 : 200;
+      setTimeout(() => {
+        if (flagged.length === 0) {
+          console.log('[test-smoke] PASS: no flagged lines during boot');
+          process.exit(0);
+        } else {
+          console.error(
+            `\n[test-smoke] FAIL: ${flagged.length} flagged line(s) during boot:`,
+          );
+          flagged.forEach((f, i) => {
+            console.error(`  ${i + 1}. [${f.stream}] ${f.line}`);
+          });
+          process.exit(1);
+        }
+      }, settleMs);
+    };
+
+    // If proc already exited, finish immediately; otherwise wait for the
+    // exit event so we don't race the kill.
+    if (proc.exitCode != null || proc.signalCode != null) {
+      finish();
+    } else {
+      proc.once('exit', finish);
+      // Hard backstop — if `exit` never fires for some reason, don't hang.
+      setTimeout(finish, 5000);
+    }
   }, SAMPLE_SECONDS * 1000);
 }
 
