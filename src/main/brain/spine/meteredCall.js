@@ -116,7 +116,7 @@ async function meteredCall(provider, prompt, options = {}) {
     failover_reason: null,
     error: null,
   });
-  return { output, callId };
+  return { output, callId, cost_usd };
 }
 
 module.exports = meteredCall;

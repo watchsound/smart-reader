@@ -53,21 +53,25 @@ BrainContext.registerSlice('simpleSlice', async () => ({ k: 'v' }));
 
 describe('brainCall', () => {
   test('builds context, dispatches via provider, records ledger row', async () => {
-    const { output, callId, cacheHit } = await brainCall('test-spine-intent', 'do thing', { userId: 1 });
+    const result = await brainCall('test-spine-intent', 'do thing', { userId: 1 });
+    const { output, callId, cacheHit, cost_usd } = result;
     expect(output).toBeDefined();
     expect(typeof callId).toBe('number');
     expect(cacheHit).toBe(false);
+    expect(typeof cost_usd).toBe('number'); // Study Forum needs cost in the return tuple
     const row = testDb.prepare('SELECT * FROM brain_call_ledger WHERE id = ?').get(callId);
     expect(row.intent).toBe('test-spine-intent');
     expect(row.provider).toBe('deepseek-v3');
     expect(row.cache_hit).toBe(0);
+    expect(row.cost_usd).toBe(cost_usd); // returned cost matches ledger row
     expect(JSON.parse(row.context_keys)).toEqual(['simpleSlice']);
   });
 
-  test('second call with same input hits cache', async () => {
+  test('second call with same input hits cache and returns cost_usd: 0', async () => {
     await brainCall('test-spine-intent', 'same input', { userId: 1 });
     const second = await brainCall('test-spine-intent', 'same input', { userId: 1 });
     expect(second.cacheHit).toBe(true);
+    expect(second.cost_usd).toBe(0); // cache hits incur no new cost
   });
 
   test('options.schema override flows through to getStructured', async () => {

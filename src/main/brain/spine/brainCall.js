@@ -79,7 +79,7 @@ async function brainCall(intent, input, options = {}) {
       const callId = CallLedgerStore.recordCacheHit({
         intent, cacheKey, triggerId: options.triggerId || null, traceId: options.traceId || null,
       });
-      return { output: hit.output_json, callId, cacheHit: true };
+      return { output: hit.output_json, callId, cacheHit: true, cost_usd: 0 };
     }
   }
 
@@ -115,7 +115,7 @@ async function brainCall(intent, input, options = {}) {
     output_summary: summarize(output),
     output_json: output,
   });
-  return { output, callId, cacheHit: false };
+  return { output, callId, cacheHit: false, cost_usd };
 }
 
 module.exports = brainCall;

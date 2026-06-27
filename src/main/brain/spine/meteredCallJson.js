@@ -106,7 +106,7 @@ async function meteredCallJson(prompt, schema, options = {}) {
     failover_reason: null,
     error: null,
   });
-  return { output, callId };
+  return { output, callId, cost_usd };
 }
 
 // classifyError isn't called here directly — exported via providerFailover —
