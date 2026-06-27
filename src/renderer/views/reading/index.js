@@ -915,7 +915,8 @@ function EReaderPage() {
   // State
   const [tabValue, setTabValue] = React.useState(0);
   const [bookPath, setBookPath] = React.useState('');
-  const [serverUrl, setServerUrl] = React.useState('');
+  // `serverUrl` state was used only to conditionally render the legacy
+  // remote-community tab. The Forum tab now always renders. Removed.
   const [selectedText, setSelectedText] = React.useState('');
   const [chatPanelRef, setChatPanelRef] = React.useState(null);
   const [page, setPage] = React.useState({
@@ -1037,6 +1038,8 @@ function EReaderPage() {
     if (!passageText) return;
     // Stash the page-at-open so handlePageChange knows when to auto-hide.
     forumPageAtOpenRef.current = page?.curPage ?? null;
+    // Surface the Forum tab so the user sees the panel they just triggered.
+    setTabValue(5);
     dispatchForum(
       communityNoteSelected({
         anchor,
@@ -1735,13 +1738,8 @@ function EReaderPage() {
     }
   };
 
-  useEffect(() => {
-    async function t() {
-      const url = await customStorage.getServerUrl();
-      setServerUrl(url || '');
-    }
-    t();
-  }, []);
+  // Removed: serverUrl bootstrap (was used only by the legacy remote-community
+  // tab gate, now superseded by the always-rendered Study Forum tab).
 
   // const openai = useMemo(() => {
   //   return new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
@@ -1836,7 +1834,9 @@ function EReaderPage() {
             iconPosition="start"
             {...a11yProps(4)}
           />
-          {serverUrl && <StyledTab label="Communities" {...a11yProps(5)} />}
+          {/* Always shown now — Study Forum repurposes this tab and works
+              without a remote server. Old behavior gated on serverUrl. */}
+          <StyledTab label="Forum" {...a11yProps(5)} />
         </StyledTabs>
       </Box>
 
@@ -1886,11 +1886,9 @@ function EReaderPage() {
             currentChapterName={page?.curChapter || ''}
           />
         </CustomTabPanel>
-        {serverUrl && (
-          <CustomTabPanel value={tabValue} index={5}>
-            <CommunityPanel idFromServer={book.idFromServer} />
-          </CustomTabPanel>
-        )}
+        <CustomTabPanel value={tabValue} index={5}>
+          <CommunityPanel />
+        </CustomTabPanel>
       </Box>
     </ReadingSidebar>
   );

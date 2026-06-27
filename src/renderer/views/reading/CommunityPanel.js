@@ -1,9 +1,10 @@
 /* eslint-disable react/prop-types */
 import { useState, useEffect } from 'react';
 import { styled, alpha, useTheme } from '@mui/material/styles';
-import { Box, Typography, Switch, Chip } from '@mui/material';
+import { Box, Typography, Switch, Chip, Button } from '@mui/material';
 import { useSelector, useDispatch } from 'react-redux';
 import PeopleIcon from '@mui/icons-material/People';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 
@@ -47,42 +48,78 @@ const EmptyState = styled(Box)({
 function CommunityPanel() {
   const theme = useTheme();
   const showCommunityNote = useSelector((s) => s.reader.showCommunityNote);
-  // selectedCommunityNote is now a Study Forum signal: either a full
-  // ForumDiscussion object (Forum Marker click) or { anchor, passageText, ... }
-  // to resolve via getOrCreate (floating Discuss button in the reading view).
+  // selectedCommunityNote shapes:
+  //   - { turns, ... }  (full discussion — Forum Marker click or auto-show match)
+  //   - { anchor, passageText, bookTitle, chapterTitle }  (intent from Discuss button)
+  //   - null
   const selectedCommunityNote = useSelector(
     (s) => s.reader.selectedCommunityNote,
   );
   const dispatch = useDispatch();
   const [discussion, setDiscussion] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  // pendingIntent holds the { anchor, passageText, ... } payload when the user
+  // clicked Discuss but the DB had no existing thread — used to show a
+  // "Generate discussion" prompt instead of silently spending LLM money.
+  const [pendingIntent, setPendingIntent] = useState(null);
   const [replyPending, setReplyPending] = useState(false);
 
   useEffect(() => {
     if (!selectedCommunityNote) {
       setDiscussion(null);
+      setPendingIntent(null);
       return;
     }
     if (selectedCommunityNote.turns) {
       setDiscussion(selectedCommunityNote);
+      setPendingIntent(null);
       return;
     }
     if (!selectedCommunityNote.anchor) return;
+    // Intent payload — check DB first (free, instant), only prompt the user
+    // to spend on a fresh seed if nothing exists yet.
     setLoading(true);
+    setDiscussion(null);
     // eslint-disable-next-line promise/catch-or-return
     forumApi
-      .getOrCreate(selectedCommunityNote)
-      // eslint-disable-next-line promise/always-return
+      .find({ anchor: selectedCommunityNote.anchor })
+      .then((found) => {
+        if (found) {
+          setDiscussion(found);
+          setPendingIntent(null);
+          dispatch(communityNoteSelected(found));
+        } else {
+          // No existing thread → render the explicit Generate prompt.
+          setPendingIntent(selectedCommunityNote);
+        }
+        return null;
+      })
+      .catch((err) => {
+        // eslint-disable-next-line no-console
+        console.error('forum:find failed', err);
+      })
+      .finally(() => setLoading(false));
+  }, [selectedCommunityNote, dispatch]);
+
+  const handleGenerate = () => {
+    if (!pendingIntent) return;
+    setGenerating(true);
+    // eslint-disable-next-line promise/catch-or-return
+    forumApi
+      .getOrCreate(pendingIntent)
       .then((d) => {
         setDiscussion(d);
+        setPendingIntent(null);
         dispatch(communityNoteSelected(d));
+        return null;
       })
       .catch((err) => {
         // eslint-disable-next-line no-console
         console.error('forum:get-or-create failed', err);
       })
-      .finally(() => setLoading(false));
-  }, [selectedCommunityNote, dispatch]);
+      .finally(() => setGenerating(false));
+  };
 
   const handleReply = ({ userContent, addressedTo }) => {
     if (!discussion) return;
@@ -138,10 +175,55 @@ function CommunityPanel() {
       <ScrollContainer>
         {loading && (
           <EmptyState>
-            <Typography variant="body2">Generating discussion…</Typography>
+            <Typography variant="body2">Checking for a discussion…</Typography>
           </EmptyState>
         )}
-        {!loading && !discussion && (
+        {generating && (
+          <EmptyState>
+            <Typography variant="body2">Generating discussion…</Typography>
+            <Typography
+              variant="caption"
+              sx={{ color: theme.palette.text.secondary, mt: 1 }}
+            >
+              Four readers are talking it through. About 5-15 seconds.
+            </Typography>
+          </EmptyState>
+        )}
+        {!loading && !generating && pendingIntent && (
+          <EmptyState>
+            <AutoAwesomeIcon
+              sx={{
+                fontSize: 36,
+                color: theme.palette.secondary.main,
+                mb: 1,
+              }}
+            />
+            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
+              No discussion yet for this passage
+            </Typography>
+            <Typography
+              variant="caption"
+              sx={{
+                color: theme.palette.text.secondary,
+                mb: 2,
+                maxWidth: 260,
+              }}
+            >
+              Generate a fresh forum thread (four readers will discuss this
+              passage). Costs roughly one LLM call.
+            </Typography>
+            <Button
+              variant="contained"
+              color="secondary"
+              size="small"
+              onClick={handleGenerate}
+              startIcon={<AutoAwesomeIcon />}
+            >
+              Generate discussion
+            </Button>
+          </EmptyState>
+        )}
+        {!loading && !generating && !pendingIntent && !discussion && (
           <EmptyState>
             <PeopleIcon
               sx={{
@@ -163,6 +245,7 @@ function CommunityPanel() {
           </EmptyState>
         )}
         {!loading &&
+          !generating &&
           discussion &&
           discussion.turns.map((turn, i) => (
             // eslint-disable-next-line react/no-array-index-key

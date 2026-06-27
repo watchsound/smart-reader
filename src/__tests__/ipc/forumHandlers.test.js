@@ -12,9 +12,7 @@ const handlers = require('../../main/ipc/forumHandlers');
 
 function makeDb() {
   const db = new Database(':memory:');
-  db.exec(
-    fs.readFileSync(path.join(__dirname, '../../..', 'db.sql'), 'utf8'),
-  );
+  db.exec(fs.readFileSync(path.join(__dirname, '../../..', 'db.sql'), 'utf8'));
   db.exec(`INSERT INTO book (id, name) VALUES (1, 'Walden')`);
   return db;
 }
@@ -38,6 +36,24 @@ describe('forumHandlers', () => {
   });
   afterEach(() => {
     db.close();
+  });
+
+  test('find returns null on miss without calling brainCall', async () => {
+    const result = await handlers.find({ anchor });
+    expect(result).toBeNull();
+    expect(brainCall).not.toHaveBeenCalled();
+  });
+
+  test('find returns existing discussion on hit without calling brainCall', async () => {
+    mgr.create(
+      anchor,
+      [{ persona: 'moderator', content: 'cached', ts: 1 }],
+      0.005,
+    );
+    const result = await handlers.find({ anchor });
+    expect(result).not.toBeNull();
+    expect(result.turns[0].content).toBe('cached');
+    expect(brainCall).not.toHaveBeenCalled();
   });
 
   test('getOrCreate creates new discussion via seed call on miss', async () => {

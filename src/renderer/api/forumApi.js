@@ -15,6 +15,11 @@ function invoke(channel, args) {
 }
 
 const forumApi = {
+  // DB lookup only; null on miss. Use when the caller wants to confirm
+  // presence WITHOUT triggering an LLM seed (cost-visibility flow).
+  find({ anchor }) {
+    return invoke('forum:find', { anchor });
+  },
   getOrCreate({ anchor, passageText, bookTitle, chapterTitle }) {
     return invoke('forum:get-or-create', {
       anchor,

@@ -35,6 +35,13 @@ function __setDeps({ manager: m }) {
   _manager = m;
 }
 
+// Lookup-only: returns the existing discussion at this anchor, or null.
+// Use this when you want to confirm presence WITHOUT triggering an LLM seed —
+// the floating Discuss button flow uses it to ask the user before spending.
+async function find({ anchor }) {
+  return manager().findByAnchor(anchor);
+}
+
 async function getOrCreate({ anchor, passageText, bookTitle, chapterTitle }) {
   const existing = manager().findByAnchor(anchor);
   if (existing) return existing;
@@ -91,6 +98,7 @@ async function listByChapter({ bookId, chapterId }) {
 module.exports = {
   init,
   __setDeps,
+  find,
   getOrCreate,
   reply,
   listByChapter,

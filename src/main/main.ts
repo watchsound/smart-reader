@@ -2652,6 +2652,9 @@ app
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { getDb: getForumDb } = require('./db/dbManager');
     forumHandlers.init({ db: getForumDb() });
+    ipcMain.handle('forum:find', async (_event, args) =>
+      forumHandlers.find(args),
+    );
     ipcMain.handle('forum:get-or-create', async (_event, args) =>
       forumHandlers.getOrCreate(args),
     );
