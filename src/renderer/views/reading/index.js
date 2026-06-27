@@ -1004,6 +1004,20 @@ function EReaderPage() {
   // Stash the curPage at the moment a discussion is opened so handlePageChange
   // can clear the panel when the user navigates away from that page.
   const forumPageAtOpenRef = useRef(null);
+  // Debounce the auto-show listByChapter call so rapid page-flipping doesn't
+  // hammer the DB. We only fire after the user has settled on a page for
+  // this long. Tunable: bump to 5000 for ultra-conservative, drop to 500 for
+  // snappier. 1500ms is the "feels instant once you stop flipping" sweet spot.
+  const FORUM_AUTOSHOW_DEBOUNCE_MS = 1500;
+  const autoShowTimerRef = useRef(null);
+  // Clear any pending auto-show timer when the reading view unmounts so it
+  // doesn't fire against a stale dispatcher / book context.
+  useEffect(
+    () => () => {
+      if (autoShowTimerRef.current) clearTimeout(autoShowTimerRef.current);
+    },
+    [],
+  );
   const handleDiscussClick = useCallback(() => {
     if (!book?.id) return;
     const anchor = buildAnchor({
@@ -1590,24 +1604,40 @@ function EReaderPage() {
 
       // Study Forum auto-show: when the new page has a discussion matching it
       // (selection text appears in the page, or whole-page hash matches),
-      // surface that discussion in the panel. If none matches, the
-      // handlePageChange clear (already dispatched) keeps the panel empty.
+      // surface that discussion in the panel. Debounced so rapid page-flipping
+      // doesn't hit the DB on every turn — only fires once the user settles
+      // for FORUM_AUTOSHOW_DEBOUNCE_MS.
       const chapterIdNow = currentChapterRef.current?.id;
       if (book?.id && chapterIdNow) {
-        // eslint-disable-next-line promise/catch-or-return
-        forumApi
-          .listByChapter({ bookId: book.id, chapterId: chapterIdNow })
-          .then((discussions) => {
-            const matched = pickDiscussionForPage(discussions, text);
-            if (matched) {
-              forumPageAtOpenRef.current = page?.curPage ?? null;
-              dispatchForum(communityNoteSelected(matched));
-            }
-            return null;
-          })
-          .catch(() => {
-            // ignore — auto-show is best-effort
-          });
+        if (autoShowTimerRef.current) {
+          clearTimeout(autoShowTimerRef.current);
+        }
+        const bookIdSnapshot = book.id;
+        const chapterIdSnapshot = chapterIdNow;
+        const pageTextSnapshot = text;
+        autoShowTimerRef.current = setTimeout(() => {
+          autoShowTimerRef.current = null;
+          // eslint-disable-next-line promise/catch-or-return
+          forumApi
+            .listByChapter({
+              bookId: bookIdSnapshot,
+              chapterId: chapterIdSnapshot,
+            })
+            .then((discussions) => {
+              const matched = pickDiscussionForPage(
+                discussions,
+                pageTextSnapshot,
+              );
+              if (matched) {
+                forumPageAtOpenRef.current = page?.curPage ?? null;
+                dispatchForum(communityNoteSelected(matched));
+              }
+              return null;
+            })
+            .catch(() => {
+              // ignore — auto-show is best-effort
+            });
+        }, FORUM_AUTOSHOW_DEBOUNCE_MS);
       }
       const paragraphs = text
         .split(/\n\n+/)
