@@ -794,6 +794,44 @@ CREATE INDEX IF NOT EXISTS "idx_graph_edge_source"
   ON "graph_edge" ("source_type", "source_id", "edge_type");
 
 -- ============================================================================
+-- CONCEPT NODE TABLE (graph-side knowledge atoms)
+-- ============================================================================
+-- First-class storage for extracted Concept nodes. SqliteAdapter.upsertConcept
+-- was previously a stub — the Cypher path in AIConceptExtractionService only
+-- worked on Neo4j. This table closes that gap so concept extraction can land
+-- on the default backend.
+--
+-- name_normalized is the dedup key (lowercase + accent-folded + punctuation-
+-- stripped, mirroring renderer/utils/findTocMatch.normalize). Embedding-based
+-- similarity dedup is a follow-up; for now name-normalized + (user_id) is the
+-- unique constraint.
+--
+-- mastery_level is 0..100. Ratchets up via "appeared in chapter you read"
+-- (+5), micro-card accepted (+10), comprehension correct (+15). Down on
+-- incorrect comprehension (-10). 60+ counts as known for the Phase 5 primer.
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS "concept" (
+  "id"                  TEXT PRIMARY KEY,
+  "user_id"             INTEGER NOT NULL,
+  "name"                TEXT NOT NULL,
+  "name_normalized"     TEXT NOT NULL,
+  "domain"              TEXT DEFAULT 'knowledge',
+  "definition"          TEXT,
+  "mastery_level"       REAL DEFAULT 0,
+  "review_count"        INTEGER DEFAULT 0,
+  "first_seen_book_id"  INTEGER,
+  "first_seen_at"       TEXT,
+  "last_seen_at"        TEXT,
+  "created_at"          TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "idx_concept_user_normalized"
+  ON "concept" ("user_id", "name_normalized");
+CREATE INDEX IF NOT EXISTS "idx_concept_user_mastery"
+  ON "concept" ("user_id", "mastery_level");
+CREATE INDEX IF NOT EXISTS "idx_concept_first_seen_book"
+  ON "concept" ("first_seen_book_id");
+
+-- ============================================================================
 -- MINDMAP -> LEARNING POINT LINK TABLE
 -- ============================================================================
 -- Idempotent mapping (mindmapId, nodeId) -> lpId. Lets a re-save of the same
@@ -828,3 +866,29 @@ CREATE TABLE IF NOT EXISTS mindmap (
   user_id    INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_mindmap_user ON mindmap(user_id, created_at DESC);
+
+-- ============================================================================
+-- STUDY FORUM (simulated multi-persona discussions)
+-- ============================================================================
+-- One row per Forum Discussion. Turns are stored as a JSON blob (append-only).
+-- Anchor is (book_id, chapter_id, cfi_range) when cfi_range is non-null;
+-- falls back to (book_id, chapter_id, page_text_hash) for whole-page discussions.
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS forum_discussion (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  book_id         INTEGER NOT NULL,
+  chapter_id      TEXT,
+  cfi_range       TEXT,
+  page_text_hash  TEXT NOT NULL,
+  selection_text  TEXT,
+  turns_json      TEXT NOT NULL,
+  seed_cost_usd   REAL NOT NULL DEFAULT 0,
+  created_at      INTEGER NOT NULL,
+  last_reply_at   INTEGER NOT NULL,
+  FOREIGN KEY (book_id) REFERENCES book(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_forum_discussion_book_chapter
+  ON forum_discussion(book_id, chapter_id);
+CREATE INDEX IF NOT EXISTS idx_forum_discussion_hash
+  ON forum_discussion(book_id, page_text_hash);
