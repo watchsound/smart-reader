@@ -1921,6 +1921,7 @@ function EReaderPage() {
             curNote={note}
             onSelectionChange={handleSelectionChange}
             onPageChange={handlePageChange}
+            onPageText={handlePageText}
             onMindMapResult={handleMindMapResult}
             onControlsReady={handlePdfControlsReady}
             onTocReady={handleTocReady}

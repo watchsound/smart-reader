@@ -39,6 +39,7 @@ import {
 
 import {
   notesQueried,
+  noteAdded,
   communityNoteSelected,
   searchTextInBookResultHandled,
 } from '../../store/reducers/readerSlice';
@@ -51,6 +52,7 @@ import './PDFView.css';
 import searchPdfText from './PDFSearchUtil';
 import customStorage from '../../store/customStorage';
 import ImpressModal from '../../components/impressjs/ImpressModal';
+import pdfOutlineToToc from '../../utils/pdfOutlineToToc';
 import { usePDFAnimations } from '../../components/animation-core/adapters/usePDFAnimations';
 import brainApi, { recordEvent, EPISODE_TYPES } from '../../api/brainApi';
 
@@ -86,7 +88,7 @@ function ContextMenu({
 }
 
 
-function PDFView({ bookPath, curBook, curNote, onSelectionChange, onAnimationReady, onPageChange, onMindMapResult }) {
+function PDFView({ bookPath, curBook, curNote, onSelectionChange, onAnimationReady, onPageChange, onPageText, onMindMapResult, onControlsReady, onTocReady }) {
   const [url, setUrl] = useState('');
   const [highlights, setHighlights] = useState([]);
   // const currentPdfIndexRef = useRef(0);
@@ -375,6 +377,14 @@ function PDFView({ bookPath, curBook, curNote, onSelectionChange, onAnimationRea
     console.log('Saving highlight', note);
     setHighlights([ noteJson2pdfJson(note, theme) , ...highlights]);
 
+    // Push the new note into state.reader.notes so BookNotesPanel
+    // (which selects from that slice) re-renders immediately. Without
+    // this dispatch the right-panel list stays stale until the user
+    // re-opens the book, because the panel only refetches on mount.
+    if (!note.highlightOnly) {
+      dispatch(noteAdded(note));
+    }
+
     // Record highlight/note created episode for brain
     const isHighlightOnly = note.highlightOnly === true;
     brainApi.recordEpisode({
@@ -493,8 +503,32 @@ function PDFView({ bookPath, curBook, curNote, onSelectionChange, onAnimationRea
     }, 800); // Delay for PDF rendering
   };
 
+  // Extract the rendered text of a PDF page and emit via onPageText with a
+  // synthetic chapter context (each PDF page is its own "chapter" for
+  // text-dependent features like the Study Forum). Fire-and-forget — text
+  // extraction shouldn't block render.
+  const emitPageText = (pageNum) => {
+    if (!onPageText || !pdfDocument) return;
+    pdfDocument
+      .getPage(pageNum)
+      .then((pdfPage) => pdfPage.getTextContent())
+      .then((tc) => {
+        const text = (tc?.items || [])
+          .map((i) => (i && typeof i.str === 'string' ? i.str : ''))
+          .join(' ');
+        onPageText(text, {
+          chapterId: `page-${pageNum}`,
+          chapterTitle: `Page ${pageNum}`,
+        });
+      })
+      .catch((err) => {
+        // eslint-disable-next-line no-console
+        console.warn('PDFView: getTextContent failed:', err?.message);
+      });
+  };
+
   useEffect(()=> {
-    if (!pdfDocument) return;
+    if (!pdfDocument) return undefined;
     setTimeout(() => tryToCreateCoverImage(), 1000);
     // Set total pages and notify parent
     setTotalPages(pdfDocument.numPages);
@@ -506,7 +540,111 @@ function PDFView({ bookPath, curBook, curNote, onSelectionChange, onAnimationRea
         curChapterId: '',
       });
     }
+    emitPageText(1);
+    // Surface the PDF outline so the reading view can run the Phase 5
+    // pre-book diagnostic on PDFs (parity with EPubView's tocChanged).
+    // Many older PDFs have no outline at all — emit [] in that case so the
+    // diagnostic falls back to "no map for this book" rather than waiting
+    // forever for a TOC that will never arrive.
+    if (onTocReady) {
+      pdfDocument
+        .getOutline()
+        .then((outline) => {
+          try {
+            onTocReady(pdfOutlineToToc(outline));
+          } catch (e) {
+            console.warn('PDFView: onTocReady handler threw:', e?.message);
+          }
+        })
+        .catch((err) => {
+          console.warn('PDFView: getOutline failed:', err?.message);
+          try {
+            onTocReady([]);
+          } catch (_) {
+            /* ignore */
+          }
+        });
+    }
+    // Subscribe to PDF.js pagechanging so the floating toolbar's page
+    // counter + prev/next disabled state track actual viewer state.
+    // Without this, page.curPage stays at 1 forever for PDFs and the
+    // prev button stays grayed out.
+    //
+    // PdfHighlighter debounces viewer construction by 100ms after the
+    // document is set, so getViewer() returns null on the first pass.
+    // Poll briefly until the viewer + its eventBus are live, then attach.
+    let cancelled = false;
+    let attachedBus = null;
+    let timeoutId = null;
+    const handler = (e) => {
+      setCurrentPage(e.pageNumber);
+      if (onPageChange) {
+        onPageChange({
+          curPage: e.pageNumber,
+          totalPages: pdfDocument.numPages,
+          curChapter: book?.title || '',
+          curChapterId: '',
+        });
+      }
+      emitPageText(e.pageNumber);
+    };
+    const trySubscribe = () => {
+      if (cancelled) return;
+      const v = highlighterUtilsRef.current?.getViewer?.();
+      const bus = v?.eventBus;
+      if (!bus) {
+        timeoutId = setTimeout(trySubscribe, 50);
+        return;
+      }
+      bus.on('pagechanging', handler);
+      attachedBus = bus;
+    };
+    trySubscribe();
+    return () => {
+      cancelled = true;
+      if (timeoutId) clearTimeout(timeoutId);
+      if (attachedBus) {
+        try {
+          attachedBus.off('pagechanging', handler);
+        } catch (_) {
+          /* viewer torn down between effect + cleanup */
+        }
+      }
+    };
   }, [pdfDocument]);
+
+  // Surface a stable control API to the parent so the global floating
+  // toolbar (ReadingControls) can drive PDF navigation + zoom. Each call
+  // reaches into the live viewer; safe to invoke before the document is
+  // loaded (no-op when viewer is null).
+  useEffect(() => {
+    if (!onControlsReady) return;
+    onControlsReady({
+      prevPage: () => {
+        const v = highlighterUtilsRef.current?.getViewer?.();
+        if (!v) return;
+        v.currentPageNumber = Math.max(1, (v.currentPageNumber || 1) - 1);
+      },
+      nextPage: () => {
+        const v = highlighterUtilsRef.current?.getViewer?.();
+        if (!v) return;
+        const max = v.pagesCount || 1;
+        v.currentPageNumber = Math.min(max, (v.currentPageNumber || 1) + 1);
+      },
+      zoomIn: () => {
+        setPdfScaleValue((prev) => {
+          const n = typeof prev === 'number' ? prev : 1;
+          return Math.min(4, Number((n + 0.1).toFixed(2)));
+        });
+      },
+      zoomOut: () => {
+        setPdfScaleValue((prev) => {
+          const n = typeof prev === 'number' ? prev : 1;
+          return Math.max(0.2, Number((n - 0.1).toFixed(2)));
+        });
+      },
+    });
+  }, [onControlsReady]);
 
   // Handler for opening presentation modal
   const handleOpenPresentation = (htmlContent) => {
