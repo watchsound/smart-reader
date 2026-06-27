@@ -1000,6 +1000,9 @@ function EReaderPage() {
   const lastPageTextRef = useRef('');
   const currentChapterRef = useRef({ id: null, name: null });
   const dispatchForum = useDispatch();
+  // Stash the curPage at the moment a discussion is opened so handlePageChange
+  // can clear the panel when the user navigates away from that page.
+  const forumPageAtOpenRef = useRef(null);
   const handleDiscussClick = useCallback(() => {
     if (!book?.id) return;
     const anchor = buildAnchor({
@@ -1017,6 +1020,8 @@ function EReaderPage() {
         ? selectedText
         : lastPageTextRef.current;
     if (!passageText) return;
+    // Stash the page-at-open so handlePageChange knows when to auto-hide.
+    forumPageAtOpenRef.current = page?.curPage ?? null;
     dispatchForum(
       communityNoteSelected({
         anchor,
@@ -1025,7 +1030,7 @@ function EReaderPage() {
         chapterTitle: currentChapterRef.current?.name || '',
       }),
     );
-  }, [book, selectedText, dispatchForum]);
+  }, [book, selectedText, dispatchForum, page]);
 
   // Handle mindmap results from PDF/EPUB views
   const handleMindMapResult = useCallback(
@@ -1106,8 +1111,20 @@ function EReaderPage() {
     (pageInfo) => {
       setPage(pageInfo);
       trackPageChange(pageInfo);
+      // Hide an active Study Forum discussion when the user moves to a
+      // different page. The discussion is anchored to a specific spot —
+      // showing it on an unrelated page is misleading. Reopening on the
+      // original page hits the DB cache (no new LLM cost).
+      if (
+        forumPageAtOpenRef.current != null &&
+        pageInfo?.curPage != null &&
+        pageInfo.curPage !== forumPageAtOpenRef.current
+      ) {
+        forumPageAtOpenRef.current = null;
+        dispatchForum(communityNoteSelected(null));
+      }
     },
-    [trackPageChange],
+    [trackPageChange, dispatchForum],
   );
 
   // Phase 4b: in-reading micro-card proposals (EPUB only for now).

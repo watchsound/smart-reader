@@ -41,13 +41,20 @@ export default function ForumTurnCard({ turn }) {
   const color = PERSONA_COLORS[turn.persona] || '#999';
   const label = isUser ? 'You' : (persona && persona.name) || turn.persona;
   const role = isUser ? '' : (persona && persona.role) || '';
+  // Persona avatar shows the cartoon emoji; user avatar falls back to initial.
+  const avatarContent = isUser ? label[0] : persona?.emoji || label[0];
 
   return (
     <TurnRow isUser={isUser}>
       <Avatar
-        sx={{ width: 32, height: 32, bgcolor: color, fontSize: '0.85rem' }}
+        sx={{
+          width: 36,
+          height: 36,
+          bgcolor: color,
+          fontSize: isUser ? '0.85rem' : '1.1rem',
+        }}
       >
-        {label[0]}
+        {avatarContent}
       </Avatar>
       <Box sx={{ flex: '0 1 auto' }}>
         <Box

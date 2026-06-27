@@ -42,9 +42,9 @@ export default function ForumReplyInput({ onSubmit, disabled }) {
               <Avatar
                 onClick={() => setAddressedTo(active ? null : id)}
                 sx={{
-                  width: 28,
-                  height: 28,
-                  fontSize: '0.7rem',
+                  width: 32,
+                  height: 32,
+                  fontSize: '1rem',
                   cursor: 'pointer',
                   bgcolor: active
                     ? PERSONA_COLORS[id]
@@ -52,7 +52,7 @@ export default function ForumReplyInput({ onSubmit, disabled }) {
                   border: active ? `2px solid ${PERSONA_COLORS[id]}` : 'none',
                 }}
               >
-                {p.name[0]}
+                {p.emoji || p.name[0]}
               </Avatar>
             </Tooltip>
           );
