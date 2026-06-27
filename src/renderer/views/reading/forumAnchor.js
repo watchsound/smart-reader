@@ -41,4 +41,38 @@ function buildAnchor({
   };
 }
 
-module.exports = { buildAnchor, passageHash };
+/**
+ * Pick the discussion (if any) that should auto-open when a page is shown.
+ *
+ * Priority:
+ *   1. Selection-based discussions whose selectionText appears in the page text,
+ *      most-recently-active first.
+ *   2. Whole-page discussions whose pageTextHash matches the current page,
+ *      most-recently-active first.
+ *
+ * Returns null when no discussion fits (caller clears the panel).
+ */
+function pickDiscussionForPage(discussions, pageText) {
+  if (!Array.isArray(discussions) || discussions.length === 0) return null;
+  if (!pageText || typeof pageText !== 'string') return null;
+
+  const byRecency = (a, b) => (b.lastReplyAt || 0) - (a.lastReplyAt || 0);
+
+  const selectionMatch = discussions
+    .filter(
+      (d) =>
+        d.selectionText &&
+        typeof d.selectionText === 'string' &&
+        pageText.includes(d.selectionText),
+    )
+    .sort(byRecency)[0];
+  if (selectionMatch) return selectionMatch;
+
+  const pageHash = passageHash(pageText);
+  const wholePageMatch = discussions
+    .filter((d) => !d.selectionText && d.pageTextHash === pageHash)
+    .sort(byRecency)[0];
+  return wholePageMatch || null;
+}
+
+module.exports = { buildAnchor, passageHash, pickDiscussionForPage };

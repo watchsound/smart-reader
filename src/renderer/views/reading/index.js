@@ -64,7 +64,8 @@ import findTocMatch from '../../utils/findTocMatch';
 import RightCollapsibleLayout from '../../components/layout/RightCollapsibleLayout';
 import CommunityPanel from './CommunityPanel';
 import ForumMarkerLayer from './ForumMarkerLayer';
-import { buildAnchor } from './forumAnchor';
+import { buildAnchor, pickDiscussionForPage } from './forumAnchor';
+import forumApi from '../../api/forumApi';
 import {
   currentBookHandled,
   communityNoteSelected,
@@ -1586,6 +1587,28 @@ function EReaderPage() {
           name: context.chapterTitle || currentChapterRef.current.name,
         };
       }
+
+      // Study Forum auto-show: when the new page has a discussion matching it
+      // (selection text appears in the page, or whole-page hash matches),
+      // surface that discussion in the panel. If none matches, the
+      // handlePageChange clear (already dispatched) keeps the panel empty.
+      const chapterIdNow = currentChapterRef.current?.id;
+      if (book?.id && chapterIdNow) {
+        // eslint-disable-next-line promise/catch-or-return
+        forumApi
+          .listByChapter({ bookId: book.id, chapterId: chapterIdNow })
+          .then((discussions) => {
+            const matched = pickDiscussionForPage(discussions, text);
+            if (matched) {
+              forumPageAtOpenRef.current = page?.curPage ?? null;
+              dispatchForum(communityNoteSelected(matched));
+            }
+            return null;
+          })
+          .catch(() => {
+            // ignore — auto-show is best-effort
+          });
+      }
       const paragraphs = text
         .split(/\n\n+/)
         .map((p) => p.trim())
@@ -1642,7 +1665,13 @@ function EReaderPage() {
         }
       }
     },
-    [processProposalText, trackComprehensionText, book?.id],
+    [
+      processProposalText,
+      trackComprehensionText,
+      book?.id,
+      dispatchForum,
+      page,
+    ],
   );
 
   const handleTabChange = (event, newValue) => {
