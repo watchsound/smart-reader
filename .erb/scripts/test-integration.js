@@ -209,6 +209,7 @@ function runJest() {
     'src/__tests__/utils/',
     'src/__tests__/brain/SessionRunner.attribution.test.js',
     'src/__tests__/ipc/microCardHandlers.masteryEvent.test.js',
+    'src/__tests__/ipc/forumHandlers.test.js',
     '--no-coverage',
     // Override testPathIgnorePatterns from package.json — those exclusions
     // exist so `npm test` skips DB-touching files; this runner explicitly

@@ -2,7 +2,7 @@
 const intents = require('../../main/brain/spine/intents');
 
 describe('seed intents', () => {
-  test('all 14 spec intents are registered', () => {
+  test('all spec intents are registered', () => {
     const names = intents.list();
     const expected = [
       'argument-xray',
@@ -16,6 +16,8 @@ describe('seed intents', () => {
       'schedule-production-prompt',
       'schedule-reread',
       'session-soft-write',
+      'simulate-forum-reply',
+      'simulate-forum-seed',
       'suggest-organize',
       'synthesize-pull-suggestion',
       'tutor-context',

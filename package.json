@@ -105,7 +105,8 @@
       "src/__tests__/spine/",
       "src/__tests__/utils/",
       "src/__tests__/brain/SessionRunner.attribution.test.js",
-      "src/__tests__/ipc/microCardHandlers.masteryEvent.test.js"
+      "src/__tests__/ipc/microCardHandlers.masteryEvent.test.js",
+      "src/__tests__/ipc/forumHandlers.test.js"
     ],
     "transform": {
       "\\.(ts|tsx|js|jsx)$": "ts-jest"
@@ -289,6 +290,7 @@
     "tsconfig-paths-webpack-plugin": "^4.1.0",
     "typescript": "^5.2.2",
     "url-loader": "^4.1.1",
+    "web-worker": "^1.5.0",
     "webpack": "^5.88.2",
     "webpack-bundle-analyzer": "^4.9.1",
     "webpack-cli": "^5.1.4",
