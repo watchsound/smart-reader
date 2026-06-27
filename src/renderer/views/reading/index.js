@@ -2,7 +2,13 @@
 /* eslint-disable react/prop-types */
 /* eslint-disable react/require-default-props */
 /* eslint-disable react-hooks/exhaustive-deps */
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, {
+  useEffect,
+  useState,
+  useCallback,
+  useRef,
+  useMemo,
+} from 'react';
 import { styled, alpha, useTheme } from '@mui/material/styles';
 import Typography from '@mui/material/Typography';
 import PropTypes from 'prop-types';
@@ -39,9 +45,11 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import AutoGraphIcon from '@mui/icons-material/AutoGraph';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
+import PlaceIcon from '@mui/icons-material/Place';
 import ShareIcon from '@mui/icons-material/Share';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import DownloadIcon from '@mui/icons-material/Download';
+import ForumIcon from '@mui/icons-material/Forum';
 
 import join from '../../../commons/utils/content/joinUtil';
 
@@ -51,21 +59,38 @@ import BookNotesPanel from './BookNotesPanel';
 import SearchResultPane from './SearchResultPane';
 import customStorage from '../../store/customStorage';
 import { getBookById } from '../../api/booksApi';
+import { bookApi } from '../../store/api/bookApiSlice';
+import findTocMatch from '../../utils/findTocMatch';
 import RightCollapsibleLayout from '../../components/layout/RightCollapsibleLayout';
 import CommunityPanel from './CommunityPanel';
-import { currentBookHandled } from '../../store/reducers/readerSlice';
+import ForumMarkerLayer from './ForumMarkerLayer';
+import { buildAnchor } from './forumAnchor';
+import {
+  currentBookHandled,
+  communityNoteSelected,
+} from '../../store/reducers/readerSlice';
 import InContextChatPanel from '../../components/chat/InContextChatPanel';
 import ErrorBoundary from '../../ErrorBoundary';
-import graphApi from '../../api/graphApi';
 import ReadingHeader from './ReadingHeader';
 import ReadingControls from './ReadingControls';
 import useReadingEpisodes from './hooks/useReadingEpisodes';
 import useMicroCardProposals from './hooks/useMicroCardProposals';
 import useComprehensionCheck from './hooks/useComprehensionCheck';
 import MicroCardChip from './MicroCardChip';
-import PreReadingPanel from './PreReadingPanel';
+import BookMapPanel from './BookMapPanel';
 import ComprehensionPanel from './ComprehensionPanel';
+import ChapterConceptsBanner from './ChapterConceptsBanner';
+import OnThisPageIndicator from './OnThisPageIndicator';
+import { getChapterConcepts, partitionByKnown } from './chapterConceptsLookup';
+import { findConceptsInText } from '../../../commons/utils/conceptTextMatcher';
+import { pickNewEncounters } from './encounterDedup';
+import { mergeConceptsForBook, buildChapterPath } from './bookConceptsView';
+import {
+  getLearningPathEmptyText,
+  getNeedsReviewEmptyText,
+} from './knowledgePanelCopy';
 import bookDiagnosticApi from '../../api/bookDiagnosticApi';
+import conceptApi from '../../api/conceptApi';
 import comprehensionApi from '../../api/comprehensionApi';
 import rereadQueueApi from '../../api/rereadQueueApi';
 import { recordEvent } from '../../api/brainApi';
@@ -137,16 +162,18 @@ const PageEdgeRight = styled(Box)(({ theme }) => ({
   zIndex: 2,
 }));
 
-// Sidebar styles matching BookmarksPage
+// Sidebar styles matching BookmarksPage. Width is now controlled by the
+// surrounding RightCollapsibleLayout so the user can drag-resize it; let the
+// sidebar fill whatever width the layout grants.
 const ReadingSidebar = styled(Box)(({ theme }) => ({
-  width: 340,
-  minWidth: 340,
+  width: '100%',
+  minWidth: 0,
   height: '100%',
   backgroundColor: theme.palette.background.paper,
   borderLeft: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
   display: 'flex',
   flexDirection: 'column',
-  transition: 'transform 0.3s ease, width 0.3s ease',
+  transition: 'transform 0.3s ease',
 }));
 
 // Professional styled tabs matching bookmark view
@@ -208,23 +235,6 @@ const ConceptItem = styled(ListItem)(({ theme }) => ({
     transform: 'translateX(4px)',
   },
 }));
-
-const MasteryBar = styled(LinearProgress)(({ theme, value }) => {
-  const getColor = (v) => {
-    if (v >= 80) return theme.palette.success.main;
-    if (v >= 50) return theme.palette.warning.main;
-    return theme.palette.error.main;
-  };
-  return {
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: alpha(theme.palette.text.primary, 0.08),
-    '& .MuiLinearProgress-bar': {
-      backgroundColor: getColor(value),
-      borderRadius: 3,
-    },
-  };
-});
 
 const StyledTab = styled((props) => <Tab disableRipple {...props} />)(
   ({ theme }) => ({
@@ -312,7 +322,13 @@ function a11yProps(index) {
 }
 
 // Knowledge Panel Component for Reading View
-function BookKnowledgePanel({ bookId, bookTitle }) {
+function BookKnowledgePanel({
+  bookId,
+  bookTitle,
+  diagnostic,
+  bookConcepts,
+  currentChapterName,
+}) {
   const theme = useTheme();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -320,13 +336,23 @@ function BookKnowledgePanel({ bookId, bookTitle }) {
   const [learningPathOpen, setLearningPathOpen] = useState(true);
   const [weakConceptsOpen, setWeakConceptsOpen] = useState(false);
 
-  const [relatedConcepts, setRelatedConcepts] = useState([]);
-  const [learningPath, setLearningPath] = useState(null);
   const [weakConcepts, setWeakConcepts] = useState([]);
+  // Book Concepts + Learning Path are now derived from props (diagnostic +
+  // bookConcepts), not from a separate graph fetch — Phase 5's data is the
+  // authoritative "what concepts does this book contain" source.
+  const mergedConcepts = useMemo(
+    () => mergeConceptsForBook(diagnostic, bookConcepts),
+    [diagnostic, bookConcepts],
+  );
+  const chapterPath = useMemo(
+    () => buildChapterPath(diagnostic, bookConcepts, currentChapterName),
+    [diagnostic, bookConcepts, currentChapterName],
+  );
   const [bookStats, setBookStats] = useState({
     concepts: 0,
     mastered: 0,
     progress: 0,
+    encountered: 0,
   });
 
   // Race guard: loadKnowledgeData is invoked from both the auto-load
@@ -341,47 +367,17 @@ function BookKnowledgePanel({ bookId, bookTitle }) {
 
     setLoading(true);
     try {
-      // Load concepts related to this book
-      const graphData = await graphApi.getKnowledgeGraphData({
-        sourceKey: bookId,
+      // Weak-concepts feed for the "Needs Review" section. Book-scoped query
+      // over the concept table — see ConceptManager.listWeakByBook. The rest
+      // of the panel (Book Concepts + Learning Path) is derived from props.
+      const token = await customStorage.getToken();
+      const weakRows = await conceptApi.listWeakByBook({
+        bookId,
+        limit: 3,
+        token,
       });
       if (isStale()) return;
-      if (graphData?.nodes) {
-        const bookConcepts = graphData.nodes.slice(0, 6);
-        setRelatedConcepts(bookConcepts);
-
-        // Calculate book-specific stats
-        const mastered = bookConcepts.filter(
-          (n) => (n.mastery || 0) >= 80,
-        ).length;
-        const totalMastery = bookConcepts.reduce(
-          (sum, n) => sum + (n.mastery || 0),
-          0,
-        );
-        const avgProgress =
-          bookConcepts.length > 0
-            ? Math.round(totalMastery / bookConcepts.length)
-            : 0;
-        setBookStats({
-          concepts: bookConcepts.length,
-          mastered,
-          progress: avgProgress,
-        });
-      }
-
-      // Load weak concepts for this book
-      const weakData = await graphApi.getWeakConcepts(3);
-      if (isStale()) return;
-      if (weakData?.concepts) {
-        setWeakConcepts(weakData.concepts.slice(0, 3));
-      }
-
-      // Load learning path
-      const pathData = await graphApi.getLearningPath();
-      if (isStale()) return;
-      if (pathData?.path) {
-        setLearningPath(pathData);
-      }
+      setWeakConcepts(Array.isArray(weakRows) ? weakRows : []);
     } catch (error) {
       if (isStale()) return;
       console.log('Knowledge data not available:', error.message);
@@ -390,6 +386,24 @@ function BookKnowledgePanel({ bookId, bookTitle }) {
       setLoading(false);
     }
   }, [bookId]);
+
+  // Stats follow the merged concept view — single source of truth so the
+  // header chips and the Book Concepts list can never disagree.
+  useEffect(() => {
+    const total = mergedConcepts.length;
+    const mastered = mergedConcepts.filter(
+      (c) => c.state === 'mastered',
+    ).length;
+    const encountered = mergedConcepts.filter(
+      (c) => c.state === 'encountered' || c.state === 'mastered',
+    ).length;
+    const totalMastery = mergedConcepts.reduce(
+      (sum, c) => sum + (c.mastery || 0),
+      0,
+    );
+    const progress = total > 0 ? Math.round(totalMastery / total) : 0;
+    setBookStats({ concepts: total, mastered, encountered, progress });
+  }, [mergedConcepts]);
 
   useEffect(() => {
     if (bookId) {
@@ -510,6 +524,18 @@ function BookKnowledgePanel({ bookId, bookTitle }) {
               '& .MuiChip-icon': { color: theme.palette.warning.main },
             }}
           />
+          <Chip
+            size="small"
+            icon={<PlaceIcon sx={{ fontSize: '12px !important' }} />}
+            label={`${bookStats.encountered} Encountered`}
+            sx={{
+              bgcolor: alpha(theme.palette.secondary.main, 0.1),
+              color: theme.palette.secondary.main,
+              fontSize: '0.65rem',
+              height: 22,
+              '& .MuiChip-icon': { color: theme.palette.secondary.main },
+            }}
+          />
         </Box>
       </Box>
 
@@ -541,49 +567,61 @@ function BookKnowledgePanel({ bookId, bookTitle }) {
           </SectionHeader>
           <Collapse in={relatedConceptsOpen}>
             <List dense disablePadding sx={{ py: 0.5 }}>
-              {relatedConcepts.length === 0 ? (
+              {mergedConcepts.length === 0 ? (
                 <ListItem>
                   <Typography
                     variant="caption"
                     color="text.secondary"
                     sx={{ fontStyle: 'italic', px: 1 }}
                   >
-                    Take notes to discover concepts in this book.
+                    Open the Book Map tab to generate concept estimates.
                   </Typography>
                 </ListItem>
               ) : (
-                relatedConcepts.map((concept) => (
-                  <ConceptItem key={concept.id} disablePadding>
-                    <ListItemText
-                      primary={concept.name}
-                      secondary={
-                        <Box sx={{ mt: 0.5 }}>
-                          <MasteryBar
-                            variant="determinate"
-                            value={concept.mastery || 0}
-                          />
-                        </Box>
-                      }
-                      primaryTypographyProps={{
-                        variant: 'body2',
-                        fontWeight: 500,
-                        fontSize: '0.8rem',
-                        noWrap: true,
-                      }}
-                    />
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        fontWeight: 600,
-                        color: theme.palette.text.secondary,
-                        ml: 1,
-                        fontSize: '0.7rem',
-                      }}
-                    >
-                      {concept.mastery || 0}%
-                    </Typography>
-                  </ConceptItem>
-                ))
+                mergedConcepts.map((c) => {
+                  const conceptStateColor = {
+                    mastered: theme.palette.success.main,
+                    encountered: theme.palette.secondary.main,
+                    familiar: theme.palette.info.main,
+                    new: theme.palette.grey[400],
+                  };
+                  const conceptStateLabel = {
+                    mastered: `Mastered · ${Math.round(c.mastery)}%`,
+                    encountered: `Encountered ${c.encounterCount}×`,
+                    familiar: 'You already know this',
+                    new: 'Not yet encountered',
+                  };
+                  return (
+                    <ConceptItem key={c.name} disablePadding>
+                      <Box
+                        sx={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: '50%',
+                          bgcolor:
+                            conceptStateColor[c.state] ||
+                            theme.palette.grey[400],
+                          mr: 1,
+                          flexShrink: 0,
+                        }}
+                      />
+                      <ListItemText
+                        primary={c.name}
+                        secondary={conceptStateLabel[c.state] || ''}
+                        primaryTypographyProps={{
+                          variant: 'body2',
+                          fontWeight: 500,
+                          fontSize: '0.8rem',
+                          noWrap: true,
+                        }}
+                        secondaryTypographyProps={{
+                          variant: 'caption',
+                          fontSize: '0.65rem',
+                        }}
+                      />
+                    </ConceptItem>
+                  );
+                })
               )}
             </List>
           </Collapse>
@@ -612,31 +650,37 @@ function BookKnowledgePanel({ bookId, bookTitle }) {
             )}
           </SectionHeader>
           <Collapse in={learningPathOpen}>
-            {!learningPath ? (
+            {chapterPath.chapters.length === 0 ? (
               <Box sx={{ p: 2 }}>
                 <Typography
                   variant="caption"
                   color="text.secondary"
                   sx={{ fontStyle: 'italic' }}
                 >
-                  Complete more notes to generate a learning path.
+                  {getLearningPathEmptyText(bookStats.concepts)}
                 </Typography>
               </Box>
             ) : (
               <Box sx={{ p: 2 }}>
+                {/* Aggregate progress strip */}
                 <Box
                   sx={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: 1.5,
-                    mb: 1,
+                    mb: 1.5,
                   }}
                 >
                   <CircularProgress
                     variant="determinate"
                     value={
-                      (learningPath.completedSteps / learningPath.totalSteps) *
-                      100
+                      chapterPath.totalConcepts > 0
+                        ? Math.round(
+                            (chapterPath.totalEncountered /
+                              chapterPath.totalConcepts) *
+                              100,
+                          )
+                        : 0
                     }
                     size={28}
                     thickness={4}
@@ -647,31 +691,81 @@ function BookKnowledgePanel({ bookId, bookTitle }) {
                       variant="body2"
                       sx={{ fontWeight: 600, fontSize: '0.8rem' }}
                     >
-                      {learningPath.completedSteps}/{learningPath.totalSteps}{' '}
-                      Steps
+                      {chapterPath.totalEncountered}/{chapterPath.totalConcepts}{' '}
+                      encountered
                     </Typography>
                     <Typography
                       variant="caption"
                       color="text.secondary"
                       sx={{ fontSize: '0.65rem' }}
                     >
-                      ~{learningPath.estimatedMinutes} min remaining
+                      {chapterPath.totalMastered} mastered ·{' '}
+                      {chapterPath.chapters.length} chapters
                     </Typography>
                   </Box>
                 </Box>
-                {learningPath.nextConcept && (
-                  <Chip
-                    label={`Next: ${learningPath.nextConcept.name}`}
-                    size="small"
-                    sx={{
-                      bgcolor: alpha(theme.palette.primary.main, 0.1),
-                      color: theme.palette.primary.main,
-                      fontWeight: 500,
-                      fontSize: '0.65rem',
-                      height: 22,
-                    }}
-                  />
-                )}
+
+                {/* Chapter-by-chapter path */}
+                <List dense disablePadding sx={{ py: 0 }}>
+                  {chapterPath.chapters.map((ch) => {
+                    const bulletByStatus = {
+                      past: theme.palette.success.main,
+                      current: theme.palette.primary.main,
+                      upcoming: theme.palette.grey[400],
+                    };
+                    const bullet =
+                      bulletByStatus[ch.status] || theme.palette.grey[400];
+                    return (
+                      <ListItem
+                        key={ch.title}
+                        disablePadding
+                        sx={{
+                          py: 0.5,
+                          opacity: ch.status === 'upcoming' ? 0.65 : 1,
+                          bgcolor:
+                            ch.status === 'current'
+                              ? alpha(theme.palette.primary.main, 0.06)
+                              : 'transparent',
+                          borderRadius: 1,
+                          px: 0.75,
+                        }}
+                      >
+                        <Box
+                          sx={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: '50%',
+                            bgcolor: bullet,
+                            mr: 1,
+                            flexShrink: 0,
+                          }}
+                        />
+                        <ListItemText
+                          primary={ch.title || '(untitled chapter)'}
+                          secondary={
+                            ch.total > 0
+                              ? `${ch.encountered}/${ch.total} encountered${
+                                  ch.mastered > 0
+                                    ? ` · ${ch.mastered} mastered`
+                                    : ''
+                                }`
+                              : 'no concepts estimated'
+                          }
+                          primaryTypographyProps={{
+                            variant: 'body2',
+                            fontWeight: ch.status === 'current' ? 700 : 500,
+                            fontSize: '0.75rem',
+                            noWrap: true,
+                          }}
+                          secondaryTypographyProps={{
+                            variant: 'caption',
+                            fontSize: '0.65rem',
+                          }}
+                        />
+                      </ListItem>
+                    );
+                  })}
+                </List>
               </Box>
             )}
           </Collapse>
@@ -721,7 +815,7 @@ function BookKnowledgePanel({ bookId, bookTitle }) {
                     color="text.secondary"
                     sx={{ fontStyle: 'italic', px: 1 }}
                   >
-                    All concepts are well understood!
+                    {getNeedsReviewEmptyText(bookStats.concepts)}
                   </Typography>
                 </ListItem>
               ) : (
@@ -838,27 +932,44 @@ function EReaderPage() {
   const { book, note } = useLoaderData();
   const dispatch = useDispatch();
 
-  // Reading-controls plumbing: capture the epub.js rendition so the
-  // floating toolbar's prev/next/zoom/font controls can actually drive it.
-  // Held in a ref so font-size useEffect doesn't re-render on every change.
+  // Reading-controls plumbing: capture the active reader's control API so
+  // the floating toolbar's prev/next/zoom controls can drive whichever
+  // viewer is mounted. EPub surfaces an epub.js rendition; PDF surfaces a
+  // small adapter object ({ prevPage, nextPage, zoomIn, zoomOut }).
+  // Held in refs so font-size useEffect doesn't re-render on every change.
   const renditionRef = useRef(null);
+  const pdfControlsRef = useRef(null);
   const handleRenditionReady = useCallback((rendition) => {
     renditionRef.current = rendition;
   }, []);
+  const handlePdfControlsReady = useCallback((controls) => {
+    pdfControlsRef.current = controls;
+  }, []);
+  const isPdf = book?.format === 'pdf';
 
   const handlePrevPage = useCallback(() => {
-    renditionRef.current?.prev?.();
-  }, []);
+    if (isPdf) pdfControlsRef.current?.prevPage?.();
+    else renditionRef.current?.prev?.();
+  }, [isPdf]);
   const handleNextPage = useCallback(() => {
-    renditionRef.current?.next?.();
-  }, []);
+    if (isPdf) pdfControlsRef.current?.nextPage?.();
+    else renditionRef.current?.next?.();
+  }, [isPdf]);
 
   const handleZoomIn = useCallback(() => {
-    setFontSize((v) => Math.min(150, (v || 100) + 10));
-  }, []);
+    if (isPdf) {
+      pdfControlsRef.current?.zoomIn?.();
+    } else {
+      setFontSize((v) => Math.min(150, (v || 100) + 10));
+    }
+  }, [isPdf]);
   const handleZoomOut = useCallback(() => {
-    setFontSize((v) => Math.max(75, (v || 100) - 10));
-  }, []);
+    if (isPdf) {
+      pdfControlsRef.current?.zoomOut?.();
+    } else {
+      setFontSize((v) => Math.max(75, (v || 100) - 10));
+    }
+  }, [isPdf]);
 
   // Apply font size to the EPUB rendition. epub.js' themes.fontSize takes
   // any CSS length — '%' keeps proportional sizing in the reader's own theme.
@@ -883,6 +994,39 @@ function EReaderPage() {
     setSelectedText(text || '');
   }, []);
 
+  // Study Forum: track latest page text + chapter so the floating Discuss
+  // button can build a Forum Anchor on click. Stored in refs (not state) —
+  // re-rendering on every page turn would re-trigger reading-view effects.
+  const lastPageTextRef = useRef('');
+  const currentChapterRef = useRef({ id: null, name: null });
+  const dispatchForum = useDispatch();
+  const handleDiscussClick = useCallback(() => {
+    if (!book?.id) return;
+    const anchor = buildAnchor({
+      bookId: book.id,
+      chapterId: currentChapterRef.current?.id || null,
+      cfiRange: null, // selection-cfi is not tracked at this layer in v1
+      selectionText: selectedText && selectedText.trim() ? selectedText : null,
+      passageText:
+        selectedText && selectedText.trim()
+          ? selectedText
+          : lastPageTextRef.current,
+    });
+    const passageText =
+      selectedText && selectedText.trim()
+        ? selectedText
+        : lastPageTextRef.current;
+    if (!passageText) return;
+    dispatchForum(
+      communityNoteSelected({
+        anchor,
+        passageText,
+        bookTitle: book.name || '',
+        chapterTitle: currentChapterRef.current?.name || '',
+      }),
+    );
+  }, [book, selectedText, dispatchForum]);
+
   // Handle mindmap results from PDF/EPUB views
   const handleMindMapResult = useCallback(
     (skillResult) => {
@@ -906,11 +1050,55 @@ function EReaderPage() {
     setChatPanelRef(ref);
   }, []);
 
+  // Chapter-start concepts banner state (declared above useReadingEpisodes so
+  // its onChapterEnter closure can read the latest diagnostic via a ref).
+  // `diagnostic` itself is set further down — the ref is synced render-time.
+  const latestDiagnosticRef = useRef(null);
+  const dismissedChaptersRef = useRef(new Set());
+  const [chapterBanner, setChapterBanner] = useState(null);
+  // Concepts (from Phase 5 diagnostic) detected in the text the user is
+  // currently viewing. Recomputed on each onPageText callback.
+  const [onPageConcepts, setOnPageConcepts] = useState([]);
+  // Phase 5b — per-session dedup so passive encounters record once per
+  // (book, chapter, concept) regardless of how many onPageText callbacks
+  // fire for the same view.
+  const seenEncountersRef = useRef(new Set());
+
+  const handleChapterEnterForBanner = useCallback(
+    ({ chapterId, chapterName }) => {
+      if (!chapterId) return;
+      if (dismissedChaptersRef.current.has(chapterId)) return;
+      const { estimatedConcepts, knownToReader } = getChapterConcepts(
+        latestDiagnosticRef.current,
+        chapterName,
+        chapterId,
+      );
+      if (estimatedConcepts.length === 0) {
+        setChapterBanner(null);
+        return;
+      }
+      const { fresh, familiar } = partitionByKnown({
+        estimatedConcepts,
+        knownToReader,
+      });
+      setChapterBanner({ chapterId, chapterName, fresh, familiar });
+    },
+    [],
+  );
+
+  const dismissChapterBanner = useCallback(() => {
+    setChapterBanner((prev) => {
+      if (prev?.chapterId) dismissedChaptersRef.current.add(prev.chapterId);
+      return null;
+    });
+  }, []);
+
   // Phase 2: silent reading-behavior collection — feeds the Brain's
   // mastery model for pre-book diagnostic, micro-card, and tutor-mode tuning.
   const { trackPageChange } = useReadingEpisodes({
     bookId: book?.id,
     bookType: book?.format,
+    onChapterEnter: handleChapterEnterForBanner,
   });
 
   // Handle page changes from EPUB/PDF views
@@ -935,91 +1123,90 @@ function EReaderPage() {
     enabled: book?.format === 'epub',
   });
 
-  // Phase 5: pre-book diagnostic + primer. Shows once per book on first
-  // open. EPUB-only for now (PDF/Word need their own TOC extractors).
+  // Phase 5: pre-book diagnostic now lives in a permanent sidebar panel
+  // (BookMapPanel), not a modal. On first open of any book — EPUB or PDF —
+  // we auto-run the diagnostic in the background and the panel reflects
+  // whatever data is available (cached, generating, or empty).
   const [tocFromReader, setTocFromReader] = useState(null);
-  const [diagPanelOpen, setDiagPanelOpen] = useState(false);
-  const [diagPanelState, setDiagPanelState] = useState('offer'); // offer | loading | result | error
   const [diagnostic, setDiagnostic] = useState(null);
+  // Render-time sync so the chapter-enter banner callback (declared earlier)
+  // can read the latest diagnostic without a useEffect-cycle lag.
+  latestDiagnosticRef.current = diagnostic;
+  const [diagLoading, setDiagLoading] = useState(false);
   const [diagErrorMessage, setDiagErrorMessage] = useState('');
-  // Latch — never re-evaluate "should I open the panel?" within a single
-  // session, even if React re-runs the effect with the same dependencies.
-  const diagDecidedRef = React.useRef(false);
+  // Phase 6.5 — Concept rows extracted from chapter text (graph-side).
+  // Hydrated on book mount + refreshed after each successful chapter
+  // extraction so the Book Map panel can overlay confirmed/known status.
+  const [bookConcepts, setBookConcepts] = useState([]);
+  // Latch — never re-trigger the first-open auto-run more than once per
+  // book mount, even if React re-runs the effect with the same deps.
+  const diagAutoRanRef = React.useRef(false);
 
   const handleTocReady = useCallback((rawToc) => {
     setTocFromReader(rawToc || []);
   }, []);
 
-  // React-Router can swap the book within the same EReaderPage instance
-  // (e.g. user opens book A, dismisses panel, then navigates to book B).
-  // Reset the latch + transient state so book B gets its own first-open
-  // evaluation. The loader-fresh `book` object's firstOpenedAt is the
-  // source of truth for whether the panel should show.
+  // Reset on book change. The loader-fresh `book` object is the source of
+  // truth for whether this is the first open of THIS book in this session.
   useEffect(() => {
-    diagDecidedRef.current = false;
+    diagAutoRanRef.current = false;
     setTocFromReader(null);
-    setDiagPanelOpen(false);
     setDiagnostic(null);
+    setDiagLoading(false);
     setDiagErrorMessage('');
+    setBookConcepts([]);
+    setChapterBanner(null);
+    dismissedChaptersRef.current = new Set();
+    setOnPageConcepts([]);
+    seenEncountersRef.current = new Set();
   }, [book?.id]);
 
-  // First-open detection — runs once TOC has arrived. We don't gate on
-  // book.firstOpenedAt from the loader alone because if a cached diagnostic
-  // exists we still want to surface it (rare path: user dismissed before
-  // result). The handler checks markOpened.wasFirstOpen as the source of
-  // truth and skips the panel otherwise.
-  useEffect(() => {
-    if (diagDecidedRef.current) return;
+  // Load extracted Concept rows for this book on mount. The Book Map
+  // panel overlays these onto the Phase 5 diagnostic — concepts that
+  // are confirmed in the graph get a green "✓" badge / mastered color.
+  const reloadBookConcepts = useCallback(async () => {
     if (!book?.id) return;
-    if (book.format !== 'epub') return;
-    if (!tocFromReader) return; // wait for TOC
-    diagDecidedRef.current = true;
+    try {
+      const token = await customStorage.getToken();
+      const rows = await conceptApi.listByBook({ bookId: book.id, token });
+      setBookConcepts(Array.isArray(rows) ? rows : []);
+    } catch (err) {
+      console.warn('[BookConcepts] list-by-book failed:', err?.message);
+    }
+  }, [book?.id]);
 
+  useEffect(() => {
+    reloadBookConcepts();
+  }, [reloadBookConcepts]);
+
+  // Load cached diagnostic on mount so the panel reflects existing data
+  // immediately — independent of TOC arrival, which can be slow on big
+  // PDFs. If no cached data and the book is on its first open, the
+  // auto-run effect below will populate it.
+  useEffect(() => {
+    if (!book?.id) return undefined;
+    let cancelled = false;
     (async () => {
-      const token = await customStorage.getToken();
-      // If the book has already been opened before, skip the panel — but
-      // still tolerate the race where TOC arrives before markOpened ran by
-      // checking the live DB flag (firstOpenedAt) via a quick get.
-      if (book.firstOpenedAt) return;
-      // Pre-check the cache; if present, we'll just open straight to result.
-      let cached = null;
       try {
-        cached = await bookDiagnosticApi.get({ bookId: book.id, token });
+        const token = await customStorage.getToken();
+        const cached = await bookDiagnosticApi.get({ bookId: book.id, token });
+        if (cancelled) return;
+        if (cached && !cached.error) setDiagnostic(cached);
       } catch (_) {
-        /* ignore */
+        /* ignore — empty panel state is fine */
       }
-      if (cached && !cached.error) {
-        setDiagnostic(cached);
-        setDiagPanelState('result');
-      } else {
-        setDiagPanelState('offer');
-      }
-      setDiagPanelOpen(true);
     })();
-  }, [book, tocFromReader]);
+    return () => {
+      cancelled = true;
+    };
+  }, [book?.id]);
 
-  const handleDiagSkip = useCallback(async () => {
-    setDiagPanelOpen(false);
-    try {
-      const token = await customStorage.getToken();
-      await bookDiagnosticApi.markOpened({ bookId: book.id, token });
-    } catch (err) {
-      console.warn('[PreReadingPanel] markOpened failed:', err);
-    }
-  }, [book]);
-
-  const handleDiagStartReading = useCallback(async () => {
-    setDiagPanelOpen(false);
-    try {
-      const token = await customStorage.getToken();
-      await bookDiagnosticApi.markOpened({ bookId: book.id, token });
-    } catch (err) {
-      console.warn('[PreReadingPanel] markOpened failed:', err);
-    }
-  }, [book]);
-
-  const handleDiagRun = useCallback(async () => {
-    setDiagPanelState('loading');
+  // Core generation routine — used by both the first-open auto-run and the
+  // user-driven Generate / Regenerate buttons. `markOpened` is fired on
+  // first open regardless so the auto-run only happens once.
+  const runDiagnostic = useCallback(async () => {
+    if (!book?.id) return;
+    setDiagLoading(true);
     setDiagErrorMessage('');
     try {
       const token = await customStorage.getToken();
@@ -1030,16 +1217,113 @@ function EReaderPage() {
       });
       if (!result || result.error) {
         setDiagErrorMessage(result?.error || 'Unknown error.');
-        setDiagPanelState('error');
       } else {
         setDiagnostic(result);
-        setDiagPanelState('result');
+        // diagnostic_data was just written on the book row — invalidate
+        // the RTK Query cache so the bookshelf readiness chip reflects
+        // the new value next time the user navigates back. Without this,
+        // the user generates a map here but the bookshelf card shows
+        // no chip until a hard reload.
+        dispatch(bookApi.util.invalidateTags(['Book']));
       }
     } catch (err) {
       setDiagErrorMessage(err?.message || 'Diagnostic call failed.');
-      setDiagPanelState('error');
+    } finally {
+      setDiagLoading(false);
     }
-  }, [book, tocFromReader]);
+  }, [book, tocFromReader, dispatch]);
+
+  // Auto-run on first open. Requires TOC because the diagnostic needs
+  // chapter labels; for PDFs without an outline PDFView emits []. Empty TOC
+  // means "no map possible for this book" — surface the empty state rather
+  // than burning an AI call on no input.
+  useEffect(() => {
+    if (diagAutoRanRef.current) return;
+    if (!book?.id) return;
+    if (!tocFromReader) return; // wait for TOC (or empty array)
+    diagAutoRanRef.current = true;
+
+    (async () => {
+      try {
+        const token = await customStorage.getToken();
+        // markOpened is idempotent — second call returns wasFirstOpen:false
+        // so re-mounts don't re-trigger the auto-run.
+        const opened = await bookDiagnosticApi.markOpened({
+          bookId: book.id,
+          token,
+        });
+        if (!opened?.wasFirstOpen) return;
+        if (book.firstOpenedAt) return; // belt-and-suspenders
+        if (!Array.isArray(tocFromReader) || tocFromReader.length === 0) return;
+        // Skip if we already loaded a cached diagnostic from the earlier
+        // effect — no point re-running an AI call when fresh data exists.
+        if (diagnostic) return;
+        await runDiagnostic();
+      } catch (err) {
+        console.warn('[BookMap] auto-run failed:', err?.message);
+      }
+    })();
+  }, [book, tocFromReader, diagnostic, runDiagnostic]);
+
+  const handleJumpToChapter = useCallback(
+    (chapter) => {
+      // Chapter-jump only works on EPUB today (we have CFI hrefs in the
+      // toc); PDFView's destination resolution would need a separate
+      // mapping. The chapter row stays interactive for EPUB only.
+      if (!chapter || !renditionRef.current) return;
+      if (book?.format !== 'epub') return;
+      // The AI is asked to "echo the title" verbatim but real providers
+      // drift on whitespace / smart quotes / case. `findTocMatch` widens
+      // the lookup in three deterministic stages — exact → normalized →
+      // contains — so cosmetic drift doesn't break the jump.
+      const tocItem = findTocMatch(tocFromReader || [], chapter.title);
+      if (tocItem?.href) {
+        try {
+          renditionRef.current.display(tocItem.href);
+        } catch (_) {
+          /* rendition torn down between click + display */
+        }
+      }
+    },
+    [book, tocFromReader],
+  );
+
+  // Phase 6.5 — fire concept extraction on the FINAL chapter the user
+  // read (book close or book change). The comprehension hook only emits
+  // pendingOffers on chapter CHANGE, which means the last chapter would
+  // otherwise never extract. `onChapterFlushed` is the hook's unmount-
+  // safe escape hatch.
+  const handleChapterFlushed = useCallback(
+    async (snapshot) => {
+      if (!snapshot || !snapshot.bookId || !snapshot.textExcerpt) return;
+      try {
+        const token = await customStorage.getToken();
+        const chapterEstimate =
+          diagnostic && Array.isArray(diagnostic.chapters)
+            ? diagnostic.chapters.find(
+                (c) =>
+                  c.title === snapshot.chapterName ||
+                  c.title === snapshot.chapterId,
+              )
+            : null;
+        await conceptApi.extractChapter({
+          bookId: snapshot.bookId,
+          bookTitle: book?.name || book?.title || '',
+          chapterTitle: snapshot.chapterName,
+          chapterId: snapshot.chapterId,
+          estimatedConcepts: chapterEstimate?.estimatedConcepts || [],
+          chapterText: snapshot.textExcerpt,
+          token,
+        });
+        // Don't reloadBookConcepts here — the panel is unmounting or
+        // about to swap books, so the refresh is wasted work. Next
+        // mount picks up the new rows via the list-by-book effect.
+      } catch (err) {
+        console.warn('[ChapterConcepts] flush extract failed:', err?.message);
+      }
+    },
+    [diagnostic, book?.name, book?.title],
+  );
 
   // Phase 6: chapter-end comprehension check (EPUB only for now).
   const {
@@ -1049,6 +1333,7 @@ function EReaderPage() {
   } = useComprehensionCheck({
     bookId: book?.id,
     enabled: book?.format === 'epub',
+    onChapterFlushed: handleChapterFlushed,
   });
 
   const [comprPanelOpen, setComprPanelOpen] = useState(false);
@@ -1073,8 +1358,73 @@ function EReaderPage() {
         chapterId: comprehensionOffer.chapterId,
         chapterName: comprehensionOffer.chapterName,
       });
+
+      // Phase 6.5 — fire concept extraction in the background using the
+      // same accumulated text. Independent of whether the user accepts
+      // the comprehension prompt, so the graph is fed either way. Pulls
+      // Phase 5's estimatedConcepts for THIS chapter (if any) so the
+      // extractor can do confirm/missed reconciliation.
+      (async () => {
+        try {
+          const token = await customStorage.getToken();
+          const chapterEstimate =
+            diagnostic && Array.isArray(diagnostic.chapters)
+              ? diagnostic.chapters.find(
+                  (c) =>
+                    c.title === comprehensionOffer.chapterName ||
+                    c.title === comprehensionOffer.chapterId,
+                )
+              : null;
+          const result = await conceptApi.extractChapter({
+            bookId: book?.id,
+            bookTitle: book?.name || book?.title || '',
+            chapterTitle: comprehensionOffer.chapterName,
+            chapterId: comprehensionOffer.chapterId,
+            estimatedConcepts: chapterEstimate?.estimatedConcepts || [],
+            chapterText: comprehensionOffer.textExcerpt,
+            token,
+          });
+          if (
+            result &&
+            !result.error &&
+            (result.confirmed?.length || result.surprises?.length)
+          ) {
+            // Reload so BookMapPanel reflects the new graph state.
+            reloadBookConcepts();
+          }
+        } catch (err) {
+          console.warn('[ChapterConcepts] extraction failed:', err?.message);
+        }
+      })();
     }
-  }, [comprehensionOffer, comprPanelOpen, book?.id]);
+  }, [
+    comprehensionOffer,
+    comprPanelOpen,
+    book?.id,
+    book?.name,
+    book?.title,
+    diagnostic,
+    reloadBookConcepts,
+  ]);
+
+  // Tree-view click affordance: user clicks a concept to mark it mastered.
+  const handleConceptMasteryToggle = useCallback(
+    async (conceptId, currentLevel) => {
+      if (!conceptId) return;
+      try {
+        const token = await customStorage.getToken();
+        // Toggle: if already at-or-above the "known" threshold, drop back
+        // to the appeared baseline; otherwise jump to 100. Keeps the
+        // affordance reversible without a separate "un-master" gesture.
+        const targetLevel = (currentLevel || 0) >= 60 ? 5 : 100;
+        await conceptApi.setMastery({ conceptId, level: targetLevel, token });
+        reloadBookConcepts();
+      } catch (err) {
+        console.warn('[Concepts] set-mastery failed:', err?.message);
+      }
+    },
+    [reloadBookConcepts],
+  );
 
   const handleComprCheck = useCallback(async () => {
     const offer = comprOfferRef.current;
@@ -1209,6 +1559,14 @@ function EReaderPage() {
   const handlePageText = useCallback(
     (text, context) => {
       if (!text) return;
+      // Capture latest page text + chapter for the Study Forum Discuss button.
+      lastPageTextRef.current = text.slice(0, 4000);
+      if (context?.chapterId || context?.chapterName) {
+        currentChapterRef.current = {
+          id: context.chapterId || currentChapterRef.current.id,
+          name: context.chapterName || currentChapterRef.current.name,
+        };
+      }
       const paragraphs = text
         .split(/\n\n+/)
         .map((p) => p.trim())
@@ -1222,8 +1580,50 @@ function EReaderPage() {
         processProposalText(longest, context);
         trackComprehensionText(longest, context);
       }
+      // Live "on this page" indicator — match the full page text (not just
+      // the longest paragraph) against the current chapter's pre-extracted
+      // concepts. Pure render-derived; no persistence.
+      const { estimatedConcepts } = getChapterConcepts(
+        latestDiagnosticRef.current,
+        context?.curChapter,
+        context?.curChapterId,
+      );
+      const matched = findConceptsInText(text, estimatedConcepts);
+      setOnPageConcepts(matched);
+
+      // Phase 5b — persist new encounters. Dedup per session so a sticky
+      // page (multiple onPageText callbacks for the same view) records once.
+      const bookId = book?.id;
+      if (bookId && matched.length > 0) {
+        const fresh = pickNewEncounters(
+          seenEncountersRef.current,
+          bookId,
+          context?.curChapterId || '',
+          matched,
+        );
+        if (fresh.length > 0) {
+          (async () => {
+            try {
+              const token = await customStorage.getToken();
+              await Promise.all(
+                fresh.map((name) =>
+                  conceptApi.recordEncounter({
+                    bookId,
+                    conceptName: name,
+                    chapterTitle: context?.curChapter || '',
+                    chapterId: context?.curChapterId || '',
+                    token,
+                  }),
+                ),
+              );
+            } catch (err) {
+              console.warn('[Encounter] record failed:', err?.message);
+            }
+          })();
+        }
+      }
     },
-    [processProposalText, trackComprehensionText],
+    [processProposalText, trackComprehensionText, book?.id],
   );
 
   const handleTabChange = (event, newValue) => {
@@ -1347,12 +1747,18 @@ function EReaderPage() {
           <StyledTab label="Search" {...a11yProps(1)} />
           <StyledTab label="AI Bot" {...a11yProps(2)} />
           <StyledTab
-            label="Knowledge"
-            icon={<HubIcon sx={{ fontSize: 14, mr: 0.5 }} />}
+            label="Book Map"
+            icon={<MenuBookIcon sx={{ fontSize: 14, mr: 0.5 }} />}
             iconPosition="start"
             {...a11yProps(3)}
           />
-          {serverUrl && <StyledTab label="Communities" {...a11yProps(4)} />}
+          <StyledTab
+            label="Knowledge"
+            icon={<HubIcon sx={{ fontSize: 14, mr: 0.5 }} />}
+            iconPosition="start"
+            {...a11yProps(4)}
+          />
+          {serverUrl && <StyledTab label="Communities" {...a11yProps(5)} />}
         </StyledTabs>
       </Box>
 
@@ -1372,10 +1778,38 @@ function EReaderPage() {
           />
         </CustomTabPanel>
         <CustomTabPanel value={tabValue} index={3}>
-          <BookKnowledgePanel bookId={book.id} bookTitle={book.title} />
+          <BookMapPanel
+            bookTitle={book?.name || book?.title || ''}
+            data={diagnostic}
+            concepts={bookConcepts}
+            loading={diagLoading}
+            errorMessage={diagErrorMessage}
+            canGenerate={
+              Array.isArray(tocFromReader) && tocFromReader.length > 0
+            }
+            onGenerate={runDiagnostic}
+            onRegenerate={runDiagnostic}
+            onConceptClick={handleConceptMasteryToggle}
+            // Only EPUB has CFI hrefs we can navigate to — pass the
+            // callback only for EPUB so PDF chapter rows don't pretend
+            // to be clickable (BookMapPanel uses the prop's presence as
+            // the affordance gate).
+            onJumpToChapter={
+              book?.format === 'epub' ? handleJumpToChapter : undefined
+            }
+          />
+        </CustomTabPanel>
+        <CustomTabPanel value={tabValue} index={4}>
+          <BookKnowledgePanel
+            bookId={book.id}
+            bookTitle={book.title}
+            diagnostic={diagnostic}
+            bookConcepts={bookConcepts}
+            currentChapterName={page?.curChapter || ''}
+          />
         </CustomTabPanel>
         {serverUrl && (
-          <CustomTabPanel value={tabValue} index={4}>
+          <CustomTabPanel value={tabValue} index={5}>
             <CommunityPanel idFromServer={book.idFromServer} />
           </CustomTabPanel>
         )}
@@ -1412,9 +1846,27 @@ function EReaderPage() {
             onSelectionChange={handleSelectionChange}
             onPageChange={handlePageChange}
             onMindMapResult={handleMindMapResult}
+            onControlsReady={handlePdfControlsReady}
+            onTocReady={handleTocReady}
           />
         </ErrorBoundary>
       )}
+
+      {/* Chapter-start concept preview — surfaces Phase 5's estimatedConcepts
+          for the chapter the reader just entered. One-shot per chapter per
+          session via dismissedChaptersRef. */}
+      {chapterBanner && (
+        <ChapterConceptsBanner
+          chapterName={chapterBanner.chapterName}
+          fresh={chapterBanner.fresh}
+          familiar={chapterBanner.familiar}
+          onDismiss={dismissChapterBanner}
+        />
+      )}
+
+      {/* Live "on this page" indicator — bottom-right floating chip group,
+          shows the Phase 5 concepts found in the text currently in view. */}
+      <OnThisPageIndicator concepts={onPageConcepts} />
 
       {/* Floating controls */}
       <ReadingControls
@@ -1440,17 +1892,33 @@ function EReaderPage() {
         onDismiss={dismissProposal}
       />
 
-      {/* Phase 5: pre-book diagnostic + primer (EPUB only, first-open only). */}
-      <PreReadingPanel
-        open={diagPanelOpen}
-        state={diagPanelState}
-        diagnostic={diagnostic}
-        errorMessage={diagErrorMessage}
-        bookTitle={book?.name || book?.title || ''}
-        onRun={handleDiagRun}
-        onSkip={handleDiagSkip}
-        onStartReading={handleDiagStartReading}
+      {/* Phase 5 — the diagnostic now lives in the Book Map sidebar tab.
+          See <BookMapPanel /> in the right panel above. The modal version
+          (PreReadingPanel) was retired because it trapped the data behind
+          a one-click latch. */}
+
+      {/* Study Forum: in-book gutter markers for existing discussions
+          in the current chapter, plus a floating Discuss action button. */}
+      <ForumMarkerLayer
+        bookId={book?.id}
+        chapterId={currentChapterRef.current?.id || null}
       />
+      <Tooltip title={selectedText ? 'Discuss selection' : 'Discuss this page'}>
+        <IconButton
+          onClick={handleDiscussClick}
+          sx={{
+            position: 'absolute',
+            bottom: 80,
+            right: 16,
+            zIndex: 6,
+            bgcolor: 'background.paper',
+            boxShadow: 2,
+            '&:hover': { bgcolor: 'background.paper' },
+          }}
+        >
+          <ForumIcon fontSize="small" color="secondary" />
+        </IconButton>
+      </Tooltip>
 
       {/* Phase 6: chapter-end comprehension check (EPUB only). */}
       <ComprehensionPanel
@@ -1488,6 +1956,10 @@ function EReaderPage() {
           mainPanel={mainContent}
           rightPanelWidth="340"
           heightAdjust="128px"
+          resizable
+          minWidth={280}
+          maxWidth={720}
+          storageKey="reading.rightPanelWidth"
         />
       </ReadingContentWrapper>
 
