@@ -216,6 +216,7 @@ import { registerEnrichmentHandlers } from './ipc/enrichmentHandlers';
 import { registerVocabMirrorHandlers } from './ipc/vocabMirrorHandlers';
 import { registerArgumentXrayHandlers } from './ipc/argumentXrayHandlers';
 import { registerBookDiagnosticHandlers } from './ipc/bookDiagnosticHandlers';
+import { registerConceptHandlers } from './ipc/conceptHandlers';
 import { registerComprehensionHandlers } from './ipc/comprehensionHandlers';
 import { registerRereadQueueHandlers } from './ipc/rereadQueueHandlers';
 import { registerMoodBoardOrganizerHandlers } from './ipc/moodBoardOrganizerHandlers';
@@ -252,6 +253,9 @@ const rereadQueueSingleton = require('./utils/rereadQueueSingleton');
 // Phase 11 (Brain Visibility): dashboard + concept IPC
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const brainVisibilityHandlers = require('./ipc/brainVisibilityHandlers');
+// Study Forum (2026-06-27): simulated multi-persona discussions
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const forumHandlers = require('./ipc/forumHandlers');
 
 const options = {
   width: 1050,
@@ -2609,6 +2613,7 @@ app
     registerArgumentXrayHandlers(ipcMain);
     // Phase 5: pre-book diagnostic IPC handlers
     registerBookDiagnosticHandlers();
+    registerConceptHandlers();
     // Phase 6: chapter-end comprehension grading IPC handlers
     registerComprehensionHandlers();
     // Phase 7: cross-book curriculum planner IPC handlers.
@@ -2642,6 +2647,20 @@ app
     sessionHandlers.register();
     // Phase 11 (Brain Visibility): dashboard + concept IPC.
     brainVisibilityHandlers.register();
+
+    // Study Forum: init manager + register three IPC handlers.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { getDb: getForumDb } = require('./db/dbManager');
+    forumHandlers.init({ db: getForumDb() });
+    ipcMain.handle('forum:get-or-create', async (_event, args) =>
+      forumHandlers.getOrCreate(args),
+    );
+    ipcMain.handle('forum:reply', async (_event, args) =>
+      forumHandlers.reply(args),
+    );
+    ipcMain.handle('forum:list-by-chapter', async (_event, args) =>
+      forumHandlers.listByChapter(args),
+    );
 
     // Phase 14a (Predictive Engine): predict / rank / refresh / report IPC.
     const PredictiveEngine = require('./brain/predictive/PredictiveEngine');
