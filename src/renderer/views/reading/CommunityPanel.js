@@ -49,7 +49,7 @@ function CommunityPanel() {
   const showCommunityNote = useSelector((s) => s.reader.showCommunityNote);
   // selectedCommunityNote is now a Study Forum signal: either a full
   // ForumDiscussion object (Forum Marker click) or { anchor, passageText, ... }
-  // to resolve via getOrCreate (SelectionMenu / top-bar click).
+  // to resolve via getOrCreate (floating Discuss button in the reading view).
   const selectedCommunityNote = useSelector(
     (s) => s.reader.selectedCommunityNote,
   );

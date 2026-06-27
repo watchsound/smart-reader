@@ -93,4 +93,62 @@ describe('ForumDiscussionManager', () => {
     const inCh1 = mgr.listByBookChapter(1, 'ch-1');
     expect(inCh1.length).toBe(2);
   });
+
+  // Bug 6: user clicks Discuss before EPubView fires onPageText; discussion
+  // is created with chapter_id = NULL. On revisit when chapter is known, the
+  // exact-match lookup would miss and a duplicate would be created. The
+  // backfill patches the existing row instead.
+  describe('chapter backfill on revisit', () => {
+    test('cfi-keyed: NULL-chapter row is bound on revisit with chapter', () => {
+      // Initial create — no chapter context yet.
+      const noChapAnchor = { ...anchor, chapterId: null };
+      const created = mgr.create(noChapAnchor, seedTurns, 0.005);
+      expect(created.chapterId).toBeNull();
+
+      // Revisit — same cfi, chapter now known.
+      const withChapAnchor = { ...anchor, chapterId: 'ch-1' };
+      const revisited = mgr.findByAnchor(withChapAnchor);
+      expect(revisited).not.toBeNull();
+      expect(revisited.id).toBe(created.id);
+      expect(revisited.chapterId).toBe('ch-1');
+
+      // Listing by chapter now surfaces the previously-orphan discussion.
+      expect(mgr.listByBookChapter(1, 'ch-1').length).toBe(1);
+    });
+
+    test('hash-keyed (whole-page): NULL-chapter row is bound on revisit', () => {
+      const wpNoChap = {
+        bookId: 1,
+        chapterId: null,
+        cfiRange: null,
+        selectionText: null,
+        pageTextHash: 'wp-hash',
+      };
+      const created = mgr.create(wpNoChap, seedTurns, 0);
+
+      const wpWithChap = { ...wpNoChap, chapterId: 'ch-1' };
+      const revisited = mgr.findByAnchor(wpWithChap);
+      expect(revisited).not.toBeNull();
+      expect(revisited.id).toBe(created.id);
+      expect(revisited.chapterId).toBe('ch-1');
+    });
+
+    test('does not backfill when query chapter is null', () => {
+      // If query has no chapter, we should NOT pull in some random NULL-chapter row.
+      // (The exact-match branch already handles NULL=NULL.)
+      mgr.create({ ...anchor, chapterId: null }, seedTurns, 0);
+      const found = mgr.findByAnchor({ ...anchor, chapterId: null });
+      expect(found).not.toBeNull();
+      // Confirm it's still chapter-null, not silently rewritten.
+      expect(found.chapterId).toBeNull();
+    });
+
+    test('does not steal rows from a different stored chapter', () => {
+      // Discussion stored under chapter ch-other should NOT be returned
+      // when querying ch-1, even if cfi matches.
+      mgr.create({ ...anchor, chapterId: 'ch-other' }, seedTurns, 0);
+      const found = mgr.findByAnchor({ ...anchor, chapterId: 'ch-1' });
+      expect(found).toBeNull();
+    });
+  });
 });

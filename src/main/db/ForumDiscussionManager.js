@@ -47,6 +47,38 @@ class ForumDiscussionManager {
         )
         .get(anchor.bookId, anchor.chapterId, anchor.pageTextHash);
     }
+
+    // Chapter backfill: if the user clicked Discuss before chapter context
+    // arrived, the discussion was stored with chapter_id = NULL. When the
+    // same passage is revisited with chapter context now known, the exact-
+    // match query above misses. Fall back to a chapter-agnostic match on
+    // (book, cfi_or_hash) where stored chapter_id IS NULL, then patch the
+    // row so subsequent listByBookChapter calls surface it.
+    if (!row && anchor.chapterId) {
+      if (anchor.cfiRange) {
+        row = this.db
+          .prepare(
+            `SELECT * FROM forum_discussion
+             WHERE book_id = ? AND chapter_id IS NULL AND cfi_range = ?`,
+          )
+          .get(anchor.bookId, anchor.cfiRange);
+      } else {
+        row = this.db
+          .prepare(
+            `SELECT * FROM forum_discussion
+             WHERE book_id = ? AND chapter_id IS NULL
+                   AND cfi_range IS NULL AND page_text_hash = ?`,
+          )
+          .get(anchor.bookId, anchor.pageTextHash);
+      }
+      if (row) {
+        this.db
+          .prepare(`UPDATE forum_discussion SET chapter_id = ? WHERE id = ?`)
+          .run(anchor.chapterId, row.id);
+        row.chapter_id = anchor.chapterId;
+      }
+    }
+
     return this._row2discussion(row);
   }
 

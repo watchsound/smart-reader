@@ -1560,11 +1560,13 @@ function EReaderPage() {
     (text, context) => {
       if (!text) return;
       // Capture latest page text + chapter for the Study Forum Discuss button.
+      // EPubView.locationChanged emits `{ chapterId, chapterTitle }` — note
+      // chapterTitle, not chapterName.
       lastPageTextRef.current = text.slice(0, 4000);
-      if (context?.chapterId || context?.chapterName) {
+      if (context?.chapterId || context?.chapterTitle) {
         currentChapterRef.current = {
           id: context.chapterId || currentChapterRef.current.id,
-          name: context.chapterName || currentChapterRef.current.name,
+          name: context.chapterTitle || currentChapterRef.current.name,
         };
       }
       const paragraphs = text
