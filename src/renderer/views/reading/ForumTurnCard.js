@@ -25,7 +25,8 @@ const TurnRow = styled(Box, {
 const Bubble = styled(Box, {
   shouldForwardProp: (p) => p !== 'isUser' && p !== 'personaColor',
 })(({ theme, isUser, personaColor }) => ({
-  maxWidth: '78%',
+  // Fill the remaining width after the avatar — no right margin / no max cap.
+  width: '100%',
   padding: '10px 12px',
   borderRadius: 12,
   border: `1px solid ${alpha(personaColor, 0.3)}`,
@@ -56,7 +57,7 @@ export default function ForumTurnCard({ turn }) {
       >
         {avatarContent}
       </Avatar>
-      <Box sx={{ flex: '0 1 auto' }}>
+      <Box sx={{ flex: 1, minWidth: 0 }}>
         <Box
           sx={{
             display: 'flex',
