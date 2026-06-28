@@ -157,10 +157,25 @@ class SqliteAdapter {
 
   /**
    * Concepts have no dedicated table; we treat them as edge endpoints.
-   * Returns a minimal envelope so callers that expect an id keep working.
+   * Routes to ConceptManager — the concept table is now first-class on
+   * SQLite (was a stub here previously). Token is required for user
+   * scoping; callers that didn't pass one before now get null and should
+   * audit themselves.
    */
-  async upsertConcept(concept /* , token */) {
-    return concept && concept.id ? { id: concept.id, name: concept.name } : null;
+  async upsertConcept(concept, token) {
+    if (!concept) return null;
+    // eslint-disable-next-line global-require
+    const { upsertConcept } = require('../db/ConceptManager');
+    const row = upsertConcept(
+      {
+        name: concept.name,
+        domain: concept.domain,
+        definition: concept.definition,
+        firstSeenBookId: concept.firstSeenBookId,
+      },
+      token,
+    );
+    return row ? { id: row.id, name: row.name } : null;
   }
 
   /**
@@ -620,6 +635,15 @@ class SqliteAdapter {
 
   async processLearningPointReview(id, rating, responseTimeMs, token) {
     return lpm.processReview(id, rating, responseTimeMs, token);
+  }
+
+  // No-op on SQLite: learning_point row already updated by
+  // LearningPlanManager.updateLearningPoint in the same handler. The graph
+  // tables (graph_embedding/chunk/edge) carry no per-review SRS state, so
+  // there is nothing to mirror — Neo4j's separate LearningPoint node graph
+  // is what this hook exists for.
+  async updateLearningPointAfterReview() {
+    return null;
   }
 
   async resetLearningPoint(id, token) {

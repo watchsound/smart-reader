@@ -39,6 +39,7 @@ const mockNeo4jAdapter = {
   getBookmarksBySource: jest.fn(),
   searchBookmarks: jest.fn(),
   getStats: jest.fn(),
+  updateLearningPointAfterReview: jest.fn(),
 };
 
 jest.mock('../../main/utils/Neo4jAdapter', () => ({
@@ -532,6 +533,30 @@ describe('GraphInterface', () => {
       const result = await graphInterface.getStats();
 
       expect(result).toEqual({});
+    });
+
+    // Regression: the proxy used to be missing entirely, so the IPC handler
+    // crashed with TypeError on every review when syncProgress=true. Pins
+    // both the existence of the proxy and the positional→object normalization
+    // that the handler relies on.
+    test('updateLearningPointAfterReview normalizes positional args to {wasCorrect, newBox}', async () => {
+      mockNeo4jAdapter.updateLearningPointAfterReview.mockResolvedValue({ id: 'lp1' });
+
+      const result = await graphInterface.updateLearningPointAfterReview('lp1', true, 3);
+
+      expect(mockNeo4jAdapter.updateLearningPointAfterReview).toHaveBeenCalledWith('lp1', {
+        wasCorrect: true,
+        newBox: 3,
+      });
+      expect(result).toEqual({ id: 'lp1' });
+    });
+
+    test('updateLearningPointAfterReview is a silent no-op when adapter lacks the method', async () => {
+      (mockNeo4jAdapter as any).updateLearningPointAfterReview = undefined;
+
+      await expect(
+        graphInterface.updateLearningPointAfterReview('lp1', false, 1),
+      ).resolves.toBeNull();
     });
   });
 

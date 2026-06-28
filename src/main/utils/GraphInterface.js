@@ -1066,6 +1066,22 @@ class GraphInterface {
   }
 
   /**
+   * Mirror a Leitner review outcome to the graph adapter (Neo4j only).
+   * SQLite is a silent no-op — the learning_point row is already updated
+   * by LearningPlanManager.updateLearningPoint upstream.
+   * @param {string} id - Learning point ID
+   * @param {boolean} wasCorrect - Whether the answer was correct
+   * @param {number} newBox - Resulting Leitner box
+   */
+  async updateLearningPointAfterReview(id, wasCorrect, newBox) {
+    this._ensureAdapter();
+    if (typeof this.adapter.updateLearningPointAfterReview !== 'function') {
+      return null;
+    }
+    return this.adapter.updateLearningPointAfterReview(id, { wasCorrect, newBox });
+  }
+
+  /**
    * Reset learning point to box 1 (restart learning)
    * @param {string} id - Learning point ID
    * @param {string} token - User token
