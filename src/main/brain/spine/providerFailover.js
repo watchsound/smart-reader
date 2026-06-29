@@ -30,6 +30,27 @@ const DEFAULT_CHAIN = [
 ];
 const SAME_PROVIDER_RETRY_DELAY_MS = 500;
 
+// Per-attempt hard timeout. None of the provider classes set their own
+// HTTP timeout, so a stalled connection (network outage, firewall, missing
+// API key that triggers a hung handshake) would otherwise leave the IPC
+// handler awaiting forever. 60s is generous for normal calls but bounds
+// the failure case so the renderer eventually sees an error.
+const DEFAULT_FN_TIMEOUT_MS = 60000;
+
+function withTimeout(promise, ms) {
+  let timeoutId;
+  const timeoutPromise = new Promise((_resolve, reject) => {
+    timeoutId = setTimeout(() => {
+      const err = new Error(`Provider call timed out after ${ms}ms`);
+      err.code = 'ETIMEDOUT';
+      reject(err);
+    }, ms);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    if (timeoutId) clearTimeout(timeoutId);
+  });
+}
+
 const FAILOVER_NETWORK_CODES = new Set([
   'ECONNRESET', 'ETIMEDOUT', 'ENETUNREACH', 'EAI_AGAIN',
   'ECONNABORTED', 'EPIPE', 'ENOTFOUND',
@@ -86,7 +107,12 @@ function nextProvider(current, chain) {
  * @param {Function} [args.onAttemptFailed] - called per failed attempt
  * @returns {Promise<{ result, provider, attempts }>}
  */
-async function executeWithFailover({ chain = DEFAULT_CHAIN, fn, onAttemptFailed }) {
+async function executeWithFailover({
+  chain = DEFAULT_CHAIN,
+  fn,
+  onAttemptFailed,
+  timeoutMs = DEFAULT_FN_TIMEOUT_MS,
+}) {
   if (!Array.isArray(chain) || chain.length === 0) {
     throw new Error('providerFailover: empty chain');
   }
@@ -101,7 +127,7 @@ async function executeWithFailover({ chain = DEFAULT_CHAIN, fn, onAttemptFailed 
     // First attempt on this provider.
     attemptN += 1;
     try {
-      const result = await fn(provider);
+      const result = await withTimeout(fn(provider), timeoutMs);
       return { result, provider, attempts: attemptN, tried };
     } catch (err) {
       lastErr = err;
@@ -116,7 +142,7 @@ async function executeWithFailover({ chain = DEFAULT_CHAIN, fn, onAttemptFailed 
         await sleep(SAME_PROVIDER_RETRY_DELAY_MS);
         attemptN += 1;
         try {
-          const result = await fn(provider);
+          const result = await withTimeout(fn(provider), timeoutMs);
           return { result, provider, attempts: attemptN, tried };
         } catch (err2) {
           lastErr = err2;
@@ -166,4 +192,5 @@ module.exports = {
   buildChain,
   DEFAULT_CHAIN,
   SAME_PROVIDER_RETRY_DELAY_MS,
+  DEFAULT_FN_TIMEOUT_MS,
 };
