@@ -179,64 +179,63 @@ function AlignmentView({ original, learner, accent }) {
         </Typography>
       </Box>
 
-      {/* Side labels run as small chips down the left side; the columns
-          themselves are flex-wrapped so long alignments wrap to new lines
-          without breaking the per-column A-above-B integrity. */}
-      <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
-        <Box
-          sx={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 1,
-            pt: '6px',
-            minWidth: 56,
-          }}
-        >
-          <Typography
+      {/* Chunk the alignment into lines so each one carries its own
+          ORIGINAL / YOURS labels — BLAST / Clustal convention. */}
+      {(() => {
+        const COLS_PER_LINE = 12;
+        const chunks = [];
+        for (let i = 0; i < alignedA.length; i += COLS_PER_LINE) {
+          chunks.push({ start: i, end: Math.min(i + COLS_PER_LINE, alignedA.length) });
+        }
+        const labelSx = {
+          fontFamily: MONO,
+          fontSize: '0.65rem',
+          fontWeight: 600,
+          textTransform: 'uppercase',
+          letterSpacing: '0.4px',
+          color: theme.palette.text.secondary,
+          // Each label aligns vertically with its row in the column block
+          // below. Top label sits at ~the height of a single word cell,
+          // bottom label sits past the connector + bottom word cell.
+        };
+        return chunks.map(({ start, end }) => (
+          <Box
+            // eslint-disable-next-line react/no-array-index-key
+            key={`chunk-${start}`}
             sx={{
-              fontFamily: MONO,
-              fontSize: '0.65rem',
-              fontWeight: 600,
-              textTransform: 'uppercase',
-              letterSpacing: '0.4px',
-              color: theme.palette.text.secondary,
+              display: 'flex',
+              gap: 1.5,
+              alignItems: 'flex-start',
+              mb: 1.5,
             }}
           >
-            ORIGINAL
-          </Typography>
-          <Typography
-            sx={{
-              fontFamily: MONO,
-              fontSize: '0.65rem',
-              fontWeight: 600,
-              textTransform: 'uppercase',
-              letterSpacing: '0.4px',
-              color: theme.palette.text.secondary,
-              mt: 3.5,
-            }}
-          >
-            YOURS
-          </Typography>
-        </Box>
-        <Box
-          sx={{
-            flex: 1,
-            display: 'flex',
-            flexWrap: 'wrap',
-            alignItems: 'flex-start',
-          }}
-        >
-          {alignedA.map((a, i) => (
-            <AlignmentColumn
-              // eslint-disable-next-line react/no-array-index-key
-              key={`col-${i}`}
-              a={a}
-              b={alignedB[i]}
-              theme={theme}
-            />
-          ))}
-        </Box>
-      </Box>
+            <Box
+              sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 0,
+                pt: '8px',
+                minWidth: 56,
+              }}
+            >
+              <Typography sx={labelSx}>ORIGINAL</Typography>
+              <Box sx={{ height: '34px' }} /> {/* spans connector + bottom row */}
+              <Typography sx={labelSx}>YOURS</Typography>
+            </Box>
+            <Box sx={{ flex: 1, display: 'flex', flexWrap: 'nowrap' }}>
+              {alignedA.slice(start, end).map((a, i) => (
+                <AlignmentColumn
+                  // eslint-disable-next-line react/no-array-index-key
+                  key={`col-${start + i}`}
+                  a={a}
+                  b={alignedB[start + i]}
+                  theme={theme}
+                />
+              ))}
+            </Box>
+          </Box>
+        ));
+      })()}
 
       <Typography
         sx={{
