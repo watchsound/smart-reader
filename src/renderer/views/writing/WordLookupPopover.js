@@ -97,6 +97,30 @@ function WordLookupPopover({ contextText, accent }) {
     if (!anchor) return;
     setLoadingLookup(true);
     setError(null);
+    // 1) Local-first: if the word is already in the user's vocabulary
+    //    and has a definition, serve it instantly without an LLM call.
+    try {
+      const existing = await customStorage.getVocabularyByName(anchor.word);
+      if (existing && (existing.definition || '').trim()) {
+        setExplanation({
+          definition: existing.definition || '',
+          example: existing.example || '',
+          related: existing.relatedWords || '',
+          // partOfSpeech isn't stored on the legacy vocab row
+          fromVocabulary: true,
+        });
+        setAdded(true); // already in vocabulary → no need to offer Add
+        setStage('tooltip');
+        setLoadingLookup(false);
+        return;
+      }
+    } catch (err) {
+      // Local lookup failed (DB error or not logged in) — fall through
+      // to the LLM path; not surfacing this to the user.
+      // eslint-disable-next-line no-console
+      console.warn('Local vocab lookup failed; falling back to LLM', err);
+    }
+    // 2) Fallback: LLM lookup with surrounding paragraph as context.
     try {
       const res = await spineApi.generateContentWithJson(
         langstudyDictionaryLookupPrompt(anchor.word, contextText),
@@ -299,7 +323,10 @@ function WordLookupPopover({ contextText, accent }) {
                   fontWeight: 600,
                 }}
               >
-                <CheckCircleOutlineIcon sx={{ fontSize: 16 }} /> Added
+                <CheckCircleOutlineIcon sx={{ fontSize: 16 }} />
+                {explanation?.fromVocabulary
+                  ? 'In your dictionary'
+                  : 'Added'}
               </Typography>
             ) : (
               <Button
