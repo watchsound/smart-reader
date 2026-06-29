@@ -19,15 +19,21 @@ export const PHASES = [
   },
 ];
 
-// Six rungs in increasing reconstruction difficulty.
-// Rungs 1, 3, 4 are POS-based (deterministic, computed locally).
-// Rungs 2, 5, 6 are structure-based (LLM-generated).
+// Seven rungs in increasing reconstruction difficulty.
+// Rungs 1, 2, 4, 5 are POS-based (deterministic, computed locally).
+// Rungs 3, 6, 7 are structure-based (LLM-generated).
 export const RUNGS = [
   {
     id: 'adj',
     label: 'Adjectives',
     source: 'pos',
     blurb: 'Descriptive words — the lightest content layer.',
+  },
+  {
+    id: 'adv',
+    label: 'Adverbs',
+    source: 'pos',
+    blurb: 'Manner and degree — quickly, carefully, mostly.',
   },
   {
     id: 'connect',

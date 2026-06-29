@@ -13,6 +13,7 @@ import spineApi from '../../api/spineApi';
 
 const EMPTY_VARIANTS = {
   adj: '',
+  adv: '',
   connect: '',
   noun: '',
   verb: '',
@@ -84,6 +85,7 @@ function WritingView() {
     const POS_MASK_CAP = 8;
     const posMasks = {
       adj: buildPosMask(text, new Set(['adjective']), { cap: POS_MASK_CAP }),
+      adv: buildPosMask(text, new Set(['adverb']), { cap: POS_MASK_CAP }),
       noun: buildPosMask(text, new Set(['noun']), { cap: POS_MASK_CAP }),
       verb: buildPosMask(text, new Set(['verb']), { cap: POS_MASK_CAP }),
     };

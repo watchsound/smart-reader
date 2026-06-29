@@ -526,11 +526,68 @@ const KNOWN_ADJECTIVES = new Set([
   'main',
 ]);
 
+// `-ly` words that are NOT adverbs. These ride the suffix heuristic
+// otherwise and would get mis-tagged. Adjectives like `early`, `lonely`,
+// `friendly` etc. that ARE in KNOWN_ADJECTIVES never reach the adverb
+// rule — they short-circuit on the known-set check above. This list
+// captures the remaining false positives, mostly nouns and a few
+// adjectives the dictionary doesn't cover.
+const ADVERB_EXCLUDE = new Set([
+  // nouns/names that happen to end in -ly
+  'family',
+  'belly',
+  'jolly',
+  'holy',
+  'rally',
+  'kelly',
+  'sally',
+  'lily',
+  'billy',
+  'bully',
+  'molly',
+  'jelly',
+  'fly',
+  'apply',
+  'supply',
+  'imply',
+  'rely',
+  'reply',
+  // adjectives that end in -ly but aren't adverbs
+  'silly',
+  'lonely',
+  'lovely',
+  'friendly',
+  'daily',
+  'weekly',
+  'monthly',
+  'yearly',
+  'hourly',
+  'godly',
+  'oily',
+  'ugly',
+  'manly',
+  'womanly',
+  'orderly',
+  'leisurely',
+  'kindly',
+  // verbs ending in -ly
+  'multiply',
+  'rely',
+]);
+
 export function classifyWord(word) {
   const lower = word.toLowerCase();
   if (FUNCTION_WORDS.has(lower)) return 'function';
   if (KNOWN_ADJECTIVES.has(lower)) return 'adjective';
   if (KNOWN_VERBS.has(lower)) return 'verb';
+
+  // Adverb heuristic — `-ly` ending with length >= 5, modulo the small
+  // exclude set above. Checked before other suffix rules so words like
+  // `quickly`, `carefully`, `obviously` route to adverb instead of
+  // falling through to the noun default.
+  if (/ly$/.test(lower) && lower.length >= 5 && !ADVERB_EXCLUDE.has(lower)) {
+    return 'adverb';
+  }
 
   // Suffix heuristics. Order matters: adjective patterns first (more
   // distinctive), then noun (more distinctive than verb), then verb.

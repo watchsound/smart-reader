@@ -63,6 +63,41 @@ describe('classifyWord', () => {
     expect(classifyWord('xyzzy')).toBe('noun');
     expect(classifyWord('Freenet')).toBe('noun');
   });
+
+  test('adverbs by -ly heuristic', () => {
+    expect(classifyWord('quickly')).toBe('adverb');
+    expect(classifyWord('carefully')).toBe('adverb');
+    expect(classifyWord('obviously')).toBe('adverb');
+    expect(classifyWord('happily')).toBe('adverb');
+    expect(classifyWord('really')).toBe('adverb');
+    expect(classifyWord('mostly')).toBe('adverb');
+  });
+
+  test('-ly false positives stay as noun', () => {
+    expect(classifyWord('family')).toBe('noun');
+    expect(classifyWord('jelly')).toBe('noun');
+    expect(classifyWord('rally')).toBe('noun');
+    expect(classifyWord('reply')).toBe('noun');
+  });
+
+  test('-ly adjectives in exclude set stay as noun (not adverb)', () => {
+    // These are adjectives but our exclude set keeps them as the default
+    // noun rather than mis-tagging adverb. Accepted tradeoff.
+    expect(classifyWord('lonely')).toBe('noun');
+    expect(classifyWord('friendly')).toBe('noun');
+    expect(classifyWord('daily')).toBe('noun');
+  });
+
+  test('-ly words shorter than 5 chars default to noun (too ambiguous)', () => {
+    expect(classifyWord('fly')).toBe('noun');
+    expect(classifyWord('ugly')).toBe('noun');
+  });
+
+  test('known adjectives ending in -ly hit dict before adverb rule', () => {
+    // `early` is in KNOWN_ADJECTIVES, so it short-circuits before
+    // reaching the -ly adverb heuristic.
+    expect(classifyWord('early')).toBe('adjective');
+  });
 });
 
 describe('taggedTokens', () => {
@@ -71,9 +106,7 @@ describe('taggedTokens', () => {
     expect(out).toEqual([
       { word: 'She', pos: 'function', start: 0, end: 3 },
       { word: 'decided', pos: 'verb', start: 4, end: 11 },
-      { word: 'quickly', pos: 'noun', start: 12, end: 19 },
-      // "quickly" ends in -ly which is usually adverb, but our tagger has no
-      // -ly rule; -ly word defaults to noun. Acceptable for v1.
+      { word: 'quickly', pos: 'adverb', start: 12, end: 19 },
     ]);
   });
 
@@ -99,6 +132,14 @@ describe('buildPosMask', () => {
   test('masks all words of the requested POS', () => {
     const out = buildPosMask('She decided to leave.', new Set(['verb']));
     expect(out).toBe('She ${decided} to ${leave}.');
+  });
+
+  test('masks adverbs', () => {
+    const out = buildPosMask(
+      'She quickly walked carefully home.',
+      new Set(['adverb']),
+    );
+    expect(out).toBe('She ${quickly} walked ${carefully} home.');
   });
 
   test('preserves punctuation and spacing', () => {
