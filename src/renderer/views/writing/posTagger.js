@@ -209,3 +209,25 @@ export function buildClauseStemsMask(text, options = {}) {
   const { cap = Infinity } = options;
   return maskAtPhrases(text, nlp(text).verbs().out('array'), cap);
 }
+
+// Subordinate-clause rung — mask whole subordinate clauses, identified as
+// clauses whose first word is a subordinating conjunction. Rougher than
+// an LLM would be, but instant and offline.
+const SUBORDINATORS = new Set([
+  'although', 'because', 'while', 'when', 'if', 'unless', 'since',
+  'before', 'after', 'whereas', 'though', 'whether', 'until', 'where',
+]);
+
+export function buildSubordinateMask(text, options = {}) {
+  if (!text) return '';
+  const { cap = Infinity } = options;
+  const rawClauses = nlp(text).clauses().out('array');
+  const subs = rawClauses
+    .map((c) => c.trim().replace(/[,.;:]+$/, ''))
+    .filter((c) => {
+      if (!c) return false;
+      const first = c.split(/\s+/)[0].toLowerCase().replace(/[^a-z]/g, '');
+      return SUBORDINATORS.has(first);
+    });
+  return maskAtPhrases(text, subs, cap);
+}

@@ -47,14 +47,7 @@ function explode(tokens) {
   return out;
 }
 
-function RecallLadder({
-  variants,
-  loading,
-  error,
-  onRetry,
-  accent,
-  onContinue,
-}) {
+function RecallLadder({ variants, accent, onContinue }) {
   const theme = useTheme();
   const [activeRung, setActiveRung] = useState(RUNGS[0].id);
   // Per-rung map of resolved tokens: { [maskIdx]: 'correct' | 'revealed' }.
@@ -114,24 +107,9 @@ function RecallLadder({
             const isActive = rung.id === activeRung;
             const done = Object.keys(tokenResolutions[rung.id] || {}).length;
             const isEngaged = done > 0;
-            const hasContent = !!variants[rung.id];
-            const isPending = !hasContent && loading;
-            // Status glyph: ● engaged | ✓ ready | ⋯ loading | dim number
-            let glyph;
-            if (isEngaged) glyph = '●';
-            else if (isPending) glyph = '⋯';
-            else if (hasContent) glyph = idx + 1;
-            else glyph = idx + 1;
+            const glyph = isEngaged ? '●' : idx + 1;
             return (
-              <Tooltip
-                key={rung.id}
-                title={
-                  isPending
-                    ? `${rung.blurb} — loading, try a POS rung first`
-                    : rung.blurb
-                }
-                arrow
-              >
+              <Tooltip key={rung.id} title={rung.blurb} arrow>
                 <Box
                   role="tab"
                   aria-selected={isActive}
@@ -147,7 +125,6 @@ function RecallLadder({
                     bgcolor: isActive ? alpha(accent, 0.12) : 'transparent',
                     color: isActive ? accent : theme.palette.text.primary,
                     border: `1px solid ${isActive ? accent : 'transparent'}`,
-                    opacity: isPending && !isActive ? 0.5 : 1,
                     '&:hover': {
                       bgcolor: isActive
                         ? alpha(accent, 0.16)
@@ -159,7 +136,7 @@ function RecallLadder({
                     sx={{
                       fontFamily: MONO,
                       fontSize: '0.7rem',
-                      opacity: isEngaged || hasContent ? 1 : 0.5,
+                      opacity: isEngaged ? 1 : 0.5,
                     }}
                   >
                     {glyph}
@@ -203,49 +180,12 @@ function RecallLadder({
           color: theme.palette.text.primary,
         }}
       >
-        {/* Empty + loading: brief inline note. The pill row above shows
-            which rungs are ready; no need for a duplicate button list here. */}
-        {!masked && loading && (
-          <Typography
-            sx={{
-              fontFamily: MONO,
-              fontSize: '0.75rem',
-              color: theme.palette.text.secondary,
-            }}
-          >
-            ⋯ loading
+        {/* If a rung produced no masks (rare — text with no matches),
+            show the original text with a small note. */}
+        {!masked && (
+          <Typography color="text.secondary">
+            (no masks for this rung — the source has nothing to mask here)
           </Typography>
-        )}
-        {!masked && !loading && (
-          <Box>
-            <Typography color="text.secondary" sx={{ mb: 2 }}>
-              {error
-                ? `This rung didn’t load: ${error}`
-                : 'This rung is empty.'}
-            </Typography>
-            {onRetry && (
-              <Typography
-                component="button"
-                onClick={onRetry}
-                sx={{
-                  fontFamily: MONO,
-                  fontSize: '0.75rem',
-                  fontWeight: 600,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px',
-                  border: `1px solid ${alpha(accent, 0.4)}`,
-                  borderRadius: 1,
-                  background: 'transparent',
-                  color: accent,
-                  cursor: 'pointer',
-                  px: 2,
-                  py: 0.75,
-                }}
-              >
-                Retry LLM rungs
-              </Typography>
-            )}
-          </Box>
         )}
         {masked && (
           <Box key={activeRung}>
