@@ -1,11 +1,16 @@
 import React, { useMemo, useState } from 'react';
-import { Box, Typography, Tooltip, Fade } from '@mui/material';
-import { useTheme, alpha } from '@mui/material/styles';
+import { Box, Typography, Tooltip } from '@mui/material';
+import { useTheme, alpha, keyframes } from '@mui/material/styles';
 import { RUNGS } from './config';
 import MaskedToken from './MaskedToken';
 
 const SERIF = `'Source Serif Pro', Georgia, 'Times New Roman', serif`;
 const MONO = `'JetBrains Mono', Menlo, Monaco, Consolas, monospace`;
+
+const fadeInUp = keyframes`
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+`;
 
 function tokenize(text) {
   const re = /\$\{(.*?)\}/g;
@@ -21,6 +26,24 @@ function tokenize(text) {
     m = re.exec(text);
   }
   if (last < text.length) out.push({ kind: 'text', value: text.slice(last) });
+  return out;
+}
+
+// Flatten tokens into per-word items so we can stagger each one.
+// 'space' items carry whitespace and are not animated.
+function explode(tokens) {
+  const out = [];
+  tokens.forEach((t) => {
+    if (t.kind === 'mask') {
+      out.push({ kind: 'mask', value: t.value });
+      return;
+    }
+    const parts = t.value.split(/(\s+)/);
+    parts.forEach((p) => {
+      if (p.length === 0) return;
+      out.push({ kind: /\s+/.test(p) ? 'space' : 'word', value: p });
+    });
+  });
   return out;
 }
 
@@ -140,24 +163,47 @@ function RecallLadder({ variants, loading, accent, onContinue }) {
         {loading ? (
           <Typography color="text.secondary">Preparing ladder…</Typography>
         ) : (
-          <Fade in key={activeRung} timeout={200}>
-            <Box>
-              {tokens.map((t, i) =>
-                t.kind === 'text' ? (
-                  // eslint-disable-next-line react/no-array-index-key
-                  <span key={`t${i}`}>{t.value}</span>
-                ) : (
-                  <MaskedToken
+          <Box key={activeRung}>
+            {explode(tokens).map((item, i) => {
+              if (item.kind === 'space') {
+                // eslint-disable-next-line react/no-array-index-key
+                return <span key={`s${i}`}>{item.value}</span>;
+              }
+              // Cap total stagger so longer paragraphs don't drag past ~1s.
+              const delayMs = Math.min(i * 20, 800);
+              const animSx = {
+                display: 'inline-block',
+                opacity: 0,
+                animation: `${fadeInUp} 350ms ease-out ${delayMs}ms forwards`,
+              };
+              if (item.kind === 'word') {
+                return (
+                  <Box
+                    component="span"
                     // eslint-disable-next-line react/no-array-index-key
-                    key={`m${i}-${activeRung}`}
-                    expected={t.value}
+                    key={`w${i}-${activeRung}`}
+                    sx={animSx}
+                  >
+                    {item.value}
+                  </Box>
+                );
+              }
+              return (
+                <Box
+                  component="span"
+                  // eslint-disable-next-line react/no-array-index-key
+                  key={`m${i}-${activeRung}`}
+                  sx={animSx}
+                >
+                  <MaskedToken
+                    expected={item.value}
                     accent={accent}
                     onResolved={handleResolved}
                   />
-                ),
-              )}
-            </Box>
-          </Fade>
+                </Box>
+              );
+            })}
+          </Box>
         )}
       </Box>
 

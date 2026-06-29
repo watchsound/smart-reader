@@ -12,6 +12,12 @@ const shake = keyframes`
   40%, 80% { transform: translateX(8px); }
 `;
 
+const bloom = keyframes`
+  0%   { transform: scale(1);    filter: brightness(1); }
+  40%  { transform: scale(1.08); filter: brightness(1.25); }
+  100% { transform: scale(1);    filter: brightness(1); }
+`;
+
 function MaskedToken({ expected, accent, onResolved }) {
   const theme = useTheme();
   const [value, setValue] = useState('');
@@ -116,7 +122,13 @@ function MaskedToken({ expected, accent, onResolved }) {
           color: isResolved ? resolvedColor : theme.palette.text.primary,
           fontWeight: isResolved ? 600 : 500,
           fontFamily: isResolved ? 'inherit' : MONO,
-          animation: status === 'wrong' ? `${shake} 150ms ease-in-out` : 'none',
+          animation:
+            // eslint-disable-next-line no-nested-ternary
+            status === 'wrong'
+              ? `${shake} 150ms ease-in-out`
+              : status === 'correct'
+                ? `${bloom} 400ms ease-out`
+                : 'none',
           transition: 'background-color 150ms ease-out, border-color 150ms ease-out',
           position: 'relative',
         }}
