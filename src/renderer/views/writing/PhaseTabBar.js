@@ -55,6 +55,7 @@ function PhaseTabBar({ activePhase, sourceLocked, onChange, accent }) {
                 border: `1px solid ${isActive ? accent : 'transparent'}`,
                 transition: 'all 200ms ease-out',
                 '&:hover': {
+                  // eslint-disable-next-line no-nested-ternary
                   bgcolor: isLocked
                     ? 'transparent'
                     : isActive

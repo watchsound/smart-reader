@@ -64,7 +64,9 @@ function MaskedToken({ expected, accent, onResolved }) {
 
   return (
     <Tooltip
-      title={isResolved ? '' : hint || 'Type the missing word, then Tab or Enter'}
+      title={
+        isResolved ? '' : hint || 'Type the missing word, then Tab or Enter'
+      }
       placement="top"
       arrow
       enterDelay={400}
@@ -111,6 +113,7 @@ function MaskedToken({ expected, accent, onResolved }) {
             cursor: isResolved ? 'default' : 'text',
           }}
           aria-label={
+            // eslint-disable-next-line no-nested-ternary
             isResolved
               ? `revealed: ${expected}`
               : hint

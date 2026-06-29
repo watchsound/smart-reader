@@ -76,9 +76,7 @@ function ComposeCompare({ originalText, accent }) {
     }
   };
 
-  const wordCount = mywriting.trim()
-    ? mywriting.trim().split(/\s+/).length
-    : 0;
+  const wordCount = mywriting.trim() ? mywriting.trim().split(/\s+/).length : 0;
   const minWords = 10;
   const canCompare = wordCount >= minWords && !loadingDiff;
 
@@ -243,7 +241,9 @@ function ComposeCompare({ originalText, accent }) {
             <CloseIcon sx={{ fontSize: 18 }} />
           </IconButton>
         </Box>
-        <Typography sx={{ fontFamily: SERIF, fontSize: '17px', lineHeight: 1.8 }}>
+        <Typography
+          sx={{ fontFamily: SERIF, fontSize: '17px', lineHeight: 1.8 }}
+        >
           {originalText}
         </Typography>
       </Drawer>

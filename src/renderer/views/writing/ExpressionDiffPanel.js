@@ -10,27 +10,27 @@ const MONO = `'JetBrains Mono', Menlo, Monaco, Consolas, monospace`;
 // Find non-overlapping span occurrences in `text`. Returns
 // { start, end, kind, pairId } sorted by start, first-wins for overlap.
 function locateSpans(text, sideSpans) {
-  const found = [];
-  for (const s of sideSpans) {
+  const found = sideSpans.reduce((acc, s) => {
     const idx = text.indexOf(s.text);
     if (idx >= 0) {
-      found.push({
+      acc.push({
         start: idx,
         end: idx + s.text.length,
         kind: s.kind,
         pairId: s.pair_id || null,
       });
     }
-  }
+    return acc;
+  }, []);
   found.sort((a, b) => a.start - b.start);
   const out = [];
   let lastEnd = -1;
-  for (const f of found) {
+  found.forEach((f) => {
     if (f.start >= lastEnd) {
       out.push(f);
       lastEnd = f.end;
     }
-  }
+  });
   return out;
 }
 
@@ -68,7 +68,9 @@ function renderSide(text, sideSpans, fontStack, hoveredPairId, onHoverPair) {
 function ExpressionDiffPanel({ original, learner, diff, accent }) {
   const theme = useTheme();
   const [hoveredPairId, setHoveredPairId] = useState(null);
-  const originalSpans = (diff?.spans || []).filter((s) => s.side === 'original');
+  const originalSpans = (diff?.spans || []).filter(
+    (s) => s.side === 'original',
+  );
   const learnerSpans = (diff?.spans || []).filter((s) => s.side === 'learner');
   const upgradeCount = (diff?.notes || []).length;
 

@@ -8,14 +8,14 @@ export function parseRecallLadder(input) {
   if (!obj || typeof obj !== 'object') {
     throw new Error(`parseRecallLadder: expected object, got ${typeof obj}`);
   }
-  for (const rung of RUNG_IDS) {
+  RUNG_IDS.forEach((rung) => {
     if (!(rung in obj)) {
       throw new Error(`parseRecallLadder: missing rung: ${rung}`);
     }
     if (typeof obj[rung] !== 'string') {
       throw new Error(`parseRecallLadder: rung "${rung}" must be a string`);
     }
-  }
+  });
   return { light: obj.light, medium: obj.medium, hard: obj.hard };
 }
 

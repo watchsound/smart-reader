@@ -187,7 +187,9 @@ function RecallLadder({ variants, loading, accent, onContinue }) {
             cursor: 'pointer',
             px: 2,
             py: 0.75,
-            boxShadow: mediumStarted ? `0 0 0 4px ${alpha(accent, 0.25)}` : 'none',
+            boxShadow: mediumStarted
+              ? `0 0 0 4px ${alpha(accent, 0.25)}`
+              : 'none',
             transition: 'box-shadow 250ms ease-out',
           }}
         >
