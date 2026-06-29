@@ -126,3 +126,14 @@ Canonical names for domain concepts. One source of truth — code, docs, and con
 - **Save Concepts Bar** — bar above the canvas implementing C-confirm. Single click converts every unsaved node into a Learning Point via `MindmapPersistenceService.saveAsLearningPoints`. Dismissal is per-mindmap.
 - **mindmap_node_lp_link** — SQLite table joining `(mindmap_id, node_id) → lp_id`. Enables reopen-with-mastery-hydrated and the "Find in graph" reverse-lookup.
 - **`feature_surface: 'mindmap-study'`** — closed-enum value in `featureSurface.js`. Mastery moves caused by a mindmap-originated study session attribute to this surface in Phase 13 Spend & Returns.
+
+## Writing Practice (2026-06-29 redesign)
+
+- **Writing Practice** — the `/writing` view, redesigned 2026-06-29 around active reconstruction. The product principle: passive copying doesn't teach language production; comparing your own re-expression to a model does. Three sequenced phases replace the prior 6-step POS cloze flow.
+- **Prepare** — Phase 1. One always-mounted `<SourcePanel>` with the model paragraph; the source text persists across all phases. Locking the source unlocks Phases 2 and 3. *This phase also fixed the lose-focus-on-first-keystroke bug from the old `{!text ? input : display}` swap.*
+- **Recall Ladder** — Phase 2. Same paragraph rendered with rising masking density across three rungs (Light → Medium → Hard). Each masked token is an inline-input occlusion block, typed (not just clicked) to confirm. *Not "cloze exercise" generically — the laddering is the point.*
+- **Rung** — one of `light` / `medium` / `hard`. Light masks collocations + idioms only (~30% hidden); Medium adds discourse markers + key nouns (~60%); Hard keeps only sentence skeletons (~80%). All three are generated in one batched AI call.
+- **Compose & Compare** — Phase 3. State A: 5W scaffold visible at top, free-write surface below, original deliberately hidden ("ⓘ Reference original" drawer for emergencies). State B: side-by-side diff (original serif, learner sans) with semantic span coloring + Expression Notes rail.
+- **Expression Diff** — the AI output that drives Phase 3 State B. Spans are colored: **green** (equivalent), **amber** (weaker than original), **blue squiggle** (mechanical grammar). Amber spans on each side link via `pair_id` on hover. *Not "grammar check" — grammar is one of three kinds.*
+- **Occlusion Block** — the masked-token aesthetic that replaced the prior `___` underscores. Filled background, dashed accent border-bottom, monospace `▓` placeholders sized to the hidden word's letter count.
+- **Spine intent labels** — three new labels in [src/commons/utils/AIPrompts.js](src/commons/utils/AIPrompts.js): `writing-recall-ladder` (Phase 2), `writing-5w-scaffold` (Phase 3 entry), `writing-expression-diff` (Compare). Net call count per paragraph dropped from 8 → 3 vs. the legacy flow.
