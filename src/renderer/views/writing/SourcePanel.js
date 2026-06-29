@@ -81,7 +81,6 @@ function SourcePanel({
           fontSize: '18px',
           lineHeight: 1.8,
           color: theme.palette.text.primary,
-          maxWidth: 680,
         }}
       >
         <MultilineTextField
