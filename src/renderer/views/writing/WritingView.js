@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Box } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import PhaseTabBar from './PhaseTabBar';
@@ -52,6 +52,11 @@ function WritingView() {
   const [recallVariants, setRecallVariants] = useState(EMPTY_VARIANTS);
   const [recallLoading, setRecallLoading] = useState(false);
   const [recallError, setRecallError] = useState(null);
+  // Latest-call-wins token. Every LLM call (effect or retry) stamps itself
+  // with the current value at start; on resolve it checks whether its stamp
+  // is still current. Effect cleanup increments the ref so a call begun
+  // before unlock/re-lock can't overwrite state from the new source.
+  const callTokenRef = useRef(0);
 
   const phaseIdx = PHASES.findIndex((p) => p.id === activePhase);
   // eslint-disable-next-line no-nested-ternary
@@ -62,56 +67,56 @@ function WritingView() {
   // computed locally and ship immediately; 3 structural rungs (connect /
   // clause / subord) come from one batched LLM call.
   useEffect(() => {
-    let cancelled = false;
-    async function go() {
-      if (
-        activePhase !== 'recall' ||
-        !sourceLocked ||
-        !text ||
-        recallVariants.adj
-      ) {
-        return;
-      }
-      // Local POS masks land synchronously — Adjectives rung is immediately
-      // usable while the LLM call is still in flight. Cap each rung at 8
-      // simultaneous masks so a noun-heavy paragraph (~50% noun density in
-      // typical prose) does not turn a single rung into half-the-paragraph
-      // free recall. Evenly-spaced sampling keeps the masks spatially
-      // distributed instead of clustering at the front of the paragraph.
-      const POS_MASK_CAP = 8;
-      const posMasks = {
-        adj: buildPosMask(text, new Set(['adjective']), { cap: POS_MASK_CAP }),
-        noun: buildPosMask(text, new Set(['noun']), { cap: POS_MASK_CAP }),
-        verb: buildPosMask(text, new Set(['verb']), { cap: POS_MASK_CAP }),
-      };
-      if (!cancelled) {
-        setRecallVariants((prev) => ({ ...prev, ...posMasks }));
-        setRecallError(null);
-      }
-      setRecallLoading(true);
+    if (
+      activePhase !== 'recall' ||
+      !sourceLocked ||
+      !text ||
+      recallVariants.adj
+    ) {
+      return undefined;
+    }
+    // Local POS masks land synchronously — Adjectives rung is immediately
+    // usable while the LLM call is still in flight. Cap each rung at 8
+    // simultaneous masks so a noun-heavy paragraph (~50% noun density in
+    // typical prose) does not turn a single rung into half-the-paragraph
+    // free recall. Evenly-spaced sampling keeps the masks spatially
+    // distributed instead of clustering at the front of the paragraph.
+    const POS_MASK_CAP = 8;
+    const posMasks = {
+      adj: buildPosMask(text, new Set(['adjective']), { cap: POS_MASK_CAP }),
+      noun: buildPosMask(text, new Set(['noun']), { cap: POS_MASK_CAP }),
+      verb: buildPosMask(text, new Set(['verb']), { cap: POS_MASK_CAP }),
+    };
+    setRecallVariants((prev) => ({ ...prev, ...posMasks }));
+    setRecallError(null);
+    setRecallLoading(true);
+
+    callTokenRef.current += 1;
+    const myToken = callTokenRef.current;
+    (async () => {
       try {
         const parsed = await fetchLlmRungs(text);
-        if (!cancelled) {
-          setRecallVariants((prev) => ({
-            ...prev,
-            connect: parsed.light,
-            clause: parsed.medium,
-            subord: parsed.hard,
-          }));
-        }
+        if (myToken !== callTokenRef.current) return;
+        setRecallVariants((prev) => ({
+          ...prev,
+          connect: parsed.light,
+          clause: parsed.medium,
+          subord: parsed.hard,
+        }));
       } catch (err) {
         // eslint-disable-next-line no-console
         console.error('Recall ladder fetch failed', err);
-        if (!cancelled) {
-          setRecallError(err?.message || 'Recall ladder request failed.');
-        }
+        if (myToken !== callTokenRef.current) return;
+        setRecallError(err?.message || 'Recall ladder request failed.');
       } finally {
-        if (!cancelled) setRecallLoading(false);
+        if (myToken === callTokenRef.current) setRecallLoading(false);
       }
-    }
-    go();
+    })();
     return () => {
-      cancelled = true;
+      // Invalidate any in-flight call from this effect run so its result
+      // can't overwrite state owned by the next effect run (e.g. after
+      // unlock/re-lock with new source text).
+      callTokenRef.current += 1;
     };
   }, [activePhase, sourceLocked, text, recallVariants.adj]);
 
@@ -124,8 +129,11 @@ function WritingView() {
     }));
     setRecallError(null);
     setRecallLoading(true);
+    callTokenRef.current += 1;
+    const myToken = callTokenRef.current;
     try {
       const parsed = await fetchLlmRungs(text);
+      if (myToken !== callTokenRef.current) return;
       setRecallVariants((prev) => ({
         ...prev,
         connect: parsed.light,
@@ -135,9 +143,10 @@ function WritingView() {
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error('Recall ladder retry failed', err);
+      if (myToken !== callTokenRef.current) return;
       setRecallError(err?.message || 'Recall ladder request failed.');
     } finally {
-      setRecallLoading(false);
+      if (myToken === callTokenRef.current) setRecallLoading(false);
     }
   };
 
