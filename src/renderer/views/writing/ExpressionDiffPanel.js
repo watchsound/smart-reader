@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Box, Typography } from '@mui/material';
 import { useTheme, alpha, keyframes } from '@mui/material/styles';
 import DiffSpan from './DiffSpan';
@@ -110,6 +110,18 @@ function ExpressionDiffPanel({ original, learner, diff, accent }) {
   );
   const learnerSpans = (diff?.spans || []).filter((s) => s.side === 'learner');
   const upgradeCount = (diff?.notes || []).length;
+
+  // When a span (or note) is hovered, lift the matching note to the top of
+  // the list so the user doesn't have to scroll. Keeps relative order of
+  // the remaining notes stable. Stable React keys (pair_id) preserve DOM
+  // identity across the reorder so per-note state and animations survive.
+  const orderedNotes = useMemo(() => {
+    const notes = diff?.notes || [];
+    if (!hoveredPairId) return notes;
+    const idx = notes.findIndex((n) => n.pair_id === hoveredPairId);
+    if (idx <= 0) return notes;
+    return [notes[idx], ...notes.slice(0, idx), ...notes.slice(idx + 1)];
+  }, [diff?.notes, hoveredPairId]);
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -240,7 +252,7 @@ function ExpressionDiffPanel({ original, learner, diff, accent }) {
               {upgradeCount} upgrade{upgradeCount === 1 ? '' : 's'}
             </Typography>
           </Box>
-          {diff.notes.map((n) => {
+          {orderedNotes.map((n) => {
             const isHovered = hoveredPairId === n.pair_id;
             return (
               <Box
@@ -254,8 +266,17 @@ function ExpressionDiffPanel({ original, learner, diff, accent }) {
                   pl: 1.5,
                   py: 1,
                   mb: 1,
-                  bgcolor: isHovered ? alpha(accent, 0.04) : 'transparent',
-                  transition: 'all 150ms ease-out',
+                  // A subtle scale + shadow on the lifted note so the
+                  // reorder reads as "this one is being focused" rather
+                  // than as the list jumping.
+                  bgcolor: isHovered ? alpha(accent, 0.08) : 'transparent',
+                  borderRadius: 1,
+                  boxShadow: isHovered
+                    ? `0 4px 12px ${alpha(accent, 0.18)}`
+                    : 'none',
+                  transform: isHovered ? 'translateY(0)' : 'none',
+                  transition:
+                    'background-color 200ms ease-out, box-shadow 200ms ease-out, border-color 200ms ease-out',
                 }}
               >
                 <Typography sx={{ fontSize: '0.9rem' }}>
