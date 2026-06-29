@@ -175,7 +175,6 @@ function RecallLadder({ variants, accent, onContinue }) {
           fontFamily: SERIF,
           fontSize: '18px',
           lineHeight: 2,
-          maxWidth: 680,
           minHeight: 200,
           color: theme.palette.text.primary,
         }}

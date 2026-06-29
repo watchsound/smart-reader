@@ -1738,6 +1738,20 @@ LEARNER:
 ${learner}
 `;
 
+export const langstudyDictionaryLookupPrompt = (word, context = '') => `
+Look up the English word "${word}"${context ? ' in this paragraph context:\n' + context : ''}.
+
+Return ONLY a JSON object with these fields:
+{
+  "definition": "<concise definition appropriate for the context — 1 to 2 sentences>",
+  "partOfSpeech": "<noun / verb / adjective / adverb / preposition / ...>",
+  "example": "<one short example sentence using the word, distinct from the context>",
+  "related": "<2-4 related words (synonyms, antonyms, root forms), comma-separated; empty string if none>"
+}
+
+Keep the definition short and learner-friendly. Avoid circular definitions.
+`;
+
 export const langstudyComposeScaffoldsPrompt = (text, l1Language = 'Chinese') => `
 You are a language-learning tutor helping a learner reconstruct a paragraph in their target language (English) from scratch.
 Produce three scaffolds that anchor MEANING without giving away the exact wording.

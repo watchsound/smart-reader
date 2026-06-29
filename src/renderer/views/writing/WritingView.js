@@ -5,6 +5,7 @@ import PhaseTabBar from './PhaseTabBar';
 import SourcePanel from './SourcePanel';
 import RecallLadder from './RecallLadder';
 import ComposeCompare from './ComposeCompare';
+import WordLookupPopover from './WordLookupPopover';
 import { ACCENT, PHASES } from './config';
 import {
   buildPosMask,
@@ -127,6 +128,10 @@ function WritingView() {
           )}
         </Box>
       </Box>
+      {/* Highlight any single non-stop-word in any of the three phases
+          to look it up + add to vocabulary. Sourced from contextText so
+          the LLM call gets the surrounding paragraph as context. */}
+      <WordLookupPopover contextText={text} accent={accent} />
     </Box>
   );
 }
