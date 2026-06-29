@@ -8,7 +8,11 @@ import ComposeCompare from './ComposeCompare';
 import { ACCENT, PHASES } from './config';
 import { langstudyRecallLadderPrompt } from '../../../commons/utils/AIPrompts';
 import { parseRecallLadder } from './recallLadderParser';
-import { buildPosMask } from './posTagger';
+import {
+  buildPosMask,
+  buildConnectivesMask,
+  buildClauseStemsMask,
+} from './posTagger';
 import spineApi from '../../api/spineApi';
 
 const EMPTY_VARIANTS = {
@@ -83,11 +87,14 @@ function WritingView() {
     // free recall. Evenly-spaced sampling keeps the masks spatially
     // distributed instead of clustering at the front of the paragraph.
     const POS_MASK_CAP = 8;
+    // 6 local rungs land synchronously. Only Subordinate uses the LLM.
     const posMasks = {
       adj: buildPosMask(text, new Set(['adjective']), { cap: POS_MASK_CAP }),
       adv: buildPosMask(text, new Set(['adverb']), { cap: POS_MASK_CAP }),
+      connect: buildConnectivesMask(text, { cap: POS_MASK_CAP }),
       noun: buildPosMask(text, new Set(['noun']), { cap: POS_MASK_CAP }),
       verb: buildPosMask(text, new Set(['verb']), { cap: POS_MASK_CAP }),
+      clause: buildClauseStemsMask(text, { cap: POS_MASK_CAP }),
     };
     setRecallVariants((prev) => ({ ...prev, ...posMasks }));
     setRecallError(null);
@@ -99,10 +106,9 @@ function WritingView() {
       try {
         const parsed = await fetchLlmRungs(text);
         if (myToken !== callTokenRef.current) return;
+        // LLM drives only Subordinate now — the true paragraph backbone.
         setRecallVariants((prev) => ({
           ...prev,
-          connect: parsed.light,
-          clause: parsed.medium,
           subord: parsed.hard,
         }));
       } catch (err) {
@@ -125,8 +131,6 @@ function WritingView() {
   const retryLlmRungs = async () => {
     setRecallVariants((prev) => ({
       ...prev,
-      connect: '',
-      clause: '',
       subord: '',
     }));
     setRecallError(null);
@@ -138,8 +142,6 @@ function WritingView() {
       if (myToken !== callTokenRef.current) return;
       setRecallVariants((prev) => ({
         ...prev,
-        connect: parsed.light,
-        clause: parsed.medium,
         subord: parsed.hard,
       }));
     } catch (err) {

@@ -166,3 +166,46 @@ export function buildPosMask(text, posSet, options = {}) {
   out += text.slice(cursor);
   return out;
 }
+
+function maskAtPhrases(text, phrases, cap) {
+  const found = [];
+  let cursor = 0;
+  phrases.forEach((raw) => {
+    const clean = (raw || '').replace(/[.,;:!?]+$/, '').trim();
+    if (!clean) return;
+    const idx = text.indexOf(clean, cursor);
+    if (idx >= 0) {
+      found.push({ start: idx, end: idx + clean.length });
+      cursor = idx + clean.length;
+    }
+  });
+  if (found.length === 0) return text;
+  let active = found;
+  if (cap < active.length) active = sampleEvenly(active, cap);
+  let out = '';
+  cursor = 0;
+  active.forEach((p) => {
+    out += text.slice(cursor, p.start);
+    // eslint-disable-next-line no-template-curly-in-string
+    out += `\${${text.slice(p.start, p.end)}}`;
+    cursor = p.end;
+  });
+  out += text.slice(cursor);
+  return out;
+}
+
+// Connectives rung — mask everything compromise tags as Conjunction.
+// Pure local, no LLM.
+export function buildConnectivesMask(text, options = {}) {
+  if (!text) return '';
+  const { cap = Infinity } = options;
+  return maskAtPhrases(text, nlp(text).match('#Conjunction').out('array'), cap);
+}
+
+// Clause-stems rung — mask the multi-word verb phrases compromise
+// extracts (verb + auxiliaries / particles). Pure local, no LLM.
+export function buildClauseStemsMask(text, options = {}) {
+  if (!text) return '';
+  const { cap = Infinity } = options;
+  return maskAtPhrases(text, nlp(text).verbs().out('array'), cap);
+}
