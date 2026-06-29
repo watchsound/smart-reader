@@ -3,12 +3,6 @@
 
 import { ReaderLevel } from '../model/DataTypes';
 
-const langstudyNoun = `Please enclose all nouns with \${}. For example: I love apple -> I love \${apple}.`;
-const langstudyVerb = `Please enclose all vrebs with \${}. For example: I love apple -> I \${love} apple.`;
-const langstudyPreposition = `Please enclose all prepositions with \${}. For example: He is happy with the meat in his mouth. -> He is happy \${with} the meat \${in} his mouth.`;
-const langstudyCommon = `Please annotate all phrases and fixed collocation of prepositions in the text using \${}. For example: He is happy with the meat in his mouth. -> He is \${happy with} the meat in his mouth.`;
-const langstudyStructure = `Please annotate all key syntactic structures that form the skeleton of sentences in the text using \${}, such as conjunctions and adverbs. For example: The car not only is economical but also feels good to drive. ->  The car \${not only} is economical \${but also} feels good to drive.`;
-
 /* eslint-disable prettier/prettier */
 export const multipleChoiceOne = `
 Please generate 4 multiple-choice quiz questions based on the following paragraph, with each question having 4 answer options (labeled A, B, C, and D). Only one option per question should be correct. Ensure the questions cover key details, facts, or concepts from the paragraph and vary in difficulty. Return the questions and answers in JSON format.
@@ -50,85 +44,7 @@ Here's the sample json format:
 Thank you.
 `;
 
-const langstudyAnnotateIndex = (type) => {
-  if (type === 'Noun') return 0;
-  if (type === 'Verb') return 1;
-  if (type === 'Prepositions') return 2;
-  if (type === 'Collocations') return 3;
-  return 4;
-};
-
-const langstudyAnnotatePrompt = (type) => {
-  if (type === 'Noun') return langstudyNoun;
-  if (type === 'Verb') return langstudyVerb;
-  if (type === 'Prepositions') return langstudyPreposition;
-  if (type === 'Collocations') return langstudyCommon;
-  return langstudyStructure;
-};
-
 const langstudy5wPrompt = `Please provide only concise keywords for 'Who, What, When, Where, and Why' of every single sentences of paragraph. return data in json format:  {data: [{ sentenceIndex: 0, who: "xx", what: "xx", when: "xx', where: "xx", why: "xx"}]}:`;
-const langstudyGrammarCheckPrompt = `As a language expert, your task is to annotate and correct grammar mistakes. Please Identify errors by marking the problematic segment with \${XXX}[index], here XXX is problematic segment. you also provide correction for each of them at the end. For instance:
-Microwave ovens is generally more costlier than common ovens.  -> Microwave ovens \${is}[0] generally more \${costlier}[1] than common ovens.
-[0] Correction: "is" should be "are"
-[1] Correction: "costlier" should be "costly"`;
-
-const langstudyComparisonExercise = (originalSentence, mySentence) => {
-  return `
-  I try to learn english by rewriting the original sentence.
-# this is original sentence:
-
-${originalSentence}
-
-# this is what i wrote:
-
-${mySentence}
-
-# you are a language expert, Please analyze my grammatical errors or any unnatural language usage and design some exercises with examples (not strategies) to help me correct these mistakes.
-Response with JSON format, here is an example (there are many types, here we use "Capitalization" and "Article Usage" just for demo purpose):
-
-{
- "issues": [
-  {
-    "type": "Capitalization",
-    "explain": "The word \\"When\\" should be capitalized at the beginning of the sentence."
-  },
-   {
-    "type": "Article Usage",
-    "explain": "\\"the element\\" should be used consistently."
-  },
- ],
-
- "exercises": [
-  {
-    "type": "Capitalization",
-    "original": "When the color of the sky is changed, the atmosphere looks different.",
-    "rewriteExercise": "Change the verb \\"is changed\\" to match the correct tense and context.",
-    "example": "When the color of the sky is set to change, the atmosphere looks different."
-  },
-  {
-    "type": "Article Usage",
-    "original": "Element creates an interesting effect in the scene.",
-    "rewriteExercise": "Add or remove articles where necessary to correct the sentence.",
-    "example": "The element creates an interesting effect in the scene."
-  }
- ]
-}
-  `;
-};
-
-const langstudyComparisonExerciseMore = (exercise) => {
-  return `
-  You are language expert. please provide three more exercise examples about ${exercise.type}.
-  Please response in JSON format, here is a sample response:
-
-  {
-   "data" : [
-     ${JSON.stringify(exercise)}
-   ]
-  }
-
-  `;
-};
 
 const suitableForElementary =
   'Please response using words that elementary school students can understand';
@@ -1729,13 +1645,8 @@ export {
   mapToNewJsonSchema,
   createVocabularyPrompt,
   createReaderLevelPrompt,
-  langstudyAnnotatePrompt,
   langstudy5wPrompt,
-  langstudyAnnotateIndex,
-  langstudyGrammarCheckPrompt,
   createRewriteHtmlCodeForElementarySchoolPrompt,
-  langstudyComparisonExercise,
-  langstudyComparisonExerciseMore,
   createRewriteHtmlCodeForWordFrequencyJsonPrompt,
   createDecomposeParagraphPrompt,
   createSmartSummaryPrompt,
