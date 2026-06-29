@@ -13,6 +13,7 @@ import MultilineTextField from './MultilineTextField';
 import FiveWRail from './FiveWRail';
 import ComposeScaffolds from './ComposeScaffolds';
 import ExpressionDiffPanel from './ExpressionDiffPanel';
+import AlignmentView from './AlignmentView';
 import spineApi from '../../api/spineApi';
 import {
   langstudy5wPrompt,
@@ -237,6 +238,11 @@ function ComposeCompare({ originalText, accent }) {
             original={originalText}
             learner={mywriting}
             diff={diff}
+            accent={accent}
+          />
+          <AlignmentView
+            original={originalText}
+            learner={mywriting}
             accent={accent}
           />
         </>
