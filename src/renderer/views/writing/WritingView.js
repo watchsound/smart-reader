@@ -20,6 +20,28 @@ const EMPTY_VARIANTS = {
   subord: '',
 };
 
+// Cap the LLM call at 45s so a hung provider (network issue, broken IPC,
+// missing API key) surfaces as a clear failure with a retry option instead
+// of an infinite spinner. The POS rungs remain usable throughout.
+const RECALL_TIMEOUT_MS = 45000;
+
+async function fetchLlmRungs(text) {
+  const timeoutPromise = new Promise((_resolve, reject) => {
+    setTimeout(
+      () =>
+        reject(new Error('Recall ladder request timed out after 45 seconds')),
+      RECALL_TIMEOUT_MS,
+    );
+  });
+  const res = await Promise.race([
+    spineApi.generateContentWithJson(langstudyRecallLadderPrompt(text), null, {
+      label: 'writing-recall-ladder',
+    }),
+    timeoutPromise,
+  ]);
+  return parseRecallLadder(res);
+}
+
 function WritingView() {
   const theme = useTheme();
   const mode = theme.palette.mode === 'dark' ? 'dark' : 'light';
@@ -29,6 +51,7 @@ function WritingView() {
   const [sourceLocked, setSourceLocked] = useState(false);
   const [recallVariants, setRecallVariants] = useState(EMPTY_VARIANTS);
   const [recallLoading, setRecallLoading] = useState(false);
+  const [recallError, setRecallError] = useState(null);
 
   const phaseIdx = PHASES.findIndex((p) => p.id === activePhase);
   // eslint-disable-next-line no-nested-ternary
@@ -63,15 +86,11 @@ function WritingView() {
       };
       if (!cancelled) {
         setRecallVariants((prev) => ({ ...prev, ...posMasks }));
+        setRecallError(null);
       }
       setRecallLoading(true);
       try {
-        const res = await spineApi.generateContentWithJson(
-          langstudyRecallLadderPrompt(text),
-          null,
-          { label: 'writing-recall-ladder' },
-        );
-        const parsed = parseRecallLadder(res);
+        const parsed = await fetchLlmRungs(text);
         if (!cancelled) {
           setRecallVariants((prev) => ({
             ...prev,
@@ -83,6 +102,9 @@ function WritingView() {
       } catch (err) {
         // eslint-disable-next-line no-console
         console.error('Recall ladder fetch failed', err);
+        if (!cancelled) {
+          setRecallError(err?.message || 'Recall ladder request failed.');
+        }
       } finally {
         if (!cancelled) setRecallLoading(false);
       }
@@ -92,6 +114,32 @@ function WritingView() {
       cancelled = true;
     };
   }, [activePhase, sourceLocked, text, recallVariants.adj]);
+
+  const retryLlmRungs = async () => {
+    setRecallVariants((prev) => ({
+      ...prev,
+      connect: '',
+      clause: '',
+      subord: '',
+    }));
+    setRecallError(null);
+    setRecallLoading(true);
+    try {
+      const parsed = await fetchLlmRungs(text);
+      setRecallVariants((prev) => ({
+        ...prev,
+        connect: parsed.light,
+        clause: parsed.medium,
+        subord: parsed.hard,
+      }));
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('Recall ladder retry failed', err);
+      setRecallError(err?.message || 'Recall ladder request failed.');
+    } finally {
+      setRecallLoading(false);
+    }
+  };
 
   const handleLock = () => {
     if (!text.trim()) return;
@@ -146,6 +194,8 @@ function WritingView() {
             <RecallLadder
               variants={recallVariants}
               loading={recallLoading}
+              error={recallError}
+              onRetry={retryLlmRungs}
               accent={accent}
               onContinue={() => setActivePhase('compose')}
             />

@@ -47,7 +47,14 @@ function explode(tokens) {
   return out;
 }
 
-function RecallLadder({ variants, loading, accent, onContinue }) {
+function RecallLadder({
+  variants,
+  loading,
+  error,
+  onRetry,
+  accent,
+  onContinue,
+}) {
   const theme = useTheme();
   const [activeRung, setActiveRung] = useState(RUNGS[0].id);
   // Per-rung map of resolved tokens: { [maskIdx]: 'correct' | 'revealed' }.
@@ -179,9 +186,46 @@ function RecallLadder({ variants, loading, accent, onContinue }) {
           color: theme.palette.text.primary,
         }}
       >
-        {loading ? (
-          <Typography color="text.secondary">Preparing ladder…</Typography>
-        ) : (
+        {/* Show body content if the current rung has variants.
+            If it's empty and the LLM is still loading, show "Preparing".
+            If it's empty and the LLM failed, show retry. */}
+        {!masked && loading && (
+          <Typography color="text.secondary">
+            Preparing this rung… (POS rungs are usable now)
+          </Typography>
+        )}
+        {!masked && !loading && (
+          <Box>
+            <Typography color="text.secondary" sx={{ mb: 2 }}>
+              {error
+                ? `This rung didn’t load: ${error}`
+                : 'This rung is empty.'}
+            </Typography>
+            {onRetry && (
+              <Typography
+                component="button"
+                onClick={onRetry}
+                sx={{
+                  fontFamily: MONO,
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  border: `1px solid ${alpha(accent, 0.4)}`,
+                  borderRadius: 1,
+                  background: 'transparent',
+                  color: accent,
+                  cursor: 'pointer',
+                  px: 2,
+                  py: 0.75,
+                }}
+              >
+                Retry LLM rungs
+              </Typography>
+            )}
+          </Box>
+        )}
+        {masked && (
           <Box key={activeRung}>
             {(() => {
               let maskCount = 0;
