@@ -88,6 +88,26 @@ describe('classifyWord', () => {
     expect(classifyWord('daily')).toBe('noun');
   });
 
+  test('-le-stem -ly adjectives are excluded from adverb (not bubbly et al)', () => {
+    // Regression guard: previously these tagged as adverb because they
+    // ended in -ly with no other rule catching them.
+    expect(classifyWord('bubbly')).not.toBe('adverb');
+    expect(classifyWord('wobbly')).not.toBe('adverb');
+    expect(classifyWord('prickly')).not.toBe('adverb');
+    expect(classifyWord('crinkly')).not.toBe('adverb');
+    expect(classifyWord('wiggly')).not.toBe('adverb');
+    expect(classifyWord('curly')).not.toBe('adverb');
+    expect(classifyWord('crumbly')).not.toBe('adverb');
+  });
+
+  test('-ly relational adjectives are not tagged as adverb', () => {
+    expect(classifyWord('motherly')).not.toBe('adverb');
+    expect(classifyWord('brotherly')).not.toBe('adverb');
+    expect(classifyWord('scholarly')).not.toBe('adverb');
+    expect(classifyWord('deadly')).not.toBe('adverb');
+    expect(classifyWord('costly')).not.toBe('adverb');
+  });
+
   test('-ly words shorter than 5 chars default to noun (too ambiguous)', () => {
     expect(classifyWord('fly')).toBe('noun');
     expect(classifyWord('ugly')).toBe('noun');
