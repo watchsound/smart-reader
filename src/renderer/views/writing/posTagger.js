@@ -1,673 +1,127 @@
-// Lightweight rule-based POS tagger. Used to build deterministic
-// (no-LLM) recall-ladder masks for the Adjectives / Nouns / Verbs rungs.
+// POS tagger backed by the `compromise` NLP library. Used to build
+// deterministic (no-LLM) recall-ladder masks for the Adjectives /
+// Adverbs / Nouns / Verbs rungs.
 //
-// Quality bar: the goal is "good enough for masking-as-recall-practice".
-// False positives (e.g. tagging a noun as a verb because it ends in -ed
-// like "wicked") are acceptable — the worst case is a mildly mis-curated
-// recall exercise, not broken text.
+// Why a library, not hand-curated rules: the previous implementation
+// accumulated ~600 lines of hardcoded dictionaries + an exclude list
+// that grew with every round of "but this -ly word is actually an
+// adjective." compromise is mature, ~250KB minified, runs entirely
+// in the renderer, and uses sentence context to disambiguate. It's
+// not perfect — a small override set still catches the specific
+// false positives compromise consistently misses (bubbly, motherly).
 
-const FUNCTION_WORDS = new Set([
-  // articles
-  'a',
-  'an',
-  'the',
-  // personal / possessive / reflexive pronouns
-  'i',
-  'me',
-  'my',
-  'mine',
-  'myself',
-  'you',
-  'your',
-  'yours',
-  'yourself',
-  'yourselves',
-  'he',
-  'him',
-  'his',
-  'himself',
-  'she',
-  'her',
-  'hers',
-  'herself',
-  'it',
-  'its',
-  'itself',
-  'we',
-  'us',
-  'our',
-  'ours',
-  'ourselves',
-  'they',
-  'them',
-  'their',
-  'theirs',
-  'themselves',
-  // demonstratives / interrogatives / relatives
-  'this',
-  'that',
-  'these',
-  'those',
-  'who',
-  'whom',
-  'whose',
-  'which',
-  'what',
-  'whatever',
-  'whoever',
-  // be / have / do (all inflections — these can be auxiliaries OR copulas)
-  'am',
-  'is',
-  'are',
-  'was',
-  'were',
-  'be',
-  'been',
-  'being',
-  'have',
-  'has',
-  'had',
-  'having',
-  'do',
-  'does',
-  'did',
-  'doing',
-  'done',
-  // modals
-  'will',
-  'would',
-  'shall',
-  'should',
-  'can',
-  'could',
-  'may',
-  'might',
-  'must',
-  'ought',
-  // common prepositions
-  'in',
-  'on',
-  'at',
-  'to',
-  'from',
-  'of',
-  'for',
-  'with',
-  'by',
-  'about',
-  'against',
-  'between',
-  'into',
-  'through',
-  'during',
-  'before',
-  'after',
-  'above',
-  'below',
-  'under',
-  'over',
-  'up',
-  'down',
-  'out',
-  'off',
-  'as',
-  'than',
-  'per',
-  'via',
-  'upon',
-  'within',
-  'without',
-  'across',
-  'along',
-  'around',
-  'beyond',
-  'inside',
-  'outside',
-  'behind',
-  'beneath',
-  // conjunctions / discourse markers
-  'and',
-  'or',
-  'but',
-  'so',
-  'yet',
-  'nor',
-  'because',
-  'although',
-  'though',
-  'while',
-  'whilst',
-  'since',
-  'if',
-  'unless',
-  'when',
-  'where',
-  'until',
-  'whether',
-  'whereas',
-  'however',
-  'therefore',
-  'moreover',
-  'furthermore',
-  'nevertheless',
-  'meanwhile',
-  'instead',
-  // quantifiers / determiners / numerals
-  'all',
-  'some',
-  'any',
-  'each',
-  'every',
-  'no',
-  'none',
-  'few',
-  'many',
-  'most',
-  'much',
-  'more',
-  'less',
-  'least',
-  'several',
-  'enough',
-  'such',
-  'one',
-  'two',
-  'three',
-  'four',
-  'five',
-  'six',
-  'seven',
-  'eight',
-  'nine',
-  'ten',
-  'both',
-  'either',
-  'neither',
-  // negation / common adverbs that aren't content
-  'not',
-  'never',
-  'always',
-  'often',
-  'sometimes',
-  'usually',
-  'just',
-  'only',
-  'even',
-  'also',
-  'too',
-  'very',
-  'quite',
-  'rather',
-  // pointers
-  'there',
-  'here',
-  'then',
+import nlp from 'compromise';
+
+// Words compromise gets wrong consistently and that show up often
+// enough to be worth a manual override. Map word -> our POS tag.
+// Override wins over whatever compromise returns.
+const OVERRIDES = new Map([
+  // -le-stem adjectives that compromise tags as adverb
+  ['bubbly', 'adjective'],
+  ['wobbly', 'adjective'],
+  ['prickly', 'adjective'],
+  ['crinkly', 'adjective'],
+  ['wiggly', 'adjective'],
+  ['giggly', 'adjective'],
+  ['curly', 'adjective'],
+  ['wrinkly', 'adjective'],
+  ['crumbly', 'adjective'],
+  // -ly relational adjectives
+  ['motherly', 'adjective'],
+  ['fatherly', 'adjective'],
+  ['brotherly', 'adjective'],
+  ['sisterly', 'adjective'],
+  ['scholarly', 'adjective'],
+  ['cowardly', 'adjective'],
+  ['priestly', 'adjective'],
 ]);
 
-// Common irregular verbs — these don't pattern-match by suffix.
-const KNOWN_VERBS = new Set([
-  'go',
-  'goes',
-  'went',
-  'gone',
-  'going',
-  'say',
-  'says',
-  'said',
-  'saying',
-  'see',
-  'sees',
-  'saw',
-  'seen',
-  'seeing',
-  'come',
-  'comes',
-  'came',
-  'coming',
-  'take',
-  'takes',
-  'took',
-  'taken',
-  'taking',
-  'make',
-  'makes',
-  'made',
-  'making',
-  'find',
-  'finds',
-  'found',
-  'finding',
-  'give',
-  'gives',
-  'gave',
-  'given',
-  'giving',
-  'know',
-  'knows',
-  'knew',
-  'known',
-  'knowing',
-  'think',
-  'thinks',
-  'thought',
-  'thinking',
-  'feel',
-  'feels',
-  'felt',
-  'feeling',
-  'tell',
-  'tells',
-  'told',
-  'telling',
-  'become',
-  'becomes',
-  'became',
-  'becoming',
-  'leave',
-  'leaves',
-  'left',
-  'leaving',
-  'put',
-  'puts',
-  'putting',
-  'mean',
-  'means',
-  'meant',
-  'meaning',
-  'keep',
-  'keeps',
-  'kept',
-  'keeping',
-  'let',
-  'lets',
-  'letting',
-  'begin',
-  'begins',
-  'began',
-  'begun',
-  'beginning',
-  'seem',
-  'seems',
-  'seemed',
-  'seeming',
-  'show',
-  'shows',
-  'showed',
-  'shown',
-  'showing',
-  'try',
-  'tries',
-  'tried',
-  'trying',
-  'call',
-  'calls',
-  'called',
-  'calling',
-  'ask',
-  'asks',
-  'asked',
-  'asking',
-  'need',
-  'needs',
-  'needed',
-  'needing',
-  'work',
-  'works',
-  'worked',
-  'working',
-  'use',
-  'uses',
-  'used',
-  'using',
-  'want',
-  'wants',
-  'wanted',
-  'wanting',
-  'happen',
-  'happens',
-  'happened',
-  'happening',
-  'include',
-  'includes',
-  'included',
-  'including',
-  'get',
-  'gets',
-  'got',
-  'gotten',
-  'getting',
-  'run',
-  'runs',
-  'ran',
-  'running',
-  'bring',
-  'brings',
-  'brought',
-  'bringing',
-  'write',
-  'writes',
-  'wrote',
-  'written',
-  'writing',
-  'read',
-  'reads',
-  'reading',
-  'speak',
-  'speaks',
-  'spoke',
-  'spoken',
-  'speaking',
-  'hear',
-  'hears',
-  'heard',
-  'hearing',
-  'send',
-  'sends',
-  'sent',
-  'sending',
-  'meet',
-  'meets',
-  'met',
-  'meeting',
-  'pay',
-  'pays',
-  'paid',
-  'paying',
-  'sit',
-  'sits',
-  'sat',
-  'sitting',
-  'stand',
-  'stands',
-  'stood',
-  'standing',
-  'lose',
-  'loses',
-  'lost',
-  'losing',
-  'win',
-  'wins',
-  'won',
-  'winning',
-  'eat',
-  'eats',
-  'ate',
-  'eaten',
-  'eating',
-  'drink',
-  'drinks',
-  'drank',
-  'drunk',
-  'drinking',
-  'buy',
-  'buys',
-  'bought',
-  'buying',
-  'sell',
-  'sells',
-  'sold',
-  'selling',
-  'choose',
-  'chooses',
-  'chose',
-  'chosen',
-  'choosing',
-  'decide',
-  'decides',
-  'decided',
-  'deciding',
-  'discuss',
-  'discusses',
-  'discussed',
-  'discussing',
-  'occur',
-  'occurs',
-  'occurred',
-  'occurring',
-  'happen',
-  'happens',
-  'happened',
-  'happening',
-]);
-
-const KNOWN_ADJECTIVES = new Set([
-  'good',
-  'bad',
-  'big',
-  'small',
-  'large',
-  'little',
-  'long',
-  'short',
-  'new',
-  'old',
-  'high',
-  'low',
-  'right',
-  'wrong',
-  'first',
-  'last',
-  'next',
-  'main',
-  'real',
-  'true',
-  'false',
-  'free',
-  'open',
-  'closed',
-  'public',
-  'private',
-  'full',
-  'empty',
-  'easy',
-  'hard',
-  'soft',
-  'best',
-  'better',
-  'worse',
-  'worst',
-  'same',
-  'different',
-  'similar',
-  'illegal',
-  'legal',
-  'criminal',
-  'civil',
-  'personal',
-  'social',
-  'fake',
-  'genuine',
-  'common',
-  'rare',
-  'special',
-  'general',
-  'young',
-  'old',
-  'fast',
-  'slow',
-  'quick',
-  'late',
-  'early',
-  'happy',
-  'sad',
-  'angry',
-  'calm',
-  'busy',
-  'free',
-  'red',
-  'blue',
-  'green',
-  'yellow',
-  'black',
-  'white',
-  'gray',
-  'brown',
-  'dark',
-  'light',
-  'bright',
-  'clear',
-  'cloudy',
-  'hot',
-  'cold',
-  'warm',
-  'cool',
-  'wet',
-  'dry',
-  'rich',
-  'poor',
-  'strong',
-  'weak',
-  'safe',
-  'dangerous',
-  'important',
-  'simple',
-  'complex',
-  'final',
-  'main',
-]);
-
-// `-ly` words that are NOT adverbs. These ride the suffix heuristic
-// otherwise and would get mis-tagged. Adjectives like `early`, `lonely`,
-// `friendly` etc. that ARE in KNOWN_ADJECTIVES never reach the adverb
-// rule — they short-circuit on the known-set check above. This list
-// captures the remaining false positives, mostly nouns and a few
-// adjectives the dictionary doesn't cover.
-const ADVERB_EXCLUDE = new Set([
-  // nouns/names that happen to end in -ly
-  'family',
-  'belly',
-  'jolly',
-  'holy',
-  'rally',
-  'kelly',
-  'sally',
-  'lily',
-  'billy',
-  'bully',
-  'molly',
-  'jelly',
-  'fly',
-  'apply',
-  'supply',
-  'imply',
-  'rely',
-  'reply',
-  // adjectives that end in -ly but aren't adverbs
-  'silly',
-  'lonely',
-  'lovely',
-  'friendly',
-  'daily',
-  'weekly',
-  'monthly',
-  'yearly',
-  'hourly',
-  'godly',
-  'oily',
-  'ugly',
-  'manly',
-  'womanly',
-  'orderly',
-  'leisurely',
-  'kindly',
-  // -le-stem adjectives forming -ly without being adverbs (the most common
-  // false-positive cluster in the rule-based tagger)
-  'bubbly',
-  'wobbly',
-  'prickly',
-  'crinkly',
-  'wiggly',
-  'giggly',
-  'curly',
-  'wrinkly',
-  'crumbly',
-  'jiggly',
-  'sparkly',
-  'crackly',
-  'squiggly',
-  'gnarly',
-  'ghastly',
-  'ghostly',
-  'beastly',
-  'costly',
-  'deadly',
-  'deathly',
-  'earthly',
-  'heavenly',
-  'worldly',
-  'homely',
-  'comely',
-  'cuddly',
-  'wiggly',
-  'measly',
-  // -ly relational adjectives (motherly, fatherly, ...)
-  'motherly',
-  'fatherly',
-  'brotherly',
-  'sisterly',
-  'neighborly',
-  'scholarly',
-  'princely',
-  'kingly',
-  'knightly',
-  // verbs ending in -ly
-  'multiply',
-]);
-
-export function classifyWord(word) {
-  const lower = word.toLowerCase();
-  if (FUNCTION_WORDS.has(lower)) return 'function';
-  if (KNOWN_ADJECTIVES.has(lower)) return 'adjective';
-  if (KNOWN_VERBS.has(lower)) return 'verb';
-
-  // Adverb heuristic — `-ly` ending with length >= 5, modulo the small
-  // exclude set above. Checked before other suffix rules so words like
-  // `quickly`, `carefully`, `obviously` route to adverb instead of
-  // falling through to the noun default.
-  if (/ly$/.test(lower) && lower.length >= 5 && !ADVERB_EXCLUDE.has(lower)) {
-    return 'adverb';
-  }
-
-  // Suffix heuristics. Order matters: adjective patterns first (more
-  // distinctive), then noun (more distinctive than verb), then verb.
-  // Length guards prevent matches on tiny inflected stems.
+// Map a Set of compromise tag strings to our 5-class POS schema.
+// Order of checks matters — earlier checks win when multiple tags apply.
+function mapTagsToPos(tags) {
+  // Function words: determiners, prepositions, conjunctions, pronouns,
+  // auxiliaries/copulas/modals. These should never be masked.
   if (
-    /(?:ful|less|ous|ive|ible|able|ic|ish)$/.test(lower) &&
-    lower.length > 4
+    tags.has('Determiner') ||
+    tags.has('Preposition') ||
+    tags.has('Conjunction') ||
+    tags.has('Pronoun') ||
+    tags.has('Modal') ||
+    tags.has('Copula') ||
+    tags.has('Auxiliary') ||
+    tags.has('QuestionWord') ||
+    tags.has('Negative')
   ) {
-    return 'adjective';
+    return 'function';
   }
-  if (
-    /(?:tion|sion|ness|ment|ity|ism|ence|ance|hood|ship)$/.test(lower) &&
-    lower.length > 4
-  ) {
-    return 'noun';
-  }
-  if (/(?:ed|ing)$/.test(lower) && lower.length > 4) {
-    return 'verb';
-  }
-  // -al is ambiguous (final, manual, central are adjectives; arrival,
-  // proposal are nouns). Default to adjective for -al as it's the more
-  // common content sense.
-  if (/al$/.test(lower) && lower.length > 4) {
-    return 'adjective';
-  }
-  // Default: unknown content words are most often nouns in English.
+  // Content classes. Adjective comes before Adverb so a token tagged
+  // as both (rare but possible) routes to adjective — the more
+  // pedagogically valuable signal.
+  if (tags.has('Adjective')) return 'adjective';
+  if (tags.has('Adverb')) return 'adverb';
+  if (tags.has('Verb')) return 'verb';
+  if (tags.has('Noun') || tags.has('ProperNoun')) return 'noun';
+  // Unknown content word → noun by default (most English content
+  // words are nouns when other signals are absent).
   return 'noun';
 }
 
-// Tokenize `text` into word entries with position. Words = runs of
-// [A-Za-z'-]; everything else is whitespace/punctuation and is skipped.
+// Classify a single word in isolation. Provided primarily for unit
+// testing — callers that have full text should prefer `taggedTokens`
+// since compromise uses sentence context to disambiguate.
+export function classifyWord(word) {
+  if (!word) return 'noun';
+  const lower = word.toLowerCase();
+  if (OVERRIDES.has(lower)) return OVERRIDES.get(lower);
+  const doc = nlp(word);
+  const term = doc.terms().json({ terms: { tags: true } })[0];
+  if (!term || !term.terms || term.terms.length === 0) return 'noun';
+  const tags = new Set(term.terms[0].tags || []);
+  return mapTagsToPos(tags);
+}
+
+// Tokenize `text` into word entries with character positions. Uses
+// compromise's sentence-level tagging for accuracy, then walks the
+// original text to recover exact offsets (compromise doesn't preserve
+// them in a way that round-trips with our `${word}` mask renderer).
 export function taggedTokens(text) {
   if (!text) return [];
+  // Get per-word tags from compromise (sentence context active).
+  const doc = nlp(text);
+  const json = doc.terms().json({ terms: { tags: true } });
+  const tagsByWord = new Map();
+  // Sentences can repeat words with different tags. Keep a list per word.
+  json.forEach((sentence) => {
+    sentence.terms.forEach((t) => {
+      const key = (t.text || '').toLowerCase();
+      if (!key) return;
+      if (!tagsByWord.has(key)) tagsByWord.set(key, []);
+      tagsByWord.get(key).push(new Set(t.tags || []));
+    });
+  });
+
+  // Now walk the original text to find each word's character positions.
   const tokens = [];
   const re = /[A-Za-z][A-Za-z'-]*/g;
+  const usedOffsets = new Map(); // word -> next-tag-index to consume
   let m = re.exec(text);
   while (m !== null) {
     const word = m[0];
+    const key = word.toLowerCase();
+    // Override always wins.
+    let pos;
+    if (OVERRIDES.has(key)) {
+      pos = OVERRIDES.get(key);
+    } else {
+      const tagList = tagsByWord.get(key) || [];
+      const idx = usedOffsets.get(key) || 0;
+      const tags = tagList[idx] || new Set();
+      usedOffsets.set(key, idx + 1);
+      pos = mapTagsToPos(tags);
+    }
     tokens.push({
       word,
-      pos: classifyWord(word),
+      pos,
       start: m.index,
       end: m.index + word.length,
     });
@@ -676,10 +130,9 @@ export function taggedTokens(text) {
   return tokens;
 }
 
-// Pick `cap` items from `arr`, evenly spaced by index. Used to keep the
-// recall task tractable when a POS rung would otherwise mask too many
-// words (e.g. 26 nouns in a 50-word paragraph). Returns the original
-// array when its length is already at or below the cap.
+// Pick `cap` items from `arr`, evenly spaced by index. Used to keep
+// the recall task tractable when a POS rung would otherwise mask too
+// many words.
 export function sampleEvenly(arr, cap) {
   if (arr.length <= cap) return arr;
   const out = [];
@@ -691,13 +144,8 @@ export function sampleEvenly(arr, cap) {
 }
 
 // Build a `${...}`-masked variant of `text` by masking every word
-// whose tagged POS is in `posSet`. Preserves all surrounding whitespace
-// and punctuation so the rendered output reads identically except for
-// the redacted spans.
-//
-// `options.cap` (default: unlimited) bounds the number of masks per call.
-// When the candidate set exceeds the cap, picks evenly-spaced indices so
-// masking stays spatially distributed across the paragraph.
+// whose tagged POS is in `posSet`. `options.cap` bounds the number
+// of masks per call; when exceeded, picks evenly-spaced indices.
 export function buildPosMask(text, posSet, options = {}) {
   if (!text) return '';
   const { cap = Infinity } = options;
