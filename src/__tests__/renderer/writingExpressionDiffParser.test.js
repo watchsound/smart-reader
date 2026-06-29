@@ -101,4 +101,35 @@ describe('parseExpressionDiff', () => {
   test('null input throws', () => {
     expect(() => parseExpressionDiff(null)).toThrow(/expected object/i);
   });
+
+  test('empty string returns empty result (LLM returned nothing)', () => {
+    // Real-world regression: spineApi sometimes returns '' on provider
+    // hiccup; JSON.parse('') threw 'Unexpected end of JSON input' and
+    // crashed handleCompare. Now we treat empty as 'no diff' instead.
+    expect(parseExpressionDiff('')).toEqual({
+      spans: [],
+      sentenceComparisons: [],
+      notes: [],
+    });
+    expect(parseExpressionDiff('   ')).toEqual({
+      spans: [],
+      sentenceComparisons: [],
+      notes: [],
+    });
+  });
+
+  test('strips markdown code fences from JSON string', () => {
+    // Some providers (Claude, GPT) wrap JSON in ```json ... ```.
+    const wrapped = '```json\n{"spans":[],"notes":[],"sentenceComparisons":[]}\n```';
+    const out = parseExpressionDiff(wrapped);
+    expect(out).toEqual({
+      spans: [],
+      sentenceComparisons: [],
+      notes: [],
+    });
+  });
+
+  test('invalid JSON throws a clear error', () => {
+    expect(() => parseExpressionDiff('{not json')).toThrow(/invalid JSON/i);
+  });
 });

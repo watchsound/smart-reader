@@ -39,6 +39,7 @@ function ComposeCompare({ originalText, accent }) {
   const [diff, setDiff] = useState(null);
   const [loadingScaffolds, setLoadingScaffolds] = useState(false);
   const [loadingDiff, setLoadingDiff] = useState(false);
+  const [diffError, setDiffError] = useState(null);
   const [refOpen, setRefOpen] = useState(false);
 
   useEffect(() => {
@@ -88,17 +89,33 @@ function ComposeCompare({ originalText, accent }) {
   const handleCompare = async () => {
     if (!mywriting.trim() || !originalText) return;
     setLoadingDiff(true);
+    setDiffError(null);
     try {
       const res = await spineApi.generateContentWithJson(
         langstudyExpressionDiffPrompt(originalText, mywriting),
         null,
         { label: 'writing-expression-diff' },
       );
-      setDiff(parseExpressionDiff(res));
+      const parsed = parseExpressionDiff(res);
+      // Guard against an LLM hiccup that returns nothing usable — give
+      // the user a clear "retry" affordance instead of silently moving
+      // to the compare stage with an empty side-by-side.
+      const hasContent =
+        parsed.spans.length > 0 ||
+        parsed.notes.length > 0 ||
+        parsed.sentenceComparisons.length > 0;
+      if (!hasContent) {
+        setDiffError(
+          'The compare call came back empty. Try again — the provider may have hiccupped.',
+        );
+        return;
+      }
+      setDiff(parsed);
       setStage('compare');
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error('Expression diff failed', err);
+      setDiffError(err?.message || 'Compare failed. Try again.');
     } finally {
       setLoadingDiff(false);
     }
@@ -191,6 +208,17 @@ function ComposeCompare({ originalText, accent }) {
                 </Typography>
               </Box>
             </Box>
+            {diffError && (
+              <Typography
+                sx={{
+                  mt: 1,
+                  fontSize: '0.85rem',
+                  color: theme.palette.error.main,
+                }}
+              >
+                {diffError}
+              </Typography>
+            )}
           </Box>
         </>
       )}

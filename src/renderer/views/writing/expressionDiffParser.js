@@ -1,13 +1,38 @@
 export const VALID_SIDES = new Set(['learner', 'original']);
 export const VALID_KINDS = new Set(['match', 'weaker', 'stronger', 'grammar']);
 
+// Strip markdown ```json``` / ``` code fences some providers wrap JSON in.
+function stripCodeFences(s) {
+  let out = s.trim();
+  if (out.startsWith('```')) {
+    out = out
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/```\s*$/, '')
+      .trim();
+  }
+  return out;
+}
+
+const EMPTY = { spans: [], sentenceComparisons: [], notes: [] };
+
 export function parseExpressionDiff(input) {
+  if (input == null) {
+    throw new Error('parseExpressionDiff: expected object, got null');
+  }
   let obj = input;
   if (typeof obj === 'string') {
-    obj = JSON.parse(obj);
+    const cleaned = stripCodeFences(obj);
+    if (!cleaned) return EMPTY;
+    try {
+      obj = JSON.parse(cleaned);
+    } catch (e) {
+      throw new Error(
+        `parseExpressionDiff: LLM returned invalid JSON: ${e.message}`,
+      );
+    }
   }
   if (!obj || typeof obj !== 'object') {
-    throw new Error(`parseExpressionDiff: expected object, got ${typeof obj}`);
+    return EMPTY;
   }
 
   const rawSpans = Array.isArray(obj.spans) ? obj.spans : [];
