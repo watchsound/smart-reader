@@ -1,11 +1,22 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Box, Typography, IconButton, Tooltip } from '@mui/material';
-import { useTheme, alpha } from '@mui/material/styles';
+import { useTheme, alpha, keyframes } from '@mui/material/styles';
 import EditIcon from '@mui/icons-material/Edit';
 import MultilineTextField from './MultilineTextField';
 
 const SERIF = `'Source Serif Pro', Georgia, 'Times New Roman', serif`;
 const MONO = `'JetBrains Mono', Menlo, Monaco, Consolas, monospace`;
+
+const lockPulse = (color) => keyframes`
+  0%   { box-shadow: 0 0 0 0 ${alpha(color, 0)}; }
+  40%  { box-shadow: 0 0 0 6px ${alpha(color, 0.35)}; }
+  100% { box-shadow: 0 0 0 0 ${alpha(color, 0)}; }
+`;
+
+const fadeIn = keyframes`
+  from { opacity: 0; transform: translateX(4px); }
+  to   { opacity: 1; transform: translateX(0); }
+`;
 
 function SourcePanel({
   text,
@@ -21,6 +32,20 @@ function SourcePanel({
   const trimmed = (text || '').trim();
   const canLock = trimmed.length > 0;
 
+  // Pulse the panel briefly on the locked transition.
+  const prevLockedRef = useRef(sourceLocked);
+  const [pulsing, setPulsing] = useState(false);
+  useEffect(() => {
+    if (!prevLockedRef.current && sourceLocked) {
+      setPulsing(true);
+      const t = setTimeout(() => setPulsing(false), 700);
+      prevLockedRef.current = sourceLocked;
+      return () => clearTimeout(t);
+    }
+    prevLockedRef.current = sourceLocked;
+    return undefined;
+  }, [sourceLocked]);
+
   return (
     <Box
       sx={{
@@ -30,6 +55,7 @@ function SourcePanel({
         borderLeft: `4px solid ${accent}`,
         overflow: 'hidden',
         position: 'relative',
+        animation: pulsing ? `${lockPulse(accent)} 700ms ease-out` : 'none',
       }}
     >
       <Box
@@ -56,10 +82,12 @@ function SourcePanel({
         </Typography>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Typography
+            key={sourceLocked ? 'locked' : 'unlocked'}
             sx={{
               fontFamily: MONO,
               fontSize: '0.72rem',
               color: sourceLocked ? accent : theme.palette.text.disabled,
+              animation: `${fadeIn} 250ms ease-out`,
             }}
           >
             {sourceLocked ? '○ LOCKED' : '● UNLOCKED'}

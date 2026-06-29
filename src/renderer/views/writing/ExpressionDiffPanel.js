@@ -1,11 +1,32 @@
 import React, { useState } from 'react';
 import { Box, Typography } from '@mui/material';
-import { useTheme, alpha } from '@mui/material/styles';
+import { useTheme, alpha, keyframes } from '@mui/material/styles';
 import DiffSpan from './DiffSpan';
 
 const SERIF = `'Source Serif Pro', Georgia, 'Times New Roman', serif`;
 const SANS = `system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif`;
 const MONO = `'JetBrains Mono', Menlo, Monaco, Consolas, monospace`;
+
+const fadeInUp = keyframes`
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+`;
+
+// Splits a text into sentence-sized chunks based on terminal punctuation
+// followed by whitespace. Each chunk keeps its trailing whitespace so
+// concatenation preserves the original text.
+function splitSentences(text) {
+  if (!text) return [];
+  const out = [];
+  const re = /[^.!?]*[.!?]+(?:\s+|$)|[^.!?]+$/g;
+  let m = re.exec(text);
+  while (m !== null) {
+    if (m[0].length > 0) out.push(m[0]);
+    m = re.exec(text);
+  }
+  if (out.length === 0) out.push(text);
+  return out;
+}
 
 // Find non-overlapping span occurrences in `text`. Returns
 // { start, end, kind, pairId } sorted by start, first-wins for overlap.
@@ -34,33 +55,85 @@ function locateSpans(text, sideSpans) {
   return out;
 }
 
-function renderSide(text, sideSpans, fontStack, hoveredPairId, onHoverPair) {
-  const spans = locateSpans(text, sideSpans);
+// Renders a slice of `text` from [sliceStart, sliceEnd) and applies any
+// spans that fall within that slice. Spans straddling the slice boundary
+// are kept whole and rendered in the slice that contains their start.
+function renderSlice(
+  text,
+  sliceStart,
+  sliceEnd,
+  globalSpans,
+  hoveredPairId,
+  onHoverPair,
+  keyPrefix,
+) {
   const out = [];
-  let last = 0;
-  spans.forEach((s, i) => {
-    if (s.start > last) {
-      // eslint-disable-next-line react/no-array-index-key
-      out.push(<span key={`t${i}`}>{text.slice(last, s.start)}</span>);
-    }
+  let cursor = sliceStart;
+  globalSpans
+    .filter((s) => s.start >= sliceStart && s.start < sliceEnd)
+    .forEach((s, i) => {
+      if (s.start > cursor) {
+        out.push(
+          // eslint-disable-next-line react/no-array-index-key
+          <span key={`${keyPrefix}-t${i}`}>{text.slice(cursor, s.start)}</span>,
+        );
+      }
+      out.push(
+        <DiffSpan
+          // eslint-disable-next-line react/no-array-index-key
+          key={`${keyPrefix}-s${i}`}
+          kind={s.kind}
+          pairId={s.pairId}
+          hoveredPairId={hoveredPairId}
+          onHoverPair={onHoverPair}
+        >
+          {text.slice(s.start, s.end)}
+        </DiffSpan>,
+      );
+      cursor = s.end;
+    });
+  if (cursor < sliceEnd) {
     out.push(
-      <DiffSpan
-        // eslint-disable-next-line react/no-array-index-key
-        key={`s${i}`}
-        kind={s.kind}
-        pairId={s.pairId}
-        hoveredPairId={hoveredPairId}
-        onHoverPair={onHoverPair}
-      >
-        {text.slice(s.start, s.end)}
-      </DiffSpan>,
+      <span key={`${keyPrefix}-tend`}>{text.slice(cursor, sliceEnd)}</span>,
     );
-    last = s.end;
-  });
-  if (last < text.length) out.push(<span key="tend">{text.slice(last)}</span>);
+  }
+  return out;
+}
+
+function renderSide(text, sideSpans, fontStack, hoveredPairId, onHoverPair) {
+  const globalSpans = locateSpans(text, sideSpans);
+  const sentences = splitSentences(text);
+  let cursor = 0;
   return (
     <Box sx={{ fontFamily: fontStack, fontSize: '17px', lineHeight: 1.8 }}>
-      {out}
+      {sentences.map((sentence, idx) => {
+        const sliceStart = cursor;
+        const sliceEnd = cursor + sentence.length;
+        cursor = sliceEnd;
+        const delayMs = Math.min(idx * 60, 600);
+        return (
+          <Box
+            component="span"
+            // eslint-disable-next-line react/no-array-index-key
+            key={`sent-${idx}`}
+            sx={{
+              display: 'inline',
+              opacity: 0,
+              animation: `${fadeInUp} 350ms ease-out ${delayMs}ms forwards`,
+            }}
+          >
+            {renderSlice(
+              text,
+              sliceStart,
+              sliceEnd,
+              globalSpans,
+              hoveredPairId,
+              onHoverPair,
+              `${idx}`,
+            )}
+          </Box>
+        );
+      })}
     </Box>
   );
 }

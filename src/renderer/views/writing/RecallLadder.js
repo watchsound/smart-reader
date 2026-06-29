@@ -50,25 +50,33 @@ function explode(tokens) {
 function RecallLadder({ variants, loading, accent, onContinue }) {
   const theme = useTheme();
   const [activeRung, setActiveRung] = useState('light');
-  const [rungProgress, setRungProgress] = useState({
-    light: 0,
-    medium: 0,
-    hard: 0,
+  // Per-rung map of resolved tokens: { [maskIdx]: 'correct' | 'revealed' }.
+  // Persists across rung switches so re-entering a rung keeps your work.
+  const [tokenResolutions, setTokenResolutions] = useState({
+    light: {},
+    medium: {},
+    hard: {},
   });
 
   const masked = variants[activeRung] || '';
   const tokens = useMemo(() => tokenize(masked), [masked]);
   const totalMasks = tokens.filter((t) => t.kind === 'mask').length;
-  const resolved = rungProgress[activeRung] || 0;
+  const resolvedMap = tokenResolutions[activeRung] || {};
+  const resolved = Object.keys(resolvedMap).length;
 
-  const handleResolved = () => {
-    setRungProgress((prev) => ({
-      ...prev,
-      [activeRung]: (prev[activeRung] || 0) + 1,
-    }));
+  const handleResolved = (maskIdx, statusValue) => {
+    setTokenResolutions((prev) => {
+      const rungMap = prev[activeRung] || {};
+      if (rungMap[maskIdx]) return prev;
+      return {
+        ...prev,
+        [activeRung]: { ...rungMap, [maskIdx]: statusValue },
+      };
+    });
   };
 
-  const mediumStarted = (rungProgress.medium || 0) > 0;
+  const mediumStarted =
+    Object.keys(tokenResolutions.medium || {}).length > 0;
 
   return (
     <Box
@@ -93,7 +101,7 @@ function RecallLadder({ variants, loading, accent, onContinue }) {
         <Box sx={{ display: 'flex', gap: 0.5 }}>
           {RUNGS.map((rung) => {
             const isActive = rung.id === activeRung;
-            const done = rungProgress[rung.id] || 0;
+            const done = Object.keys(tokenResolutions[rung.id] || {}).length;
             return (
               <Tooltip key={rung.id} title={rung.blurb} arrow>
                 <Box
@@ -164,45 +172,51 @@ function RecallLadder({ variants, loading, accent, onContinue }) {
           <Typography color="text.secondary">Preparing ladder…</Typography>
         ) : (
           <Box key={activeRung}>
-            {explode(tokens).map((item, i) => {
-              if (item.kind === 'space') {
-                // eslint-disable-next-line react/no-array-index-key
-                return <span key={`s${i}`}>{item.value}</span>;
-              }
-              // Cap total stagger so longer paragraphs don't drag past ~1s.
-              const delayMs = Math.min(i * 20, 800);
-              const animSx = {
-                display: 'inline-block',
-                opacity: 0,
-                animation: `${fadeInUp} 350ms ease-out ${delayMs}ms forwards`,
-              };
-              if (item.kind === 'word') {
+            {(() => {
+              let maskCount = 0;
+              return explode(tokens).map((item, i) => {
+                if (item.kind === 'space') {
+                  // eslint-disable-next-line react/no-array-index-key
+                  return <span key={`s${i}`}>{item.value}</span>;
+                }
+                const delayMs = Math.min(i * 20, 800);
+                const animSx = {
+                  display: 'inline-block',
+                  opacity: 0,
+                  animation: `${fadeInUp} 350ms ease-out ${delayMs}ms forwards`,
+                };
+                if (item.kind === 'word') {
+                  return (
+                    <Box
+                      component="span"
+                      // eslint-disable-next-line react/no-array-index-key
+                      key={`w${i}-${activeRung}`}
+                      sx={animSx}
+                    >
+                      {item.value}
+                    </Box>
+                  );
+                }
+                const maskIdx = maskCount;
+                maskCount += 1;
+                const cachedStatus = resolvedMap[maskIdx];
                 return (
                   <Box
                     component="span"
                     // eslint-disable-next-line react/no-array-index-key
-                    key={`w${i}-${activeRung}`}
+                    key={`m${i}-${activeRung}`}
                     sx={animSx}
                   >
-                    {item.value}
+                    <MaskedToken
+                      expected={item.value}
+                      accent={accent}
+                      initialStatus={cachedStatus || 'idle'}
+                      onResolved={(s) => handleResolved(maskIdx, s)}
+                    />
                   </Box>
                 );
-              }
-              return (
-                <Box
-                  component="span"
-                  // eslint-disable-next-line react/no-array-index-key
-                  key={`m${i}-${activeRung}`}
-                  sx={animSx}
-                >
-                  <MaskedToken
-                    expected={item.value}
-                    accent={accent}
-                    onResolved={handleResolved}
-                  />
-                </Box>
-              );
-            })}
+              });
+            })()}
           </Box>
         )}
       </Box>

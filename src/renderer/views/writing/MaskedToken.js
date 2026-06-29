@@ -18,12 +18,17 @@ const bloom = keyframes`
   100% { transform: scale(1);    filter: brightness(1); }
 `;
 
-function MaskedToken({ expected, accent, onResolved }) {
+function MaskedToken({ expected, accent, onResolved, initialStatus = 'idle' }) {
   const theme = useTheme();
-  const [value, setValue] = useState('');
-  const [status, setStatus] = useState('idle'); // idle | wrong | revealed | correct
+  const startResolved =
+    initialStatus === 'correct' || initialStatus === 'revealed';
+  const [value, setValue] = useState(startResolved ? expected : '');
+  const [status, setStatus] = useState(initialStatus);
   const [hint, setHint] = useState(null);
   const [wrongCount, setWrongCount] = useState(0);
+  // Tracks whether resolution happened during this lifecycle. Bloom plays
+  // only on a fresh resolution, not when re-mounting a previously-solved token.
+  const [justResolved, setJustResolved] = useState(false);
   const inputRef = useRef(null);
 
   const widthCh = Math.max(expected.length, 3);
@@ -43,6 +48,7 @@ function MaskedToken({ expected, accent, onResolved }) {
     if (liveFullMatch && status === 'idle') {
       setStatus('correct');
       setHint(null);
+      setJustResolved(true);
       if (onResolved) onResolved('correct');
     }
   }, [liveFullMatch, status, onResolved]);
@@ -53,6 +59,7 @@ function MaskedToken({ expected, accent, onResolved }) {
     if (result.ok) {
       setStatus('correct');
       setHint(null);
+      setJustResolved(true);
       if (onResolved) onResolved('correct');
       return;
     }
@@ -63,6 +70,7 @@ function MaskedToken({ expected, accent, onResolved }) {
     if (nextWrong >= 2) {
       setStatus('revealed');
       setValue(expected);
+      setJustResolved(true);
       if (onResolved) onResolved('revealed');
     } else {
       setStatus('wrong');
@@ -80,6 +88,7 @@ function MaskedToken({ expected, accent, onResolved }) {
     e.stopPropagation();
     setStatus('revealed');
     setValue(expected);
+    setJustResolved(true);
     if (onResolved) onResolved('revealed');
   };
 
@@ -108,6 +117,9 @@ function MaskedToken({ expected, accent, onResolved }) {
     >
       <Box
         component="span"
+        onAnimationEnd={() => {
+          if (justResolved) setJustResolved(false);
+        }}
         sx={{
           display: 'inline-flex',
           alignItems: 'baseline',
@@ -126,10 +138,11 @@ function MaskedToken({ expected, accent, onResolved }) {
             // eslint-disable-next-line no-nested-ternary
             status === 'wrong'
               ? `${shake} 150ms ease-in-out`
-              : status === 'correct'
+              : justResolved
                 ? `${bloom} 400ms ease-out`
                 : 'none',
-          transition: 'background-color 150ms ease-out, border-color 150ms ease-out',
+          transition:
+            'background-color 150ms ease-out, border-color 150ms ease-out',
           position: 'relative',
         }}
       >

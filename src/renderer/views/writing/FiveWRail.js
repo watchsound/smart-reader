@@ -1,10 +1,15 @@
 import React, { useState } from 'react';
 import { Box, Typography, Collapse, IconButton } from '@mui/material';
-import { useTheme, alpha } from '@mui/material/styles';
+import { useTheme, alpha, keyframes } from '@mui/material/styles';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 
 const MONO = `'JetBrains Mono', Menlo, Monaco, Consolas, monospace`;
+
+const fadeInUp = keyframes`
+  from { opacity: 0; transform: translateY(3px); }
+  to   { opacity: 1; transform: translateY(0); }
+`;
 
 const SLOTS = [
   { key: 'who', label: 'Who', icon: '👤' },
@@ -26,10 +31,19 @@ function FiveWRail({ lang5w, accent }) {
   const [open, setOpen] = useState(false);
   const scene = firstScene(lang5w);
 
-  const inline = SLOTS.map((s) => {
+  const inlineParts = SLOTS.flatMap((s, idx) => {
     const val = scene && scene[s.key] ? scene[s.key] : '—';
-    return `${s.label.toUpperCase()} ${val}`;
-  }).join(' · ');
+    const labelText = s.label.toUpperCase();
+    const segments = [
+      { kind: 'label', text: labelText },
+      { kind: 'space', text: ' ' },
+      { kind: 'value', text: val },
+    ];
+    if (idx < SLOTS.length - 1) {
+      segments.push({ kind: 'sep', text: ' · ' });
+    }
+    return segments;
+  });
 
   return (
     <Box
@@ -65,7 +79,7 @@ function FiveWRail({ lang5w, accent }) {
         >
           SCENE (5W)
         </Typography>
-        <Typography
+        <Box
           sx={{
             flex: 1,
             fontSize: '0.85rem',
@@ -75,8 +89,26 @@ function FiveWRail({ lang5w, accent }) {
             whiteSpace: 'nowrap',
           }}
         >
-          {open ? '' : inline}
-        </Typography>
+          {open
+            ? null
+            : inlineParts.map((part, i) => (
+                <Box
+                  component="span"
+                  // eslint-disable-next-line react/no-array-index-key
+                  key={`${part.kind}-${i}`}
+                  sx={{
+                    display: 'inline',
+                    opacity: 0,
+                    animation: `${fadeInUp} 280ms ease-out ${Math.min(
+                      i * 35,
+                      600,
+                    )}ms forwards`,
+                  }}
+                >
+                  {part.text}
+                </Box>
+              ))}
+        </Box>
         <IconButton size="small">
           {open ? <ExpandLessIcon /> : <ExpandMoreIcon />}
         </IconButton>
