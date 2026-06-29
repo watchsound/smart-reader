@@ -114,8 +114,24 @@ function RecallLadder({
             const isActive = rung.id === activeRung;
             const done = Object.keys(tokenResolutions[rung.id] || {}).length;
             const isEngaged = done > 0;
+            const hasContent = !!variants[rung.id];
+            const isPending = !hasContent && loading;
+            // Status glyph: ● engaged | ✓ ready | ⋯ loading | dim number
+            let glyph;
+            if (isEngaged) glyph = '●';
+            else if (isPending) glyph = '⋯';
+            else if (hasContent) glyph = idx + 1;
+            else glyph = idx + 1;
             return (
-              <Tooltip key={rung.id} title={rung.blurb} arrow>
+              <Tooltip
+                key={rung.id}
+                title={
+                  isPending
+                    ? `${rung.blurb} — loading, try a POS rung first`
+                    : rung.blurb
+                }
+                arrow
+              >
                 <Box
                   role="tab"
                   aria-selected={isActive}
@@ -131,6 +147,7 @@ function RecallLadder({
                     bgcolor: isActive ? alpha(accent, 0.12) : 'transparent',
                     color: isActive ? accent : theme.palette.text.primary,
                     border: `1px solid ${isActive ? accent : 'transparent'}`,
+                    opacity: isPending && !isActive ? 0.5 : 1,
                     '&:hover': {
                       bgcolor: isActive
                         ? alpha(accent, 0.16)
@@ -142,10 +159,10 @@ function RecallLadder({
                     sx={{
                       fontFamily: MONO,
                       fontSize: '0.7rem',
-                      opacity: isEngaged ? 1 : 0.5,
+                      opacity: isEngaged || hasContent ? 1 : 0.5,
                     }}
                   >
-                    {isEngaged ? '●' : idx + 1}
+                    {glyph}
                   </Typography>
                   <Typography
                     sx={{
@@ -187,12 +204,41 @@ function RecallLadder({
         }}
       >
         {/* Show body content if the current rung has variants.
-            If it's empty and the LLM is still loading, show "Preparing".
+            If it's empty and the LLM is still loading, show "Preparing"
+            plus clickable shortcuts to the rungs that ARE ready.
             If it's empty and the LLM failed, show retry. */}
         {!masked && loading && (
-          <Typography color="text.secondary">
-            Preparing this rung… (POS rungs are usable now)
-          </Typography>
+          <Box>
+            <Typography color="text.secondary" sx={{ mb: 2 }}>
+              Preparing this rung… these are ready now:
+            </Typography>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+              {RUNGS.filter((r) => !!variants[r.id]).map((r) => (
+                <Typography
+                  key={r.id}
+                  component="button"
+                  onClick={() => setActiveRung(r.id)}
+                  sx={{
+                    fontFamily: MONO,
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px',
+                    border: `1px solid ${alpha(accent, 0.4)}`,
+                    borderRadius: 999,
+                    background: 'transparent',
+                    color: accent,
+                    cursor: 'pointer',
+                    px: 2,
+                    py: 0.75,
+                    '&:hover': { bgcolor: alpha(accent, 0.08) },
+                  }}
+                >
+                  {r.label} →
+                </Typography>
+              ))}
+            </Box>
+          </Box>
         )}
         {!masked && !loading && (
           <Box>
