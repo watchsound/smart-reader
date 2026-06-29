@@ -203,42 +203,18 @@ function RecallLadder({
           color: theme.palette.text.primary,
         }}
       >
-        {/* Show body content if the current rung has variants.
-            If it's empty and the LLM is still loading, show "Preparing"
-            plus clickable shortcuts to the rungs that ARE ready.
-            If it's empty and the LLM failed, show retry. */}
+        {/* Empty + loading: brief inline note. The pill row above shows
+            which rungs are ready; no need for a duplicate button list here. */}
         {!masked && loading && (
-          <Box>
-            <Typography color="text.secondary" sx={{ mb: 2 }}>
-              Preparing this rung… these are ready now:
-            </Typography>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-              {RUNGS.filter((r) => !!variants[r.id]).map((r) => (
-                <Typography
-                  key={r.id}
-                  component="button"
-                  onClick={() => setActiveRung(r.id)}
-                  sx={{
-                    fontFamily: MONO,
-                    fontSize: '0.75rem',
-                    fontWeight: 600,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px',
-                    border: `1px solid ${alpha(accent, 0.4)}`,
-                    borderRadius: 999,
-                    background: 'transparent',
-                    color: accent,
-                    cursor: 'pointer',
-                    px: 2,
-                    py: 0.75,
-                    '&:hover': { bgcolor: alpha(accent, 0.08) },
-                  }}
-                >
-                  {r.label} →
-                </Typography>
-              ))}
-            </Box>
-          </Box>
+          <Typography
+            sx={{
+              fontFamily: MONO,
+              fontSize: '0.75rem',
+              color: theme.palette.text.secondary,
+            }}
+          >
+            ⋯ loading
+          </Typography>
         )}
         {!masked && !loading && (
           <Box>
