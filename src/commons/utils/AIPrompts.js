@@ -1755,3 +1755,54 @@ export {
   createScheduleReconciliationPrompt,
   createCatchUpPlanPrompt,
 };
+
+// === Writing Practice v2 (2026-06-29 redesign) ===
+
+export const langstudyRecallLadderPrompt = (text) => `
+Generate three masked versions of the paragraph below for a language-learning recall exercise.
+Wrap each masked span with \${} so the renderer can detect them.
+
+Return ONLY a JSON object with three string fields:
+  - "light":  hide ONLY collocations and idioms (e.g., "made a decision", "at first glance").
+              Roughly 30% of the paragraph hidden.
+  - "medium": light + discourse markers (however, as a result) + key content nouns.
+              Roughly 60% of the paragraph hidden.
+  - "hard":   keep ONLY the first 1-2 words of each sentence, connectives, and punctuation.
+              Roughly 80% of the paragraph hidden. Everything else inside one or two \${} spans per sentence.
+
+Example output shape:
+{
+  "light":  "Although the project \${fell} behind schedule, the team \${still delivered} on time.",
+  "medium": "Although the project \${fell behind} schedule, \${the team still delivered} on time.",
+  "hard":   "Although \${the project fell behind schedule}, the team \${still delivered on time}."
+}
+
+Paragraph:
+${text}
+`;
+
+export const langstudyExpressionDiffPrompt = (original, learner) => `
+You are a language-learning tutor. Compare the LEARNER's paragraph against the ORIGINAL.
+Surface where the LEARNER's expression is weaker than the ORIGINAL (collocation, idiom, register, cohesion),
+and where it has mechanical grammar issues.
+
+Return ONLY a JSON object with this shape:
+{
+  "spans": [
+    { "side": "learner"|"original", "text": "<exact substring>", "kind": "match"|"weaker"|"stronger"|"grammar", "pair_id": "<string, only for weaker/stronger pairs>", "note": "<optional, only for grammar kind>" }
+  ],
+  "notes": [
+    { "pair_id": "<matches a span pair>", "learner_phrase": "...", "original_phrase": "...", "explanation": "1-2 sentences on why the original phrasing is stronger." }
+  ]
+}
+
+Pair each "weaker" learner span with the corresponding "stronger" original span via the same pair_id (p1, p2, ...).
+Do NOT include "match" spans unless they are deliberate paraphrases worth praising; default to omitting them.
+Each note's "explanation" must be ONE pedagogical reason (collocation rule, idiom, register, cohesion device) — not a generic "the original is better."
+
+ORIGINAL:
+${original}
+
+LEARNER:
+${learner}
+`;
