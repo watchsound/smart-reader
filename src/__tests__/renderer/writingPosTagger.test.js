@@ -6,6 +6,7 @@ import {
   classifyWord,
   taggedTokens,
   buildPosMask,
+  sampleEvenly,
 } from '../../renderer/views/writing/posTagger';
 
 describe('classifyWord', () => {
@@ -128,5 +129,77 @@ describe('buildPosMask', () => {
     // Strip the ${...} wrappers, get original back.
     const stripped = masked.replace(/\$\{([^}]+)\}/g, '$1');
     expect(stripped).toBe(text);
+  });
+
+  test('cap option limits the number of masks', () => {
+    // 10 nouns, cap at 3.
+    const text =
+      'cat dog fish bird mouse horse cow pig sheep goat are mammals.';
+    const masked = buildPosMask(text, new Set(['noun']), { cap: 3 });
+    const maskCount = (masked.match(/\$\{/g) || []).length;
+    expect(maskCount).toBe(3);
+  });
+
+  test('cap option does nothing when fewer matches than cap', () => {
+    const text = 'cat and dog.';
+    const masked = buildPosMask(text, new Set(['noun']), { cap: 10 });
+    expect(masked).toBe('${cat} and ${dog}.');
+  });
+
+  test('cap-sampled masks are spatially distributed (not clustered)', () => {
+    // 12 distinct nouns, cap 4 → step 3 → indices 0, 3, 6, 9.
+    const nouns = [
+      'alpha',
+      'bravo',
+      'charlie',
+      'delta',
+      'echo',
+      'foxtrot',
+      'golf',
+      'hotel',
+      'india',
+      'juliet',
+      'kilo',
+      'lima',
+    ];
+    const text = `${nouns.join(' ')}.`;
+    const masked = buildPosMask(text, new Set(['noun']), { cap: 4 });
+    // Expected masks at indices 0, 3, 6, 9: alpha, delta, golf, juliet.
+    expect(masked).toContain('${alpha}');
+    expect(masked).toContain('${delta}');
+    expect(masked).toContain('${golf}');
+    expect(masked).toContain('${juliet}');
+    // bravo / charlie should NOT be masked (skipped by sampling).
+    expect(masked).not.toContain('${bravo}');
+    expect(masked).not.toContain('${charlie}');
+  });
+});
+
+describe('sampleEvenly', () => {
+  test('returns array unchanged when below cap', () => {
+    expect(sampleEvenly([1, 2, 3], 10)).toEqual([1, 2, 3]);
+  });
+
+  test('returns array unchanged when equal to cap', () => {
+    expect(sampleEvenly([1, 2, 3], 3)).toEqual([1, 2, 3]);
+  });
+
+  test('picks evenly-spaced indices when above cap', () => {
+    // length 10, cap 5 → step 2 → indices 0, 2, 4, 6, 8.
+    expect(sampleEvenly([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 5)).toEqual([
+      0, 2, 4, 6, 8,
+    ]);
+  });
+
+  test('handles non-integer step via floor', () => {
+    // length 26 (the user's noun count), cap 8 → step 3.25
+    // floor(0*3.25)=0, floor(1*3.25)=3, floor(2*3.25)=6, floor(3*3.25)=9,
+    // floor(4*3.25)=13, floor(5*3.25)=16, floor(6*3.25)=19, floor(7*3.25)=22
+    const arr = Array.from({ length: 26 }, (_, i) => i);
+    expect(sampleEvenly(arr, 8)).toEqual([0, 3, 6, 9, 13, 16, 19, 22]);
+  });
+
+  test('cap of 1 returns single first item', () => {
+    expect(sampleEvenly([5, 6, 7], 1)).toEqual([5]);
   });
 });

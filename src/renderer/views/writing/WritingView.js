@@ -50,11 +50,16 @@ function WritingView() {
         return;
       }
       // Local POS masks land synchronously — Adjectives rung is immediately
-      // usable while the LLM call is still in flight.
+      // usable while the LLM call is still in flight. Cap each rung at 8
+      // simultaneous masks so a noun-heavy paragraph (~50% noun density in
+      // typical prose) does not turn a single rung into half-the-paragraph
+      // free recall. Evenly-spaced sampling keeps the masks spatially
+      // distributed instead of clustering at the front of the paragraph.
+      const POS_MASK_CAP = 8;
       const posMasks = {
-        adj: buildPosMask(text, new Set(['adjective'])),
-        noun: buildPosMask(text, new Set(['noun'])),
-        verb: buildPosMask(text, new Set(['verb'])),
+        adj: buildPosMask(text, new Set(['adjective']), { cap: POS_MASK_CAP }),
+        noun: buildPosMask(text, new Set(['noun']), { cap: POS_MASK_CAP }),
+        verb: buildPosMask(text, new Set(['verb']), { cap: POS_MASK_CAP }),
       };
       if (!cancelled) {
         setRecallVariants((prev) => ({ ...prev, ...posMasks }));

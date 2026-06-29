@@ -580,15 +580,37 @@ export function taggedTokens(text) {
   return tokens;
 }
 
+// Pick `cap` items from `arr`, evenly spaced by index. Used to keep the
+// recall task tractable when a POS rung would otherwise mask too many
+// words (e.g. 26 nouns in a 50-word paragraph). Returns the original
+// array when its length is already at or below the cap.
+export function sampleEvenly(arr, cap) {
+  if (arr.length <= cap) return arr;
+  const out = [];
+  const step = arr.length / cap;
+  for (let i = 0; i < cap; i += 1) {
+    out.push(arr[Math.floor(i * step)]);
+  }
+  return out;
+}
+
 // Build a `${...}`-masked variant of `text` by masking every word
 // whose tagged POS is in `posSet`. Preserves all surrounding whitespace
 // and punctuation so the rendered output reads identically except for
 // the redacted spans.
-export function buildPosMask(text, posSet) {
+//
+// `options.cap` (default: unlimited) bounds the number of masks per call.
+// When the candidate set exceeds the cap, picks evenly-spaced indices so
+// masking stays spatially distributed across the paragraph.
+export function buildPosMask(text, posSet, options = {}) {
   if (!text) return '';
+  const { cap = Infinity } = options;
   const tagged = taggedTokens(text);
-  const masks = tagged.filter((t) => posSet.has(t.pos));
+  let masks = tagged.filter((t) => posSet.has(t.pos));
   if (masks.length === 0) return text;
+  if (cap < masks.length) {
+    masks = sampleEvenly(masks, cap);
+  }
   let out = '';
   let cursor = 0;
   masks.forEach((t) => {
