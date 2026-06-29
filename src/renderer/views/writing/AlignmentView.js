@@ -7,51 +7,115 @@ const SERIF = `'Source Serif Pro', Georgia, 'Times New Roman', serif`;
 const SANS = `system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif`;
 const MONO = `'JetBrains Mono', Menlo, Monaco, Consolas, monospace`;
 
-function WordCell({ token, accent, theme, fontStack }) {
-  const isGap = token.gap;
-  const isMatch = !isGap && token.match;
-  const isMismatch = !isGap && !token.match;
+// One zipped column = (A[i] on top, connector, B[i] on bottom).
+// Both rows in the same column share width so the alignment lines up
+// vertically — bioinformatics convention.
+function AlignmentColumn({ a, b, theme }) {
+  const isMatch = !a.gap && !b.gap && a.match;
+  const isMismatch = !a.gap && !b.gap && !a.match;
+  const isGap = a.gap || b.gap;
 
-  // Color semantics:
-  //  match    → green tint
-  //  mismatch → amber tint
-  //  gap      → dashed grey box
-  let bg = 'transparent';
-  let color = theme.palette.text.primary;
-  let border = `1px solid transparent`;
+  // Per-side colors
+  const colorFor = (token, fontStack) => {
+    if (token.gap) {
+      return {
+        bg: 'transparent',
+        fg: alpha(theme.palette.text.secondary, 0.55),
+        border: `1px dashed ${alpha(theme.palette.text.secondary, 0.35)}`,
+      };
+    }
+    if (isMatch) {
+      return {
+        bg: alpha(theme.palette.success.main, 0.12),
+        fg: theme.palette.success.main,
+        border: `1px solid ${alpha(theme.palette.success.main, 0.3)}`,
+      };
+    }
+    return {
+      bg: alpha(theme.palette.warning.main, 0.14),
+      fg: theme.palette.warning.main,
+      border: `1px solid ${alpha(theme.palette.warning.main, 0.35)}`,
+    };
+  };
+
+  // Connector between the two rows: solid for match, dashed for mismatch,
+  // dotted-faint for gap. Carries the "are these aligned?" signal at a
+  // glance without re-using color (which already encodes match/mismatch).
+  let connector;
   if (isMatch) {
-    bg = alpha(theme.palette.success.main, 0.12);
-    color = theme.palette.success.main;
-    border = `1px solid ${alpha(theme.palette.success.main, 0.3)}`;
+    connector = (
+      <Box
+        sx={{
+          height: 2,
+          mx: 'auto',
+          width: '70%',
+          bgcolor: theme.palette.success.main,
+          borderRadius: 1,
+          my: 0.5,
+        }}
+      />
+    );
   } else if (isMismatch) {
-    bg = alpha(theme.palette.warning.main, 0.14);
-    color = theme.palette.warning.main;
-    border = `1px solid ${alpha(theme.palette.warning.main, 0.35)}`;
-  } else if (isGap) {
-    bg = 'transparent';
-    color = alpha(theme.palette.text.secondary, 0.6);
-    border = `1px dashed ${alpha(theme.palette.text.secondary, 0.4)}`;
+    connector = (
+      <Box
+        sx={{
+          height: 0,
+          mx: 'auto',
+          width: '70%',
+          borderTop: `1.5px dashed ${alpha(theme.palette.warning.main, 0.7)}`,
+          my: 0.5,
+        }}
+      />
+    );
+  } else {
+    connector = (
+      <Box
+        sx={{
+          height: 0,
+          mx: 'auto',
+          width: '40%',
+          borderTop: `1px dotted ${alpha(theme.palette.text.secondary, 0.35)}`,
+          my: 0.5,
+        }}
+      />
+    );
   }
+
+  const cellSx = (token, palette, fontStack) => ({
+    fontFamily: fontStack,
+    fontSize: '0.95rem',
+    fontWeight: token.gap ? 400 : isMatch ? 600 : 500,
+    px: '6px',
+    py: '2px',
+    borderRadius: '4px',
+    bgcolor: palette.bg,
+    color: palette.fg,
+    border: palette.border,
+    textAlign: 'center',
+    whiteSpace: 'nowrap',
+  });
+
+  const paletteA = colorFor(a, SERIF);
+  const paletteB = colorFor(b, SANS);
 
   return (
     <Box
-      component="span"
       sx={{
-        display: 'inline-block',
-        px: 0.75,
-        py: 0.25,
-        m: '2px',
-        borderRadius: 1,
-        fontFamily: fontStack,
-        fontSize: '0.95rem',
-        lineHeight: 1.5,
-        backgroundColor: bg,
-        color,
-        border,
-        fontWeight: isMatch ? 600 : 500,
+        display: 'inline-flex',
+        flexDirection: 'column',
+        alignItems: 'stretch',
+        mx: '2px',
+        my: '4px',
+        minWidth: '2.2ch',
       }}
     >
-      {isGap ? '—' : token.word}
+      <Box component="span" sx={cellSx(a, paletteA, SERIF)}>
+        {a.gap ? '—' : a.word}
+      </Box>
+      {connector}
+      <Box component="span" sx={cellSx(b, paletteB, SANS)}>
+        {b.gap ? '—' : b.word}
+      </Box>
     </Box>
   );
 }
@@ -64,17 +128,15 @@ function AlignmentView({ original, learner, accent }) {
   );
   const { alignedA, alignedB, score, totalA, totalB } = result;
 
+  const aligned = alignedA.length;
+  if (aligned === 0) return null;
+
   const matchCount = alignedA.reduce(
     (n, t, i) => (t.match && alignedB[i].match ? n + 1 : n),
     0,
   );
-  const aligned = alignedA.length;
   const denom = Math.max(totalA, totalB) || 1;
   const overlapPct = Math.round((matchCount / denom) * 100);
-
-  if (aligned === 0) {
-    return null;
-  }
 
   return (
     <Box
@@ -117,12 +179,17 @@ function AlignmentView({ original, learner, accent }) {
         </Typography>
       </Box>
 
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+      {/* Side labels run as small chips down the left side; the columns
+          themselves are flex-wrapped so long alignments wrap to new lines
+          without breaking the per-column A-above-B integrity. */}
+      <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
         <Box
           sx={{
             display: 'flex',
-            alignItems: 'center',
+            flexDirection: 'column',
             gap: 1,
+            pt: '6px',
+            minWidth: 56,
           }}
         >
           <Typography
@@ -133,32 +200,10 @@ function AlignmentView({ original, learner, accent }) {
               textTransform: 'uppercase',
               letterSpacing: '0.4px',
               color: theme.palette.text.secondary,
-              minWidth: 70,
             }}
           >
             ORIGINAL
           </Typography>
-          <Box sx={{ flex: 1, lineHeight: 0 }}>
-            {alignedA.map((t, i) => (
-              <WordCell
-                // eslint-disable-next-line react/no-array-index-key
-                key={`a-${i}`}
-                token={t}
-                accent={accent}
-                theme={theme}
-                fontStack={SERIF}
-              />
-            ))}
-          </Box>
-        </Box>
-
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 1,
-          }}
-        >
           <Typography
             sx={{
               fontFamily: MONO,
@@ -167,23 +212,29 @@ function AlignmentView({ original, learner, accent }) {
               textTransform: 'uppercase',
               letterSpacing: '0.4px',
               color: theme.palette.text.secondary,
-              minWidth: 70,
+              mt: 3.5,
             }}
           >
             YOURS
           </Typography>
-          <Box sx={{ flex: 1, lineHeight: 0 }}>
-            {alignedB.map((t, i) => (
-              <WordCell
-                // eslint-disable-next-line react/no-array-index-key
-                key={`b-${i}`}
-                token={t}
-                accent={accent}
-                theme={theme}
-                fontStack={SANS}
-              />
-            ))}
-          </Box>
+        </Box>
+        <Box
+          sx={{
+            flex: 1,
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'flex-start',
+          }}
+        >
+          {alignedA.map((a, i) => (
+            <AlignmentColumn
+              // eslint-disable-next-line react/no-array-index-key
+              key={`col-${i}`}
+              a={a}
+              b={alignedB[i]}
+              theme={theme}
+            />
+          ))}
         </Box>
       </Box>
 
@@ -195,9 +246,9 @@ function AlignmentView({ original, learner, accent }) {
           color: theme.palette.text.secondary,
         }}
       >
-        Green = matching word · Amber = mismatched word · Dashed — = gap
-        (insertion / deletion). Global alignment — every word from both
-        texts appears in order, with gaps where one side has no counterpart.
+        Solid green bar = match · Dashed amber = mismatch · Dotted faint =
+        gap (insertion / deletion). Each column zips one word of the
+        original above its aligned counterpart in your version.
       </Typography>
     </Box>
   );
