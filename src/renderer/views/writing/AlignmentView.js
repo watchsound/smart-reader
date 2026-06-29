@@ -100,6 +100,7 @@ function AlignmentColumn({ a, b, theme, colCh }) {
 
   return (
     <Box
+      data-alignment-column
       sx={{
         display: 'inline-flex',
         flexDirection: 'column',
@@ -147,26 +148,37 @@ function AlignmentView({ original, learner, accent }) {
 
   // Watch the columns container's width via ResizeObserver and re-chunk
   // so each line carries its own ORIGINAL/YOURS labels and never
-  // overflows the panel.
+  // overflows the panel. Column width is measured from the actual
+  // rendered DOM (the first `[data-alignment-column]` element) rather
+  // than estimated, so the chunking is tight regardless of font metrics.
   const columnsRef = useRef(null);
   const [colsPerLine, setColsPerLine] = useState(12);
   useEffect(() => {
     const el = columnsRef.current;
     if (!el) return undefined;
-    // Approx px per column: colCh chars * ~9.5px (varies by font) + 4px
-    // margin (mx: '2px' each side) + 12px padding (px '6px' each side).
-    // Generous estimate so we don't overflow.
-    const pxPerCol = colCh * 9.5 + 16;
     const recompute = () => {
       const w = el.clientWidth || 0;
+      if (w === 0) return;
+      const firstCol = el.querySelector('[data-alignment-column]');
+      let pxPerCol;
+      if (firstCol) {
+        // getBoundingClientRect includes content + padding + border.
+        // Add the 4px horizontal margin (mx: '2px') the column carries.
+        pxPerCol = firstCol.getBoundingClientRect().width + 4;
+      } else {
+        // Fallback for the very first render (no columns mounted yet).
+        // Re-checked when ResizeObserver fires after mount.
+        pxPerCol = colCh * 9.5 + 16;
+      }
+      if (pxPerCol <= 0) return;
       const cols = Math.max(1, Math.floor(w / pxPerCol));
-      setColsPerLine(cols);
+      setColsPerLine((prev) => (prev === cols ? prev : cols));
     };
     recompute();
     const ro = new ResizeObserver(recompute);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [colCh]);
+  }, [colCh, aligned]);
 
   if (aligned === 0) return null;
 
