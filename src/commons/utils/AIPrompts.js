@@ -1737,3 +1737,31 @@ ${original}
 LEARNER:
 ${learner}
 `;
+
+export const langstudyComposeScaffoldsPrompt = (text, l1Language = 'Chinese') => `
+You are a language-learning tutor helping a learner reconstruct a paragraph in their target language (English) from scratch.
+Produce three scaffolds that anchor MEANING without giving away the exact wording.
+
+Return ONLY a JSON object with this shape:
+{
+  "gists": [
+    "<sentence 1's gist in plain everyday English — what the sentence is saying, NOT the original wording>",
+    "<sentence 2's gist>",
+    ...
+  ],
+  "phrases": [
+    "<idiomatic phrase or collocation 1 from the original — useful for the learner to reuse>",
+    "<phrase 2>",
+    ...
+  ],
+  "translation": "<the WHOLE paragraph translated into ${l1Language}>"
+}
+
+Rules:
+- "gists": one item per sentence in the original paragraph. Each gist should be a clear simple-English summary of what the sentence means, NOT a paraphrase. Aim for ~10-15 words. Avoid copying the original's distinctive phrases.
+- "phrases": 6 to 10 useful collocations or idiomatic phrases extracted verbatim from the original. Focus on multi-word units that L2 learners typically miss (e.g., "make a decision", "at first glance", "happened during", "include the commerce of"). Skip trivial bigrams (the cat, in 2009).
+- "translation": faithful translation of the original paragraph into ${l1Language}. Preserve register and meaning.
+
+ORIGINAL:
+${text}
+`;

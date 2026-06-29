@@ -11,13 +11,20 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import CloseIcon from '@mui/icons-material/Close';
 import MultilineTextField from './MultilineTextField';
 import FiveWRail from './FiveWRail';
+import ComposeScaffolds from './ComposeScaffolds';
 import ExpressionDiffPanel from './ExpressionDiffPanel';
 import spineApi from '../../api/spineApi';
 import {
   langstudy5wPrompt,
   langstudyExpressionDiffPrompt,
+  langstudyComposeScaffoldsPrompt,
 } from '../../../commons/utils/AIPrompts';
 import { parseExpressionDiff } from './expressionDiffParser';
+import { parseComposeScaffolds } from './composeScaffoldsParser';
+
+// L1 = the learner's native language for the translation scaffold.
+// Hardcoded for now; could become a settings field later.
+const LEARNER_L1 = 'Chinese';
 
 const SERIF = `'Source Serif Pro', Georgia, 'Times New Roman', serif`;
 const MONO = `'JetBrains Mono', Menlo, Monaco, Consolas, monospace`;
@@ -25,37 +32,57 @@ const MONO = `'JetBrains Mono', Menlo, Monaco, Consolas, monospace`;
 function ComposeCompare({ originalText, accent }) {
   const theme = useTheme();
   const [lang5w, setLang5w] = useState(null);
+  const [scaffolds, setScaffolds] = useState(null);
   const [mywriting, setMywriting] = useState('');
   const [stage, setStage] = useState('compose'); // 'compose' | 'compare'
   const [diff, setDiff] = useState(null);
-  const [loading5w, setLoading5w] = useState(false);
+  const [loadingScaffolds, setLoadingScaffolds] = useState(false);
   const [loadingDiff, setLoadingDiff] = useState(false);
   const [refOpen, setRefOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     async function go() {
-      if (!originalText || lang5w) return;
-      setLoading5w(true);
-      try {
-        const res = await spineApi.generateContentWithJson(
+      if (!originalText || scaffolds) return;
+      setLoadingScaffolds(true);
+
+      const fiveWP = spineApi
+        .generateContentWithJson(
           `${langstudy5wPrompt}\n ${originalText}`,
           null,
           { label: 'writing-5w-scaffold' },
-        );
-        if (!cancelled) setLang5w(res);
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.error('5W fetch failed', err);
-      } finally {
-        if (!cancelled) setLoading5w(false);
+        )
+        .catch((err) => {
+          // eslint-disable-next-line no-console
+          console.error('5W fetch failed', err);
+          return null;
+        });
+
+      const scaffoldP = spineApi
+        .generateContentWithJson(
+          langstudyComposeScaffoldsPrompt(originalText, LEARNER_L1),
+          null,
+          { label: 'writing-compose-scaffolds' },
+        )
+        .then(parseComposeScaffolds)
+        .catch((err) => {
+          // eslint-disable-next-line no-console
+          console.error('Compose scaffolds fetch failed', err);
+          return { gists: [], phrases: [], translation: '' };
+        });
+
+      const [fiveWRes, scaffoldRes] = await Promise.all([fiveWP, scaffoldP]);
+      if (!cancelled) {
+        setLang5w(fiveWRes);
+        setScaffolds(scaffoldRes);
+        setLoadingScaffolds(false);
       }
     }
     go();
     return () => {
       cancelled = true;
     };
-  }, [originalText, lang5w]);
+  }, [originalText, scaffolds]);
 
   const handleCompare = async () => {
     if (!mywriting.trim() || !originalText) return;
@@ -84,15 +111,18 @@ function ComposeCompare({ originalText, accent }) {
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       {stage === 'compose' && (
         <>
-          {loading5w ? (
+          {loadingScaffolds ? (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <CircularProgress size={16} sx={{ color: accent }} />
               <Typography variant="body2" color="text.secondary">
-                Pulling the scene…
+                Building scaffolds…
               </Typography>
             </Box>
           ) : (
-            <FiveWRail lang5w={lang5w} accent={accent} />
+            <>
+              <ComposeScaffolds scaffolds={scaffolds} accent={accent} />
+              <FiveWRail lang5w={lang5w} accent={accent} />
+            </>
           )}
 
           <Box
