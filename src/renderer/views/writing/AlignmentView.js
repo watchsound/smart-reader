@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Typography } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 import { align } from './wordAlignment';
@@ -8,9 +8,9 @@ const SANS = `system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif`;
 const MONO = `'JetBrains Mono', Menlo, Monaco, Consolas, monospace`;
 
 // One zipped column = (A[i] on top, connector, B[i] on bottom).
-// Both rows in the same column share width so the alignment lines up
-// vertically — bioinformatics convention.
-function AlignmentColumn({ a, b, theme }) {
+// All columns share `colCh` so the alignment lines up bioinformatics-style
+// and chunking-by-container-width is deterministic.
+function AlignmentColumn({ a, b, theme, colCh }) {
   const isMatch = !a.gap && !b.gap && a.match;
   const isMismatch = !a.gap && !b.gap && !a.match;
   const isGap = a.gap || b.gap;
@@ -106,7 +106,8 @@ function AlignmentColumn({ a, b, theme }) {
         alignItems: 'stretch',
         mx: '2px',
         my: '4px',
-        minWidth: '2.2ch',
+        width: `${colCh}ch`,
+        flex: '0 0 auto',
       }}
     >
       <Box component="span" sx={cellSx(a, paletteA, SERIF)}>
@@ -129,6 +130,44 @@ function AlignmentView({ original, learner, accent }) {
   const { alignedA, alignedB, score, totalA, totalB } = result;
 
   const aligned = alignedA.length;
+
+  // All columns get the same width = longest word in either sequence
+  // (plus padding). Both for visual cleanness and so chunking can be
+  // computed from container width / colWidth deterministically.
+  const colCh = useMemo(() => {
+    let mx = 3;
+    alignedA.forEach((t) => {
+      if (t.word) mx = Math.max(mx, t.word.length);
+    });
+    alignedB.forEach((t) => {
+      if (t.word) mx = Math.max(mx, t.word.length);
+    });
+    return mx;
+  }, [alignedA, alignedB]);
+
+  // Watch the columns container's width via ResizeObserver and re-chunk
+  // so each line carries its own ORIGINAL/YOURS labels and never
+  // overflows the panel.
+  const columnsRef = useRef(null);
+  const [colsPerLine, setColsPerLine] = useState(12);
+  useEffect(() => {
+    const el = columnsRef.current;
+    if (!el) return undefined;
+    // Approx px per column: colCh chars * ~9.5px (varies by font) + 4px
+    // margin (mx: '2px' each side) + 12px padding (px '6px' each side).
+    // Generous estimate so we don't overflow.
+    const pxPerCol = colCh * 9.5 + 16;
+    const recompute = () => {
+      const w = el.clientWidth || 0;
+      const cols = Math.max(1, Math.floor(w / pxPerCol));
+      setColsPerLine(cols);
+    };
+    recompute();
+    const ro = new ResizeObserver(recompute);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [colCh]);
+
   if (aligned === 0) return null;
 
   const matchCount = alignedA.reduce(
@@ -179,63 +218,68 @@ function AlignmentView({ original, learner, accent }) {
         </Typography>
       </Box>
 
-      {/* Chunk the alignment into lines so each one carries its own
-          ORIGINAL / YOURS labels — BLAST / Clustal convention. */}
-      {(() => {
-        const COLS_PER_LINE = 12;
-        const chunks = [];
-        for (let i = 0; i < alignedA.length; i += COLS_PER_LINE) {
-          chunks.push({ start: i, end: Math.min(i + COLS_PER_LINE, alignedA.length) });
-        }
-        const labelSx = {
-          fontFamily: MONO,
-          fontSize: '0.65rem',
-          fontWeight: 600,
-          textTransform: 'uppercase',
-          letterSpacing: '0.4px',
-          color: theme.palette.text.secondary,
-          // Each label aligns vertically with its row in the column block
-          // below. Top label sits at ~the height of a single word cell,
-          // bottom label sits past the connector + bottom word cell.
-        };
-        return chunks.map(({ start, end }) => (
-          <Box
-            // eslint-disable-next-line react/no-array-index-key
-            key={`chunk-${start}`}
-            sx={{
-              display: 'flex',
-              gap: 1.5,
-              alignItems: 'flex-start',
-              mb: 1.5,
-            }}
-          >
+      {/* Chunk the alignment so each line carries its own ORIGINAL /
+          YOURS labels (BLAST / Clustal convention). `colsPerLine` is
+          recomputed by ResizeObserver on the columns container so the
+          alignment never overflows on narrow viewports and uses the
+          available width on wide ones. */}
+      <Box ref={columnsRef} sx={{ width: '100%' }}>
+        {(() => {
+          const chunks = [];
+          for (let i = 0; i < alignedA.length; i += colsPerLine) {
+            chunks.push({
+              start: i,
+              end: Math.min(i + colsPerLine, alignedA.length),
+            });
+          }
+          const labelSx = {
+            fontFamily: MONO,
+            fontSize: '0.65rem',
+            fontWeight: 600,
+            textTransform: 'uppercase',
+            letterSpacing: '0.4px',
+            color: theme.palette.text.secondary,
+          };
+          return chunks.map(({ start, end }) => (
             <Box
+              // eslint-disable-next-line react/no-array-index-key
+              key={`chunk-${start}`}
               sx={{
                 display: 'flex',
-                flexDirection: 'column',
-                gap: 0,
-                pt: '8px',
-                minWidth: 56,
+                gap: 1.5,
+                alignItems: 'flex-start',
+                mb: 1.5,
               }}
             >
-              <Typography sx={labelSx}>ORIGINAL</Typography>
-              <Box sx={{ height: '34px' }} /> {/* spans connector + bottom row */}
-              <Typography sx={labelSx}>YOURS</Typography>
+              <Box
+                sx={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 0,
+                  pt: '8px',
+                  minWidth: 56,
+                }}
+              >
+                <Typography sx={labelSx}>ORIGINAL</Typography>
+                <Box sx={{ height: '34px' }} />
+                <Typography sx={labelSx}>YOURS</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', flexWrap: 'nowrap' }}>
+                {alignedA.slice(start, end).map((a, i) => (
+                  <AlignmentColumn
+                    // eslint-disable-next-line react/no-array-index-key
+                    key={`col-${start + i}`}
+                    a={a}
+                    b={alignedB[start + i]}
+                    theme={theme}
+                    colCh={colCh}
+                  />
+                ))}
+              </Box>
             </Box>
-            <Box sx={{ flex: 1, display: 'flex', flexWrap: 'nowrap' }}>
-              {alignedA.slice(start, end).map((a, i) => (
-                <AlignmentColumn
-                  // eslint-disable-next-line react/no-array-index-key
-                  key={`col-${start + i}`}
-                  a={a}
-                  b={alignedB[start + i]}
-                  theme={theme}
-                />
-              ))}
-            </Box>
-          </Box>
-        ));
-      })()}
+          ));
+        })()}
+      </Box>
 
       <Typography
         sx={{
