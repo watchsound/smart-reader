@@ -13,7 +13,15 @@ describe('DEFAULT_CHAIN', () => {
       AIProvider.DeepSeek,
       AIProvider.Kimi,
       AIProvider.ChatGPT,
+      AIProvider.Ollama,
     ]);
+  });
+
+  test('Ollama is the final fallback (offline safety net)', () => {
+    // Regression guard: per project policy, every LLM call must be able to
+    // fall back to a local Ollama daemon when every remote provider fails.
+    // Ollama therefore must always sit at the tail of the chain.
+    expect(DEFAULT_CHAIN[DEFAULT_CHAIN.length - 1]).toBe(AIProvider.Ollama);
   });
 });
 

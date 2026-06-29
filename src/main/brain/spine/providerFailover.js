@@ -23,10 +23,18 @@
 // src/commons/model/DataTypes.js.
 const { AIProvider } = require('../../../commons/model/DataTypes');
 
+// Failover chain ordered from preferred to last-resort.
+// Ollama (local) sits at the tail as the offline safety net — when every
+// remote provider fails (network outage, all API keys expired, rate
+// limits across the board), a locally-running Ollama daemon can still
+// serve the request. Per the project's open-source-first stance,
+// Ollama should ALWAYS be the final fallback whenever the codebase
+// reaches for an advanced LLM provider.
 const DEFAULT_CHAIN = [
   AIProvider.DeepSeek,
   AIProvider.Kimi,
   AIProvider.ChatGPT,
+  AIProvider.Ollama,
 ];
 const SAME_PROVIDER_RETRY_DELAY_MS = 500;
 
