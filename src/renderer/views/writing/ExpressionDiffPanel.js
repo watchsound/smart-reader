@@ -2,6 +2,11 @@ import React, { useState } from 'react';
 import { Box, Typography } from '@mui/material';
 import { useTheme, alpha, keyframes } from '@mui/material/styles';
 import DiffSpan from './DiffSpan';
+import {
+  splitSentences,
+  locateSpans,
+  clipSpansToSlice,
+} from './expressionDiffLayout';
 
 const SERIF = `'Source Serif Pro', Georgia, 'Times New Roman', serif`;
 const SANS = `system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif`;
@@ -12,52 +17,10 @@ const fadeInUp = keyframes`
   to   { opacity: 1; transform: translateY(0); }
 `;
 
-// Splits a text into sentence-sized chunks based on terminal punctuation
-// followed by whitespace. Each chunk keeps its trailing whitespace so
-// concatenation preserves the original text.
-function splitSentences(text) {
-  if (!text) return [];
-  const out = [];
-  const re = /[^.!?]*[.!?]+(?:\s+|$)|[^.!?]+$/g;
-  let m = re.exec(text);
-  while (m !== null) {
-    if (m[0].length > 0) out.push(m[0]);
-    m = re.exec(text);
-  }
-  if (out.length === 0) out.push(text);
-  return out;
-}
-
-// Find non-overlapping span occurrences in `text`. Returns
-// { start, end, kind, pairId } sorted by start, first-wins for overlap.
-function locateSpans(text, sideSpans) {
-  const found = sideSpans.reduce((acc, s) => {
-    const idx = text.indexOf(s.text);
-    if (idx >= 0) {
-      acc.push({
-        start: idx,
-        end: idx + s.text.length,
-        kind: s.kind,
-        pairId: s.pair_id || null,
-      });
-    }
-    return acc;
-  }, []);
-  found.sort((a, b) => a.start - b.start);
-  const out = [];
-  let lastEnd = -1;
-  found.forEach((f) => {
-    if (f.start >= lastEnd) {
-      out.push(f);
-      lastEnd = f.end;
-    }
-  });
-  return out;
-}
-
-// Renders a slice of `text` from [sliceStart, sliceEnd) and applies any
-// spans that fall within that slice. Spans straddling the slice boundary
-// are kept whole and rendered in the slice that contains their start.
+// Renders a slice of `text` from [sliceStart, sliceEnd) with any spans
+// that overlap the window clipped to the window. A span that straddles
+// a sentence boundary is rendered as adjacent pieces in adjacent slices,
+// each carrying the same pairId so hover still links them.
 function renderSlice(
   text,
   sliceStart,
@@ -69,29 +32,30 @@ function renderSlice(
 ) {
   const out = [];
   let cursor = sliceStart;
-  globalSpans
-    .filter((s) => s.start >= sliceStart && s.start < sliceEnd)
-    .forEach((s, i) => {
-      if (s.start > cursor) {
-        out.push(
-          // eslint-disable-next-line react/no-array-index-key
-          <span key={`${keyPrefix}-t${i}`}>{text.slice(cursor, s.start)}</span>,
-        );
-      }
+  const clipped = clipSpansToSlice(globalSpans, sliceStart, sliceEnd);
+  clipped.forEach((s, i) => {
+    if (s.effectiveStart > cursor) {
       out.push(
-        <DiffSpan
-          // eslint-disable-next-line react/no-array-index-key
-          key={`${keyPrefix}-s${i}`}
-          kind={s.kind}
-          pairId={s.pairId}
-          hoveredPairId={hoveredPairId}
-          onHoverPair={onHoverPair}
-        >
-          {text.slice(s.start, s.end)}
-        </DiffSpan>,
+        // eslint-disable-next-line react/no-array-index-key
+        <span key={`${keyPrefix}-t${i}`}>
+          {text.slice(cursor, s.effectiveStart)}
+        </span>,
       );
-      cursor = s.end;
-    });
+    }
+    out.push(
+      <DiffSpan
+        // eslint-disable-next-line react/no-array-index-key
+        key={`${keyPrefix}-s${i}`}
+        kind={s.kind}
+        pairId={s.pairId}
+        hoveredPairId={hoveredPairId}
+        onHoverPair={onHoverPair}
+      >
+        {text.slice(s.effectiveStart, s.effectiveEnd)}
+      </DiffSpan>,
+    );
+    cursor = s.effectiveEnd;
+  });
   if (cursor < sliceEnd) {
     out.push(
       <span key={`${keyPrefix}-tend`}>{text.slice(cursor, sliceEnd)}</span>,
