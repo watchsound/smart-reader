@@ -119,7 +119,14 @@ function WordLookupPopover({ contextText, accent }) {
     if (!anchor) return;
     setAdding(true);
     try {
-      const result = await customStorage.addToVocabulary(anchor.word);
+      // Direct-save with the data we already fetched for the tooltip,
+      // so we don't pay for a second LLM call inside addToVocabulary.
+      const result = await customStorage.addVocabularyDirect({
+        word: anchor.word,
+        definition: explanation?.definition || '',
+        example: explanation?.example || '',
+        related: explanation?.related || '',
+      });
       if (result) setAdded(true);
       else setError('Could not save — are you logged in?');
     } catch (err) {

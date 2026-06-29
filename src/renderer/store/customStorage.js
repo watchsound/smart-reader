@@ -1506,6 +1506,17 @@ class customStorage {
     );
   }
 
+  // Save with already-fetched definition data so we don't pay for a
+  // second LLM call. Used by surfaces that already showed the user a
+  // dictionary tooltip (e.g. WordLookupPopover).
+  static addVocabularyDirect(data) {
+    if (!this.isLoggedIn()) return null;
+    return window.electron.ipcRenderer.addVocabularyDirect(
+      data,
+      this.getSessionToken(),
+    );
+  }
+
   static addToKeyWordList(mode, word) {
     if (!this.isLoggedIn()) return null;
     return window.electron.ipcRenderer.addToKeyWordList(

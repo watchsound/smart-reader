@@ -1094,6 +1094,17 @@ const electronHandler = {
     addToVocabulary(text: string, token: string) {
       return ipcRenderer.invoke('addToVocabulary', text, token);
     },
+    addVocabularyDirect(
+      data: {
+        word: string;
+        definition?: string;
+        example?: string;
+        related?: string;
+      },
+      token: string,
+    ) {
+      return ipcRenderer.invoke('addVocabularyDirect', data, token);
+    },
     addToKeyWordList(mode: string, keyword: any, token: string) {
       const resp = ipcRenderer.sendSync(
         'addToKeyWordList',

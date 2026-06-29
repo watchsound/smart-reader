@@ -701,6 +701,47 @@ const createWindow = async () => {
       return false;
     }
   });
+  // Direct save with pre-fetched data — avoids a second LLM round-trip
+  // when the caller (e.g. WordLookupPopover) has already shown the
+  // definition to the user. Same dedup-on-exists + setId/score defaults
+  // as addToVocabulary; only the LLM call is skipped.
+  ipcMain.handle(
+    'addVocabularyDirect',
+    async (
+      _event,
+      data: {
+        word: string;
+        definition?: string;
+        example?: string;
+        related?: string;
+      },
+      token: string,
+    ) => {
+      const userId = getUserIdFromToken(token);
+      const word = (data?.word || '').trim();
+      if (userId < 0 || !word || word.length < 3) return false;
+      const exists = await getVocabularyByName(word);
+      if (exists) return exists;
+      try {
+        const newOne = await createVocabulary(
+          {
+            word,
+            definition: data.definition || '',
+            relatedWords: data.related || '',
+            example: data.example || '',
+            setId: -1,
+            score: 0,
+          },
+          token,
+        );
+        return newOne;
+      } catch (e: unknown) {
+        const err = e as { message?: string };
+        console.log(err.message ? err.message : e);
+        return false;
+      }
+    },
+  );
   ipcMain.on('sentenceTokenizer', (_, paragraph) => {
     try {
       const tokenizer = new natural.SentenceTokenizer();
@@ -2305,34 +2346,31 @@ const createWindow = async () => {
       console.log('in ipcMain -- import-keywords');
       const { studyMode } = data;
       const ws = await BookUtil.importJsonTextFile(mainWin, false);
-      if (ws) {
-        console.log(typeof ws);
-        const stemmer = natural.PorterStemmer;
-        const wordList = ws
-          .split('\n')
-          .filter((n) => n && n.length > 0)
-          .map((n) => stemmer.stem(n.trim()));
-        store.set(`keywords_${studyMode}`, wordList);
-      }
-      return true;
+      if (ws === null) return { ok: true, canceled: true };
+      const stemmer = natural.PorterStemmer;
+      const wordList = ws
+        .split('\n')
+        .filter((n) => n && n.length > 0)
+        .map((n) => stemmer.stem(n.trim()));
+      store.set(`keywords_${studyMode}`, wordList);
+      return { ok: true };
     } catch (e) {
-      console.log(e.message ? e.message : e);
-      return false;
+      const message = e && e.message ? e.message : String(e);
+      console.log(message);
+      return { ok: false, error: message };
     }
   });
   ipcMain.handle('import-word-frequency-from-file', async (event, data) => {
     try {
       console.log('in ipcMain -- import-word-frequency');
       const json = await BookUtil.importJsonTextFile(mainWin, true);
-      if (json) {
-        console.log('in ipcMain -- ');
-        console.log(JSON.stringify(json));
-        store.set('word_colors', json);
-      }
-      return true;
+      if (json === null) return { ok: true, canceled: true };
+      store.set('word_colors', json);
+      return { ok: true };
     } catch (e) {
-      console.log(e.message ? e.message : e);
-      return false;
+      const message = e && e.message ? e.message : String(e);
+      console.log(message);
+      return { ok: false, error: message };
     }
   });
   ipcMain.handle('import-book-from-file', async (event, { token }) => {
@@ -2706,6 +2744,12 @@ app
     registerSkillHandlers(store, {
       graphApi: graphInterface,
       aiProvider: aiProviderManager,
+      // Brain Spine meteredCall — when present on services, BaseSkill routes
+      // every LLM call through it so skill executions appear in the
+      // Economics Panel (Phase 9c coverage). meteredCallJson is the parsed-
+      // JSON variant used by skills that destructure response.foo directly.
+      meteredCall: require('./brain/spine/meteredCall'),
+      meteredCallJson: require('./brain/spine/meteredCallJson'),
     });
 
     // Register AI Learning Companion IPC handlers
@@ -2723,8 +2767,9 @@ app
     registerLearningPlanHandlers(store, {
       dbManager: {
         learningPlanManager: require('./db/LearningPlanManager').default,
-        bookManager: require('./db/BookManager').default,
-        vocabularyManager: require('./db/VocabularyManager').default,
+        // bookManager / vocabularyManager intentionally omitted: those modules
+        // expose only named exports, and the handlers that need them now import
+        // the named functions directly.
       },
       aiProvider: aiProviderManager,
       graphInterface,
