@@ -11,12 +11,11 @@ const MONO = `'JetBrains Mono', Menlo, Monaco, Consolas, monospace`;
 // All columns share `colCh` so the alignment lines up bioinformatics-style
 // and chunking-by-container-width is deterministic.
 function AlignmentColumn({ a, b, theme, colCh }) {
-  const isMatch = !a.gap && !b.gap && a.match;
-  const isMismatch = !a.gap && !b.gap && !a.match;
-  const isGap = a.gap || b.gap;
+  const isMatch = !a.gap && !b.gap;
+  // Under no-substitution scoring, any non-gap pair MUST be a match —
+  // mismatched pairs are split across adjacent gap-paired columns.
 
-  // Per-side colors
-  const colorFor = (token, fontStack) => {
+  const colorFor = (token) => {
     if (token.gap) {
       return {
         bg: 'transparent',
@@ -24,67 +23,42 @@ function AlignmentColumn({ a, b, theme, colCh }) {
         border: `1px dashed ${alpha(theme.palette.text.secondary, 0.35)}`,
       };
     }
-    if (isMatch) {
-      return {
-        bg: alpha(theme.palette.success.main, 0.12),
-        fg: theme.palette.success.main,
-        border: `1px solid ${alpha(theme.palette.success.main, 0.3)}`,
-      };
-    }
     return {
-      bg: alpha(theme.palette.warning.main, 0.14),
-      fg: theme.palette.warning.main,
-      border: `1px solid ${alpha(theme.palette.warning.main, 0.35)}`,
+      bg: alpha(theme.palette.success.main, 0.12),
+      fg: theme.palette.success.main,
+      border: `1px solid ${alpha(theme.palette.success.main, 0.3)}`,
     };
   };
 
-  // Connector between the two rows: solid for match, dashed for mismatch,
-  // dotted-faint for gap. Carries the "are these aligned?" signal at a
-  // glance without re-using color (which already encodes match/mismatch).
-  let connector;
-  if (isMatch) {
-    connector = (
-      <Box
-        sx={{
-          height: 2,
-          mx: 'auto',
-          width: '70%',
-          bgcolor: theme.palette.success.main,
-          borderRadius: 1,
-          my: 0.5,
-        }}
-      />
-    );
-  } else if (isMismatch) {
-    connector = (
-      <Box
-        sx={{
-          height: 0,
-          mx: 'auto',
-          width: '70%',
-          borderTop: `1.5px dashed ${alpha(theme.palette.warning.main, 0.7)}`,
-          my: 0.5,
-        }}
-      />
-    );
-  } else {
-    connector = (
-      <Box
-        sx={{
-          height: 0,
-          mx: 'auto',
-          width: '40%',
-          borderTop: `1px dotted ${alpha(theme.palette.text.secondary, 0.35)}`,
-          my: 0.5,
-        }}
-      />
-    );
-  }
+  // Connector between the two rows: solid green for a match-pair column,
+  // dotted faint for any column with a gap on either side.
+  const connector = isMatch ? (
+    <Box
+      sx={{
+        height: 2,
+        mx: 'auto',
+        width: '70%',
+        bgcolor: theme.palette.success.main,
+        borderRadius: 1,
+        my: 0.5,
+      }}
+    />
+  ) : (
+    <Box
+      sx={{
+        height: 0,
+        mx: 'auto',
+        width: '40%',
+        borderTop: `1px dotted ${alpha(theme.palette.text.secondary, 0.35)}`,
+        my: 0.5,
+      }}
+    />
+  );
 
   const cellSx = (token, palette, fontStack) => ({
     fontFamily: fontStack,
     fontSize: '0.95rem',
-    fontWeight: token.gap ? 400 : isMatch ? 600 : 500,
+    fontWeight: token.gap ? 400 : 600,
     px: '6px',
     py: '2px',
     borderRadius: '4px',
@@ -95,8 +69,8 @@ function AlignmentColumn({ a, b, theme, colCh }) {
     whiteSpace: 'nowrap',
   });
 
-  const paletteA = colorFor(a, SERIF);
-  const paletteB = colorFor(b, SANS);
+  const paletteA = colorFor(a);
+  const paletteB = colorFor(b);
 
   return (
     <Box
@@ -301,9 +275,9 @@ function AlignmentView({ original, learner, accent }) {
           color: theme.palette.text.secondary,
         }}
       >
-        Solid green bar = match · Dashed amber = mismatch · Dotted faint =
-        gap (insertion / deletion). Each column zips one word of the
-        original above its aligned counterpart in your version.
+        Solid green bar = matching word (same column = identical word).
+        Dashed — = no counterpart (the other side has a different word
+        elsewhere). Non-matching words never share a column.
       </Typography>
     </Box>
   );

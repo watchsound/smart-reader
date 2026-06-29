@@ -1,27 +1,35 @@
-// Needleman–Wunsch global alignment on word sequences.
+// Needleman–Wunsch global alignment on word sequences with NO
+// SUBSTITUTIONS — only IDENTICAL words can share a column.
 //
-// Aligns the FULL original paragraph against the FULL learner paragraph,
-// so every word from both sequences appears in the rendered alignment
-// (with gaps where one side has nothing matching). This matches the
-// bioinformatics convention: an end-to-end alignment with insertions /
-// deletions shown as gaps, not a trimmed local match.
+// Why no substitutions: in proper sequence alignment, two elements that
+// happen to occupy the same column are considered EQUIVALENT at that
+// position. For language learning, we want the eye to read each column
+// as 'same word' — not 'different words that happen to align by virtue
+// of being in the same position.' Mismatches therefore appear as
+// adjacent gap-paired columns (A's word with gap below; gap above with
+// B's word) rather than as a single substitution column.
 //
 // Scoring:
-//   MATCH = +2, MISMATCH = -1, GAP = -1
-// NW (unlike Smith-Waterman) disallows the `max(0, …)` reset and always
-// traces from M[m][n] to M[0][0], so the entire input is consumed.
+//   MATCH = +2  (only allowed diag step — requires actual equality)
+//   GAP   = -1
+//   Mismatch is disallowed: diag is set to -Infinity when the two words
+//   don't match, forcing the algorithm to pick a gap step instead.
 //
 // Returns:
 //   {
 //     alignedA: [{ word, gap, match }],   // same length as alignedB
 //     alignedB: [{ word, gap, match }],
-//     score:    number,                   // NW score
-//     totalA:   number,                   // original word counts
+//     score:    number,
+//     totalA:   number,
 //     totalB:   number,
 //   }
+// In the returned alignment, match===true iff neither side at that column
+// is a gap AND the two words are equal (case + outer-punctuation
+// insensitive). Non-matching pairs are split across two columns (a
+// word-with-gap-below column adjacent to a gap-with-word-below column),
+// so a non-gap cell whose counterpart IS a gap has match===false.
 
 const MATCH = 2;
-const MISMATCH = -1;
 const GAP = -1;
 
 export function tokenizeWords(text) {
@@ -33,8 +41,14 @@ function normalize(w) {
   return (w || '').toLowerCase().replace(/^[^a-z0-9']+|[^a-z0-9']+$/g, '');
 }
 
-function scoreCell(a, b) {
-  return normalize(a) === normalize(b) ? MATCH : MISMATCH;
+function isEqualWord(a, b) {
+  return normalize(a) === normalize(b);
+}
+
+// Diag step is allowed only when the two words are equal; otherwise
+// -Infinity, so Math.max picks the gap path.
+function diagScore(a, b) {
+  return isEqualWord(a, b) ? MATCH : -Infinity;
 }
 
 export function align(textOrWordsA, textOrWordsB) {
@@ -77,7 +91,8 @@ export function align(textOrWordsA, textOrWordsB) {
 
   for (let i = 1; i <= m; i += 1) {
     for (let j = 1; j <= n; j += 1) {
-      const diag = M[i - 1][j - 1] + scoreCell(wordsA[i - 1], wordsB[j - 1]);
+      const diag =
+        M[i - 1][j - 1] + diagScore(wordsA[i - 1], wordsB[j - 1]);
       const up = M[i - 1][j] + GAP; // gap in B
       const left = M[i][j - 1] + GAP; // gap in A
       M[i][j] = Math.max(diag, up, left);
@@ -94,11 +109,12 @@ export function align(textOrWordsA, textOrWordsB) {
     if (
       i > 0 &&
       j > 0 &&
-      M[i][j] === M[i - 1][j - 1] + scoreCell(wordsA[i - 1], wordsB[j - 1])
+      isEqualWord(wordsA[i - 1], wordsB[j - 1]) &&
+      M[i][j] === M[i - 1][j - 1] + MATCH
     ) {
-      const isMatch = normalize(wordsA[i - 1]) === normalize(wordsB[j - 1]);
-      alignedA.unshift({ word: wordsA[i - 1], gap: false, match: isMatch });
-      alignedB.unshift({ word: wordsB[j - 1], gap: false, match: isMatch });
+      // Diag step only taken when the words actually match.
+      alignedA.unshift({ word: wordsA[i - 1], gap: false, match: true });
+      alignedB.unshift({ word: wordsB[j - 1], gap: false, match: true });
       i -= 1;
       j -= 1;
     } else if (i > 0 && M[i][j] === M[i - 1][j] + GAP) {
