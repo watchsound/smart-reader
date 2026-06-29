@@ -8,7 +8,17 @@ import ComposeCompare from './ComposeCompare';
 import { ACCENT, PHASES } from './config';
 import { langstudyRecallLadderPrompt } from '../../../commons/utils/AIPrompts';
 import { parseRecallLadder } from './recallLadderParser';
+import { buildPosMask } from './posTagger';
 import spineApi from '../../api/spineApi';
+
+const EMPTY_VARIANTS = {
+  adj: '',
+  connect: '',
+  noun: '',
+  verb: '',
+  clause: '',
+  subord: '',
+};
 
 function WritingView() {
   const theme = useTheme();
@@ -17,11 +27,7 @@ function WritingView() {
   const [activePhase, setActivePhase] = useState('prepare');
   const [text, setText] = useState('');
   const [sourceLocked, setSourceLocked] = useState(false);
-  const [recallVariants, setRecallVariants] = useState({
-    light: '',
-    medium: '',
-    hard: '',
-  });
+  const [recallVariants, setRecallVariants] = useState(EMPTY_VARIANTS);
   const [recallLoading, setRecallLoading] = useState(false);
 
   const phaseIdx = PHASES.findIndex((p) => p.id === activePhase);
@@ -29,6 +35,9 @@ function WritingView() {
   const intensityKey = phaseIdx === 0 ? 200 : phaseIdx === 1 ? 400 : 600;
   const accent = ACCENT[mode][intensityKey];
 
+  // Build the 6-rung variant set. 3 POS-based rungs (adj / noun / verb) are
+  // computed locally and ship immediately; 3 structural rungs (connect /
+  // clause / subord) come from one batched LLM call.
   useEffect(() => {
     let cancelled = false;
     async function go() {
@@ -36,9 +45,19 @@ function WritingView() {
         activePhase !== 'recall' ||
         !sourceLocked ||
         !text ||
-        recallVariants.light
+        recallVariants.adj
       ) {
         return;
+      }
+      // Local POS masks land synchronously — Adjectives rung is immediately
+      // usable while the LLM call is still in flight.
+      const posMasks = {
+        adj: buildPosMask(text, new Set(['adjective'])),
+        noun: buildPosMask(text, new Set(['noun'])),
+        verb: buildPosMask(text, new Set(['verb'])),
+      };
+      if (!cancelled) {
+        setRecallVariants((prev) => ({ ...prev, ...posMasks }));
       }
       setRecallLoading(true);
       try {
@@ -47,7 +66,15 @@ function WritingView() {
           null,
           { label: 'writing-recall-ladder' },
         );
-        if (!cancelled) setRecallVariants(parseRecallLadder(res));
+        const parsed = parseRecallLadder(res);
+        if (!cancelled) {
+          setRecallVariants((prev) => ({
+            ...prev,
+            connect: parsed.light,
+            clause: parsed.medium,
+            subord: parsed.hard,
+          }));
+        }
       } catch (err) {
         // eslint-disable-next-line no-console
         console.error('Recall ladder fetch failed', err);
@@ -59,7 +86,7 @@ function WritingView() {
     return () => {
       cancelled = true;
     };
-  }, [activePhase, sourceLocked, text, recallVariants.light]);
+  }, [activePhase, sourceLocked, text, recallVariants.adj]);
 
   const handleLock = () => {
     if (!text.trim()) return;
@@ -69,7 +96,7 @@ function WritingView() {
 
   const handleUnlock = () => {
     setSourceLocked(false);
-    setRecallVariants({ light: '', medium: '', hard: '' });
+    setRecallVariants(EMPTY_VARIANTS);
     setActivePhase('prepare');
   };
 

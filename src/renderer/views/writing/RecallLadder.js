@@ -49,14 +49,15 @@ function explode(tokens) {
 
 function RecallLadder({ variants, loading, accent, onContinue }) {
   const theme = useTheme();
-  const [activeRung, setActiveRung] = useState('light');
+  const [activeRung, setActiveRung] = useState(RUNGS[0].id);
   // Per-rung map of resolved tokens: { [maskIdx]: 'correct' | 'revealed' }.
   // Persists across rung switches so re-entering a rung keeps your work.
-  const [tokenResolutions, setTokenResolutions] = useState({
-    light: {},
-    medium: {},
-    hard: {},
-  });
+  const [tokenResolutions, setTokenResolutions] = useState(() =>
+    RUNGS.reduce((acc, r) => {
+      acc[r.id] = {};
+      return acc;
+    }, {}),
+  );
 
   const masked = variants[activeRung] || '';
   const tokens = useMemo(() => tokenize(masked), [masked]);
@@ -75,8 +76,11 @@ function RecallLadder({ variants, loading, accent, onContinue }) {
     });
   };
 
-  const mediumStarted =
-    Object.keys(tokenResolutions.medium || {}).length > 0;
+  // Glow the Continue button once the learner has reached the structural
+  // half of the ladder (any of clause / subord engaged).
+  const reachedStructuralHalf =
+    Object.keys(tokenResolutions.clause || {}).length > 0 ||
+    Object.keys(tokenResolutions.subord || {}).length > 0;
 
   return (
     <Box
@@ -98,10 +102,11 @@ function RecallLadder({ variants, loading, accent, onContinue }) {
           borderBottom: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
         }}
       >
-        <Box sx={{ display: 'flex', gap: 0.5 }}>
-          {RUNGS.map((rung) => {
+        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+          {RUNGS.map((rung, idx) => {
             const isActive = rung.id === activeRung;
             const done = Object.keys(tokenResolutions[rung.id] || {}).length;
+            const isEngaged = done > 0;
             return (
               <Tooltip key={rung.id} title={rung.blurb} arrow>
                 <Box
@@ -111,9 +116,9 @@ function RecallLadder({ variants, loading, accent, onContinue }) {
                   sx={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 0.75,
-                    px: 1.5,
-                    py: 0.5,
+                    gap: 0.5,
+                    px: 1.25,
+                    py: 0.4,
                     borderRadius: 999,
                     cursor: 'pointer',
                     bgcolor: isActive ? alpha(accent, 0.12) : 'transparent',
@@ -126,16 +131,22 @@ function RecallLadder({ variants, loading, accent, onContinue }) {
                     },
                   }}
                 >
-                  <Typography sx={{ fontSize: '0.9rem' }}>
-                    {done > 0 ? rung.glyphEngaged : '○'}
+                  <Typography
+                    sx={{
+                      fontFamily: MONO,
+                      fontSize: '0.7rem',
+                      opacity: isEngaged ? 1 : 0.5,
+                    }}
+                  >
+                    {isEngaged ? '●' : idx + 1}
                   </Typography>
                   <Typography
                     sx={{
                       fontFamily: MONO,
-                      fontSize: '0.72rem',
+                      fontSize: '0.7rem',
                       fontWeight: 600,
                       textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
+                      letterSpacing: '0.4px',
                     }}
                   >
                     {rung.label}
@@ -247,7 +258,7 @@ function RecallLadder({ variants, loading, accent, onContinue }) {
             cursor: 'pointer',
             px: 2,
             py: 0.75,
-            boxShadow: mediumStarted
+            boxShadow: reachedStructuralHalf
               ? `0 0 0 4px ${alpha(accent, 0.25)}`
               : 'none',
             transition: 'box-shadow 250ms ease-out',

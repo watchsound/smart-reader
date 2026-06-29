@@ -19,24 +19,45 @@ export const PHASES = [
   },
 ];
 
+// Six rungs in increasing reconstruction difficulty.
+// Rungs 1, 3, 4 are POS-based (deterministic, computed locally).
+// Rungs 2, 5, 6 are structure-based (LLM-generated).
 export const RUNGS = [
   {
-    id: 'light',
-    label: 'Light',
-    glyphEngaged: '●',
-    blurb: 'Connectives — the structural glue of sentences.',
+    id: 'adj',
+    label: 'Adjectives',
+    source: 'pos',
+    blurb: 'Descriptive words — the lightest content layer.',
   },
   {
-    id: 'medium',
-    label: 'Medium',
-    glyphEngaged: '◐',
-    blurb: 'Clause stems — the joints driving each clause.',
+    id: 'connect',
+    label: 'Connectives',
+    source: 'llm',
+    blurb: 'Structural glue — and, but, however, although.',
   },
   {
-    id: 'hard',
-    label: 'Hard',
-    glyphEngaged: '○',
-    blurb: 'Subordinate structures — whole dependent clauses.',
+    id: 'noun',
+    label: 'Nouns',
+    source: 'pos',
+    blurb: 'Subject matter — what the paragraph is about.',
+  },
+  {
+    id: 'verb',
+    label: 'Verbs',
+    source: 'pos',
+    blurb: 'Actions and events.',
+  },
+  {
+    id: 'clause',
+    label: 'Clause stems',
+    source: 'llm',
+    blurb: 'Verbal joints — main verbs with auxiliaries.',
+  },
+  {
+    id: 'subord',
+    label: 'Subordinate',
+    source: 'llm',
+    blurb: 'Whole dependent clauses — the spine remains.',
   },
 ];
 

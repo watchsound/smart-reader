@@ -31,14 +31,18 @@ function MaskedToken({ expected, accent, onResolved, initialStatus = 'idle' }) {
   const [justResolved, setJustResolved] = useState(false);
   const inputRef = useRef(null);
 
-  const widthCh = Math.max(expected.length, 3);
+  // Visible character width is capped so a multi-clause expected (Hard
+  // and Subordinate rungs) does not overflow the panel. Long expectations
+  // get a wrapping textarea; short ones stay as an inline single-line input.
+  const MAX_INLINE_CH = 20;
+  const isLong = expected.length > MAX_INLINE_CH;
+  const widthCh = Math.max(Math.min(expected.length, MAX_INLINE_CH), 3);
 
   // Live prefix-match feedback while typing (status === 'idle').
   const trimmed = value.trim();
   const expectedLower = expected.toLowerCase();
   const livePrefixOk =
-    trimmed.length > 0 &&
-    expectedLower.startsWith(trimmed.toLowerCase());
+    trimmed.length > 0 && expectedLower.startsWith(trimmed.toLowerCase());
   const liveFullMatch =
     trimmed.length > 0 && trimmed.toLowerCase() === expectedLower;
   const liveWrong = trimmed.length > 0 && !livePrefixOk;
@@ -121,11 +125,14 @@ function MaskedToken({ expected, accent, onResolved, initialStatus = 'idle' }) {
           if (justResolved) setJustResolved(false);
         }}
         sx={{
-          display: 'inline-flex',
+          display: isLong ? 'inline-block' : 'inline-flex',
           alignItems: 'baseline',
+          verticalAlign: isLong ? 'middle' : 'baseline',
           mx: '2px',
           px: '6px',
+          py: isLong ? '4px' : 0,
           minWidth: `${widthCh}ch`,
+          maxWidth: isLong ? '100%' : 'none',
           borderRadius: '6px',
           backgroundColor: isResolved ? alpha(accent, 0.1) : bgColor,
           borderBottom: isResolved
@@ -146,36 +153,77 @@ function MaskedToken({ expected, accent, onResolved, initialStatus = 'idle' }) {
           position: 'relative',
         }}
       >
-        <input
-          ref={inputRef}
-          value={value}
-          disabled={isResolved}
-          onChange={(e) => setValue(e.target.value)}
-          onBlur={handleCommit}
-          onKeyDown={handleKey}
-          style={{
-            background: 'transparent',
-            border: 'none',
-            outline: 'none',
-            padding: 0,
-            width: `${widthCh}ch`,
-            fontFamily: 'inherit',
-            fontSize: 'inherit',
-            color: 'inherit',
-            fontWeight: 'inherit',
-            textAlign: isResolved ? 'left' : 'center',
-            cursor: isResolved ? 'default' : 'text',
-          }}
-          aria-label={
-            // eslint-disable-next-line no-nested-ternary
-            isResolved
-              ? `revealed: ${expected}`
-              : hint
-                ? `try again. Hint: ${hint}`
-                : 'masked word'
-          }
-        />
-        {!isResolved && (
+        {isLong ? (
+          <Box
+            component="textarea"
+            ref={inputRef}
+            value={value}
+            disabled={isResolved}
+            onChange={(e) => setValue(e.target.value)}
+            onBlur={handleCommit}
+            onKeyDown={(e) => {
+              // In multiline, Enter inserts a newline; only Tab commits.
+              if (e.key === 'Tab') handleCommit();
+            }}
+            rows={Math.max(2, Math.ceil(expected.length / 60))}
+            sx={{
+              display: 'block',
+              width: '100%',
+              maxWidth: '100%',
+              boxSizing: 'border-box',
+              background: 'transparent',
+              border: 'none',
+              outline: 'none',
+              resize: 'vertical',
+              padding: 0,
+              fontFamily: 'inherit',
+              fontSize: 'inherit',
+              lineHeight: 1.6,
+              color: 'inherit',
+              fontWeight: 'inherit',
+              cursor: isResolved ? 'default' : 'text',
+            }}
+            aria-label={
+              // eslint-disable-next-line no-nested-ternary
+              isResolved
+                ? `revealed: ${expected}`
+                : hint
+                  ? `try again. Hint: ${hint}`
+                  : 'masked clause — type the missing text'
+            }
+          />
+        ) : (
+          <input
+            ref={inputRef}
+            value={value}
+            disabled={isResolved}
+            onChange={(e) => setValue(e.target.value)}
+            onBlur={handleCommit}
+            onKeyDown={handleKey}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              outline: 'none',
+              padding: 0,
+              width: `${widthCh}ch`,
+              fontFamily: 'inherit',
+              fontSize: 'inherit',
+              color: 'inherit',
+              fontWeight: 'inherit',
+              textAlign: isResolved ? 'left' : 'center',
+              cursor: isResolved ? 'default' : 'text',
+            }}
+            aria-label={
+              // eslint-disable-next-line no-nested-ternary
+              isResolved
+                ? `revealed: ${expected}`
+                : hint
+                  ? `try again. Hint: ${hint}`
+                  : 'masked word'
+            }
+          />
+        )}
+        {!isResolved && !isLong && (
           <VisibilityIcon
             onClick={peek}
             sx={{
@@ -187,6 +235,26 @@ function MaskedToken({ expected, accent, onResolved, initialStatus = 'idle' }) {
             }}
             aria-label="reveal this word"
           />
+        )}
+        {!isResolved && isLong && (
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              mt: 0.5,
+            }}
+          >
+            <VisibilityIcon
+              onClick={peek}
+              sx={{
+                fontSize: 14,
+                cursor: 'pointer',
+                opacity: 0.5,
+                '&:hover': { opacity: 1 },
+              }}
+              aria-label="reveal this clause"
+            />
+          </Box>
         )}
       </Box>
     </Tooltip>
