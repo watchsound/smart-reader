@@ -24,19 +24,19 @@ export const RUNGS = [
     id: 'light',
     label: 'Light',
     glyphEngaged: '●',
-    blurb: 'Mask collocations and idioms only.',
+    blurb: 'Connectives — the structural glue of sentences.',
   },
   {
     id: 'medium',
     label: 'Medium',
     glyphEngaged: '◐',
-    blurb: 'Add discourse markers + key content nouns.',
+    blurb: 'Clause stems — the joints driving each clause.',
   },
   {
     id: 'hard',
     label: 'Hard',
     glyphEngaged: '○',
-    blurb: 'Keep only sentence skeletons.',
+    blurb: 'Subordinate structures — whole dependent clauses.',
   },
 ];
 

@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Box, Tooltip } from '@mui/material';
 import { useTheme, alpha, keyframes } from '@mui/material/styles';
 import VisibilityIcon from '@mui/icons-material/VisibilityOutlined';
@@ -21,6 +21,25 @@ function MaskedToken({ expected, accent, onResolved }) {
   const inputRef = useRef(null);
 
   const widthCh = Math.max(expected.length, 3);
+
+  // Live prefix-match feedback while typing (status === 'idle').
+  const trimmed = value.trim();
+  const expectedLower = expected.toLowerCase();
+  const livePrefixOk =
+    trimmed.length > 0 &&
+    expectedLower.startsWith(trimmed.toLowerCase());
+  const liveFullMatch =
+    trimmed.length > 0 && trimmed.toLowerCase() === expectedLower;
+  const liveWrong = trimmed.length > 0 && !livePrefixOk;
+
+  // Auto-resolve when the typed value exactly matches expected — no Tab needed.
+  useEffect(() => {
+    if (liveFullMatch && status === 'idle') {
+      setStatus('correct');
+      setHint(null);
+      if (onResolved) onResolved('correct');
+    }
+  }, [liveFullMatch, status, onResolved]);
 
   const handleCommit = () => {
     if (status === 'correct' || status === 'revealed') return;
@@ -62,10 +81,20 @@ function MaskedToken({ expected, accent, onResolved }) {
   const resolvedColor =
     status === 'revealed' ? theme.palette.warning.main : accent;
 
+  // Border color reflects live state for unresolved tokens.
+  let borderColor = alpha(accent, 0.6);
+  if (liveWrong) borderColor = theme.palette.error.main;
+  else if (livePrefixOk) borderColor = theme.palette.success.main;
+
+  // Background tint similarly nudges left-right when typing.
+  let bgColor = alpha(accent, 0.1);
+  if (liveWrong) bgColor = alpha(theme.palette.error.main, 0.08);
+  else if (livePrefixOk) bgColor = alpha(theme.palette.success.main, 0.1);
+
   return (
     <Tooltip
       title={
-        isResolved ? '' : hint || 'Type the missing word, then Tab or Enter'
+        isResolved ? '' : hint || 'Type the missing word — match auto-confirms'
       }
       placement="top"
       arrow
@@ -80,15 +109,15 @@ function MaskedToken({ expected, accent, onResolved }) {
           px: '6px',
           minWidth: `${widthCh}ch`,
           borderRadius: '6px',
-          backgroundColor: alpha(accent, 0.1),
+          backgroundColor: isResolved ? alpha(accent, 0.1) : bgColor,
           borderBottom: isResolved
             ? `1.5px solid ${resolvedColor}`
-            : `1.5px dashed ${alpha(accent, 0.6)}`,
+            : `1.5px dashed ${borderColor}`,
           color: isResolved ? resolvedColor : theme.palette.text.primary,
           fontWeight: isResolved ? 600 : 500,
           fontFamily: isResolved ? 'inherit' : MONO,
           animation: status === 'wrong' ? `${shake} 150ms ease-in-out` : 'none',
-          transition: 'background-color 300ms ease-out',
+          transition: 'background-color 150ms ease-out, border-color 150ms ease-out',
           position: 'relative',
         }}
       >

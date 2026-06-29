@@ -1671,21 +1671,41 @@ export {
 
 export const langstudyRecallLadderPrompt = (text) => `
 Generate three masked versions of the paragraph below for a language-learning recall exercise.
-Wrap each masked span with \${} so the renderer can detect them.
+Each version targets a different layer of SENTENCE STRUCTURE — not random content words.
+The pedagogical goal is to help the learner notice how English builds complex thought,
+not to memorize vocabulary. Wrap each masked span with \${} so the renderer can detect them.
 
 Return ONLY a JSON object with three string fields:
-  - "light":  hide ONLY collocations and idioms (e.g., "made a decision", "at first glance").
-              Roughly 30% of the paragraph hidden.
-  - "medium": light + discourse markers (however, as a result) + key content nouns.
-              Roughly 60% of the paragraph hidden.
-  - "hard":   keep ONLY the first 1-2 words of each sentence, connectives, and punctuation.
-              Roughly 80% of the paragraph hidden. Everything else inside one or two \${} spans per sentence.
 
-Example output shape:
+  - "light":   STRUCTURAL CONNECTIVES — mask only the small structural words that glue
+               sentences together: coordinating conjunctions (and, but, or, so, yet),
+               subordinating conjunctions (although, while, because, since, if, unless,
+               whereas, when, before, after), discourse markers (however, therefore,
+               nevertheless, in addition, as a result, on the other hand), relative pronouns
+               (who, which, that, where, when), and prepositional connectives (in order to,
+               despite, due to, instead of). Do NOT mask main verbs, content nouns, or
+               adjectives. If a sentence has no such connectives, leave it unmasked.
+
+  - "medium":  CLAUSE STEMS — mask the verbal joints driving each clause: main verbs with
+               their auxiliaries (had been, will have, would have), copulas with their
+               complements (is responsible, became clear), modal verbs with their main verb
+               (must consider, should remain), and the verb stems of subordinate clauses
+               (that he had waited, who is responsible). Do NOT mask connectives this time —
+               keep them visible so the structural skeleton is intact.
+
+  - "hard":    SUBORDINATE STRUCTURES — mask whole subordinate clauses and embedded
+               argument phrases: everything inside a "that…" / "which…" / "who…" / "when…" /
+               "if…" / "because…" dependency, plus whole prepositional or infinitival
+               argument phrases that complete a main verb. Keep the main clause spine
+               (subject + main verb + connective) visible. The learner reconstructs the
+               dependent ideas while the spine stays intact.
+
+Example for "Although the project fell behind schedule, the team still delivered everything on time because they had a clear plan.":
+
 {
-  "light":  "Although the project \${fell} behind schedule, the team \${still delivered} on time.",
-  "medium": "Although the project \${fell behind} schedule, \${the team still delivered} on time.",
-  "hard":   "Although \${the project fell behind schedule}, the team \${still delivered on time}."
+  "light":  "\${Although} the project fell behind schedule, the team still delivered everything on time \${because} they had a clear plan.",
+  "medium": "Although the project \${fell behind} schedule, the team \${still delivered} everything on time because they \${had} a clear plan.",
+  "hard":   "Although \${the project fell behind schedule}, the team still delivered everything on time \${because they had a clear plan}."
 }
 
 Paragraph:
