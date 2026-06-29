@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Box, Typography } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
-import { align } from './smithWaterman';
+import { align } from './wordAlignment';
 
 const SERIF = `'Source Serif Pro', Georgia, 'Times New Roman', serif`;
 const SANS = `system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif`;
@@ -73,36 +73,7 @@ function AlignmentView({ original, learner, accent }) {
   const overlapPct = Math.round((matchCount / denom) * 100);
 
   if (aligned === 0) {
-    return (
-      <Box
-        sx={{
-          bgcolor: theme.palette.background.paper,
-          borderRadius: '14px',
-          border: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
-          p: 2,
-        }}
-      >
-        <Typography
-          sx={{
-            fontFamily: MONO,
-            fontSize: '0.72rem',
-            fontWeight: 600,
-            textTransform: 'uppercase',
-            letterSpacing: '0.5px',
-            color: theme.palette.text.secondary,
-            mb: 1,
-          }}
-        >
-          WORD ALIGNMENT (SMITH–WATERMAN)
-        </Typography>
-        <Typography
-          variant="body2"
-          color="text.secondary"
-        >
-          No locally-matching region between your version and the original.
-        </Typography>
-      </Box>
-    );
+    return null;
   }
 
   return (
@@ -132,7 +103,7 @@ function AlignmentView({ original, learner, accent }) {
             color: theme.palette.text.secondary,
           }}
         >
-          WORD ALIGNMENT (SMITH–WATERMAN)
+          WORD ALIGNMENT (NEEDLEMAN–WUNSCH)
         </Typography>
         <Typography
           sx={{
@@ -225,8 +196,8 @@ function AlignmentView({ original, learner, accent }) {
         }}
       >
         Green = matching word · Amber = mismatched word · Dashed — = gap
-        (insertion / deletion). Shows only the best-scoring overlapping
-        region — paraphrased segments outside the alignment are omitted.
+        (insertion / deletion). Global alignment — every word from both
+        texts appears in order, with gaps where one side has no counterpart.
       </Typography>
     </Box>
   );

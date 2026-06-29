@@ -23,6 +23,48 @@ describe('parseExpressionDiff', () => {
     expect(result.notes[0].pair_id).toBe('p1');
   });
 
+  test('parses the new sentence-grouped shape', () => {
+    const input = {
+      spans: [],
+      sentenceComparisons: [
+        {
+          sentenceIndex: 0,
+          originalSentence: 'She took a decision quickly.',
+          learnerSentence: 'She made a choice fast.',
+          notes: [
+            {
+              pair_id: 'p1',
+              learner_phrase: 'made a choice',
+              original_phrase: 'took a decision',
+              explanation: 'standard collocation in formal English',
+            },
+          ],
+        },
+        {
+          sentenceIndex: 1,
+          originalSentence: 'The deadline loomed.',
+          learnerSentence: 'The deadline was near.',
+          notes: [],
+        },
+      ],
+    };
+    const out = parseExpressionDiff(input);
+    expect(out.sentenceComparisons).toHaveLength(2);
+    expect(out.sentenceComparisons[0].notes).toHaveLength(1);
+    expect(out.sentenceComparisons[1].notes).toHaveLength(0);
+  });
+
+  test('drops malformed sentenceComparisons entries', () => {
+    const input = {
+      sentenceComparisons: [
+        { originalSentence: 'a', learnerSentence: 'b' }, // valid (notes default to [])
+        { originalSentence: 'a' }, // missing learnerSentence — drop
+        { sentenceIndex: 5 }, // missing both sentences — drop
+      ],
+    };
+    expect(parseExpressionDiff(input).sentenceComparisons).toHaveLength(1);
+  });
+
   test('drops spans with unknown side', () => {
     const input = {
       spans: [
@@ -53,7 +95,7 @@ describe('parseExpressionDiff', () => {
 
   test('string (raw JSON) is parsed', () => {
     const out = parseExpressionDiff('{"spans":[],"notes":[]}');
-    expect(out).toEqual({ spans: [], notes: [] });
+    expect(out).toEqual({ spans: [], notes: [], sentenceComparisons: [] });
   });
 
   test('null input throws', () => {

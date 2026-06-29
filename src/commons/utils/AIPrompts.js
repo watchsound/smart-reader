@@ -1713,23 +1713,46 @@ ${text}
 `;
 
 export const langstudyExpressionDiffPrompt = (original, learner) => `
-You are a language-learning tutor. Compare the LEARNER's paragraph against the ORIGINAL.
-Surface where the LEARNER's expression is weaker than the ORIGINAL (collocation, idiom, register, cohesion),
-and where it has mechanical grammar issues.
+You are a language-learning tutor. Compare the LEARNER's text against the ORIGINAL
+SENTENCE BY SENTENCE. For each sentence pair, surface where the learner's
+expression is weaker than the original's (collocation, idiom, register,
+cohesion) and where it has mechanical grammar issues.
 
 Return ONLY a JSON object with this shape:
 {
   "spans": [
-    { "side": "learner"|"original", "text": "<exact substring>", "kind": "match"|"weaker"|"stronger"|"grammar", "pair_id": "<string, only for weaker/stronger pairs>", "note": "<optional, only for grammar kind>" }
+    { "side": "learner"|"original", "text": "<exact substring>", "kind": "match"|"weaker"|"stronger"|"grammar", "pair_id": "<string, only for weaker/stronger pairs>", "sentence_index": <0-based>, "note": "<optional, only for grammar kind>" }
   ],
-  "notes": [
-    { "pair_id": "<matches a span pair>", "learner_phrase": "...", "original_phrase": "...", "explanation": "1-2 sentences on why the original phrasing is stronger." }
+  "sentenceComparisons": [
+    {
+      "sentenceIndex": 0,
+      "originalSentence": "<the original's sentence 0>",
+      "learnerSentence": "<the learner's corresponding sentence>",
+      "notes": [
+        { "pair_id": "<matches a span pair>", "learner_phrase": "...", "original_phrase": "...", "explanation": "1-2 sentences on why the original phrasing is stronger." }
+      ]
+    }
   ]
 }
 
-Pair each "weaker" learner span with the corresponding "stronger" original span via the same pair_id (p1, p2, ...).
-Do NOT include "match" spans unless they are deliberate paraphrases worth praising; default to omitting them.
-Each note's "explanation" must be ONE pedagogical reason (collocation rule, idiom, register, cohesion device) — not a generic "the original is better."
+Rules:
+- Split the ORIGINAL into sentences (terminal . ! ?). For each, find the
+  best-matching sentence in the LEARNER's text (paraphrase, near-match, or
+  shorter version). Pair them via "sentenceIndex" (0-based from the original).
+- If the learner has merged two original sentences into one, repeat the
+  learner sentence under both indices. If the learner has split one original
+  sentence into two, list both halves in "learnerSentence".
+- Pair each "weaker" learner span with the corresponding "stronger" original
+  span via the same pair_id (p1, p2, p3, ...). pair_id is globally unique
+  across the document.
+- Notes are nested INSIDE the sentenceComparisons entry they belong to —
+  don't emit a flat top-level notes array.
+- Do NOT include "match" spans unless they are deliberate paraphrases worth
+  praising; default to omitting them.
+- Each note's "explanation" must be ONE pedagogical reason (collocation
+  rule, idiom, register, cohesion device) — not a generic "the original is
+  better."
+- If a sentence pair has no issues, include the pair with notes: [].
 
 ORIGINAL:
 ${original}
