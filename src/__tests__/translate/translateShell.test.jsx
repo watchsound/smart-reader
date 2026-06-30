@@ -1,5 +1,10 @@
 import React from 'react';
-import { render, fireEvent, waitFor } from '@testing-library/react';
+import {
+  render,
+  fireEvent,
+  waitFor,
+  cleanup,
+} from '@testing-library/react';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 
 // Mock customStorage BEFORE the shell imports it.
@@ -32,6 +37,21 @@ const wrap = (ui) => render(<ThemeProvider theme={theme}>{ui}</ThemeProvider>);
 describe('TranslateShell', () => {
   beforeEach(() => {
     Object.keys(_store).forEach((k) => delete _store[k]);
+    // Reset spineApi mock state so leftover calls from a prior test in this
+    // worker can't bleed in and cause act() commit-phase warnings.
+    // eslint-disable-next-line global-require
+    const spineApi = require('../../renderer/api/spineApi').default;
+    if (spineApi?.generateContentWithJson?.mockClear) {
+      spineApi.generateContentWithJson.mockClear();
+    }
+  });
+
+  // Explicit cleanup between tests — testing-library auto-cleanup happens
+  // by default but we await it so any setTimeout/promise leftover from the
+  // last render has a chance to settle before the next render mounts.
+  afterEach(async () => {
+    cleanup();
+    await new Promise((r) => setTimeout(r, 0));
   });
 
   test('defaults to level A on first mount', () => {
@@ -70,14 +90,19 @@ describe('TranslateShell', () => {
   });
 
   test('switching level resets the submitted view', async () => {
-    const { findAllByText, queryByText, getAllByRole, getByLabelText } = wrap(<TranslateShell />);
+    const { findAllByText, queryByText, getAllByRole, getByLabelText } =
+      wrap(<TranslateShell />);
     fireEvent.change(getAllByRole('textbox')[0], {
       target: { value: '图书馆有书' },
     });
     fireEvent.click(getByLabelText(/Translate/i));
     await findAllByText(/^SOURCE$/);
     fireEvent.click(getByLabelText(/B · Paragraph/));
-    // After level switch, Path A's SOURCE caption is gone (submittedSource was reset).
-    expect(queryByText(/^SOURCE$/)).toBeNull();
+    // Wait for the path-switch to fully settle before asserting absence.
+    // Without the waitFor, an in-flight commit from the prior path
+    // un-mount can race the assertion under parallel jest workers.
+    await waitFor(() => {
+      expect(queryByText(/^SOURCE$/)).toBeNull();
+    });
   });
 });
