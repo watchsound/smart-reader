@@ -17,6 +17,7 @@ const FEATURE_SURFACES = [
   'manual-review',
   'mindmap-study',
   'study-forum',
+  'translate-drill',
   'backfill',
   'unknown',
 ];
@@ -30,6 +31,7 @@ const ATTENTION_STATE = {
   'manual-review': 'focused-session',
   'mindmap-study': 'focused-session',
   'study-forum': 'focused-session',
+  'translate-drill': 'focused-session',
   backfill: 'historical',
   unknown: 'historical',
 };
@@ -43,6 +45,7 @@ const PHASE_GROUP = {
   'manual-review': 'manual-review',
   'mindmap-study': 'production-prompts',
   'study-forum': 'production-prompts',
+  'translate-drill': 'production-prompts',
   backfill: 'historical',
   unknown: 'historical',
 };
