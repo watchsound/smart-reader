@@ -15,7 +15,10 @@ import {
   getSvoHintPrompt,
   getTenseHintPrompt,
   getVerbOptionsPrompt,
+  getNLPAnnotationPrompt,
 } from '../../../commons/utils/AIPrompts';
+import DependencyTree from './DependencyTree';
+import { getTokenAndDependencies } from './DependencyUtil';
 
 const MONO = `'JetBrains Mono', Menlo, Monaco, Consolas, monospace`;
 
@@ -84,11 +87,45 @@ function buildHighlightRanges(source, clauses) {
     return -1;
   };
 
+  // Slot priority: subject / verb / object are core — they claim their
+  // ranges first. Adverbials get their own spans next (often longer and
+  // would otherwise swallow shorter slots if claimed first). Connector
+  // is decoration — claimed last so a 1-char marker can't preempt the
+  // verb head in cases like a relative-clause 的.
   clauses.forEach((c, ci) => {
     if (!c) return;
     const color = roleColor(c.role);
     const role = c.role;
-    // Connector first — its position usually anchors the clause.
+    [
+      ['subject', c.subject?.source],
+      ['verb', c.verb?.source],
+      ['object', c.object?.source],
+    ].forEach(([slot, text]) => {
+      if (!text || PLACEHOLDER.test(text)) return;
+      const idx = findFreeOccurrence(text);
+      if (idx < 0) return;
+      ranges.push({ start: idx, end: idx + text.length, color, role, slot, ci });
+    });
+    if (Array.isArray(c.adverbials)) {
+      c.adverbials.forEach((adv, ai) => {
+        const text = adv?.source;
+        if (!text || PLACEHOLDER.test(text)) return;
+        const idx = findFreeOccurrence(text);
+        if (idx < 0) return;
+        ranges.push({
+          start: idx,
+          end: idx + text.length,
+          // Adverbials get a muted shade of the clause color so they
+          // read as secondary to S/V/O.
+          color,
+          role,
+          slot: 'adverbial',
+          adverbialRole: adv.role || 'other',
+          adverbialIndex: ai,
+          ci,
+        });
+      });
+    }
     const conn = c.connectorSource;
     if (conn && !PLACEHOLDER.test(conn)) {
       const idx = findFreeOccurrence(conn);
@@ -103,16 +140,6 @@ function buildHighlightRanges(source, clauses) {
         });
       }
     }
-    [
-      ['subject', c.subject?.source],
-      ['verb', c.verb?.source],
-      ['object', c.object?.source],
-    ].forEach(([slot, text]) => {
-      if (!text || PLACEHOLDER.test(text)) return;
-      const idx = findFreeOccurrence(text);
-      if (idx < 0) return;
-      ranges.push({ start: idx, end: idx + text.length, color, role, slot, ci });
-    });
   });
 
   ranges.sort((a, b) => a.start - b.start);
@@ -133,7 +160,23 @@ export function buildArcDescriptors(ranges, clauses) {
   const arcs = [];
   const findIdx = (ci, slot) =>
     ranges.findIndex((r) => r.ci === ci && r.slot === slot);
+  const findAdvIdxs = (ci) =>
+    ranges
+      .map((r, i) => (r.ci === ci && r.slot === 'adverbial' ? i : -1))
+      .filter((i) => i >= 0);
   const mainIdx = clauses.findIndex((c) => c?.role === 'main');
+
+  // Adverbial-role → short Chinese tag rendered as the arc label.
+  const ADV_LABELS = {
+    time: '时间',
+    place: '地点',
+    manner: '方式',
+    frequency: '频率',
+    degree: '程度',
+    instrument: '工具',
+    result: '结果',
+    other: '状语',
+  };
 
   clauses.forEach((c, ci) => {
     if (!c) return;
@@ -146,6 +189,21 @@ export function buildArcDescriptors(ranges, clauses) {
     }
     if (verb >= 0 && obj >= 0) {
       arcs.push({ from: verb, to: obj, label: 'obj', color, ci });
+    }
+    // Adverbial → verb arc per adverbial, labelled with its role tag.
+    if (verb >= 0) {
+      findAdvIdxs(ci).forEach((advIdx) => {
+        const advRange = ranges[advIdx];
+        const label = ADV_LABELS[advRange?.adverbialRole] || ADV_LABELS.other;
+        arcs.push({
+          from: advIdx,
+          to: verb,
+          label,
+          color,
+          ci,
+          adverbial: true,
+        });
+      });
     }
     // Attachment arc — for any non-main clause that has a connector,
     // draw a longer arc from the connector to the main clause's verb,
@@ -568,6 +626,8 @@ function ScaffoldRail({ source, language, onHintsChange, initialHints = {} }) {
   const [svoData, setSvoData] = useState(null);
   const [tenseData, setTenseData] = useState(null);
   const [verbsData, setVerbsData] = useState(null);
+  // Token-level dependency parse of the source, for displaCy-style render.
+  const [parseTree, setParseTree] = useState(null);
   const [loading, setLoading] = useState({
     svo: false,
     tense: false,
@@ -586,14 +646,35 @@ function ScaffoldRail({ source, language, onHintsChange, initialHints = {} }) {
     if (svoData || loading.svo) return;
     setLoading((p) => ({ ...p, svo: true }));
     try {
-      const r = await spineApi.generateContentWithJson(
-        getSvoHintPrompt(source, langTag),
-        null,
-        { label: 'translate-svo-hint' },
-      );
-      if (r) {
-        setSvoData(r);
+      // Fire BOTH calls in parallel:
+      //  - getSvoHintPrompt: clause-level breakdown (multi-clause SVO + adverbials)
+      //  - getNLPAnnotationPrompt: token-level dependency parse for the
+      //    standard displaCy-style arc diagram the user expects.
+      // They're independent — we render whichever resolves, no waiting on
+      // both.
+      const [svoR, depR] = await Promise.all([
+        spineApi.generateContentWithJson(
+          getSvoHintPrompt(source, langTag),
+          null,
+          { label: 'translate-svo-hint' },
+        ),
+        spineApi.generateContentWithJson(
+          getNLPAnnotationPrompt(source),
+          null,
+          { label: 'translate-source-parse' },
+        ),
+      ]);
+      if (svoR) {
+        setSvoData(svoR);
         recordHint('svo');
+      }
+      if (depR) {
+        try {
+          const { t, d } = getTokenAndDependencies(depR);
+          setParseTree({ tokens: t, dependencies: d });
+        } catch {
+          // Malformed parse — silently skip; clause-level still renders.
+        }
       }
     } finally {
       setLoading((p) => ({ ...p, svo: false }));
@@ -700,6 +781,43 @@ function ScaffoldRail({ source, language, onHintsChange, initialHints = {} }) {
             bgcolor: alpha(theme.palette.background.paper, 0.6),
           }}
         >
+          {parseTree?.tokens?.length > 0 && (
+            <>
+              <Typography
+                sx={{
+                  fontSize: '0.7rem',
+                  fontFamily: MONO,
+                  fontWeight: 700,
+                  color: 'text.secondary',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  mb: 0.75,
+                }}
+              >
+                Dependency parse
+              </Typography>
+              <Box
+                sx={{
+                  display: 'flex',
+                  justifyContent: 'center',
+                  overflowX: 'auto',
+                  overflowY: 'hidden',
+                  pt: 4,
+                  pb: 1,
+                  mb: 1.5,
+                  borderRadius: 1,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  bgcolor: 'background.paper',
+                }}
+              >
+                <DependencyTree
+                  tokens={parseTree.tokens}
+                  dependencies={parseTree.dependencies}
+                />
+              </Box>
+            </>
+          )}
           <Typography
             sx={{
               fontSize: '0.7rem',
@@ -711,7 +829,7 @@ function ScaffoldRail({ source, language, onHintsChange, initialHints = {} }) {
               mb: 0.75,
             }}
           >
-            Source structure
+            Clause structure (colored)
           </Typography>
           <AnnotatedSource source={source} clauses={clauses} />
           <Typography

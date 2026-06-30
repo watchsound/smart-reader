@@ -1844,12 +1844,34 @@ adverbial / noun-clause / participle clause), produce a row:
 - "connectorSource": the ${language} connector(s) that mark this clause, or "" if implicit
 - "connectorEnglishHints": 1-3 idiomatic English connectors that fit this role
                             (e.g. ["although","even though"] for concession)
-- "subject":   { "source": "<the ${language} subject, or '(implied)' if dropped>",
+- "subject":   { "source": "<the ${language} subject NP head only — bare noun /
+                              pronoun, NOT 'the X who Y…' which is the English-side
+                              construction. Use '(implied)' if the subject is dropped.>",
                  "english": "<idiomatic English translation of the subject>" }
-- "verb":      { "source": "<the ${language} predicate verb / verb phrase>",
+- "verb":      { "source": "<the ${language} HEAD VERB ONLY — the morphological
+                              verb plus its bound aspect particle 了/着/过 if any
+                              (e.g. '拍着' / '跑了' / '看见' / '是'). DO NOT include
+                              time / place / manner / degree adverbials in the verb
+                              source — those belong in the 'adverbials' list below.
+                              DO NOT include the subject or the object characters.
+                              DO NOT include 的 (relative-clause marker) inside the
+                              verb source.>",
                  "english": "<idiomatic English verb phrase that fits this clause>" }
-- "object":    { "source": "<the ${language} object / complement, or '(none)' if intransitive>",
+- "object":    { "source": "<the ${language} object NP head only, or '(none)' if
+                              intransitive>",
                  "english": "<idiomatic English object / complement, or '' if intransitive>" }
+- "adverbials": [
+    {
+      "source": "<verbatim ${language} substring of THIS adverbial — must be a
+                  contiguous run of characters from the source sentence>",
+      "role":   "time | place | manner | frequency | degree | instrument | result | other",
+      "english": "<idiomatic English rendering of this adverbial>"
+    }
+    // Time adverbials (在…的时候 / 昨天 / 当…时), manner adverbs (轻轻 / 慢慢地),
+    // place adverbials (在图书馆), frequency (经常), degree (很 / 非常), etc.
+    // EVERY adverbial that modifies the verb of this clause must appear here.
+    // Use [] if the clause has no adverbials.
+  ],
 - "note":      one short sentence on what the LEARNER must watch for in this clause
                 when expressing it in English (e.g. "subject is dropped in ${language};
                 English requires you to insert 'it' / a dummy subject", or "the 的
@@ -1861,10 +1883,11 @@ Return ONLY a JSON object:
 {
   "clauses": [
     { "role": "...", "connectorSource": "...", "connectorEnglishHints": ["..."],
-      "subject": { "source": "...", "english": "..." },
-      "verb":    { "source": "...", "english": "..." },
-      "object":  { "source": "...", "english": "..." },
-      "note":    "..." }
+      "subject":    { "source": "...", "english": "..." },
+      "verb":       { "source": "...", "english": "..." },
+      "object":     { "source": "...", "english": "..." },
+      "adverbials": [ { "source": "...", "role": "...", "english": "..." } ],
+      "note":       "..." }
   ],
   "overallNote": "one sentence on how the clauses fit together in English (e.g.
                   'main + concession + cause — concession goes first as a fronted
