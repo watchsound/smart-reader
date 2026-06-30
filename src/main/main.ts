@@ -2763,6 +2763,10 @@ app
     // Register adaptive spaced repetition IPC handlers
     registerSpacedRepetitionHandlers();
 
+    // Register Translate page IPC handlers (2026-06-30 redesign)
+    const { registerTranslateHandlers } = require('./ipc/translateHandlers');
+    registerTranslateHandlers(store, {});
+
     // Register learning plan wizard IPC handlers
     registerLearningPlanHandlers(store, {
       dbManager: {
