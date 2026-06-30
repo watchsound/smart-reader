@@ -58,24 +58,26 @@ describe('TranslateShell', () => {
     });
   });
 
-  test('submit mounts the active path view (stub testid for A)', async () => {
-    const { findByTestId, getAllByRole, getByLabelText } = wrap(<TranslateShell />);
+  test('submit mounts the active path view (Path A SOURCE caption visible)', async () => {
+    const { findAllByText, getAllByRole, getByLabelText } = wrap(<TranslateShell />);
     fireEvent.change(getAllByRole('textbox')[0], {
       target: { value: '图书馆有书' },
     });
     fireEvent.click(getByLabelText(/Translate/i));
-    expect(await findByTestId('path-a-stub')).toBeTruthy();
+    // PathADrillView renders a "SOURCE" caption above the source text.
+    const sourceCaps = await findAllByText(/^SOURCE$/);
+    expect(sourceCaps.length).toBeGreaterThan(0);
   });
 
   test('switching level resets the submitted view', async () => {
-    const { findByTestId, getAllByRole, getByLabelText, queryByTestId } = wrap(<TranslateShell />);
+    const { findAllByText, queryByText, getAllByRole, getByLabelText } = wrap(<TranslateShell />);
     fireEvent.change(getAllByRole('textbox')[0], {
       target: { value: '图书馆有书' },
     });
     fireEvent.click(getByLabelText(/Translate/i));
-    await findByTestId('path-a-stub');
+    await findAllByText(/^SOURCE$/);
     fireEvent.click(getByLabelText(/B · Paragraph/));
-    expect(queryByTestId('path-a-stub')).toBeNull();
-    expect(queryByTestId('path-b-stub')).toBeNull();
+    // After level switch, Path A's SOURCE caption is gone (submittedSource was reset).
+    expect(queryByText(/^SOURCE$/)).toBeNull();
   });
 });
