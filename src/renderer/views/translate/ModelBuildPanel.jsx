@@ -38,47 +38,65 @@ function StepWrap({ index, onDemote, children }) {
 }
 
 function ModelBuildPanel({ steps, originalTokens, language, onDemote }) {
-  if (!steps) return null;
+  if (!steps || typeof steps !== 'object') return null;
+  // Defensive: a malformed stepBreakdown from the LLM (missing keys, wrong
+  // types) shouldn't take down the whole compare view. Render only the
+  // steps that arrive in a usable shape.
+  const s1 = steps['step-1'];
+  const s2 = steps['step-2'];
+  const s3 = steps['step-3'];
+  const s4 = steps['step-4'];
+  const s5 = steps['step-5'];
   return (
     <Box>
-      <StepWrap index={1} onDemote={onDemote}>
-        <StepOneSVOCard
-          originalTokens={originalTokens || []}
-          title={steps['step-1'].title}
-          subVerbObjList={steps['step-1']['sub-verb-obj-list']}
-          explain={steps['step-1'].explain}
-        />
-      </StepWrap>
-      <StepWrap index={2} onDemote={onDemote}>
-        <StepTwoVerbCard
-          language={language}
-          originalTokens={originalTokens || []}
-          title={steps['step-2'].title}
-          inputVerbList={steps['step-2']['input-verb-list']}
-          explain={steps['step-2'].explain}
-        />
-      </StepWrap>
-      <StepWrap index={3} onDemote={onDemote}>
-        <StepFourSentenceScaffoldCard
-          title={steps['step-3'].title}
-          scaffoldOptions={steps['step-3']['scaffold-options']}
-          explain={steps['step-3'].explain}
-        />
-      </StepWrap>
-      <StepWrap index={4} onDemote={onDemote}>
-        <StepThreeSentenceStructureCard
-          title={steps['step-4'].title}
-          sentenceStructure={steps['step-4']['sentence-structure']}
-          explain={steps['step-4'].explain}
-        />
-      </StepWrap>
-      <StepWrap index={5} onDemote={onDemote}>
-        <StepFiveFinalCard
-          title={steps['step-5'].title}
-          output={steps['step-5'].output}
-          explain={steps['step-5'].explain}
-        />
-      </StepWrap>
+      {s1 && (
+        <StepWrap index={1} onDemote={onDemote}>
+          <StepOneSVOCard
+            originalTokens={originalTokens || []}
+            title={s1.title}
+            subVerbObjList={s1['sub-verb-obj-list'] || []}
+            explain={s1.explain}
+          />
+        </StepWrap>
+      )}
+      {s2 && (
+        <StepWrap index={2} onDemote={onDemote}>
+          <StepTwoVerbCard
+            language={language}
+            originalTokens={originalTokens || []}
+            title={s2.title}
+            inputVerbList={s2['input-verb-list'] || []}
+            explain={s2.explain}
+          />
+        </StepWrap>
+      )}
+      {s3 && (
+        <StepWrap index={3} onDemote={onDemote}>
+          <StepFourSentenceScaffoldCard
+            title={s3.title}
+            scaffoldOptions={s3['scaffold-options'] || []}
+            explain={s3.explain}
+          />
+        </StepWrap>
+      )}
+      {s4 && (
+        <StepWrap index={4} onDemote={onDemote}>
+          <StepThreeSentenceStructureCard
+            title={s4.title}
+            sentenceStructure={s4['sentence-structure'] || ''}
+            explain={s4.explain}
+          />
+        </StepWrap>
+      )}
+      {s5 && (
+        <StepWrap index={5} onDemote={onDemote}>
+          <StepFiveFinalCard
+            title={s5.title}
+            output={s5.output}
+            explain={s5.explain}
+          />
+        </StepWrap>
+      )}
     </Box>
   );
 }

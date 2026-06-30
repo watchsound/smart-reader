@@ -139,45 +139,58 @@ function StepOneSVOCard({
   const [tokens, setTokens] = React.useState([]);
 
   function findToken(text) {
+    if (!text || !Array.isArray(originalTokens)) return null;
     const item = originalTokens.filter((item) => item.text === text);
     return item && item.length > 0 ? item[0] : null;
   }
 
   React.useEffect(() => {
+    // Defensive: an upstream prompt may return rows missing one of
+    // subject/verb/object, or with the role objects missing .input.
+    // Drop malformed rows so the whole card doesn't crash on a single
+    // bad LLM response.
+    const list = Array.isArray(subVerbObjList) ? subVerbObjList : [];
     const tt = [];
-    subVerbObjList.forEach((row) => {
+    list.forEach((row) => {
+      if (!row || !row.subject || !row.verb || !row.object) return;
       const { subject, verb, object } = row;
+      const subjInput = subject.input ?? '';
+      const verbInput = verb.input ?? '';
+      const objInput = object.input ?? '';
+      const verbEnglish = verb.english ?? '';
+      const subjEnglish = subject.english ?? '';
+      const objEnglish = object.english ?? '';
       const t = [];
-      let item = findToken(subject.input);
+      let item = findToken(subjInput);
       if (item) {
-        t.push({ ...item, tag: subject.english });
+        t.push({ ...item, tag: subjEnglish });
       } else {
         t.push({
           index: 0,
-          text: subject.input,
-          tag: verb.english,
+          text: subjInput,
+          tag: verbEnglish,
           color: mapToPredefinedColor('NN'),
         });
       }
-      item = findToken(verb.input);
+      item = findToken(verbInput);
       if (item) {
-        t.push({ ...item, tag: verb.english });
+        t.push({ ...item, tag: verbEnglish });
       } else {
         t.push({
           index: 1,
-          text: verb.input,
-          tag: verb.english,
+          text: verbInput,
+          tag: verbEnglish,
           color: mapToPredefinedColor('VB'),
         });
       }
-      item = findToken(object.input);
+      item = findToken(objInput);
       if (item) {
-        t.push({ ...item, tag: object.english });
+        t.push({ ...item, tag: objEnglish });
       } else {
         t.push({
           index: 1,
-          text: object.input,
-          tag: verb.english,
+          text: objInput,
+          tag: verbEnglish,
           color: mapToPredefinedColor('NN'),
         });
       }
