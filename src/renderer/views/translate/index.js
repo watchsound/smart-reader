@@ -1,14 +1,12 @@
 /* eslint-disable prettier/prettier */
-import React from 'react'
+import React from 'react';
 
-import TranslateMainPage from './TranslateMainPage';
+import TranslateShell from './TranslateShell';
 
 function TranslatePage() {
-
-
   return (
     <div className="main note__main">
-      <TranslateMainPage />
+      <TranslateShell />
     </div>
   );
 }
