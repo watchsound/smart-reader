@@ -163,6 +163,7 @@ function TranslateShell() {
         sx={{
           width: 280,
           minWidth: 280,
+          flexShrink: 0,
           bgcolor: theme.palette.background.paper,
           borderRight: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
           display: 'flex',
@@ -244,9 +245,10 @@ function TranslateShell() {
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
+          minHeight: 0, // critical: lets nested flex children actually shrink
         }}
       >
-        <Box sx={{ flex: 1, overflowY: 'auto', p: 3 }}>
+        <Box sx={{ flex: 1, overflowY: 'auto', p: 3, minHeight: 0 }}>
           {submittedSource ? (
             <>
               {level === 'A' && (
@@ -283,6 +285,7 @@ function TranslateShell() {
             p: 2.5,
             borderTop: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
             bgcolor: theme.palette.background.paper,
+            flexShrink: 0, // anchor: never shrink, never get pushed off-screen
           }}
         >
           <Box
