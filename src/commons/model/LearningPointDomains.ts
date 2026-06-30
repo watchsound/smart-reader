@@ -133,6 +133,24 @@ export interface LanguagePatternExtras {
   pattern: string; // The grammar/structure rule
   examples?: Array<{ source: string; target: string; note?: string }>;
   commonErrors?: string[];
+
+  // Added 2026-06-30 for Translate Page Path A/B weakness capture.
+  // Closed enum — see src/renderer/views/translate/buckets.js.
+  bucket?:
+    | 'tense'
+    | 'word-order'
+    | 'article-number'
+    | 'preposition-collocation'
+    | 'connector-cohesion'
+    | 'idiom-register';
+  /** The user's English fragment that triggered the weakness. */
+  learnerAttempt?: string;
+  /** The model's English fragment that the learner's attempt is being compared against. */
+  modelTarget?: string;
+  /** 1-2 sentence AI explanation of why the model phrasing is stronger. */
+  reason?: string;
+  /** Which Path A scaffold buttons the user revealed before composing. */
+  hintsUsed?: { svo?: boolean; tense?: boolean; vocabulary?: boolean };
 }
 
 export interface KnowledgeExtras {
