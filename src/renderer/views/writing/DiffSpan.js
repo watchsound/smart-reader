@@ -2,17 +2,19 @@ import React from 'react';
 import { Box } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 import { DIFF_COLORS } from './config';
+import { BUCKET_COLORS } from '../translate/buckets';
 
-function colorFor(kind, mode) {
+export function colorFor(kind, bucket, mode) {
+  if (bucket && BUCKET_COLORS[bucket]) return BUCKET_COLORS[bucket][mode];
   if (kind === 'grammar') return DIFF_COLORS.grammar[mode];
   if (kind === 'weaker' || kind === 'stronger') return DIFF_COLORS.weaker[mode];
   return DIFF_COLORS.match[mode];
 }
 
-function DiffSpan({ kind, pairId, hoveredPairId, onHoverPair, children }) {
+function DiffSpan({ kind, bucket, pairId, hoveredPairId, onHoverPair, children }) {
   const theme = useTheme();
   const mode = theme.palette.mode === 'dark' ? 'dark' : 'light';
-  const color = colorFor(kind, mode);
+  const color = colorFor(kind, bucket, mode);
   const isPaired = pairId && hoveredPairId === pairId;
 
   let styles;
