@@ -32,7 +32,9 @@ describe('Translate prompt functions', () => {
     ['tense', 'word-order', 'article-number', 'preposition-collocation', 'connector-cohesion', 'idiom-register'].forEach((b) => {
       expect(p).toMatch(new RegExp(b));
     });
-    expect(p).toMatch(/stepBreakdown/);
+    // stepBreakdown was dropped from the compare prompt — it's fetched
+    // lazily via translate-quick when the user opens the breakdown panel.
+    expect(p).not.toMatch(/stepBreakdown/);
   });
 
   test('getTranslateParagraphComparePrompt asks for sentenceComparisons + emphasises cohesion', () => {

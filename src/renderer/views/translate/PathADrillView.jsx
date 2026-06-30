@@ -11,7 +11,10 @@ import {
 import { useTheme, alpha } from '@mui/material/styles';
 import spineApi from '../../api/spineApi';
 import learningPointApi from '../../api/learningPointApi';
-import { getTranslateComparePrompt } from '../../../commons/utils/AIPrompts';
+import {
+  getTranslateComparePrompt,
+  getTranslatePrompt,
+} from '../../../commons/utils/AIPrompts';
 import { LanguageModel } from '../../../commons/model/DataTypes';
 import ScaffoldRail from './ScaffoldRail';
 import DiffSpansRenderer from './DiffSpansRenderer';
@@ -34,6 +37,11 @@ function PathADrillView({ source, language }) {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showBreakdown, setShowBreakdown] = useState(false);
+  // Breakdown is fetched lazily via translate-quick (the well-tested legacy
+  // prompt) so a malformed nested step shape from the compare prompt can
+  // never crash the main result.
+  const [breakdownSteps, setBreakdownSteps] = useState(null);
+  const [breakdownLoading, setBreakdownLoading] = useState(false);
 
   const compare = async () => {
     if (!attempt.trim() || loading) return;
@@ -166,17 +174,44 @@ function PathADrillView({ source, language }) {
             <Button
               size="small"
               variant="text"
-              onClick={() => setShowBreakdown((v) => !v)}
+              disabled={breakdownLoading}
+              onClick={async () => {
+                if (showBreakdown) {
+                  setShowBreakdown(false);
+                  return;
+                }
+                setShowBreakdown(true);
+                if (!breakdownSteps && !breakdownLoading) {
+                  setBreakdownLoading(true);
+                  try {
+                    const r = await spineApi.generateContentWithJson(
+                      getTranslatePrompt(source, langTag(language)),
+                      null,
+                      { label: 'translate-quick' },
+                    );
+                    if (r) setBreakdownSteps(r);
+                  } finally {
+                    setBreakdownLoading(false);
+                  }
+                }
+              }}
             >
               {showBreakdown ? 'Hide' : 'Show'} how the model built it
             </Button>
             <Collapse in={showBreakdown}>
               <Box sx={{ mt: 2 }}>
-                <ModelBuildPanel
-                  steps={result.stepBreakdown}
-                  originalTokens={[]}
-                  language={langTag(language)}
-                />
+                {breakdownLoading && !breakdownSteps && (
+                  <Typography variant="body2" color="text.secondary">
+                    Loading breakdown…
+                  </Typography>
+                )}
+                {breakdownSteps && (
+                  <ModelBuildPanel
+                    steps={breakdownSteps}
+                    originalTokens={[]}
+                    language={langTag(language)}
+                  />
+                )}
               </Box>
             </Collapse>
           </Box>

@@ -1852,8 +1852,6 @@ For each WEAKNESS in the learner's English, label it with ONE of these six close
 - "connector-cohesion" — missing because/although/while etc. that ${language} parataxis often omits
 - "idiom-register" — word-for-word translation of an idiom, or register mismatch
 
-Also produce the 5-step pedagogical breakdown of how the MODEL English was built.
-
 Return ONLY a JSON object:
 {
   "modelEnglish": "<the model translation>",
@@ -1866,15 +1864,11 @@ Return ONLY a JSON object:
       "pair_id": "<string, links learner side to model side for hover-pairing>",
       "reason": "<1-2 sentences explaining why the model phrasing is stronger; phrase as advice the learner can apply>"
     }
-  ],
-  "stepBreakdown": {
-    "step-1": { "title": "...", "sub-verb-obj-list": [...], "explain": "..." },
-    "step-2": { "title": "...", "input-verb-list": [...], "explain": "..." },
-    "step-3": { "title": "...", "scaffold-options": [...], "best-scaffold": "...", "explain": "..." },
-    "step-4": { "title": "...", "sentence-structure": "...", "explain": "..." },
-    "step-5": { "title": "...", "output": "<the model English>", "explain": "..." }
-  }
+  ]
 }
+
+The 5-step pedagogical breakdown is fetched separately on demand and is
+NOT part of this response.
 
 ${language} sentence: ${sentence}
 Learner's English: ${attempt}

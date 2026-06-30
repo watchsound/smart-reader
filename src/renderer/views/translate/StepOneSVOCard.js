@@ -231,55 +231,60 @@ function StepOneSVOCard({
 
       {/* SVO Cards */}
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 2 }}>
-        {subVerbObjList.map((row, index) => {
-          const { subject, verb, object } = row;
-          const subjectToken = findToken(subject.input);
-          const verbToken = findToken(verb.input);
-          const objectToken = findToken(object.input);
+        {(Array.isArray(subVerbObjList) ? subVerbObjList : [])
+          .filter((row) => row && row.subject && row.verb && row.object)
+          .map((row, index) => {
+            const { subject, verb, object } = row;
+            const subjInput = subject.input ?? '';
+            const verbInput = verb.input ?? '';
+            const objInput = object.input ?? '';
+            const subjectToken = findToken(subjInput);
+            const verbToken = findToken(verbInput);
+            const objectToken = findToken(objInput);
 
-          return (
-            <Box
-              key={index}
-              sx={{
-                p: 2,
-                borderRadius: 2,
-                bgcolor: alpha(theme.palette.background.default, 0.5),
-                border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-              }}
-            >
+            return (
               <Box
+                key={index}
                 sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 2,
-                  flexWrap: 'wrap',
+                  p: 2,
+                  borderRadius: 2,
+                  bgcolor: alpha(theme.palette.background.default, 0.5),
+                  border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
                 }}
               >
-                <SVOChip
-                  label={subject.input}
-                  english={subject.english}
-                  type="subject"
-                  color={subjectToken?.color}
-                />
-                <ArrowForwardIcon sx={{ color: theme.palette.text.disabled, fontSize: 20 }} />
-                <SVOChip
-                  label={verb.input}
-                  english={verb.english}
-                  type="verb"
-                  color={verbToken?.color}
-                />
-                <ArrowForwardIcon sx={{ color: theme.palette.text.disabled, fontSize: 20 }} />
-                <SVOChip
-                  label={object.input}
-                  english={object.english}
-                  type="object"
-                  color={objectToken?.color}
-                />
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 2,
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <SVOChip
+                    label={subjInput}
+                    english={subject.english ?? ''}
+                    type="subject"
+                    color={subjectToken?.color}
+                  />
+                  <ArrowForwardIcon sx={{ color: theme.palette.text.disabled, fontSize: 20 }} />
+                  <SVOChip
+                    label={verbInput}
+                    english={verb.english ?? ''}
+                    type="verb"
+                    color={verbToken?.color}
+                  />
+                  <ArrowForwardIcon sx={{ color: theme.palette.text.disabled, fontSize: 20 }} />
+                  <SVOChip
+                    label={objInput}
+                    english={object.english ?? ''}
+                    type="object"
+                    color={objectToken?.color}
+                  />
+                </Box>
               </Box>
-            </Box>
-          );
-        })}
+            );
+          })}
       </Box>
 
       {/* Dependency Trees */}

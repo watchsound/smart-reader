@@ -71,13 +71,19 @@ function StepTwoVerbCard({
   };
 
   function findToken(text) {
+    if (!text || !Array.isArray(originalTokens)) return null;
     const item = originalTokens.filter((item) => item.text === text);
     return item && item.length > 0 ? item[0] : null;
   }
 
   React.useEffect(() => {
+    const list = Array.isArray(inputVerbList) ? inputVerbList : [];
     const cs = [];
-    inputVerbList.forEach((item, index) => {
+    list.forEach((item) => {
+      if (!item) {
+        cs.push(alpha(theme.palette.error.main, 0.1));
+        return;
+      }
       const iv = findToken(item['input-verb']);
       if (iv) {
         cs.push(iv.color);
@@ -136,7 +142,9 @@ function StepTwoVerbCard({
 
       {/* Verb Cards */}
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 2 }}>
-        {inputVerbList.map((pair, index) => (
+        {(Array.isArray(inputVerbList) ? inputVerbList : [])
+          .filter((pair) => pair && pair['input-verb'])
+          .map((pair, index) => (
           <Box
             key={index}
             sx={{
