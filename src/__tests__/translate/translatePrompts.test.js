@@ -3,15 +3,34 @@ import {
   getTenseHintPrompt,
   getTranslateComparePrompt,
   getTranslateParagraphComparePrompt,
+  getVerbOptionsPrompt,
 } from '../../commons/utils/AIPrompts';
 
 describe('Translate prompt functions', () => {
-  test('getSvoHintPrompt embeds source + asks for subject/verb/object', () => {
-    const p = getSvoHintPrompt('图书馆的二楼有很多书', 'Chinese');
-    expect(p).toMatch(/图书馆的二楼有很多书/);
-    expect(p).toMatch(/subject/i);
-    expect(p).toMatch(/verb/i);
-    expect(p).toMatch(/object/i);
+  test('getSvoHintPrompt demands multi-clause decomposition with role tags', () => {
+    const p = getSvoHintPrompt('因为下雨了，他没去图书馆', 'Chinese');
+    expect(p).toMatch(/因为下雨了/);
+    // The new prompt must instruct decomposing ALL clauses, not just main.
+    expect(p).toMatch(/ALL of its clauses/);
+    expect(p).toMatch(/"clauses"/);
+    // Role enum should include the compound/complex-sentence categories.
+    ['main', 'coordinate', 'relative', 'cause', 'concession', 'condition', 'time', 'noun-clause'].forEach((role) => {
+      expect(p).toMatch(new RegExp(role));
+    });
+    // Each clause carries connector hints + a learner-facing note.
+    expect(p).toMatch(/connectorEnglishHints/);
+    expect(p).toMatch(/"note"/);
+  });
+
+  test('getVerbOptionsPrompt asks for per-verb English candidates with usage notes', () => {
+    const p = getVerbOptionsPrompt('他昨天去了图书馆', 'Chinese');
+    expect(p).toMatch(/他昨天去了图书馆/);
+    expect(p).toMatch(/EVERY verb/);
+    expect(p).toMatch(/"verbs"/);
+    expect(p).toMatch(/"options"/);
+    expect(p).toMatch(/usage/i);
+    expect(p).toMatch(/example/i);
+    expect(p).toMatch(/recommendedForThisSentence/);
   });
 
   test('getTenseHintPrompt embeds source + asks for tense + justification', () => {

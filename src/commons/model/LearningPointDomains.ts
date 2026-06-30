@@ -150,7 +150,12 @@ export interface LanguagePatternExtras {
   /** 1-2 sentence AI explanation of why the model phrasing is stronger. */
   reason?: string;
   /** Which Path A scaffold buttons the user revealed before composing. */
-  hintsUsed?: { svo?: boolean; tense?: boolean; vocabulary?: boolean };
+  hintsUsed?: {
+    svo?: boolean;
+    tense?: boolean;
+    verbs?: boolean;
+    vocabulary?: boolean;
+  };
 }
 
 export interface KnowledgeExtras {
