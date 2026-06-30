@@ -25,10 +25,10 @@ function SourcePanel({
   onLock,
   onUnlock,
   accent,
+  label = 'SOURCE PARAGRAPH',
+  placeholder = 'Paste a paragraph you want to learn from. The model text is the anchor for the next two phases.',
 }) {
   const theme = useTheme();
-  const placeholder =
-    'Paste a paragraph you want to learn from. The model text is the anchor for the next two phases.';
   const trimmed = (text || '').trim();
   const canLock = trimmed.length > 0;
 
@@ -78,7 +78,7 @@ function SourcePanel({
             color: theme.palette.text.secondary,
           }}
         >
-          SOURCE PARAGRAPH
+          {label}
         </Typography>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Typography
