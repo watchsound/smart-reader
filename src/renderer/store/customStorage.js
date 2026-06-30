@@ -1656,6 +1656,38 @@ class customStorage {
   static setGraphPassword(password) {
     return window.electron.ipcRenderer.setStoreValue('graph.password', password);
   }
+
+  // ===== Translate page (2026-06-30 redesign) =====
+
+  static getTranslateLevel() {
+    const v = window.electron.ipcRenderer.getStoreValue('translate.level');
+    return v === 'A' || v === 'B' || v === 'C' ? v : 'A';
+  }
+
+  static setTranslateLevel(level) {
+    if (level !== 'A' && level !== 'B' && level !== 'C') return;
+    window.electron.ipcRenderer.setStoreValue('translate.level', level);
+  }
+
+  static getTranslateHistory() {
+    const v = window.electron.ipcRenderer.getStoreValue('translate.history');
+    if (!v) return [];
+    try {
+      const parsed = typeof v === 'string' ? JSON.parse(v) : v;
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  static appendTranslateHistory(entry) {
+    const list = customStorage.getTranslateHistory();
+    const next = [entry, ...list].slice(0, 30);
+    window.electron.ipcRenderer.setStoreValue(
+      'translate.history',
+      JSON.stringify(next),
+    );
+  }
 }
 
 export default customStorage;
