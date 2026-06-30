@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React, { useState, useMemo } from 'react';
 import { Box, Typography } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
@@ -17,14 +18,12 @@ function locate(text, sideSpans) {
     })
     .filter(Boolean)
     .sort((a, b) => a.start - b.start);
-  const out = [];
   let cursor = 0;
-  for (const s of located) {
-    if (s.start < cursor) continue; // drop overlap
-    out.push(s);
+  return located.reduce((out, s) => {
+    if (s.start < cursor) return out; // drop overlap
     cursor = s.end;
-  }
-  return out;
+    return [...out, s];
+  }, []);
 }
 
 function renderSide(text, sideSpans, fontStack, hoveredPairId, onHoverPair) {
@@ -59,19 +58,16 @@ function renderSide(text, sideSpans, fontStack, hoveredPairId, onHoverPair) {
   );
 }
 
-function DiffSpansRenderer({ learnerText, modelText, spans }) {
-  const theme = useTheme();
-  const [hoveredPairId, setHoveredPairId] = useState(null);
-  const learnerSpans = useMemo(
-    () => (spans || []).filter((s) => s.side === 'learner'),
-    [spans],
-  );
-  const modelSpans = useMemo(
-    () => (spans || []).filter((s) => s.side === 'model'),
-    [spans],
-  );
-
-  const SideBox = ({ title, font, text, sideSpans }) => (
+function SideBox({
+  title,
+  font,
+  text,
+  sideSpans,
+  theme,
+  hoveredPairId,
+  setHoveredPairId,
+}) {
+  return (
     <Box
       sx={{
         borderRadius: '14px',
@@ -105,6 +101,19 @@ function DiffSpansRenderer({ learnerText, modelText, spans }) {
       </Box>
     </Box>
   );
+}
+
+function DiffSpansRenderer({ learnerText, modelText, spans }) {
+  const theme = useTheme();
+  const [hoveredPairId, setHoveredPairId] = useState(null);
+  const learnerSpans = useMemo(
+    () => (spans || []).filter((s) => s.side === 'learner'),
+    [spans],
+  );
+  const modelSpans = useMemo(
+    () => (spans || []).filter((s) => s.side === 'model'),
+    [spans],
+  );
 
   return (
     <Box
@@ -119,12 +128,18 @@ function DiffSpansRenderer({ learnerText, modelText, spans }) {
         font={SANS}
         text={learnerText}
         sideSpans={learnerSpans}
+        theme={theme}
+        hoveredPairId={hoveredPairId}
+        setHoveredPairId={setHoveredPairId}
       />
       <SideBox
         title="MODEL ENGLISH"
         font={SERIF}
         text={modelText}
         sideSpans={modelSpans}
+        theme={theme}
+        hoveredPairId={hoveredPairId}
+        setHoveredPairId={setHoveredPairId}
       />
     </Box>
   );

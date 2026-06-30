@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React, { useEffect, useState } from 'react';
 import { Box, Typography, IconButton, Tooltip, Chip } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';

@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React, { useEffect, useState } from 'react';
 import { Box, TextField, Button, CircularProgress } from '@mui/material';
 import SourcePanel from '../writing/SourcePanel';
@@ -14,8 +15,7 @@ import { LanguageModel } from '../../../commons/model/DataTypes';
 const ACCENT = '#0E8A8A';
 const langTag = (lang) =>
   lang === LanguageModel.Japanese ? 'Japanese' : 'Chinese';
-const bcp47 = (lang) =>
-  lang === LanguageModel.Japanese ? 'ja-JP' : 'zh-Hans';
+const bcp47 = (lang) => (lang === LanguageModel.Japanese ? 'ja-JP' : 'zh-Hans');
 
 function PathBParagraphView({ source, language }) {
   const [lang5w, setLang5w] = useState(null);

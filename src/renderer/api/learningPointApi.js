@@ -32,7 +32,9 @@ const { ipcRenderer } = window.electron || {};
  * @returns {Object} { available: boolean, constants: Object }
  */
 export const getStatus = () => {
-  return ipcRenderer?.sendSync('lp-status') || { available: false, constants: {} };
+  return (
+    ipcRenderer?.sendSync('lp-status') || { available: false, constants: {} }
+  );
 };
 
 /**
@@ -60,8 +62,16 @@ let _sourceTypes = null;
 export const getItemTypes = () => {
   if (!_itemTypes) {
     _itemTypes = ipcRenderer?.sendSync('lp-get-item-types') || [
-      'word', 'concept', 'formula', 'rule', 'fact',
-      'problem', 'technique', 'pattern', 'definition', 'example',
+      'word',
+      'concept',
+      'formula',
+      'rule',
+      'fact',
+      'problem',
+      'technique',
+      'pattern',
+      'definition',
+      'example',
     ];
   }
   return _itemTypes;
@@ -73,9 +83,18 @@ export const getItemTypes = () => {
 export const getDomainTypes = () => {
   if (!_domainTypes) {
     _domainTypes = ipcRenderer?.sendSync('lp-get-domain-types') || [
-      'vocabulary', 'math', 'physics', 'chemistry', 'biology',
-      'language', 'programming', 'knowledge', 'skill', 'history',
-      'geography', 'custom',
+      'vocabulary',
+      'math',
+      'physics',
+      'chemistry',
+      'biology',
+      'language',
+      'programming',
+      'knowledge',
+      'skill',
+      'history',
+      'geography',
+      'custom',
     ];
   }
   return _domainTypes;
@@ -87,7 +106,11 @@ export const getDomainTypes = () => {
 export const getDifficultyLevels = () => {
   if (!_difficultyLevels) {
     _difficultyLevels = ipcRenderer?.sendSync('lp-get-difficulty-levels') || [
-      'beginner', 'elementary', 'intermediate', 'advanced', 'expert',
+      'beginner',
+      'elementary',
+      'intermediate',
+      'advanced',
+      'expert',
     ];
   }
   return _difficultyLevels;
@@ -99,7 +122,11 @@ export const getDifficultyLevels = () => {
 export const getFormats = () => {
   if (!_formats) {
     _formats = ipcRenderer?.sendSync('lp-get-formats') || [
-      'card', 'mindmap', 'quiz', 'image', 'code',
+      'card',
+      'mindmap',
+      'quiz',
+      'image',
+      'code',
     ];
   }
   return _formats;
@@ -111,7 +138,11 @@ export const getFormats = () => {
 export const getSourceTypes = () => {
   if (!_sourceTypes) {
     _sourceTypes = ipcRenderer?.sendSync('lp-get-source-types') || [
-      'book', 'url', 'chat', 'plan', 'manual',
+      'book',
+      'url',
+      'chat',
+      'plan',
+      'manual',
     ];
   }
   return _sourceTypes;
@@ -262,10 +293,10 @@ export const ensureVocabBackfilled = async (token) => {
  * Rating constants
  */
 export const RATINGS = {
-  AGAIN: 1,  // Back to box 1
-  HARD: 2,   // Stay in box, reduce ease
-  GOOD: 3,   // Advance one box
-  EASY: 4,   // Skip a box, increase ease
+  AGAIN: 1, // Back to box 1
+  HARD: 2, // Stay in box, reduce ease
+  GOOD: 3, // Advance one box
+  EASY: 4, // Skip a box, increase ease
 };
 
 /**
@@ -277,7 +308,13 @@ export const RATINGS = {
  * @returns {Promise<Object>} Updated SR state
  */
 export const processReview = async (id, rating, responseTimeMs, token) => {
-  return ipcRenderer?.invoke('lp-process-review', id, rating, responseTimeMs, token);
+  return ipcRenderer?.invoke(
+    'lp-process-review',
+    id,
+    rating,
+    responseTimeMs,
+    token,
+  );
 };
 
 /**
@@ -337,7 +374,11 @@ export const getContentText = (content) => {
 export const hasLatex = (content) => {
   if (!content) return false;
   if (typeof content === 'string') {
-    return content.includes('$') || content.includes('\\[') || content.includes('\\(');
+    return (
+      content.includes('$') ||
+      content.includes('\\[') ||
+      content.includes('\\(')
+    );
   }
   return Boolean(content.latex) || hasLatex(content.text);
 };
@@ -417,7 +458,12 @@ export const getMasteryLevel = (mastery) => {
  * @returns {{ valid: boolean, errors: string[] }}
  */
 export const validateLearningPoint = (point) => {
-  return ipcRenderer?.sendSync('lp-validate', point) || { valid: false, errors: ['IPC unavailable'] };
+  return (
+    ipcRenderer?.sendSync('lp-validate', point) || {
+      valid: false,
+      errors: ['IPC unavailable'],
+    }
+  );
 };
 
 // =============================================================================

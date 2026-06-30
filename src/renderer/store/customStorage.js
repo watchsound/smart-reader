@@ -126,7 +126,8 @@ class customStorage {
   static async validateSession() {
     const token = this.getSessionToken();
     if (!token) return null;
-    const sessionInfo = await window.electron.ipcRenderer.validateSession(token);
+    const sessionInfo =
+      await window.electron.ipcRenderer.validateSession(token);
     if (!sessionInfo) {
       // Session invalid - clear local storage
       this.setUserInfo({ user: '', email: '', token: '' });
@@ -173,7 +174,6 @@ class customStorage {
     return window.electron.ipcRenderer.getPDF4URL(id);
   }
 
-
   static deleteBookmarkById(id) {
     if (!this.isLoggedIn()) return null;
     return window.electron.ipcRenderer.deleteBookmarkById(
@@ -189,7 +189,6 @@ class customStorage {
       this.getSessionToken(),
     );
   }
-
 
   static deleteNoteById(id) {
     if (!this.isLoggedIn()) return null;
@@ -559,7 +558,11 @@ class customStorage {
 
   static async jsonLearnAboutChats() {
     if (!this.isLoggedIn()) return [];
-    const result = await this.getLearnAboutByQuery({ query: '', page: 1, limit: 100 });
+    const result = await this.getLearnAboutByQuery({
+      query: '',
+      page: 1,
+      limit: 100,
+    });
     return result?.data || [];
   }
 
@@ -863,7 +866,6 @@ class customStorage {
     );
   }
 
-
   static addVocabularyToSet({ id, setId }) {
     if (!this.isLoggedIn()) return null;
     return window.electron.ipcRenderer.addVocabularyToSet(
@@ -1069,7 +1071,9 @@ class customStorage {
 
   static getClaudeAdvancedModel() {
     if (!this.isLoggedIn()) return ClaudeModel.CLAUDE_OPUS_4_5;
-    return window.electron.ipcRenderer.getClaudeAdvancedModel(this.getSessionToken());
+    return window.electron.ipcRenderer.getClaudeAdvancedModel(
+      this.getSessionToken(),
+    );
   }
 
   static async setGeminiModel(mode) {
@@ -1098,7 +1102,9 @@ class customStorage {
 
   static getGeminiAdvancedModel() {
     if (!this.isLoggedIn()) return GeminiModel.GEMINI_2_5_PRO;
-    return window.electron.ipcRenderer.getGeminiAdvancedModel(this.getSessionToken());
+    return window.electron.ipcRenderer.getGeminiAdvancedModel(
+      this.getSessionToken(),
+    );
   }
 
   static async setOllamaModel(mode) {
@@ -1127,7 +1133,9 @@ class customStorage {
 
   static getOllamaAdvancedModel() {
     if (!this.isLoggedIn()) return OllamaModel.LLAMA_3_3_70B;
-    return window.electron.ipcRenderer.getOllamaAdvancedModel(this.getSessionToken());
+    return window.electron.ipcRenderer.getOllamaAdvancedModel(
+      this.getSessionToken(),
+    );
   }
 
   static async setChatGPTModel(mode) {
@@ -1156,7 +1164,9 @@ class customStorage {
 
   static getChatGPTAdvancedModel() {
     if (!this.isLoggedIn()) return ChatGPTModel.GPT4_1;
-    return window.electron.ipcRenderer.getChatGPTAdvancedModel(this.getSessionToken());
+    return window.electron.ipcRenderer.getChatGPTAdvancedModel(
+      this.getSessionToken(),
+    );
   }
 
   // Baidu models
@@ -1185,7 +1195,9 @@ class customStorage {
 
   static getBaiduAdvancedModel() {
     if (!this.isLoggedIn()) return BaiduModel.ERNIE_5;
-    return window.electron.ipcRenderer.getBaiduAdvancedModel(this.getSessionToken());
+    return window.electron.ipcRenderer.getBaiduAdvancedModel(
+      this.getSessionToken(),
+    );
   }
 
   // Kimi models
@@ -1214,7 +1226,9 @@ class customStorage {
 
   static getKimiAdvancedModel() {
     if (!this.isLoggedIn()) return KimiModel.KIMI_K2_5;
-    return window.electron.ipcRenderer.getKimiAdvancedModel(this.getSessionToken());
+    return window.electron.ipcRenderer.getKimiAdvancedModel(
+      this.getSessionToken(),
+    );
   }
 
   // Doubao models
@@ -1243,7 +1257,9 @@ class customStorage {
 
   static getDoubaoAdvancedModel() {
     if (!this.isLoggedIn()) return DoubaoModel.DOUBAO_SEED_1_6;
-    return window.electron.ipcRenderer.getDoubaoAdvancedModel(this.getSessionToken());
+    return window.electron.ipcRenderer.getDoubaoAdvancedModel(
+      this.getSessionToken(),
+    );
   }
 
   // Qwen models
@@ -1272,7 +1288,9 @@ class customStorage {
 
   static getQwenAdvancedModel() {
     if (!this.isLoggedIn()) return QwenModel.QWEN3_MAX;
-    return window.electron.ipcRenderer.getQwenAdvancedModel(this.getSessionToken());
+    return window.electron.ipcRenderer.getQwenAdvancedModel(
+      this.getSessionToken(),
+    );
   }
 
   static fetchPageHeadless(url) {
@@ -1446,7 +1464,10 @@ class customStorage {
 
   static setDoubaoKey(key) {
     if (!this.isLoggedIn()) return null;
-    return window.electron.ipcRenderer.setDoubaoKey(key, this.getSessionToken());
+    return window.electron.ipcRenderer.setDoubaoKey(
+      key,
+      this.getSessionToken(),
+    );
   }
 
   static getQwenKey() {
@@ -1467,7 +1488,10 @@ class customStorage {
 
   static setApiKeyDeepSeek(key) {
     if (!this.isLoggedIn()) return null;
-    return window.electron.ipcRenderer.setDeepSeekKey(key, this.getSessionToken());
+    return window.electron.ipcRenderer.setDeepSeekKey(
+      key,
+      this.getSessionToken(),
+    );
   }
 
   // DeepSeek model
@@ -1636,7 +1660,10 @@ class customStorage {
   }
 
   static setGraphUri(uri) {
-    return window.electron.ipcRenderer.setStoreValue('graph.connectionUri', uri);
+    return window.electron.ipcRenderer.setStoreValue(
+      'graph.connectionUri',
+      uri,
+    );
   }
 
   static getGraphUsername() {
@@ -1646,7 +1673,10 @@ class customStorage {
   }
 
   static setGraphUsername(username) {
-    return window.electron.ipcRenderer.setStoreValue('graph.username', username);
+    return window.electron.ipcRenderer.setStoreValue(
+      'graph.username',
+      username,
+    );
   }
 
   static getGraphPassword() {
@@ -1654,7 +1684,10 @@ class customStorage {
   }
 
   static setGraphPassword(password) {
-    return window.electron.ipcRenderer.setStoreValue('graph.password', password);
+    return window.electron.ipcRenderer.setStoreValue(
+      'graph.password',
+      password,
+    );
   }
 
   // ===== Translate page (2026-06-30 redesign) =====

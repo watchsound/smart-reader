@@ -24,13 +24,7 @@ function registerTranslateHandlers(/* store, services */) {
       LearningPointServiceModule.default ||
       LearningPointServiceModule;
 
-    const {
-      domain,
-      content,
-      extras,
-      featureSurface,
-      token,
-    } = params || {};
+    const { domain, content, extras, featureSurface, token } = params || {};
 
     const point = {
       domainType: domain || 'language',

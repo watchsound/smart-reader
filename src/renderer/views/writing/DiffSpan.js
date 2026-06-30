@@ -11,7 +11,14 @@ export function colorFor(kind, bucket, mode) {
   return DIFF_COLORS.match[mode];
 }
 
-function DiffSpan({ kind, bucket, pairId, hoveredPairId, onHoverPair, children }) {
+function DiffSpan({
+  kind,
+  bucket,
+  pairId,
+  hoveredPairId,
+  onHoverPair,
+  children,
+}) {
   const theme = useTheme();
   const mode = theme.palette.mode === 'dark' ? 'dark' : 'light';
   const color = colorFor(kind, bucket, mode);

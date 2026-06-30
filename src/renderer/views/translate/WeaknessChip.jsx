@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React, { useState } from 'react';
 import { Box, Typography, Button } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
@@ -68,7 +69,9 @@ function WeaknessChip({ weakness, onSave }) {
           <em>&ldquo;{weakness.model_text}&rdquo;</em>
         </strong>
       </Typography>
-      <Typography sx={{ fontSize: '0.8rem', color: theme.palette.text.secondary }}>
+      <Typography
+        sx={{ fontSize: '0.8rem', color: theme.palette.text.secondary }}
+      >
         {weakness.reason}
       </Typography>
     </Box>

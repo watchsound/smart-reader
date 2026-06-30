@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box,
@@ -92,7 +93,10 @@ function TranslateShell() {
   const submit = () => {
     const trimmed = content.trim();
     if (!trimmed) {
-      setAlert({ severity: 'warning', message: 'Please enter a sentence to translate' });
+      setAlert({
+        severity: 'warning',
+        message: 'Please enter a sentence to translate',
+      });
       return;
     }
     // Auto-mode-switch toast for Path A long inputs
@@ -109,7 +113,8 @@ function TranslateShell() {
       id: uuid(),
       sourceText: trimmed,
       level,
-      sourceLanguage: language === LanguageModel.Japanese ? 'Japanese' : 'Chinese',
+      sourceLanguage:
+        language === LanguageModel.Japanese ? 'Japanese' : 'Chinese',
       timestamp: Date.now(),
     };
     customStorage.appendTranslateHistory(entry);
@@ -127,7 +132,8 @@ function TranslateShell() {
     );
 
   const langKey = language === LanguageModel.Japanese ? 'Japanese' : 'Chinese';
-  const langLabel = language === LanguageModel.Chinese ? '🇨🇳 中文' : '🇯🇵 日本語';
+  const langLabel =
+    language === LanguageModel.Chinese ? '🇨🇳 中文' : '🇯🇵 日本語';
 
   const handleDemoteFromC = () => {
     handleLevelChange('A');
@@ -138,7 +144,8 @@ function TranslateShell() {
     const n = content.trim().length;
     if (n === 0 || level !== 'A') return null;
     if (n <= 60) return null;
-    if (n <= 80) return { tone: 'muted', text: `${n} chars · short-sentence drill` };
+    if (n <= 80)
+      return { tone: 'muted', text: `${n} chars · short-sentence drill` };
     return { tone: 'warn', text: `${n} chars · consider Paragraph mode` };
   }, [content, level]);
 
@@ -265,7 +272,8 @@ function TranslateShell() {
                 {PATH_TITLES[level]}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Enter a {langKey === 'Japanese' ? 'Japanese' : 'Chinese'} sentence below.
+                Enter a {langKey === 'Japanese' ? 'Japanese' : 'Chinese'}{' '}
+                sentence below.
               </Typography>
             </Box>
           )}

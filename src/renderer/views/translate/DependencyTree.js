@@ -110,7 +110,11 @@ function DependencyTree({ tokens, dependencies }) {
     if (tagStr.startsWith('JJ') || tagStr.startsWith('RB')) {
       return alpha(theme.palette.warning.main, 0.15);
     }
-    if (tagStr.startsWith('IN') || tagStr.startsWith('TO') || tagStr.startsWith('CC')) {
+    if (
+      tagStr.startsWith('IN') ||
+      tagStr.startsWith('TO') ||
+      tagStr.startsWith('CC')
+    ) {
       return alpha(theme.palette.success.main, 0.15);
     }
     if (tagStr.startsWith('DT') || tagStr.startsWith('POS')) {
@@ -143,7 +147,15 @@ function DependencyTree({ tokens, dependencies }) {
               </Typography>
             </TokenBox>
             {token.tag && (
-              <Box sx={{ mt: 0.5, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.25 }}>
+              <Box
+                sx={{
+                  mt: 0.5,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 0.25,
+                }}
+              >
                 {Array.isArray(token.tag) ? (
                   token.tag.map((t, i) => (
                     <TagBadge key={i}>
@@ -205,14 +217,29 @@ function DependencyTree({ tokens, dependencies }) {
                   fill={theme.palette.text.secondary}
                 />
               </marker>
-              <linearGradient id="arrowGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor={theme.palette.primary.main} stopOpacity="0.6" />
-                <stop offset="100%" stopColor={theme.palette.secondary.main} stopOpacity="0.6" />
+              <linearGradient
+                id="arrowGradient"
+                x1="0%"
+                y1="0%"
+                x2="100%"
+                y2="0%"
+              >
+                <stop
+                  offset="0%"
+                  stopColor={theme.palette.primary.main}
+                  stopOpacity="0.6"
+                />
+                <stop
+                  offset="100%"
+                  stopColor={theme.palette.secondary.main}
+                  stopOpacity="0.6"
+                />
               </linearGradient>
             </defs>
 
             {dependencies.map((dep, index) => {
-              if (!positions[dep.from - 1] || !positions[dep.to - 1]) return null;
+              if (!positions[dep.from - 1] || !positions[dep.to - 1])
+                return null;
               const fromPos = positions[dep.from - 1];
               const toPos = positions[dep.to - 1];
               const startX = fromPos.left;

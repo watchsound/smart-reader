@@ -20,12 +20,12 @@ export const BUCKET_LABELS = {
 
 // Per spec § "Color" — light/dark hex pair per bucket.
 export const BUCKET_COLORS = {
-  tense:                     { light: '#D97706', dark: '#F59E0B' },
-  'word-order':              { light: '#7C3AED', dark: '#A78BFA' },
-  'article-number':          { light: '#0891B2', dark: '#22D3EE' },
+  tense: { light: '#D97706', dark: '#F59E0B' },
+  'word-order': { light: '#7C3AED', dark: '#A78BFA' },
+  'article-number': { light: '#0891B2', dark: '#22D3EE' },
   'preposition-collocation': { light: '#DC2626', dark: '#F87171' },
-  'connector-cohesion':      { light: '#059669', dark: '#34D399' },
-  'idiom-register':          { light: '#9333EA', dark: '#C084FC' },
+  'connector-cohesion': { light: '#059669', dark: '#34D399' },
+  'idiom-register': { light: '#9333EA', dark: '#C084FC' },
 };
 
 export const isValidBucket = (b) => BUCKETS.includes(b);

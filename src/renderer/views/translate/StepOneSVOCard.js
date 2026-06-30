@@ -34,7 +34,7 @@ import DependencyTree from './DependencyTree';
         ],
  */
 
-const SVOChip = ({ label, english, type, color }) => {
+function SVOChip({ label, english, type, color }) {
   const theme = useTheme();
 
   const typeConfig = {
@@ -127,7 +127,7 @@ const SVOChip = ({ label, english, type, color }) => {
       </Typography>
     </Box>
   );
-};
+}
 
 function StepOneSVOCard({
   originalTokens,

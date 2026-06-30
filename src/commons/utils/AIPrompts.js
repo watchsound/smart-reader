@@ -1762,7 +1762,7 @@ ${learner}
 `;
 
 export const langstudyDictionaryLookupPrompt = (word, context = '') => `
-Look up the English word "${word}"${context ? ' in this paragraph context:\n' + context : ''}.
+Look up the English word "${word}"${context ? ` in this paragraph context:\n${  context}` : ''}.
 
 Return ONLY a JSON object with these fields:
 {

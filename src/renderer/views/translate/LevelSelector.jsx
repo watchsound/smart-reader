@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React from 'react';
 import {
   Box,
@@ -9,8 +10,16 @@ import {
 import { useTheme, alpha } from '@mui/material/styles';
 
 const LEVELS = [
-  { id: 'A', label: 'A · Drill', subtitle: 'Short sentence — attempt + compare' },
-  { id: 'B', label: 'B · Paragraph', subtitle: 'Paragraph compose-and-compare' },
+  {
+    id: 'A',
+    label: 'A · Drill',
+    subtitle: 'Short sentence — attempt + compare',
+  },
+  {
+    id: 'B',
+    label: 'B · Paragraph',
+    subtitle: 'Paragraph compose-and-compare',
+  },
   { id: 'C', label: 'C · Lookup', subtitle: 'Show the answer + breakdown' },
 ];
 
@@ -47,7 +56,10 @@ function LevelSelector({ level, onChange }) {
                   {opt.label}
                 </Typography>
                 <Typography
-                  sx={{ fontSize: '0.7rem', color: theme.palette.text.secondary }}
+                  sx={{
+                    fontSize: '0.7rem',
+                    color: theme.palette.text.secondary,
+                  }}
                 >
                   {opt.subtitle}
                 </Typography>

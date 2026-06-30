@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React, { useState, useMemo } from 'react';
 import {
   Box,
@@ -68,9 +69,7 @@ function PathADrillView({ source, language }) {
     });
     return Object.values(byPair)
       .filter((w) => BUCKETS.includes(w.bucket))
-      .sort(
-        (a, b) => BUCKETS.indexOf(a.bucket) - BUCKETS.indexOf(b.bucket),
-      );
+      .sort((a, b) => BUCKETS.indexOf(a.bucket) - BUCKETS.indexOf(b.bucket));
   }, [result]);
 
   const handleSave = async (w) => {

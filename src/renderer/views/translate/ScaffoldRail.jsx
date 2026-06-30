@@ -1,5 +1,12 @@
+/* eslint-disable react/prop-types */
 import React, { useState } from 'react';
-import { Box, Typography, Button, Collapse, CircularProgress } from '@mui/material';
+import {
+  Box,
+  Typography,
+  Button,
+  Collapse,
+  CircularProgress,
+} from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 import LightbulbIcon from '@mui/icons-material/LightbulbOutlined';
 import spineApi from '../../api/spineApi';
