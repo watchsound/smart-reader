@@ -6,6 +6,7 @@ import {
   Button,
   CircularProgress,
   Chip,
+  Tooltip,
 } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 import LightbulbIcon from '@mui/icons-material/LightbulbOutlined';
@@ -35,8 +36,139 @@ const ROLE_LABELS = {
   other: '其他 · other',
 };
 
-function ClauseRow({ clause, accent }) {
+// Per-role inline-annotation color. Used to paint each clause's tokens
+// directly on the original Chinese sentence so the 主句/从句 boundaries
+// are visible at a glance, not just listed in a table below.
+const ROLE_COLORS = {
+  main: '#1565C0',            // blue — the spine
+  coordinate: '#0288D1',      // cyan — parallel
+  relative: '#7B1FA2',        // purple — modifier
+  cause: '#E65100',           // orange — because/since
+  concession: '#C62828',      // red — although/despite
+  condition: '#2E7D32',       // green — if/unless
+  purpose: '#5E35B1',         // deep purple — in order to
+  time: '#00838F',            // teal — when/while
+  manner: '#6D4C41',          // brown — like/as
+  comparison: '#AD1457',      // pink — more/less than
+  'noun-clause': '#558B2F',   // olive — that-clause
+  participle: '#827717',      // mustard — -ing/-ed adjunct
+  other: '#455A64',           // slate
+};
+
+const roleColor = (role) => ROLE_COLORS[role] || ROLE_COLORS.other;
+const roleLabel = (role) => ROLE_LABELS[role] || role || 'clause';
+
+// Walk the clauses and produce a sorted, non-overlapping list of
+// highlight ranges over the source text. Each range carries enough
+// metadata for the renderer to color it + show a hover tooltip.
+function buildHighlightRanges(source, clauses) {
+  if (!source || !Array.isArray(clauses)) return [];
+  const ranges = [];
+  const seenAt = (start, end) =>
+    ranges.some((r) => !(end <= r.start || start >= r.end));
+  const PLACEHOLDER = /^\(.*\)$|^$/; // skip "(implied)", "(none)", ""
+
+  clauses.forEach((c, ci) => {
+    if (!c) return;
+    const color = roleColor(c.role);
+    const role = c.role;
+    [
+      ['subject', c.subject?.source],
+      ['verb', c.verb?.source],
+      ['object', c.object?.source],
+    ].forEach(([slot, text]) => {
+      if (!text || PLACEHOLDER.test(text)) return;
+      const idx = source.indexOf(text);
+      if (idx < 0) return;
+      const end = idx + text.length;
+      if (seenAt(idx, end)) return; // first clause wins on overlap
+      ranges.push({ start: idx, end, color, role, slot, ci });
+    });
+    const conn = c.connectorSource;
+    if (conn && !PLACEHOLDER.test(conn)) {
+      const idx = source.indexOf(conn);
+      if (idx >= 0 && !seenAt(idx, idx + conn.length)) {
+        ranges.push({
+          start: idx,
+          end: idx + conn.length,
+          color,
+          role,
+          slot: 'connector',
+          ci,
+        });
+      }
+    }
+  });
+
+  ranges.sort((a, b) => a.start - b.start);
+  return ranges;
+}
+
+function AnnotatedSource({ source, clauses }) {
+  const ranges = buildHighlightRanges(source, clauses);
+  if (!source) return null;
+
+  const out = [];
+  let pos = 0;
+  ranges.forEach((r, i) => {
+    if (r.start > pos) {
+      // eslint-disable-next-line react/no-array-index-key
+      out.push(<span key={`t${i}`}>{source.slice(pos, r.start)}</span>);
+    }
+    const tip = `${roleLabel(r.role)} — ${r.slot}`;
+    out.push(
+      <Tooltip
+        // eslint-disable-next-line react/no-array-index-key
+        key={`s${i}`}
+        title={tip}
+        arrow
+        enterDelay={200}
+      >
+        <Box
+          component="span"
+          sx={{
+            display: 'inline-block',
+            borderBottom: `2px solid ${r.color}`,
+            bgcolor: alpha(r.color, 0.1),
+            color: r.color,
+            fontWeight: 600,
+            px: 0.4,
+            borderRadius: '3px',
+            mx: '1px',
+            cursor: 'help',
+          }}
+        >
+          {source.slice(r.start, r.end)}
+        </Box>
+      </Tooltip>,
+    );
+    pos = r.end;
+  });
+  if (pos < source.length) {
+    out.push(<span key="tend">{source.slice(pos)}</span>);
+  }
+
+  return (
+    <Box
+      sx={{
+        fontSize: '18px',
+        lineHeight: 2.2,
+        p: 1.5,
+        mb: 1,
+        borderRadius: 1,
+        bgcolor: 'background.paper',
+        border: '1px solid',
+        borderColor: 'divider',
+      }}
+    >
+      {out}
+    </Box>
+  );
+}
+
+function ClauseRow({ clause }) {
   if (!clause) return null;
+  const accent = roleColor(clause.role);
   const role = ROLE_LABELS[clause.role] || clause.role || 'clause';
   const subjEn = clause.subject?.english || '';
   const verbEn = clause.verb?.english || '';
@@ -225,6 +357,8 @@ function VerbBlock({ verb, accent }) {
   );
 }
 
+export { AnnotatedSource, buildHighlightRanges, ROLE_COLORS };
+
 function ScaffoldRail({ source, language, onHintsChange, initialHints = {} }) {
   const theme = useTheme();
   const accent = theme.palette.primary.main;
@@ -375,11 +509,26 @@ function ScaffoldRail({ source, language, onHintsChange, initialHints = {} }) {
               mb: 0.75,
             }}
           >
+            Source structure
+          </Typography>
+          <AnnotatedSource source={source} clauses={clauses} />
+          <Typography
+            sx={{
+              fontSize: '0.7rem',
+              fontFamily: MONO,
+              fontWeight: 700,
+              color: 'text.secondary',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+              mb: 0.75,
+              mt: 1,
+            }}
+          >
             Clause-by-clause SVO ({clauses.length})
           </Typography>
           {clauses.map((c, i) => (
             // eslint-disable-next-line react/no-array-index-key
-            <ClauseRow key={i} clause={c} accent={accent} />
+            <ClauseRow key={i} clause={c} />
           ))}
           {svoData.overallNote && (
             <Typography
