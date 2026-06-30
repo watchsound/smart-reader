@@ -1742,9 +1742,18 @@ Rules:
 - If the learner has merged two original sentences into one, repeat the
   learner sentence under both indices. If the learner has split one original
   sentence into two, list both halves in "learnerSentence".
+- For EACH learner sentence, ANALYZE GRAMMAR ERRORS and emit
+  { side: "learner", text: <exact substring>, kind: "grammar",
+    sentence_index: <0-based>, note: <one-line correction> }
+  spans for any mistakes (wrong tense, wrong article, missing preposition,
+  subject-verb agreement, run-on, etc.). If a sentence is grammatically
+  clean, emit no grammar spans for it.
 - Pair each "weaker" learner span with the corresponding "stronger" original
   span via the same pair_id (p1, p2, p3, ...). pair_id is globally unique
   across the document.
+- EVERY span MUST carry a "sentence_index" matching its sentence pair.
+  Span "text" MUST be an exact substring of the side it belongs to —
+  the renderer uses string match to position the inline highlight.
 - Notes are nested INSIDE the sentenceComparisons entry they belong to —
   don't emit a flat top-level notes array.
 - Do NOT include "match" spans unless they are deliberate paraphrases worth
@@ -1807,20 +1816,134 @@ ${text}
 // === Translate Page Redesign (2026-06-30) ===
 
 export const getSvoHintPrompt = (sentence, language) => `
-You are a language expert helping a learner translate from ${language} to English.
+You are a language expert helping a ${language}-native speaker translate to English.
 
-Identify the subject, verb, and object of the ${language} sentence below. If the
-sentence has multiple sub-clauses, return only the MAIN clause's SVO.
+DECOMPOSE the ${language} sentence into ALL of its clauses, NOT just the main one.
+${language} 复合句 / compound and complex sentences chain ideas with light surface
+connectors (or none — parataxis); English forces the learner to choose the right
+clause shape (relative, adverbial, noun-clause, coordinate, …) for each piece.
+Showing only the main clause's SVO is unhelpful: it hides exactly the structural
+choices the learner is about to make.
 
-Return ONLY a JSON object with this shape:
+For EACH clause in the sentence (main + every subordinate / coordinate / relative /
+adverbial / noun-clause / participle clause), produce a row:
+- "role": one of
+    "main"           — the top-level independent clause
+    "coordinate"     — a clause joined by 和/而/并/且/但/或 etc., grammatically equal
+    "relative"       — a 的 / 所…的 modifier clause attached to a noun
+    "cause"          — 因为 / 由于 / 既然 …
+    "concession"     — 虽然 / 尽管 / 即使 …
+    "condition"      — 如果 / 要是 / 一旦 / 只要 …
+    "purpose"        — 为了 / 以便 …
+    "time"           — 当…时 / 在…后 / 一…就… …
+    "manner"         — 如同 / 像…一样 …
+    "comparison"     — 比 / 更…(than) …
+    "noun-clause"    — clause acting as subject/object/complement (我以为他来了 / 问题是…)
+    "participle"     — 着 / 了 / 过 attached non-finite clause
+    "other"          — anything not covered above; explain in connectorNote
+- "connectorSource": the ${language} connector(s) that mark this clause, or "" if implicit
+- "connectorEnglishHints": 1-3 idiomatic English connectors that fit this role
+                            (e.g. ["although","even though"] for concession)
+- "subject":   { "source": "<the ${language} subject, or '(implied)' if dropped>",
+                 "english": "<idiomatic English translation of the subject>" }
+- "verb":      { "source": "<the ${language} predicate verb / verb phrase>",
+                 "english": "<idiomatic English verb phrase that fits this clause>" }
+- "object":    { "source": "<the ${language} object / complement, or '(none)' if intransitive>",
+                 "english": "<idiomatic English object / complement, or '' if intransitive>" }
+- "note":      one short sentence on what the LEARNER must watch for in this clause
+                when expressing it in English (e.g. "subject is dropped in ${language};
+                English requires you to insert 'it' / a dummy subject", or "the 的
+                here makes 那本书 the head noun — use 'that … book' with a relative clause").
+
+Order the clauses in the order they appear in the ${language} sentence.
+
+Return ONLY a JSON object:
 {
-  "subject": { "source": "<the ${language} subject>", "english": "<idiomatic English translation>" },
-  "verb":    { "source": "<the ${language} verb>",    "english": "<idiomatic English verb phrase>" },
-  "object":  { "source": "<the ${language} object>",  "english": "<idiomatic English object>" }
+  "clauses": [
+    { "role": "...", "connectorSource": "...", "connectorEnglishHints": ["..."],
+      "subject": { "source": "...", "english": "..." },
+      "verb":    { "source": "...", "english": "..." },
+      "object":  { "source": "...", "english": "..." },
+      "note":    "..." }
+  ],
+  "overallNote": "one sentence on how the clauses fit together in English (e.g.
+                  'main + concession + cause — concession goes first as a fronted
+                  adverbial, cause attaches to the main verb')"
 }
 
-If a slot is implied but not explicit in the source (common in ${language}), still
-fill the English with the implied form.
+Sentence: ${sentence}
+`;
+
+export const getVerbOptionsPrompt = (sentence, language) => `
+You are a language expert helping a ${language}-native speaker translate to English.
+
+For EVERY verb (or verb phrase) in the ${language} sentence — main verbs AND verbs
+inside subordinate / relative / adverbial clauses — list the idiomatic English
+candidates and tell the learner WHEN to pick each one. Picking the wrong English
+verb is the #1 source of "${language}-glish" output; this scaffold exists to make
+that choice visible BEFORE the learner writes.
+
+For each ${language} verb, return 2-5 English candidates. For each candidate:
+- "english": the verb / verb phrase, in dictionary form unless tense is forced
+              by the source (e.g. 了 → "had to ..." in conditional contexts)
+- "usage": one sentence on WHEN this candidate is the right pick — register
+            (formal / neutral / colloquial), collocation context, scene type
+            (stative / change-of-state / habitual / momentary), agent type
+            (animate / inanimate), whether it implies an object or not
+- "example": a short English phrase or clause that illustrates the candidate
+              in the same context as this sentence (3-8 words)
+- "trap":  optional. ONE Chinese-native mistake the candidate avoids or invites
+            (e.g. "do NOT use 'see' for 看电影 — 'see a movie' is colloquial
+            US English only; 'watch' is the safe choice").
+
+Also flag the candidate that best fits THIS sentence's context with
+"recommendedForThisSentence": true on exactly one of the options. If none clearly
+wins, set true on the most idiomatic / register-neutral one.
+
+Example output structure for 图书馆的二楼有很多书。:
+{
+  "verbs": [
+    {
+      "source": "有",
+      "english_glossary": "to have / to exist",
+      "options": [
+        { "english": "there are", "usage": "Existential locative — when the
+                                              sentence is about WHERE something
+                                              exists, not WHO owns it.",
+          "example": "There are many books on the second floor.",
+          "trap": "Picking 'has' here makes 'the second floor' the OWNER, which
+                    is not how English locative existence works.",
+          "recommendedForThisSentence": true },
+        { "english": "has / have", "usage": "Possessive — only when a clear
+                                              animate-or-organisational owner is
+                                              the subject.",
+          "example": "The library has many rare books." },
+        { "english": "exists / are located", "usage": "Formal register —
+                                                       reports, signage, academic." ,
+          "example": "Numerous books are located on the second floor." }
+      ]
+    }
+  ]
+}
+
+Return ONLY a JSON object with this exact shape (the example was for illustration only):
+{
+  "verbs": [
+    {
+      "source": "<${language} verb / verb phrase>",
+      "english_glossary": "<short dictionary gloss>",
+      "options": [
+        {
+          "english": "<English verb / verb phrase>",
+          "usage": "<when to pick this — register + scene + collocation hints>",
+          "example": "<short English illustration in this sentence's context>",
+          "trap": "<optional: ${language}-native pitfall this avoids>",
+          "recommendedForThisSentence": <boolean — true on exactly one option per verb>
+        }
+      ]
+    }
+  ]
+}
 
 Sentence: ${sentence}
 `;

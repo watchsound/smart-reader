@@ -102,13 +102,90 @@ function renderSide(text, sideSpans, fontStack, hoveredPairId, onHoverPair) {
   );
 }
 
+// Render a single sentence with the spans that apply to it inlined as
+// colored DiffSpans. Used by the sentence-by-sentence comparison rail so
+// each sentence carries its own grammar squiggles + weaker/stronger
+// highlights right where the eye is reading — not just up in the
+// summary panel.
+function renderSentenceInline({
+  sentence,
+  side,
+  sentenceIndex,
+  allSpans,
+  hoveredPairId,
+  onHoverPair,
+  keyPrefix,
+}) {
+  if (!sentence) return null;
+  // Filter spans for this side + this sentence. Prefer the LLM's
+  // sentence_index when present; fall back to "the span's text appears
+  // within this sentence" so older responses still highlight.
+  const candidates = allSpans.filter((s) => {
+    if (s.side !== side) return false;
+    if (typeof s.sentence_index === 'number') {
+      return s.sentence_index === sentenceIndex;
+    }
+    return typeof s.text === 'string' && sentence.includes(s.text);
+  });
+  if (candidates.length === 0) return sentence;
+  // locate within just this sentence (positions are sentence-local).
+  const located = candidates
+    .map((s) => {
+      const idx = sentence.indexOf(s.text);
+      if (idx < 0) return null;
+      return {
+        start: idx,
+        end: idx + s.text.length,
+        kind: s.kind,
+        pairId: s.pair_id || null,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.start - b.start);
+  // Drop overlaps (first-wins).
+  const nonOverlapping = [];
+  let lastEnd = -1;
+  located.forEach((s) => {
+    if (s.start >= lastEnd) {
+      nonOverlapping.push(s);
+      lastEnd = s.end;
+    }
+  });
+  const out = [];
+  let cursor = 0;
+  nonOverlapping.forEach((s, i) => {
+    if (s.start > cursor) {
+      out.push(
+        // eslint-disable-next-line react/no-array-index-key
+        <span key={`${keyPrefix}-t${i}`}>{sentence.slice(cursor, s.start)}</span>,
+      );
+    }
+    out.push(
+      <DiffSpan
+        // eslint-disable-next-line react/no-array-index-key
+        key={`${keyPrefix}-s${i}`}
+        kind={s.kind}
+        pairId={s.pairId}
+        hoveredPairId={hoveredPairId}
+        onHoverPair={onHoverPair}
+      >
+        {sentence.slice(s.start, s.end)}
+      </DiffSpan>,
+    );
+    cursor = s.end;
+  });
+  if (cursor < sentence.length) {
+    out.push(<span key={`${keyPrefix}-tend`}>{sentence.slice(cursor)}</span>);
+  }
+  return out;
+}
+
 function ExpressionDiffPanel({ original, learner, diff, accent }) {
   const theme = useTheme();
   const [hoveredPairId, setHoveredPairId] = useState(null);
-  const originalSpans = (diff?.spans || []).filter(
-    (s) => s.side === 'original',
-  );
-  const learnerSpans = (diff?.spans || []).filter((s) => s.side === 'learner');
+  const allSpans = diff?.spans || [];
+  const originalSpans = allSpans.filter((s) => s.side === 'original');
+  const learnerSpans = allSpans.filter((s) => s.side === 'learner');
   // Sentence-grouped comparisons (new shape). Fall back to a single
   // "whole-paragraph" group built from the legacy flat notes if the
   // LLM response didn't supply sentence groupings (e.g. older response).
@@ -314,9 +391,10 @@ function ExpressionDiffPanel({ original, learner, diff, accent }) {
                       <Typography
                         sx={{
                           fontFamily: SERIF,
-                          fontSize: '0.9rem',
+                          fontSize: '0.95rem',
+                          lineHeight: 1.7,
                           color: theme.palette.text.primary,
-                          mb: 0.25,
+                          mb: 0.5,
                         }}
                       >
                         <Box
@@ -330,14 +408,26 @@ function ExpressionDiffPanel({ original, learner, diff, accent }) {
                         >
                           ORIG:
                         </Box>
-                        {group.originalSentence}
+                        {renderSentenceInline({
+                          sentence: group.originalSentence,
+                          side: 'original',
+                          sentenceIndex:
+                            group.sentenceIndex != null
+                              ? group.sentenceIndex
+                              : gIdx,
+                          allSpans,
+                          hoveredPairId,
+                          onHoverPair: setHoveredPairId,
+                          keyPrefix: `og-${groupKey}`,
+                        })}
                       </Typography>
                     )}
                     {group.learnerSentence && (
                       <Typography
                         sx={{
                           fontFamily: SANS,
-                          fontSize: '0.9rem',
+                          fontSize: '0.95rem',
+                          lineHeight: 1.7,
                           color: theme.palette.text.primary,
                         }}
                       >
@@ -352,7 +442,18 @@ function ExpressionDiffPanel({ original, learner, diff, accent }) {
                         >
                           YOU:
                         </Box>
-                        {group.learnerSentence}
+                        {renderSentenceInline({
+                          sentence: group.learnerSentence,
+                          side: 'learner',
+                          sentenceIndex:
+                            group.sentenceIndex != null
+                              ? group.sentenceIndex
+                              : gIdx,
+                          allSpans,
+                          hoveredPairId,
+                          onHoverPair: setHoveredPairId,
+                          keyPrefix: `lg-${groupKey}`,
+                        })}
                       </Typography>
                     )}
                   </Box>
