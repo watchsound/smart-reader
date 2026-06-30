@@ -8,6 +8,19 @@
  * abstraction layer, replacing the previous SQLite-based implementation.
  */
 
+// Lazy-require customStorage so test mocks for this module don't have to
+// stub the entire userInfo / IPC chain just to read a session token.
+let _customStorage = null;
+function getStoredToken() {
+  if (!_customStorage) {
+    // eslint-disable-next-line global-require
+    _customStorage = require('../store/customStorage').default;
+  }
+  return typeof _customStorage.getSessionToken === 'function'
+    ? _customStorage.getSessionToken()
+    : null;
+}
+
 const { ipcRenderer } = window.electron || {};
 
 // =============================================================================
@@ -442,10 +455,38 @@ export const convertFromPlanPoint = (planPoint, planId) => {
 };
 
 // =============================================================================
+// TRANSLATE PAGE (2026-06-30 redesign) — ad-hoc single LP creation
+// =============================================================================
+
+/**
+ * Create a single ad-hoc Learning Point. Routes to the dedicated
+ * `learning-point-create` IPC handler (translateHandlers.js) which maps
+ * the payload into LearningPointService.createLearningPoint shape.
+ *
+ * Used by Path A weakness chips and Path B per-sentence saves.
+ *
+ * @param {Object} payload
+ * @param {string} [payload.domain]         - LearningDomain. Defaults to 'language' handler-side.
+ * @param {string} payload.content          - Short canonical content (pattern / rule / target phrase)
+ * @param {Object} payload.extras           - Domain-specific extras (LanguagePatternExtras for 'language')
+ * @param {string} [payload.featureSurface] - Defaults to 'translate-drill' handler-side
+ * @returns {Promise<Object>} The created Learning Point
+ */
+export const create = async (payload) => {
+  return ipcRenderer?.invoke('learning-point-create', {
+    ...payload,
+    token: getStoredToken(),
+  });
+};
+
+// =============================================================================
 // DEFAULT EXPORT
 // =============================================================================
 
 const learningPointApi = {
+  // Translate page (ad-hoc single LP creation)
+  create,
+
   // Status
   getStatus,
   isAvailable,
