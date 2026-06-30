@@ -4,6 +4,7 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import {
   AnnotatedSource,
   buildHighlightRanges,
+  buildArcDescriptors,
   ROLE_COLORS,
 } from '../../renderer/views/translate/ScaffoldRail';
 
@@ -70,6 +71,68 @@ describe('buildHighlightRanges', () => {
   test('paints distinct colors for different clause roles', () => {
     expect(ROLE_COLORS.main).not.toBe(ROLE_COLORS.relative);
     expect(ROLE_COLORS.cause).not.toBe(ROLE_COLORS.concession);
+  });
+});
+
+describe('buildArcDescriptors', () => {
+  test('emits subj + obj arcs per clause and attachment arcs from subordinate→main', () => {
+    const source = '虽然他很忙，他还是来了图书馆';
+    const clauses = [
+      {
+        role: 'concession',
+        connectorSource: '虽然',
+        subject: { source: '他' },
+        verb: { source: '很忙' },
+        object: { source: '(none)' },
+      },
+      {
+        role: 'main',
+        connectorSource: '',
+        subject: { source: '他' },
+        verb: { source: '来了' },
+        object: { source: '图书馆' },
+      },
+    ];
+    const ranges = buildHighlightRanges(source, clauses);
+    const arcs = buildArcDescriptors(ranges, clauses);
+
+    // Concession clause: subj arc (no obj — placeholder skipped) + attachment arc
+    // Main clause: subj arc + obj arc, NO attachment arc (it's the head)
+    const labels = arcs.map((a) => ({ label: a.label, attachment: !!a.attachment, ci: a.ci }));
+    expect(labels).toEqual(
+      expect.arrayContaining([
+        { label: 'subj', attachment: false, ci: 0 },
+        { label: '让步', attachment: true, ci: 0 },
+        { label: 'subj', attachment: false, ci: 1 },
+        { label: 'obj', attachment: false, ci: 1 },
+      ]),
+    );
+    // No attachment arc on main.
+    const mainAttachment = arcs.find((a) => a.ci === 1 && a.attachment);
+    expect(mainAttachment).toBeUndefined();
+  });
+
+  test('omits arcs when a slot is missing (skips broken triples)', () => {
+    const source = '他来了';
+    const ranges = buildHighlightRanges(source, [
+      {
+        role: 'main',
+        subject: { source: '他' },
+        verb: { source: '来了' },
+        object: { source: '(none)' },
+      },
+    ]);
+    const arcs = buildArcDescriptors(ranges, [
+      {
+        role: 'main',
+        subject: { source: '他' },
+        verb: { source: '来了' },
+        object: { source: '(none)' },
+      },
+    ]);
+    // subj arc only — no obj (placeholder) and no attachment (main).
+    expect(arcs).toHaveLength(1);
+    expect(arcs[0].label).toBe('subj');
   });
 });
 

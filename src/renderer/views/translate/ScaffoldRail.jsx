@@ -68,26 +68,31 @@ function buildHighlightRanges(source, clauses) {
     ranges.some((r) => !(end <= r.start || start >= r.end));
   const PLACEHOLDER = /^\(.*\)$|^$/; // skip "(implied)", "(none)", ""
 
+  // Find the FIRST occurrence of `text` in `source` whose [idx, idx+len]
+  // doesn't overlap any range already claimed. This is critical when two
+  // clauses share a word (e.g. 他 in both 让步 and 主句 of 虽然他…他来了…) —
+  // the second clause must skip past the first clause's match instead of
+  // re-claiming the same position.
+  const findFreeOccurrence = (text) => {
+    let from = 0;
+    while (from <= source.length - text.length) {
+      const idx = source.indexOf(text, from);
+      if (idx < 0) return -1;
+      if (!seenAt(idx, idx + text.length)) return idx;
+      from = idx + 1;
+    }
+    return -1;
+  };
+
   clauses.forEach((c, ci) => {
     if (!c) return;
     const color = roleColor(c.role);
     const role = c.role;
-    [
-      ['subject', c.subject?.source],
-      ['verb', c.verb?.source],
-      ['object', c.object?.source],
-    ].forEach(([slot, text]) => {
-      if (!text || PLACEHOLDER.test(text)) return;
-      const idx = source.indexOf(text);
-      if (idx < 0) return;
-      const end = idx + text.length;
-      if (seenAt(idx, end)) return; // first clause wins on overlap
-      ranges.push({ start: idx, end, color, role, slot, ci });
-    });
+    // Connector first — its position usually anchors the clause.
     const conn = c.connectorSource;
     if (conn && !PLACEHOLDER.test(conn)) {
-      const idx = source.indexOf(conn);
-      if (idx >= 0 && !seenAt(idx, idx + conn.length)) {
+      const idx = findFreeOccurrence(conn);
+      if (idx >= 0) {
         ranges.push({
           start: idx,
           end: idx + conn.length,
@@ -98,16 +103,146 @@ function buildHighlightRanges(source, clauses) {
         });
       }
     }
+    [
+      ['subject', c.subject?.source],
+      ['verb', c.verb?.source],
+      ['object', c.object?.source],
+    ].forEach(([slot, text]) => {
+      if (!text || PLACEHOLDER.test(text)) return;
+      const idx = findFreeOccurrence(text);
+      if (idx < 0) return;
+      ranges.push({ start: idx, end: idx + text.length, color, role, slot, ci });
+    });
   });
 
   ranges.sort((a, b) => a.start - b.start);
   return ranges;
 }
 
+// Compute dependency-arc descriptors that link the highlighted ranges
+// inside a single clause and across clauses. Returned arcs reference
+// ranges by index, not by absolute pixel position — the renderer
+// converts indices into pixel x's after layout.
+//
+//   intra-clause: subject  → verb  (label "subj")
+//                 verb     → object (label "obj")
+//   cross-clause: connector of every non-main clause → verb of the
+//                 (nearest preceding) main clause   (label = role)
+export function buildArcDescriptors(ranges, clauses) {
+  if (!Array.isArray(ranges) || !Array.isArray(clauses)) return [];
+  const arcs = [];
+  const findIdx = (ci, slot) =>
+    ranges.findIndex((r) => r.ci === ci && r.slot === slot);
+  const mainIdx = clauses.findIndex((c) => c?.role === 'main');
+
+  clauses.forEach((c, ci) => {
+    if (!c) return;
+    const color = roleColor(c.role);
+    const subj = findIdx(ci, 'subject');
+    const verb = findIdx(ci, 'verb');
+    const obj = findIdx(ci, 'object');
+    if (subj >= 0 && verb >= 0) {
+      arcs.push({ from: subj, to: verb, label: 'subj', color, ci });
+    }
+    if (verb >= 0 && obj >= 0) {
+      arcs.push({ from: verb, to: obj, label: 'obj', color, ci });
+    }
+    // Attachment arc — for any non-main clause that has a connector,
+    // draw a longer arc from the connector to the main clause's verb,
+    // labelled with the clause's role. This is the "where does this
+    // subordinate clause hang" visual.
+    if (c.role && c.role !== 'main' && mainIdx >= 0) {
+      const conn = findIdx(ci, 'connector');
+      const mainVerb = findIdx(mainIdx, 'verb');
+      const anchor = conn >= 0 ? conn : findIdx(ci, 'verb');
+      if (anchor >= 0 && mainVerb >= 0 && anchor !== mainVerb) {
+        arcs.push({
+          from: anchor,
+          to: mainVerb,
+          label: roleLabel(c.role).split(' · ')[0],
+          color,
+          ci,
+          attachment: true,
+        });
+      }
+    }
+  });
+  return arcs;
+}
+
 function AnnotatedSource({ source, clauses }) {
-  const ranges = buildHighlightRanges(source, clauses);
+  const ranges = React.useMemo(
+    () => buildHighlightRanges(source, clauses),
+    [source, clauses],
+  );
+  const arcDescriptors = React.useMemo(
+    () => buildArcDescriptors(ranges, clauses),
+    [ranges, clauses],
+  );
+
+  const containerRef = React.useRef(null);
+  const spanRefs = React.useRef([]);
+  const [arcLayout, setArcLayout] = React.useState({
+    arcs: [],
+    height: 0,
+    paddingTop: 0,
+  });
+
+  React.useLayoutEffect(() => {
+    if (!containerRef.current) return;
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const positions = spanRefs.current.map((el) => {
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return {
+        cx: r.left - containerRect.left + r.width / 2,
+        top: r.top - containerRect.top,
+      };
+    });
+
+    const lined = arcDescriptors.filter((a) => {
+      const pf = positions[a.from];
+      const pt = positions[a.to];
+      // Drop arcs that span line wraps — keeping them would draw a
+      // weird straight line across the whole panel.
+      return pf && pt && Math.abs(pf.top - pt.top) < 4;
+    });
+
+    // Stack attachment arcs higher than intra-clause arcs so they
+    // never overlap subject/object arcs of the main clause.
+    const attHeight = 48;
+    const inHeight = 22;
+    const arcsLaid = lined.map((a) => {
+      const pf = positions[a.from];
+      const pt = positions[a.to];
+      const fromX = Math.min(pf.cx, pt.cx);
+      const toX = Math.max(pf.cx, pt.cx);
+      const midX = (fromX + toX) / 2;
+      const distance = Math.abs(toX - fromX);
+      const base = a.attachment ? attHeight : inHeight;
+      const lift = Math.min(base + distance * 0.08, base + 18);
+      const baseY = a.attachment ? attHeight + 6 : inHeight + 6;
+      return {
+        ...a,
+        fromX: pf.cx,
+        toX: pt.cx,
+        midX,
+        baseY,
+        peakY: baseY - lift,
+      };
+    });
+
+    const totalHeight = arcsLaid.length
+      ? Math.max(...arcsLaid.map((a) => a.baseY)) + 8
+      : 0;
+    const paddingTop = arcsLaid.length ? totalHeight : 0;
+    setArcLayout({ arcs: arcsLaid, height: totalHeight, paddingTop });
+  }, [arcDescriptors, source]);
+
   if (!source) return null;
 
+  // Build the inline span content. Each highlighted range gets a ref so
+  // we can measure its position for arc anchoring.
   const out = [];
   let pos = 0;
   ranges.forEach((r, i) => {
@@ -126,6 +261,9 @@ function AnnotatedSource({ source, clauses }) {
       >
         <Box
           component="span"
+          ref={(el) => {
+            spanRefs.current[i] = el;
+          }}
           sx={{
             display: 'inline-block',
             borderBottom: `2px solid ${r.color}`,
@@ -150,7 +288,10 @@ function AnnotatedSource({ source, clauses }) {
 
   return (
     <Box
+      ref={containerRef}
       sx={{
+        position: 'relative',
+        pt: `${arcLayout.paddingTop + 8}px`,
         fontSize: '18px',
         lineHeight: 2.2,
         p: 1.5,
@@ -161,6 +302,67 @@ function AnnotatedSource({ source, clauses }) {
         borderColor: 'divider',
       }}
     >
+      {arcLayout.arcs.length > 0 && (
+        <Box
+          component="svg"
+          sx={{
+            position: 'absolute',
+            top: 8,
+            left: 0,
+            width: '100%',
+            height: arcLayout.height,
+            pointerEvents: 'none',
+            overflow: 'visible',
+          }}
+        >
+          {arcLayout.arcs.map((a, i) => {
+            const path = `M ${a.fromX} ${a.baseY} Q ${a.midX} ${a.peakY} ${a.toX} ${a.baseY}`;
+            // Tiny arrow head at the "to" endpoint, oriented along the
+            // tangent at that point. For a quadratic Bezier, the tangent
+            // at t=1 points from (midX, peakY) → (toX, baseY).
+            const ax = a.toX;
+            const ay = a.baseY;
+            const dx = a.toX - a.midX;
+            const dy = a.baseY - a.peakY;
+            const len = Math.hypot(dx, dy) || 1;
+            const ux = dx / len;
+            const uy = dy / len;
+            const head = 6;
+            const p1x = ax - head * ux - head * 0.6 * uy;
+            const p1y = ay - head * uy + head * 0.6 * ux;
+            const p2x = ax - head * ux + head * 0.6 * uy;
+            const p2y = ay - head * uy - head * 0.6 * ux;
+            return (
+              // eslint-disable-next-line react/no-array-index-key
+              <g key={i}>
+                <path
+                  d={path}
+                  stroke={a.color}
+                  strokeWidth={a.attachment ? 1.7 : 1.3}
+                  fill="none"
+                  opacity={a.attachment ? 0.85 : 0.7}
+                />
+                <polygon
+                  points={`${ax},${ay} ${p1x},${p1y} ${p2x},${p2y}`}
+                  fill={a.color}
+                  opacity={a.attachment ? 0.85 : 0.7}
+                />
+                <text
+                  x={a.midX}
+                  y={a.peakY - 3}
+                  textAnchor="middle"
+                  fontSize={a.attachment ? 11 : 10}
+                  fontWeight={a.attachment ? 700 : 500}
+                  fill={a.color}
+                  style={{ fontFamily: MONO }}
+                >
+                  {a.label}
+                </text>
+              </g>
+            );
+          })}
+        </Box>
+      )}
       {out}
     </Box>
   );
