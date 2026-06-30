@@ -1802,3 +1802,117 @@ Rules:
 ORIGINAL:
 ${text}
 `;
+
+
+// === Translate Page Redesign (2026-06-30) ===
+
+export const getSvoHintPrompt = (sentence, language) => `
+You are a language expert helping a learner translate from ${language} to English.
+
+Identify the subject, verb, and object of the ${language} sentence below. If the
+sentence has multiple sub-clauses, return only the MAIN clause's SVO.
+
+Return ONLY a JSON object with this shape:
+{
+  "subject": { "source": "<the ${language} subject>", "english": "<idiomatic English translation>" },
+  "verb":    { "source": "<the ${language} verb>",    "english": "<idiomatic English verb phrase>" },
+  "object":  { "source": "<the ${language} object>",  "english": "<idiomatic English object>" }
+}
+
+If a slot is implied but not explicit in the source (common in ${language}), still
+fill the English with the implied form.
+
+Sentence: ${sentence}
+`;
+
+export const getTenseHintPrompt = (sentence, language) => `
+You are a language expert helping a ${language}-native speaker translate to English.
+
+The ${language} sentence below does not mark tense morphologically. Decide what
+English tense fits the scene the sentence describes.
+
+Return ONLY a JSON object:
+{
+  "tense": "<one of: simple-present, present-continuous, present-perfect, present-perfect-continuous, simple-past, past-continuous, past-perfect, past-perfect-continuous, simple-future, future-continuous, future-perfect, conditional>",
+  "justification": "<one sentence explaining which clue in the ${language} sentence points to this tense — usually an aspect marker (了/着/过), an adverb of time, or the discourse context>"
+}
+
+Sentence: ${sentence}
+`;
+
+export const getTranslateComparePrompt = (sentence, attempt, language) => `
+You are a translation tutor. Compare the LEARNER's English attempt against a
+high-quality model translation of the ${language} sentence below.
+
+For each WEAKNESS in the learner's English, label it with ONE of these six closed buckets:
+- "tense" — wrong tense or aspect mapping (especially of ${language} aspect markers like 了/着/过)
+- "word-order" — element in wrong English slot (time/place adverbials, S-V-O position, attributive clause placement)
+- "article-number" — missing/wrong a/an/the, missing plural -s
+- "preposition-collocation" — wrong preposition or weak verb-noun pairing
+- "connector-cohesion" — missing because/although/while etc. that ${language} parataxis often omits
+- "idiom-register" — word-for-word translation of an idiom, or register mismatch
+
+Also produce the 5-step pedagogical breakdown of how the MODEL English was built.
+
+Return ONLY a JSON object:
+{
+  "modelEnglish": "<the model translation>",
+  "spans": [
+    {
+      "side": "learner" | "model",
+      "text": "<exact substring of side's text>",
+      "bucket": "tense" | "word-order" | "article-number" | "preposition-collocation" | "connector-cohesion" | "idiom-register",
+      "kind": "weaker",
+      "pair_id": "<string, links learner side to model side for hover-pairing>",
+      "reason": "<1-2 sentences explaining why the model phrasing is stronger; phrase as advice the learner can apply>"
+    }
+  ],
+  "stepBreakdown": {
+    "step-1": { "title": "...", "sub-verb-obj-list": [...], "explain": "..." },
+    "step-2": { "title": "...", "input-verb-list": [...], "explain": "..." },
+    "step-3": { "title": "...", "scaffold-options": [...], "best-scaffold": "...", "explain": "..." },
+    "step-4": { "title": "...", "sentence-structure": "...", "explain": "..." },
+    "step-5": { "title": "...", "output": "<the model English>", "explain": "..." }
+  }
+}
+
+${language} sentence: ${sentence}
+Learner's English: ${attempt}
+`;
+
+export const getTranslateParagraphComparePrompt = (paragraph, attempt, language) => `
+You are a translation tutor. Compare the LEARNER's English paragraph against a
+model translation of the ${language} paragraph below.
+
+Label weaknesses against the SAME 6-bucket taxonomy as the sentence-level prompt:
+- "tense", "word-order", "article-number", "preposition-collocation", "connector-cohesion", "idiom-register"
+
+At paragraph scale, give EXTRA weight to:
+- "connector-cohesion" (${language} parataxis often drops connectors English requires)
+- "idiom-register" (style consistency across sentences)
+- paragraph-level "word-order" (information flow, topic-comment shifts)
+
+Group weaknesses by sentence so the UI can render side-by-side per sentence.
+
+Return ONLY a JSON object:
+{
+  "modelEnglish": "<the model translation paragraph>",
+  "spans": [
+    { "side": "learner"|"model", "text": "<substring>", "bucket": "<one of 6>", "kind": "weaker", "pair_id": "<string>", "reason": "<1-2 sentences>" }
+  ],
+  "sentenceComparisons": [
+    {
+      "sentenceIndex": 0,
+      "originalSentence": "<the ${language} sentence>",
+      "modelSentence": "<the model English sentence>",
+      "learnerSentence": "<the learner's English sentence>",
+      "notes": [
+        { "pair_id": "<links to spans>", "learner_phrase": "...", "model_phrase": "...", "explanation": "...", "bucket": "<one of 6>" }
+      ]
+    }
+  ]
+}
+
+${language} paragraph: ${paragraph}
+Learner's English: ${attempt}
+`;
