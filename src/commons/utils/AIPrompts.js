@@ -44,7 +44,9 @@ Here's the sample json format:
 Thank you.
 `;
 
-const langstudy5wPrompt = `Please provide only concise keywords for 'Who, What, When, Where, and Why' of every single sentences of paragraph. return data in json format:  {data: [{ sentenceIndex: 0, who: "xx", what: "xx", when: "xx', where: "xx", why: "xx"}]}:`;
+const langstudy5wPrompt = `Please provide only concise keywords for 'Who, What, When, Where, and Why' of every single sentences of paragraph.
+Keywords MUST be in SIMPLE English — common everyday words a B1-level learner would know. Avoid rare, academic, or technical vocabulary. If a specialized term is unavoidable, use a simpler paraphrase instead.
+return data in json format:  {data: [{ sentenceIndex: 0, who: "xx", what: "xx", when: "xx', where: "xx", why: "xx"}]}:`;
 
 const suitableForElementary =
   'Please response using words that elementary school students can understand';
@@ -1712,11 +1714,47 @@ Paragraph:
 ${text}
 `;
 
+// Shared tutor-voice constraint. The learner may have ANY L1 background
+// (Chinese, Spanish, Arabic, Hindi, …). Rather than translate every
+// explanation into their L1, we ask the tutor to write in SIMPLE English
+// so the explanation itself is accessible to a B1-level learner regardless
+// of native language. Applied to every prompt whose OUTPUT includes
+// tutor-written free-text fields (definitions, explanations, gists,
+// example sentences, etc.).
+const SIMPLE_ENGLISH_CONSTRAINT = `
+STRICT CONSTRAINT ON YOUR OUTPUT (applies to EVERY free-text field you
+produce — definitions, explanations, gists, example sentences, notes,
+etc.):
+
+  * Use ONLY common everyday English at a B1 (upper-beginner /
+    lower-intermediate) level. Roughly the top 3000 most frequent
+    English words. Think Voice of America Special English, not
+    New York Times op-ed.
+  * NO academic or technical vocabulary. NO rare or "showy" synonyms.
+    If a specialized term is unavoidable, add a plain-English gloss in
+    parentheses right after it — e.g. "collocation (words that often
+    appear together)."
+  * NO idioms in the explanation itself. Idioms are fine as EXAMPLES
+    of what the learner should learn, but the explanation of them must
+    use simple words.
+  * Short sentences. Prefer two short sentences over one long one.
+    Prefer active voice.
+  * Assume the learner does not know English grammar terminology.
+    Say "action word" or "verb (action word)" instead of "verb"
+    when the term would otherwise be a barrier.
+
+This constraint applies ONLY to your tutor-voice output. VERBATIM quotes
+from the ORIGINAL text or LEARNER text may of course contain whatever
+words the source uses — you're quoting, not writing.
+`;
+
 export const langstudyExpressionDiffPrompt = (original, learner) => `
 You are a language-learning tutor. Compare the LEARNER's text against the ORIGINAL
 SENTENCE BY SENTENCE. For each sentence pair, surface where the learner's
 expression is weaker than the original's (collocation, idiom, register,
 cohesion) and where it has mechanical grammar issues.
+
+${SIMPLE_ENGLISH_CONSTRAINT}
 
 Return ONLY a JSON object with this shape:
 {
@@ -1773,9 +1811,11 @@ ${learner}
 export const langstudyDictionaryLookupPrompt = (word, context = '') => `
 Look up the English word "${word}"${context ? ` in this paragraph context:\n${  context}` : ''}.
 
+${SIMPLE_ENGLISH_CONSTRAINT}
+
 Return ONLY a JSON object with these fields:
 {
-  "definition": "<concise definition appropriate for the context — 1 to 2 sentences>",
+  "definition": "<concise definition appropriate for the context — 1 to 2 sentences, in SIMPLE English (B1 level)>",
   "partOfSpeech": "<noun / verb / adjective / adverb / preposition / ...>",
   "example": "<one short example sentence using the word, distinct from the context>",
   "related": "<2-4 related words (synonyms, antonyms, root forms), comma-separated; empty string if none>"
@@ -1785,6 +1825,8 @@ Keep the definition short and learner-friendly. Avoid circular definitions.
 `;
 
 export const langstudyComposeScaffoldsPrompt = (text, l1Language = 'Chinese') => `
+${SIMPLE_ENGLISH_CONSTRAINT}
+
 You are a language-learning tutor helping a learner reconstruct a paragraph in their target language (English) from scratch.
 Produce three scaffolds that anchor MEANING without giving away the exact wording.
 
