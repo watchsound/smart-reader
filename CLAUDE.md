@@ -255,6 +255,7 @@ Detailed reference docs live in [docs/technical/](docs/technical/). Open the rel
 | Learning Plan System | [learning-plan.md](docs/technical/learning-plan.md) | 5-step wizard, Universal Learning Points, Leitner/FSRS |
 | Study Session System | [study-session.md](docs/technical/study-session.md) | Session modes, ratings, enhanced features (AI hints, sounds, TTS), analytics |
 | AI Learning Brain | [ai-learning-brain.md](docs/technical/ai-learning-brain.md) | Background service, heartbeat, episodic memory, consolidation, cross-concept analysis, schedule reconciliation |
+| **Learning Module Primitives** | [learning-module-primitives.md](docs/technical/learning-module-primitives.md) | **Read this before building a new AI-driven learning module.** LLM/spine call patterns, robust JSON parsing, prompt authoring (simple-English constraint), reusable text-analysis primitives (POS tagger, sentence split, word alignment), vocabulary integration, reusable UI patterns (`SourcePanel`, `PhaseTabBar`, `MaskedToken`, `DiffSpan`, `AlignmentView`, `WordLookupPopover`), visual language conventions, and a new-module checklist. Extracted from the Writing Practice v2 redesign. |
 
 Cross-cutting design docs (longer-form, written separately from the per-subsystem files above):
 - [LLM-Driven Learning Management System](docs/technical/LLM-DRIVEN-LEARNING-MANAGEMENT-SYSTEM.md)
